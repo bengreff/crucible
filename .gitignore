@@ -1,0 +1,13 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Scratch / build (none yet; forward-looking for Layer-3)
+/target/
+__pycache__/
+*.pyc
+.venv/
