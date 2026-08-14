@@ -1,0 +1,5 @@
+# Pinned per META-3 §2 (`rust`) — part of the S6 build fingerprint (FND-6).
+# Bumping this is a META-3 ledger edit, not a casual upgrade.
+[toolchain]
+channel = "1.93.1"
+components = ["rustfmt", "clippy"]

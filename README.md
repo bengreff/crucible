@@ -5,13 +5,20 @@ a generalized physics sandbox for in-vacuum propulsion, from chemical to antimat
 thermal / radiation / structural / uncertainty framework so regimes are cross-comparable and every output
 is a distribution with a pedigree.
 
-A 12-month inquiry project (Jul 2026 – Jun 2027). This repository currently holds the **design docs**
-(Layer 1 + Layer 2) — no runtime code yet.
+A 12-month inquiry project (Jul 2026 – Jun 2027). This repository holds the **design docs**
+(Layer 1 + Layer 2) and the **Rust runtime workspace** (started 2026-08-14; scaffold + constants so
+far — the FND-4 config loader and FND-5 table loader are next).
+
+## Build & test
+
+Rust 1.93.1, pinned in `rust-toolchain.toml` (META-3 §2). `./scripts/check.sh` runs the VAL-3 §3.2
+per-commit gate battery (fmt → clippy `-D warnings` → tests) in fixed order; CI mirrors it. Every
+session ends with the battery green and the work committed (VISION_SCOPE §12).
 
 ## Reading order
 
 1. **[`VISION_SCOPE.md`](VISION_SCOPE.md)** — Layer 1, the source of truth (what we build and why).
-   Currently at v1.3 (the unified-grid pivot).
+   Currently at v1.4 (§15 is the amendment log).
 2. **[`docs/meta/META-0_master-catalog.md`](docs/meta/META-0_master-catalog.md)** — the catalog of every
    design doc and what each owns.
 3. **[`docs/meta/META-1_design-philosophy.md`](docs/meta/META-1_design-philosophy.md)** — governing
@@ -36,5 +43,9 @@ uncertainty, not accept it.
 | `docs/meta/` | Catalog, design philosophy, conventions, sources ledger |
 | `docs/foundations/` | Spine: data/UQ model, grid+solver, geometry, config, tables, results, constitutive spine |
 | `docs/coupling/` | Coupling & orchestration (time integration, audit, registry) |
+| `crates/` | The Rust runtime workspace — one crate per doc area (META-2 §4); each cites the doc it implements |
+| `scripts/check.sh` | The VAL-3 per-commit gate battery |
 
-All docs are **Draft** — none is Reviewed/Frozen, so nothing is cleared for implementation yet.
+The 29 critical-path Layer-2 docs are **Reviewed (2026-08-14)** — the coding gate is open
+(`REVIEW_FINDINGS.md` is the record). Still unreviewed: SOLV-5, OFFL-4 (deferred set — do not
+implement); COUP-1 is a retired tombstone.

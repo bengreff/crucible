@@ -1,0 +1,9 @@
+[package]
+name = "crucible-tables"
+description = "FND-5 HDF5 table loader & N-D interpolation (skeleton)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true

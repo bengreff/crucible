@@ -6,7 +6,7 @@
 | **Family** | META |
 | **Status** | Draft — living document (grows for the whole project) |
 | **Depends on** | META-1, META-2 |
-| **Version** | 0.5 (§6.8 v1.4 fix-wave keys 2026-08-14; prior: §6.5–6.7 + R2 key/consumer reconciliation) |
+| **Version** | 0.6 (2026-08-14 coding-wave session 1: §2 `rust` pinned 1.93.1; §4 stamped CODATA 2022 + values filled, `crucible-constants` built; prior: §6.8 v1.4 fix-wave keys) |
 
 ---
 
@@ -64,7 +64,7 @@ union of those keys. Nothing is cited that isn't here; nothing here that a resul
 
 | key | Tool | Role | Version (pin) | License | Export status | Consumers |
 |---|---|---|---|---|---|---|
-| `rust` | Rust toolchain | Runtime core | `[RESEARCH-PENDING: pin]` | MIT/Apache-2.0 | clear | all runtime |
+| `rust` | Rust toolchain | Runtime core | **1.93.1** (pinned 2026-08-14, `rust-toolchain.toml`; edition 2024) | MIT/Apache-2.0 | clear | all runtime |
 | `openmc` | OpenMC | Offline neutron/photon transport, k-eff, kernels, reactivity sweeps | `[pin]` | MIT | clear (embeds/redistributes freely) | OFFL-1/2 |
 | `cantera` | Cantera | Offline equilibrium chemistry / thermo | `[pin]` | BSD-3 | clear | OFFL-3 |
 | `nasa-cea` | NASA CEA + RocketCEA | Rocket equilibrium performance, ~2000-species Glenn DB | `[pin]` | open (github.com/nasa/cea) / GPLv3 wrapper (pipeline-only) | clear | OFFL-3 |
@@ -90,24 +90,24 @@ union of those keys. Nothing is cited that isn't here; nothing here that a resul
 
 ## 4. Physical constants
 
-Single pinned source: **the latest official CODATA recommended values as of project start**, with the
-exact set version recorded here and read by the FND-1 constants module. (Each value carries its CODATA
-uncertainty; exact-by-definition constants like g₀, c are flagged as such.) `[RESEARCH-PENDING: stamp
-the exact CODATA release + retrieval date when the constants module is built.]`
+Single pinned source: **CODATA 2022 recommended values** (NIST CUU, physics.nist.gov, retrieved
+**2026-08-14**), read by the FND-1 constants module — implemented as `crates/constants`
+(`crucible-constants`), whose `REGISTRY` mirrors this table in this order. (Each measured value
+carries its CODATA 1σ standard uncertainty; exact-by-definition constants are flagged as such.)
 
 | key | Symbol | Value | Units | Note |
 |---|---|---|---|---|
 | `g0` | g₀ | 9.806 65 | m/s² | standard gravity, **exact by definition** (Isp convention) |
 | `c` | c | 2.997 924 58 ×10⁸ | m/s | speed of light, exact by definition |
-| `kB` | k_B | `[CODATA]` | J/K | Boltzmann |
-| `NA` | N_A | `[CODATA]` | 1/mol | Avogadro |
-| `e` | e | `[CODATA]` | C | elementary charge |
-| `me`,`mp`,`mn`,`mu` | masses | `[CODATA]` | kg | electron/proton/neutron/atomic-mass-unit |
-| `eV` | eV | `[CODATA]` | J | eV→J conversion |
+| `kB` | k_B | 1.380 649 ×10⁻²³ | J/K | Boltzmann, **exact** (2019 SI) |
+| `NA` | N_A | 6.022 140 76 ×10²³ | 1/mol | Avogadro, **exact** (2019 SI) |
+| `e` | e | 1.602 176 634 ×10⁻¹⁹ | C | elementary charge, **exact** (2019 SI) |
+| `me`,`mp`,`mn`,`mu` | masses | 9.109 383 7139(28)×10⁻³¹ / 1.672 621 925 95(52)×10⁻²⁷ / 1.674 927 500 56(85)×10⁻²⁷ / 1.660 539 068 92(52)×10⁻²⁷ | kg | electron/proton/neutron/atomic-mass-unit, CODATA 2022 (1σ in parentheses) |
+| `eV` | eV | 1.602 176 634 ×10⁻¹⁹ | J | eV→J conversion, **exact** (numerically = e) |
 | `barn` | b | 1×10⁻²⁸ | m² | exact |
 
-(Full CODATA set filled in when FND-1 fixes the constants module; each value carries its CODATA
-uncertainty.)
+(Set stamped 2026-08-14 with the constants-module build; grows here first — a new constant is added
+to this table, then to `crucible-constants`, never code-only.)
 
 ## 5. Validation-anchor data (seed from VISION_SCOPE §9)
 

@@ -1,0 +1,12 @@
+[package]
+name = "crucible"
+description = "CRUCIBLE command-line entry point"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+crucible-constants = { path = "../constants" }
+
+[lints]
+workspace = true

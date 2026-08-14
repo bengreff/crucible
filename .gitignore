@@ -1,13 +1,2 @@
-# OS / editor cruft
-.DS_Store
-Thumbs.db
-*.swp
-*~
-.idea/
-.vscode/
-
-# Scratch / build (none yet; forward-looking for Layer-3)
-/target/
-__pycache__/
-*.pyc
-.venv/
+# Cargo.lock is committed (S6: the build fingerprint hashes it — FND-6 §3.4).
+/target

@@ -1,0 +1,17 @@
+# VAL-3 §3.2: the per-commit gate battery, mirrored in CI. The heavy
+# milestone tier (code oracles, GCI, area metric) is run manually, not here.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned toolchain (rust-toolchain.toml)
+        run: rustup toolchain install
+      - name: Run gate battery
+        run: ./scripts/check.sh

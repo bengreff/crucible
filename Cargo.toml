@@ -1,0 +1,24 @@
+# CRUCIBLE runtime workspace — layout mirrors the doc families (META-2 §4):
+# one crate per FND/COUP/SOLV area; each code unit cites the doc ID + version it implements.
+[workspace]
+resolver = "3"
+members = [
+    "crates/constants",
+    "crates/config",
+    "crates/tables",
+    "crates/grid",
+    "crates/cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+
+[workspace.lints.rust]
+# META-2 §4: `unsafe` requires a written in-line justification and is avoided in
+# physics paths — deny globally, override locally with the justification attached.
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
