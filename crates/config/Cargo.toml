@@ -1,9 +1,16 @@
 [package]
 name = "crucible-config"
-description = "FND-4 config schema, loader pipeline & run manifest (skeleton)"
+description = "FND-4 config schema, loader pipeline & run manifest"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+
+[dependencies]
+crucible-registry = { path = "../registry" }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+sha2 = "0.10"
+getrandom = "0.3"
 
 [lints]
 workspace = true

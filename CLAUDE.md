@@ -9,10 +9,18 @@ instrument; the research uses the instrument.** No engine-specific features, eve
 - **Design phase complete. The coding gate is OPEN.** All 29 critical-path Layer-2 docs are
   **Reviewed (2026-08-14)** after a full review cycle (68 findings found, fixed, verified —
   `REVIEW_FINDINGS.md` is the record; `REVIEW_PREP.md` the process).
-- **Coding started 2026-08-14 (session 1):** Rust 1.93.1 pinned, workspace scaffolded (crate per doc
-  area under `crates/`), `crucible-constants` built (CODATA 2022 stamped in META-3 §4),
-  `scripts/check.sh` = the VAL-3 fast gate battery. **Next: FND-4 config loader, then FND-5 tables**
-  (both test-first against their §6). `config`/`tables`/`grid` crates are empty doc-header stubs.
+- **Coding started 2026-08-14.** Session 1: Rust 1.93.1 pinned, workspace scaffolded (crate per doc
+  area under `crates/`), `crucible-constants` (CODATA 2022 stamped in META-3 §4), `scripts/check.sh`
+  = the VAL-3 fast gate battery. Session 2: **FND-4 loader done** (`crucible-config`: §3.4 pipeline,
+  §3.5 no-hidden-defaults fixed point, §3.6 manifest, O20/O21/θ-ladder checks; §6 tests 1–3, 5–9
+  green) + `crucible-registry` (COUP-8 §3.1–§3.4 loader-facing subset). Known deferrals are listed
+  in `crates/config/src/lib.rs` (FND-5 pin resolution + §6-4; deferred grammars refuse non-empty;
+  span-annotated diagnostics pending — paths only).
+- **Goal deliverable (next few sessions): the CONVERGENCE CERTIFICATE** — heat conduction on the
+  cylindrical grid driven config→results end-to-end: MMS order-of-accuracy table (observed ≈ 2),
+  analytic annulus (log profile) + transient-cylinder (Bessel) anchors to tolerance, byte-identical
+  rerun. Build order to get there: **FND-5 table loader next**, then FND-2 grid core, then the
+  conduction operator + MMS harness. Then the Sod certificate (SOLV-1 HLLC vs exact Riemann).
 - Not yet reviewed (do **not** implement without a review pass first): SOLV-5, OFFL-4 (deferred
   pulsed/antimatter set). COUP-1 is a retired tombstone — never build it.
 - `VISION_SCOPE.md` is at **v1.4** and outranks everything (§15 = amendment log).

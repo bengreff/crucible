@@ -1,0 +1,9 @@
+[package]
+name = "crucible-registry"
+description = "COUP-8 mechanism Manifest & explicit registry table (loader-facing subset)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
