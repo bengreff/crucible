@@ -4,9 +4,9 @@
 |---|---|
 | **ID** | FND-6 |
 | **Family** | FND (Foundations / spine) |
-| **Status** | Draft — **skeleton** (per META-0 §5, W1) |
+| **Status** | Reviewed (2026-08-14) — **skeleton** (per META-0 §5, W1) |
 | **Depends on** | FND-1, FND-4, FND-5, COUP-6 |
-| **Version** | 0.2 (v1.3 p-box) |
+| **Version** | 0.4 |
 | **Skeleton/complete split** | **Fixed now:** the two-tier bundle layout (JSON summary + HDF5 payload); the `ResultDistribution` serialization; the provenance model (a PROV 3-verb subset, bespoke JSON); the **build-fingerprint** field list; the **S6 regeneration + verification contract**. **Deferred** (filled as dependents land, W2+): the exact per-result field schemas; plot/report specifics; the pedigree-report layout (COUP-6 owns the *score*; FND-6 serializes it); the thin web viewer (M12, if schedule allows). |
 
 ---
@@ -46,7 +46,7 @@ This doc fixes *how a `ResultDistribution` (FND-1 §3.4c) is serialized*, *what 
 
 The bundle splits by access pattern (MLflow's queryable-backend vs heavy-artifact split): **anything you'd grep, filter, diff, or cite across a campaign goes in JSON; anything you'd plot or resample goes in HDF5.** [META-3: `mlflow-run`]
 
-**Light tier — `bundle.json`** (the walkable index and the campaign-paper source): `schema_version`; `result_id` (content hash); `run_hash` (hash of config + table hashes + build fingerprint); the **complete run manifest** (§3.4); `tables_used` (`[{semantic_version, content_hash, source_keys}]`); the **provenance graph** (§3.3) with a precomputed `source_keys_union` per result; the **pedigree score** (COUP-6); per output field a `summary` block; `rng` (`{algorithm, master_seed}`); and `payload_ref` (relative path + content hash of the HDF5).
+**Light tier — `bundle.json`** (the walkable index and the campaign-paper source): `schema_version`; `result_id` (content hash); `run_hash` (hash of config + table hashes + build fingerprint); the **complete run manifest** (§3.4); `tables_used` (`[{semantic_version, content_hash, source_keys}]`); the **provenance graph** (§3.3) with a precomputed `source_keys_union` per result; the **pedigree score** (COUP-6); per output field a `summary` block; `rng` (`{algorithm, master_seed, keying_rule_id}` — O22); and `payload_ref` (relative path + content hash of the HDF5).
 
 **Heavy tier — `payload.h5`**, laid out **NeXus-style self-describing**: every group/dataset carries reserved attributes (`@schema_version`, `@units`, `@semantic`), there is one mandatory root result entry, and axes/signals are tagged so the file is walkable **without FND-6's reader**. A mirror of the provenance graph is embedded so the payload is self-contained. [META-3: `nexus-hdf5`, `ro-crate`]
 
@@ -57,12 +57,17 @@ payload.h5
   /                                 @schema_version, @created (excluded from compare, §3.7)
   /result                          @result_id
     /config                        resolved-config bytes (or hash-linked to bundle.json)
-    /ensemble
+    /ensemble                      @epistemic_setting_id = "nominal" (O23)
       /<field>                     dataset [member, …field_shape]; chunked on member axis;
                                    shuffle + zstd; @units @semantic @source_keys
+                                   @conditional_on = "WORKS" where applicable (COUP-5 §3.2.1)
       /member_index                [N] int
-      /rng_keys                    [N] {input_id, member_index, dimension}  (replay)
-    /summary/<field>               [7] {mean,std,p2.5,p16,p50,p84,p97.5}
+      /rng                         {master_seed, algorithm, keying_rule_id} — every draw's key
+                                   derivable (O22); no per-member key table
+    /summary/<field>               [7]×[2] lo/hi intervals over
+                                   {mean,std,p2.5,p16,p50,p84,p97.5} (the p-box, O22)
+    /outer_summary/<field>         [n_outer]×[7]×[2] per-outer-evaluation summaries + setting ids
+                                   (the envelope source, O23)
     /provenance                    serialized graph (mirror of bundle.json)
 ```
 
@@ -70,8 +75,8 @@ payload.h5
 
 FND-1 §3.4c fixes the *content*: the aleatory member vector, the summary set, the **epistemic intervals / p-box** (model-form + numerical), a `ProvenanceRef` set, and a pedigree handle. On disk:
 - **Member vectors → HDF5**, one 2-D dataset per field `[member, …field_shape]`, **chunked along the member axis** (a chunk = a slab of members) so members append cheaply and per-member slices read cheaply; **shuffle + a fast codec (zstd/gzip)** per chunk; chunk size ~256 KB–2 MB. For huge sweeps, **thinning** keeps full member vectors for a decimated subset while **always** retaining the summary for *all* members. Any thinning is recorded, never silent (META-1 fail-loud spirit). [META-3: `hdf5-chunking`]
-- **Summary + p-box → JSON** (the queryable/citable tier, §3.1). *(v1.3)* The member vector is the aleatory ensemble at one epistemic setting; the epistemic **intervals** (model-form band; numerical/GCI error) and the resulting **interval-valued CDF** (lower/upper bound curves per field) are serialized alongside, so the reported bound is the **p-box** META-1 §4.1 requires — the JSON summary quantiles are stored as `[lo, hi]` intervals, never collapsed to scalars. [META-3: `pbox`, `false-confidence`]
-- **`rng_keys` → HDF5** alongside the members, so any member's draws replay from `{master_seed, input_id, member_index, dimension}` (FND-1 §3.5) — the counter-based key makes each member a pure function of its coordinates. [META-3: `random123-philox`]
+- **Summary + p-box → JSON** (the queryable/citable tier, §3.1). *(v1.3)* The member vector is the aleatory ensemble **stored at the NOMINAL epistemic setting (O23)** — `epistemic_setting_id` (= `nominal`) recorded on `/ensemble`; **per-outer-evaluation summary sets are retained** (`/outer_summary`, §3.1 — the source of the per-quantile envelope); **Sobol' columns are drawn at the nominal setting**. The epistemic **intervals** (model-form band; numerical/GCI error) and the resulting **interval-valued CDF** (lower/upper bound curves per field) are serialized alongside, so the reported bound is the **p-box** META-1 §4.1 requires — summary quantiles are stored as `[lo, hi]` intervals in **both tiers** (the JSON summary *and* the `[7]×[2]` HDF5 `/summary` datasets, O22), never collapsed to scalars, so the p-box survives the self-describing tier alone. [META-3: `pbox`, `false-confidence`]
+- **RNG record → HDF5 (O22):** `{master_seed, algorithm, keying_rule_id}` — **not** a per-member key table. The versioned keying rule derives every draw's counter-based key from its coordinates `{input_id, member_index, dimension, outer_epistemic_index, purpose_tag}` (COUP-5 §3.1, a strict superset of FND-1 §3.5's base tuple), so **every key is derivable** and any draw replays from record + coordinates; storing N key tuples was redundant with the rule and could not hold within-member draws anyway. [META-3: `random123-philox`]
 
 ### 3.3 Provenance model *(a PROV 3-verb subset, bespoke JSON)*
 
@@ -92,9 +97,9 @@ Rationale, load-bearing for the bit-exact claim: Rust follows IEEE-754 and by de
 ### 3.6 Regeneration & verification contract *(the tests that prove S6)*
 
 Payloads are compared **after stripping the excluded-from-compare zone** (§3.7). The gates (run by VAL-3):
-1. **Determinism gate** (per build): run a result twice on the same build + same thread count → **non-chaotic** payloads **byte-identical** after canonicalization; **chaotic/turbulent** results instead pass an **ensemble-consistency test** (ECT-style — statistically indistinguishable from the accepted ensemble) with **no verdict divergence** (the v1.3 relaxed determinism contract, META-1 §2.1/§2.4). [META-3: `ect-consistency`]
-2. **Thread-count-invariance gate:** run at thread counts {1, 4, N} → **byte-identical** (fixed-order reductions are the default, and are *retained even in chaotic regimes* precisely so thread count can't seed a butterfly divergence — the reductions are deterministic even where the physics is sensitive). This catches **non-deterministic parallel reductions**, the thing most likely to break reproducibility. Only cross-*build*/cross-*platform* comparison relaxes to ensemble-consistency (gate 4). [META-3: `gamer2-determinism`, `ect-consistency`]
-3. **Full-regeneration gate:** from `{config + pinned table versions + master_seed}` alone, on a matching build, regenerate and byte-compare against the archived payload — exercises table pinning + RNG-key replay end-to-end.
+1. **Determinism gate** (per build): run a result twice on the same build + same thread count → payloads on **fixed-order paths — which includes every chaotic-regime run** — **byte-identical** after canonicalization; payloads on **declared relaxed-reduction paths** (GPU throughput, non-chaotic regimes only) agree **within the declared negligible tolerance**, pass the **non-spiraling check**, and show **no verdict divergence** (the S6 regime→guarantee mapping, META-1 §2.1/§2.4). [META-3: `ect-consistency`]
+2. **Thread-count-invariance gate:** run at thread counts {1, 4, N} → **byte-identical on fixed-order paths** (mandatory in chaotic regimes precisely so thread count can't seed a butterfly divergence — the reductions are deterministic exactly where the physics is sensitive); **tolerance-bounded + non-spiraling** on declared relaxed-reduction paths. This catches **non-deterministic parallel reductions**, the thing most likely to break reproducibility. Cross-*build*/cross-*platform* comparison relaxes to ensemble-consistency (gate 4). [META-3: `gamer2-determinism`, `ect-consistency`]
+3. **Full-regeneration gate:** from `{config + pinned table versions + master_seed}` alone, on a matching build, regenerate and compare against the archived payload — **byte-compare on fixed-order paths; tolerance-compare (against the recorded bound) on relaxed paths** — exercises table pinning + RNG-key replay end-to-end.
 4. **Cross-platform gate** (statistical, not bitwise): on a different target, assert summary stats agree within ensemble sampling error (`|Δmean| ≤ k·std/√N`) — matching the reality (earth-system-model and GAMER experience) that cross-platform bit-identity is unattainable; hence the Tier-1/Tier-2 split (META-1 §2.1). [META-3: `esm-bitwise-repro`, `gamer2-determinism`]
 5. **Provenance-closure gate:** the cached `source_keys_union` equals a freshly computed transitive closure over the graph (guards a stale reference list).
 6. **Failure diagnostics:** on any byte-mismatch, emit an **HDF5-aware structural diff** (group/dataset granularity, diffoscope-style) to localize the divergent field — raw byte-equality stays the pass/fail gate, but the *report* is structural. [META-3: `reproducible-builds`]
@@ -130,4 +135,6 @@ META-3 keys: `mlflow-run`, `nexus-hdf5`, `ro-crate`, `w3c-prov`, `fair-digital-o
 | Date | Version | Change |
 |---|---|---|
 | 2026-07-19 | 0.1 | Initial **skeleton**. Fixed the two-tier bundle (light JSON index/campaign-source + heavy NeXus-style self-describing HDF5); `ResultDistribution` serialization (member vectors chunked on the member axis with shuffle+zstd, thinnable-with-record, `rng_keys` for replay; summaries in JSON); the provenance model (a W3C-PROV 3-verb subset — `used`/`wasGeneratedBy`/`wasDerivedFrom` — as bespoke typed JSON, with `source_keys_union` = transitive closure = the paper reference list; resolvable typed handles); the build-fingerprint field list (rustc/llvm/target-triple/target-cpu+features/FP-FMA policy/libm/lockfile hash/rng algo+seed/reduction-order) completing the FND-4 manifest; the S6 regeneration + verification contract (determinism, thread-count-invariance, full-regeneration, cross-platform-statistical, provenance-closure gates; excluded-from-compare zone + canonicalized HDF5; HDF5-aware structural diff on failure). Per-result schemas, plot/report layout, and viewer deferred. |
+| 2026-08-14 | 0.4 | **Review fix wave (O22, O23).** §3.1/§3.2: the HDF5 `/summary` datasets become **interval-valued `[7]×[2]` lo/hi** so the p-box survives the self-describing tier alone; the `/rng_keys [N]` dataset **replaced by `{master_seed, algorithm, keying_rule_id}`** (every draw's key derivable from the versioned keying rule + coordinates; a key table was redundant and couldn't hold within-member draws) (O22). §3.1/§3.2: member vectors stored at the **NOMINAL epistemic setting** with `epistemic_setting_id` recorded; **`/outer_summary` `[n_outer]×[7]×[2]`** per-outer-evaluation summaries retained as the envelope source; **Sobol' drawn at nominal** — stated in §3.2 (O23). Light-tier `rng` record gains `keying_rule_id`; `/ensemble` fields carry `@conditional_on = "WORKS"` where applicable (COUP-5 §3.2.1). |
+| 2026-08-13 | 0.3 | **Consistency sweep.** §3.6 gates 1–3 aligned to the S6 regime→guarantee mapping (fixed-order paths — including *all* chaotic-regime runs — byte-identical; declared relaxed-reduction paths, non-chaotic only, tolerance + non-spiraling; ECT = cross-platform only): the previous gate text had inverted the chaotic/fixed-order assignment (same fix as META-1 §2.1/§2.4, VISION_SCOPE §8). `rng_keys` serialization (§3.1 sketch, §3.2) extended to COUP-5 §3.1's full key set (`outer_epistemic_index`, `purpose_tag`) so double-loop/Sobol'/bootstrap draws are replayable. |
 | 2026-07-20 | 0.2 | **v1.3 consistency-review fixes.** §3.2 now serializes the **p-box** (aleatory members + epistemic model-form/numerical intervals + interval-valued CDF; JSON quantiles as `[lo,hi]`), matching FND-1 v0.3 / META-1 §4.1 (was a bare distribution — the review's top coherence gap). §3.6 determinism gates gained the **chaotic-regime carve-out**: byte-identical/ECT per the v1.3 relaxed contract (fixed-order reductions retained in chaotic regimes so thread count can't butterfly). |

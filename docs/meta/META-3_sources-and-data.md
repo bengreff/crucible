@@ -6,7 +6,7 @@
 | **Family** | META |
 | **Status** | Draft — living document (grows for the whole project) |
 | **Depends on** | META-1, META-2 |
-| **Version** | 0.3 (v1.3 keys added, §6.5) |
+| **Version** | 0.5 (§6.8 v1.4 fix-wave keys 2026-08-14; prior: §6.5–6.7 + R2 key/consumer reconciliation) |
 
 ---
 
@@ -127,7 +127,7 @@ Expanded per-anchor specs live in **VAL-2**; this is the *sourced data-of-record
 | `nstar` | NSTAR | 16-level throttle table: 0.58–2.57 kW, 19–92 mN, Isp 1950–3120 s | Goebel & Katz, *Fundamentals of Electric Propulsion* Ch. 9 (JPL Descanso, free) | within published η bands | SOLV-13, VAL-2 |
 | `vasimr-vx200` | VASIMR VX-200 | 5.8 ± 0.4 N; Isp 4900 ± 300 s @ 200 kW (plume-derived) | Longmier et al. | within stated error bars | SOLV-7, VAL-2 |
 | `radhydro-analytics` | Rad-hydro analytics | Sod / Noh / Sedov exact solutions; + MULTI-IFE & SNEC cross-runs | open (Sod 1978; Noh 1987; Sedov 1959) | standard convergence | SOLV-8, VAL-2 |
-| `antimatter-ps177` | Antimatter | antiproton-induced fission probabilities (U-238/Bi/Pb/Au); prong multiplicities; annihilation spectra | PS177; AEgIS-era arXiv:2407.06721 | within declared 15–30% model-form band | OFFL-4, SOLV-8, VAL-2 |
+| `antimatter-ps177` | Antimatter | antiproton-induced fission probabilities (U-238/Bi/Pb/Au); prong multiplicities; annihilation spectra | PS177; AEgIS-era arXiv:2407.06721 | brackets data within the per-quantity Geant4 physics-list spread (not a blanket %) | OFFL-4, SOLV-8, VAL-2 |
 | `beavrs` | Coupling shakedown | LWR benchmark (not space-like; shakes down coupling machinery only) | MIT BEAVRS open benchmark | qualitative | COUP-2, VAL-2 |
 
 ## 6. Equation & correlation ledger
@@ -194,14 +194,14 @@ carried from the research pass.
 | `watt-spectrum` | Fission source χ(E)=C·exp(−E/a)·sinh(√(bE)); ²³⁵U-th a=0.988, b=2.249 MeV⁻¹. **≥3 incompatible (a,b) conventions — verify sampler** | standard; ENDF/B | OFFL-1 |
 | `nrt-arc-dpa` | Damage: OpenMC `damage-energy` MT-444 (raw T_dam, NOT dpa) → NRT N_d=0.8T_dam/2E_d, E_d≈40 eV (Fe); arc-dpa ξ≈0.286 (Fe, fails for W) | Norgett-Robinson-Torrens; Nordlund et al., Nat. Commun. **9**, 1084 (2018) | SOLV-16, OFFL-1/2 |
 
-**Antiproton annihilation source (factor-of-several model-form band):**
+**Antiproton annihilation source (per-quantity physics-list spread; efficiency/waste-heat computed by SOLV-2/3 transport, not assigned):**
 | key | Content | Source | Consumers |
 |---|---|---|---|
 | `pbar-annihilation` | ⟨n_π⟩≈5 (~3 charged), mean π KE ~230 MeV; local deposit ~150–300 MeV/annihilation; ~16 neutrons/annihilation on U (~52% via fission); fragments ~160 MeV | von Egidy; PRC **45**, 2332 (1992); PRC **63**, 034616 (2001) | OFFL-4 |
 | `pbar-fission-prob` | Prompt fission probabilities U-238/Bi/Pb/Au (per-nucleus values paywalled) | Bocquet et al., Z. Phys. A **342**, 183 (1992) | OFFL-4 |
 | `pbar-modern-data` | Charged-track/fragment multiplicities, multi-target — model constraints | ASACUSA arXiv:2407.06721 (2024); AEgIS/ASACUSA arXiv:2503.04868 (2025) | OFFL-4 |
-| `pbar-list-spread` | Geant4-list disagreement: FLUKA closest; FTFP underestimates heavy fragments ~12×; neutron-dose spread up to ~50% → carry factor-of-several systematic | ASACUSA benchmark; Galoyan & Uzhinsky arXiv:1610.08341 | OFFL-4 |
-| `ican-ii` | Antiproton-catalyzed microfission driven-subcritical pellet; ~10¹⁷ (~140 ng) p̄ Mars-class; annihilations to start DT burn ≈10²¹/k² | Smith/Lewis/Gaidos, AIP CP **324**, 555 (1995); Gsponer & Hurni, arXiv:physics/0507125 | SOLV-5, SOLV-8, OFFL-4 |
+| `pbar-list-spread` | Geant4-list disagreement: FLUKA closest; FTFP underestimates heavy fragments ~12×; neutron-dose spread up to ~50% → carry as the **per-quantity** inter-list spread (tight where data pins it, ~×several where lists diverge), never one blanket number | ASACUSA benchmark; Galoyan & Uzhinsky arXiv:1610.08341 | OFFL-4 |
+| `ican-ii` | Antiproton-catalyzed microfission driven-subcritical pellet; ~10¹⁷ (~140 ng) p̄ Mars-class; annihilations to start DT burn ≈10²¹/k² | Smith/Lewis/Gaidos, AIP CP **324**, 555 (1995); Gsponer & Hurni, arXiv:physics/0507125 | SOLV-5 |
 
 **Plasma energy balance, magnetic nozzle & radiation partition:**
 | key | Content | Source | Consumers |
@@ -218,12 +218,12 @@ source `S(r,E,Ω,t)` + species + strength (particles/s); transport owns everythi
 invariants: Σ birth KE = Q; energy transported must be subtracted from local deposit (OpenMC KERMA
 MT-301/901 discipline); per-event multiplicities correct; **range test** R vs cell size ℓ decides
 local-deposit vs transport. Mirrors OpenMC `IndependentSource` / R2S operator-split (NF **64**, 076023,
-2024). Consumers: COUP-1/2, SOLV-9, OFFL-4, SOLV-5.
+2024). Consumers: COUP-2, FND-2 §3.4.1 (range test), SOLV-4, OFFL-4, SOLV-5.
 
 ### 6.2 World-state grid: structure, coupling & geometry (researched 2026-07-14)
 
-Method references informing FND-2 (grid), FND-3 (geometry/voxelization), COUP-1 (mapping), COUP-2
-(conservation audit). To be pinned per-doc as those are written; captured here so the research isn't lost.
+Method references informing FND-2 (grid + adaptive-reduction mapping, §3.4), FND-3 (geometry/voxelization),
+COUP-2 (conservation audit). To be pinned per-doc as those are written; captured here so the research isn't lost.
 
 **Sparse grid data structure & layout:**
 | key | Content | Source |
@@ -363,7 +363,7 @@ constitutive spine (FND-7, OFFL-5), and predictive validation/pedigree (VAL-1, C
 | `castro-source` | Whole system written once as `U_t = A(U) + R(U)` (advection + source); conserved state `(ρ, ρX_k, ρ𝐮, ρE, …)` — the Rule-12 state-vector algebra | Almgren et al., *ApJ* **715**:1221 (2010); Zingale et al., *JOSS* **5**:2513 (2020) | FND-2, SOLV-1 |
 | `athena-ct` | Constrained transport: 𝐁 stored as face-area averages holds ∇·𝐁=0 to machine precision (structural invariant, not a runtime clean-up) | Stone et al., *ApJS* **249**:4 (2020) | FND-2, SOLV-1 |
 | `radiation-m1` | M1 two-moment radiation: (E_rad, 𝐅_rad) carried *in* the conserved vector; correct thick+thin limits; single local closure; GPU-proven | Rosdahl et al., *MNRAS* **449**:4380 (2013); Wibking & Krumholz (Quokka), *MNRAS* **512**:1430 (2022) | FND-2, SOLV-2 |
-| `sdc-imex` | SDC-coupled IMEX: explicit hyperbolic hydro/MHD + cell-local implicit stiff sources (reactions, radiation, conduction), iterated to 2nd order; energy-conserving, far below Lie-Trotter error at CFL | Zingale et al., arXiv:2411.12491 (2024); PeleLMeX (Esclapez et al., *JOSS* **8**:5450, 2023); IMEX rad-hydro, *JCP* (2024) | COUP-3, FND-2 |
+| `sdc-imex` | SDC-coupled IMEX: explicit hyperbolic hydro/MHD + spatially-coupled implicit diffusion (conduction/viscous, fixed-cycle solver) + cell-local implicit stiff sources (reactions, radiation *source* coupling), iterated to 2nd order; energy-conserving, far below Lie-Trotter error at CFL *(class split per COUP-3 §3.1 v0.2, 2026-08-14)* | Zingale et al., arXiv:2411.12491 (2024); PeleLMeX (Esclapez et al., *JOSS* **8**:5450, 2023); IMEX rad-hydro, *JCP* (2024) | COUP-3, FND-2 |
 | `stiff-reactions` | Strang/Lie-Trotter splitting **loses order and conservation** when reactions are stiff/energetic (the nuclear/antimatter end) → use SDC/IMEX there | Zingale et al., "Challenges of Modeling Astrophysical Reacting Flows," arXiv:2411.12491 (2024) | COUP-3, SOLV-4 |
 | `sn-deposition` | Deterministic multigroup discrete-ordinates (Sₙ) transport swept over the grid = **one** MC-free neutron/photon deposition operator; cost = groups × ordinates | Lewis & Miller, *Computational Methods of Neutron Transport*; sweep kernels, EPJ Web Conf. (2024) | SOLV-2, OFFL-1 |
 
@@ -371,7 +371,7 @@ constitutive spine (FND-7, OFFL-5), and predictive validation/pedigree (VAL-1, C
 | key | Content | Source | Consumers |
 |---|---|---|---|
 | `spectral-azimuthal` | Azimuthal Fourier-mode truncation: keep m=0 + adaptive m≥1 per region → conservative collapse/re-expand of near-axisymmetric fields at ~2-D cost (quasi-3-D) | Lehe et al. (FBPIC), *CPC* **203**:66 (2016); Li et al. (QPAD), arXiv:2002.08494 (2020) | FND-2 |
-| `symmetry-indicator` | Azimuthal-energy indicator `Σ_{m≥1}|û_m|²/(|û_0|²+ε)` (Löhner-analog, ε-normalized) + **dual-threshold hysteresis + dwell** to gate collapse/expand without thrashing | Löhner, *CMAME* **61**:323 (1987); AMReX-Astro AMR hysteresis (`n_error_buf`) | FND-2 |
+| `symmetry-indicator` | Azimuthal-asymmetry indicator: normalized azimuthal-variance norm of the conserved fields per region with an absolute+relative floor *(v1.4 ring-FV form; supersedes the spectral `Σ|û_m|²` form)* + **dual-threshold hysteresis + dwell** to gate collapse/expand without thrashing | Löhner, *CMAME* **61**:323 (1987); AMReX-Astro AMR hysteresis (`n_error_buf`) | FND-2 |
 | `dim-hetero-coupling` | Stitched heterogeneous-dimension (3-D↔1-D) coupling → defective BCs + spurious wave reflections, or iterative coupling, or an interface multiplier — **a seam; rejected** in favor of spectral collapse | Formaggia, Gerbeau, Nobile & Quarteroni, *CMAME* **191**:561 (2001); Boon, Nordbotten & Vatne, arXiv:1705.06876 (2018) | FND-2 |
 | `anisotropic-amr` | Per-direction anisotropic refinement ratios + conservative flux-register (Berger-Colella) interfaces; static "2-D-axi = 3-D one-cell-thick azimuthal wedge + rotation BC" | AMReX (Zhang et al., *IJHPCA* **35**(6), 2021); OpenFOAM wedge (CFD Direct, 2022) | FND-2 |
 
@@ -402,6 +402,121 @@ constitutive spine (FND-7, OFFL-5), and predictive validation/pedigree (VAL-1, C
 | `pirt` | Phenomena Identification & Ranking Table: rank each phenomenon **importance × state-of-knowledge** → focuses validation and *is* the S8 assumption register | Wilson & Boyack, *Nucl. Eng. Design* **186**:23 (1998); Boyack et al. (CSAU), *NED* **119**:1 (1990) | COUP-6, VAL-1 |
 | `ect-consistency` | Ensemble-consistency test: a rerun is *statistically indistinguishable* from the accepted ensemble — the rigorous bit-repro replacement under chaos | Baker et al. (CESM-ECT), *GMD* (2015 / 2025) | META-1, VAL-3 |
 | `multifidelity-uq` | Multi-fidelity UQ: cheap low-fidelity (reduced-dim) ensemble members anchored by a few high-fidelity (full-3-D) runs — how UQ stays affordable at 3-D | Peherstorfer, Willcox & Gunzburger, *SIAM Review* **60**:550 (2018) | COUP-5 |
+
+### 6.6 Chemical vertical slice — RL10 anchor, boundary objects, performance & radiation (researched 2026-07-21)
+
+Method/data references for the W2 chemical slice (COUP-7 boundary objects, SOLV-2 radiation, SOLV-7
+Newtonian outputs, SOLV-1 reacting flow, VAL-2 RL10 anchor). Gathered by four web-research agents;
+pinned per-doc as each is written.
+
+**Expander cycle & the RL10 cycle balance:**
+| key | Content | Source | Consumers |
+|---|---|---|---|
+| `expander-cycle` | Expander-cycle operation: H₂ regen-jacket heat pickup is the **sole** turbopump power source → chamber-pressure set by wall heat; ~3 MN square-cube thrust ceiling; self-bootstrapping start (positive feedback) | Wikipedia "Expander cycle" *(verified 2026-07-21)*; US Patent 5,410,874 (Pc ceiling stated as a turbine-power limit) | COUP-7, SOLV-1 |
+| `rl10-cycle-data` | RL10A-3-3A full cycle balance + 16-station table: **Pc 475 psia, O/F 5.0, thrust 16,500 lbf (73.4 kN), Isp 440.3 s (chamber sub-model)/445.6 s (cycle), c\* 7824 in/s (η_c\* 0.9892), ε 61, throat Ø 2.47 in**; fuel pump 6.05 lb/s→~1100 psia @31,537 rpm η≈0.58, LOX pump 30.8 lb/s→600 psia @12,615 rpm η≈0.64; jacket heat **7994 Btu/s**, ΔP 242 psid, ΔT 344 R; 216-element coaxial injector. Source itself is a *validated* model (vs ground+Centaur-flight data) with a published error distribution | NASA TM-107318 (NTRS 19970010379) Tables 2.2.1/2.3.1/2.4.1/2.5.1/6.1.1; CR-190786 (19950017370) | COUP-7, SOLV-7, VAL-2 |
+| `huzel-huang` | Pump/turbine efficiency + feed-system design methodology (η_pump 0.6–0.75 cryo centrifugal; turbine power scales) | Huzel & Huang, *Modern Engineering for Design of Liquid-Propellant Rocket Engines*, AIAA Progress vol. 147 (1992) | COUP-7 |
+| `injector-cstar-eff` | c\*-efficiency η_c\* = c\*_meas/c\*_ideal(CEA) as the injector **prior-tier** parameter (R2 2026-08-13: legitimate only inside the cited injector-family/MR/Pc envelope; the resolved tier computes mixing on the grid and η_c\* becomes an *output* — COUP-7 §3.2.1); mature LH₂/LOX ~0.98–0.99, full range 0.55–0.99; degrades off-MR/low-Pc | NTRS 20090001888 (Scaling of LRE combustion performance); Sutton & Biblarz, *Rocket Propulsion Elements* 9th ed. ch. 3 | COUP-7, SOLV-1 |
+| `bartz` | Bartz gas-side convective film-coefficient correlation for chamber/nozzle wall flux; **±20–30%**, overpredicts inner-wall T (ignores boundary-layer-thickness variation). **Demoted 2026-08-14 (D-C): nozzle-envelope validation oracle only — the runtime closure is `wall-function-heat`** | Bartz (1957); AIAA *J. Thermophysics & Heat Transfer* 10.2514/1.T6056; JPNE 2022 h-correlation comparison | VAL-2 (oracle) |
+
+**Performance definitions & radiation magnitude:**
+| key | Content | Source | Consumers |
+|---|---|---|---|
+| `cstar-cf-defs` | Performance identities: F = ṁ v_e + (p_e−p_a)A_e; **c\* = p_c A_t/ṁ** (combustion, pre-throat); **C_F = F/(p_c A_t)** (nozzle, post-throat); Isp = C_F·c\*/g₀ = v_e/g₀. The **c = c\*·C_F split lets combustion (c\*) and nozzle (C_F) be validated separately** | Sutton & Biblarz ch. 3; Seitzman, GaTech AE4451 notes | SOLV-7, VAL-2 |
+| `rocket-gas-radiation` | Gas radiation in LOX/LH₂ chambers ≈ **11% of wall heat flux** (H₂O-dominated; up to ~30% in the cylinder, <10% at throat); wall heat ≈ 1–3% of enthalpy and **near-fully recuperated in an expander cycle** → net **~0.1–0.3% of enthalpy** (≈10× below the 2% Isp bar). **Gray/WSGG models run >100% error vs line-by-line** for H₂O/CO₂ → a bad model of a 0.2% effect is worse than omission; include a radiation operator only where it carries power | AIAA *JPP* 10.2514/1.B39892; JAXA/JSASS *TJSASS* T-15-55 | SOLV-2, VAL-1 |
+| `su-olson` | Su-Olson non-equilibrium Marshak-wave **analytic** benchmark for radiation transport / rad-diffusion coupling (T_rad, T_mat vs x,t) | Su & Olson, *JQSRT* **56**:337 (1996) | SOLV-2, VAL-2 |
+
+**Reference-code oracles (differential testing, VAL-3):** Castro (reacting hydro **and** SDC coupling —
+backs SOLV-1+COUP-3; BSD-3; github.com/AMReX-Astro/Castro); PeleC (multispecies reacting NS, real
+chemistry; BSD-3); Athena++ (HLLC/HLLD + curvilinear geometric source terms; BSD-3); Quokka (GPU M1
+two-moment rad-hydro — backs SOLV-2; github.com/quokka-astro/quokka); CEA/RocketCEA (rocket performance).
+Analytic oracles: Sod (exact Riemann), Su-Olson/Marshak, NIST PSTAR/ASTAR, principal Hugoniot; MMS
+(Salari & Knupp SAND2000-1444; Roache *JFE* 124:4, 2002). Keys reused: `hllc`, `castro-source`,
+`sdc-imex`, `radiation-m1`, `sn-deposition`, `radiation-partition`, `view-factor-mc`, `roark`,
+`gci-roache`, `area-metric`, `pbox`, `pcmm`, `pirt`.
+
+**W2 offline & validation keys:**
+| key | Content | Source | Consumers |
+|---|---|---|---|
+| `jannaf-eff` | JANNAF delivered-Isp methodology: Isp_del = Isp_ODE(shifting-equilibrium) × Π η_i (kinetic/reaction-rate, c\*/energy-release, divergence, boundary-layer, two-phase). The **kinetic efficiency** captures the equilibrium→frozen deviation; frozen↔shifting spread for LOX/LH₂ ≈0.8–1% at MR≈5 | JANNAF (rocketisp docs); MIT 16.512 reacting nozzle flow; NASA RP-1311 Pt I/II | OFFL-3, SOLV-1 |
+| `coolprop` | Reference-quality cryogenic EOS + transport (parahydrogen, oxygen) matching NIST REFPROP; MIT license, C++ | CoolProp, Bell et al., *IECR* **53** (2014); NIST NISTIR 8209 | OFFL-5 |
+| `mms` | Method of Manufactured Solutions: substitute a smooth non-natural field into the PDE operator → analytic source term; code must recover it at **formal order** — the strongest code-verification test (exercises every term) | Salari & Knupp, SAND2000-1444 (2000); Roache, *JFE* **124**:4 (2002) | VAL-3 |
+| `hugoniot-anchor` | EOS principal-Hugoniot shock-compression reference data (e.g. Al 0.3–12 Mbar laser-shock) | PRL **54**:2604 (1985); SESAME (LANL); Al EOS V&V OSTI 882924 | VAL-2, FND-7 |
+| `sod-shock` | Sod shock-tube exact Riemann solution (shock/contact/rarefaction) — the canonical compressible-Euler verification | Sod, *JCP* **27** (1978); Toro exact solver | VAL-2, VAL-3, SOLV-1 |
+
+### 6.7 W3–W4 keys: nuclear, energetic-particle, UQ, degradation & oracles (researched + first-principles-designed 2026-07-21)
+
+Two-phase pass (best-practice web research → first-principles design/consistency review) for the final 10 docs. New keys below; existing keys reused per each doc's References.
+
+**Nuclear pipeline & fission (OFFL-1/2, SOLV-4-fission):**
+| key | Content | Source | Consumers |
+|---|---|---|---|
+| `ifp-kinetics` | Adjoint-weighted β_eff + generation time Λ via **Iterated Fission Probability** (native OpenMC eigenvalue mode) | Kiedrowski, *Ann. Nucl. Energy* (2019), S0306454919300076 | OFFL-1, SOLV-4 |
+| `openmc-mgxs` | Multigroup (`openmc.mgxs`) + multi-delayed-group (`mdgxs`) XS generation for the runtime Sₙ; reproduces CE k within **~50 pcm** | Boyd et al., OSTI 1559869 | OFFL-1, SOLV-2 |
+| `fw-cadis` | Forward-weighted CADIS weight windows for deep dose/heating tallies | OpenMC variance-reduction docs | OFFL-1 |
+| `openmoc` | MIT MOC deterministic transport — offline MGXS-consistency oracle for the Rust Sₙ (firewall-clear) | github.com/mit-crpg/OpenMOC | OFFL-1, VAL-3 |
+| `precursor-advection` | Delayed-neutron precursors as **advected scalar fields** (flowing fuel/NSWR); point kinetics = the static-fuel reduction | standard reactor kinetics; NSWR neutronics | SOLV-4 |
+| `source-driven-pke` | Inhomogeneous (external-source) **subcritical** point kinetics; prompt-jump + inverse-kinetics verification | *NED* S0029549310006345; *ANE* S0306454917301342 | SOLV-4 |
+| `sandy-mf-coverage` | SANDY joint sampling of **MF31/33/34/35** (ν̄/XS/angular/χ), one master seed per realization index → the FND-1 empirical sample-set; dominant nuclides fixed by a one-time OpenMC sensitivity screen | Fiorito, *ANE* S0306454916305278 (extends `sandy-samples`) | OFFL-2 |
+
+**Energetic-particle / reactions / pulsed (SOLV-3/4/5, OFFL-4):**
+| key | Content | Source | Consumers |
+|---|---|---|---|
+| `rabbit-fast-ion` | Continuum reduced-Fokker-Planck fast-ion transport (source + slowing-down + pitch-angle scatter); ~1000× faster than Monte-Carlo NUBEAM at benchmarked fidelity — the runtime-default archetype | Weiland et al., *Nucl. Fusion* **58**, 082032 (2018) | SOLV-3 |
+| `gaffey-slowing` | Analytic isotropic slowing-down f(v)∝Θ(v_b−v)/(v_c³+v³); v_c = electron/ion heating split — self-heating deposition as a closed-form moment integral | Gaffey, *J. Plasma Phys.* **16**, 149 (1976) | SOLV-3, SOLV-4 |
+| `nubeam-oracle` | Monte-Carlo guiding-center marker codes (NUBEAM/TRANSP, ASCOT) — offline accuracy oracle for the continuum operator | Pankin et al., *CPC* **159**, 157 (2004); Hirvijoki (ASCOT), *CPC* **185** (2014) | SOLV-3 (validation) |
+| `incl++` | Geant4 **INCL++** (FTFP_INCLXX ≥11.2) — recommended physics list for p̄ annihilation at-rest/in-flight | Boudard et al., *PRC* **87**, 014606 (2013); Geant4 PhysicsListGuide 11.4 | OFFL-4 |
+| `pbar-list-band` | Antiproton annihilation model-form = the **per-quantity inter-list spread** (~4× prong multiplicity, ~12× heavy fragments for FTFP; a few % where PS177/AEgIS pins it); INCL++ central, FTFP/CHIPS as ensemble members; **not a single blanket band** (retires both "15–30%" and a flat "factor-of-several"). Efficiency/waste-heat computed by SOLV-2/3 transport | ASACUSA arXiv:2407.06721 (2024); Galoyan-Uzhinsky arXiv:1610.08341 | OFFL-4, SOLV-4 |
+| `shieldhit` | SHIELD-HIT12A independent (non-Geant4) antiproton energy-partition cross-check | Bassler et al., *NIM B* **350** (2015) | OFFL-4 |
+| `pb11-branch-spectrum` | p-¹¹B → 3α birth spectrum (sequential ⁸Be decay), α continuum peaked ~4 MeV up to ~7 MeV lab — emit the distribution, not a single energy | Comm. Phys. s42005-023-01135-x (2023); Sikora-Weller (`pb11-reactivity`) | SOLV-4 |
+| `snec` | 1-D Lagrangian Newtonian rad-hydro (vN-R viscosity, Saha EOS, grey equilibrium FLD) — first-rung pulsed-event oracle | Morozova, Ott & Piro, *ApJ* **814**, 63 (2015); arXiv:1505.06746 | SOLV-5 |
+| `multi-ife` | 1-D Lagrangian two-T rad-hydro, multigroup radiation transport, D-T burn + α diffusion — top-rung pulsed-event oracle | Ramis & Meyer-ter-Vehn, *CPC* **203**, 226 (2016) | SOLV-5 |
+
+**UQ & pedigree (COUP-5/6):**
+| key | Content | Source | Consumers |
+|---|---|---|---|
+| `iman-conover` | Distribution-free rank-correlation induction (preserves marginals) — the FND-1 §3.5 parametric-correlation method | Iman & Conover, *Commun. Stat.* **11**:311 (1982) | COUP-5 |
+| `saltelli-jansen` | Sobol' first-order (Saltelli-2010 radial, N(k+2)) + **Jansen-1999** total-effect estimator; scrambled-Sobol' base; bootstrap-CI ranking convergence | Saltelli et al., *CPC* **181**:259 (2010); Jansen, *CPC* **117** (1999) | COUP-5 |
+| `mfmc-estimator` | Multi-Fidelity Monte Carlo: α*ᵢ=ρ₁ᵢσ₁/σᵢ; rᵢ=√[w₁(ρ₁ᵢ²−ρ₁,ᵢ₊₁²)/(wᵢ(1−ρ₁₂²))]; admissibility filter; unbiased HF mean/var/quantile from reduced-dim members anchored by full-3-D (extends `multifidelity-uq`) | Peherstorfer, Willcox & Gunzburger, *SIAM J. Sci. Comput.* **38**:A3163 (2016); Qian et al. (2018, variance); Gorodetsky-Geraci-Eldred (2020, ACV upgrade) | COUP-5 |
+| `nasa-std-7009` | Credibility grading discipline (each axis by rigor + independence; min-of-axes headline) — the *grading rule* atop META-1 §4.1's seven axes | NASA-STD-7009B (2024) | COUP-6 |
+
+**Degradation & oracles (SOLV-8, OFFL-6):**
+| key | Content | Source | Consumers |
+|---|---|---|---|
+| `ans51-decayheat` | ANS-5.1-2014 fission-product afterheat P(t) as a post-shutdown thermal-BC transient (fission legs only; LWR-derived → conservative over-prediction band) | ANSI/ANS-5.1-2014 (R2023) | SOLV-8 |
+| `carbide-h2-corrosion` | Hot-H₂ carbide/CERMET corrosion: parabolic diffusion-limited k_p(T)√t (coating intact) → linear substrate attack (coating consumed); literature closures w/ bands | Mo-cermet S0022311523004609; UN/ZrC S0022311524002034; `ntp-fuels` | SOLV-8 |
+| `lachaud-ablation-tc2` | Community Ablation Test-Case #2 — cross-code recession verification (with analytic Stefan) | Lachaud et al., Ablation Test-Case Series v2.8 | SOLV-8, VAL-2 |
+| `warpx-gammae` | WarpX PIC calibration of the magnetic-nozzle electron polytropic γ_e (piecewise 1→5/3 at the detachment plane); resampling-threshold convergence caveat | arXiv:2212.07161; WarpX (s44205-025-00133-1) | OFFL-6, SOLV-1 |
+
+**Consumer-ref reconciliation (supersedes the §5 pre-v0.5 caveat for these keys, now that the consuming docs are written):** `bprime`, `nrt-arc-dpa`, `ablation-recession` → **SOLV-8** (not SOLV-16); `stopping-astar`/`guiding-center`/`stopping-rpa-lda`/`stopping-li-petrasso`/`stopping-bps`/`stopping-cold`/`zeff-betz` → **OFFL-5, SOLV-3** (stopping folded into the constitutive-spine pipeline; particle transport is SOLV-3); `spitzer-slowing`/`stix-critical-energy`/`gc-boris`/`brems-emc`/`synchrotron-larmor` → **SOLV-3** (plasma-balance terms → SOLV-1); `vn-richtmyer`/`radhydro-fld`/`radhydro-analytics` → **SOLV-5**; `mn-polytropic` → **SOLV-1, OFFL-6**; `ican-ii` → **SOLV-5**. (The `watt-spectrum` "verify sampler" warning is resolved: OpenMC `stats.Watt` default a=0.988/b=2.249 matches the pin.)
+
+### 6.8 v1.4 fix-wave keys (2026-08-14 — grid mechanism, wall law, SGS closure, EOS consistency)
+
+| key | Content | Source | Consumers |
+|---|---|---|---|
+| `cyl-axis-fv` | Conservative finite-volume polar-axis treatment at r=0: zero-area axis faces + θ↔θ+π parity pairing | Cylindrical-axis treatment in production FV codes (Mignone et al./PLUTO; Stone et al./Athena++) | FND-2 §3.2 |
+| `adaptive-theta-coarsening` | Precedent for conservative azimuthal ring coarsening / level-based θ-resolution in cylindrical FV grids (ring averaging, polar coarsening near axis) | Athena++ polar/azimuthal mesh coarsening; PLUTO ring-average scheme | FND-2 §3.4 |
+| `jittered-sampling` | Stratified/jittered sampling error rate N^(−1/2−1/(2d)) for indicator integrands — basis of the voxelization fraction-error bound | Mitchell, "Consequences of Stratified Sampling in Graphics," SIGGRAPH 1996 | FND-3 §3.1/§6 |
+| `wall-function-heat` | Local Reynolds-analogy/Colburn-class compressible wall-function heat-transfer closure — h from local near-wall state, ±20–30% declared band; the one wall-heat law for all engines (D-C) | Kays, Crawford & Weigand, *Convective Heat and Mass Transfer* (Colburn analogy / wall functions) | SOLV-1 §3.5, COUP-2 §3.5, VAL-2 |
+| `les-dynamic-sgs` | Dynamic-coefficient eddy-viscosity SGS + gradient-diffusion species mixing with turbulent Schmidt number; coefficients from the dynamic procedure (no hand-tuned constants) — the resolved-mixing tier's universal closure (D-D) | Germano et al., *Phys. Fluids A* 3:1760 (1991); Lilly (1992); Moin et al. (1991, compressible/scalar) | SOLV-1 §3.4 |
+| `canonical-turbulence-data` | Canonical turbulence calibration/validation datasets: Comte-Bellot–Corrsin decaying isotropic; Moser–Kim–Mansour channel DNS; canonical mixing-layer growth rates | Published datasets | SOLV-1 §3.4 (offline SGS calibration), VAL-1 |
+| `helmholtz-table` | Tabulated Helmholtz free-energy EOS with consistent-differentiation Hermite/biquintic interpolation — thermodynamic consistency (Maxwell relations, convexity) by construction (S11) | Timmes & Swesty, *ApJS* 126:501 (2000) | FND-5 §3.3, FND-7 §3.2, OFFL-5 §3.2 |
+| `sn-numerics` | Deterministic Sₙ numerics: level-symmetric S₈/LQ_N quadrature, diamond-difference spatial scheme, set-to-zero negative-flux fixup | Lewis & Miller, *Computational Methods of Neutron Transport* | SOLV-2 |
+| `cmfd-acceleration` | CMFD low-order acceleration of the Sₙ scattering/fission source iteration (unaccelerated source iteration stalls at scattering ratio → 1) | CMFD literature (K. Smith et al.); OpenMOC docs | SOLV-2 |
+| `quasi-static-kinetics` | Quasi-static factorization φ(𝐫,E,t) ≈ A(t)·ψ(𝐫,E) with the adjoint-weighted amplitude ODE — the closure of advected-precursor kinetics | Ott & Meneley quasi-static method; Stacey, *Nuclear Reactor Physics* | SOLV-4, OFFL-1 |
+| `kerma-decomposition` | Globally consistent coupled n-γ heating split: neutron KERMA excluding photon production + transported-photon (γ KERMA) heating everywhere — never per-cell MT-301/901 mixing (N12) | OpenMC heating-score/KERMA documentation (coupled photon-transport mode) | OFFL-1, SOLV-2, COUP-2 |
+| `photon-mgxs` | Photon group structure, photoatomic group XS + scattering, neutron→photon production matrices, γ KERMA factors — the γ side of the coupled multigroup library (N14) | ENDF/B-VIII.1 photoatomic sublibrary via OpenMC photon transport / `openmc.mgxs` | OFFL-1, SOLV-2 |
+| `nasa-std-5012` | Engine-structure factors of safety: FS_yield = 1.1, FS_ult = 1.4 (named constants, N10) | NASA-STD-5012, *Strength and Life Assessment Requirements for Liquid-Fueled Space Propulsion System Engines* | SOLV-6 |
+| `jannaf-pc-convention` | p_c for c\* = injector-end **stagnation** pressure at a declared reference plane (the static-vs-stagnation ~1–2% difference is the size of the S1 target — N11) | JANNAF rocket-performance measurement convention (CPIA-245-class); TM-107318 station usage | SOLV-7, VAL-2 |
+| `rl10-geometry` | RL10 chamber/nozzle contour tables + station geometry (throat Ø 2.47 in, ε 61, contraction ratio, injector-end plane) — the blind-config geometry-of-record | 1966 RL10 design report + TM-107318 stations (NTRS, cached) | VAL-2 |
+| `geometric-multigrid` | Fixed-cycle geometric multigrid (fixed V-cycles, fixed smoother order — deterministic) for the spatially-coupled implicit diffusion class | Trottenberg et al. *Multigrid*; Briggs et al. *A Multigrid Tutorial* | COUP-3 |
+| `rsla` | Reduced-speed-of-light approximation for M1 radiation transport (declared per-regime ĉ + ĉ-insensitivity check; PIRT-recorded band) | Skinner & Ostriker, *ApJS* 206:21 (2013); Quokka (Wibking & Krumholz 2022) | COUP-3 |
+| `pseudo-transient` | Pseudo-transient continuation: deterministic local-Δt + SER (switched-evolution-relaxation) schedule for steady-state marches | Kelley & Keyes, *SIAM J. Numer. Anal.* 35:508 (1998) | COUP-3, SOLV-1 |
+| `higham-rounding` | Rounding-error accumulation bounds for summation (√N stochastic scaling) — the TOL_AUDIT derivation | Higham, *Accuracy and Stability of Numerical Algorithms*, 2nd ed. | COUP-2 |
+| `binomial-ci` | Wilson score interval for a binomial proportion — the P(WORKS) Monte-Carlo error bound | Wilson (1927); Brown, Cai & DasGupta, *Stat. Sci.* 16:101 (2001) | COUP-5 |
+| `direct-optimizer` | DIRECT deterministic bound-constrained global optimization (fixed division/iteration structure — manifest-freezable) for the epistemic-box enclosure | Jones, Perttunen & Stuckman, *JOTA* 79:157 (1993) | COUP-5 |
+| `morris-screening` | Morris elementary-effects screening for epistemic-dimension freezing/grouping | Morris, *Technometrics* 33:161 (1991); Campolongo et al. (2007) | COUP-5 |
+
+*(`spectral-azimuthal` is retired with the v1.4 ring-FV realization — FND-2 v0.5 no longer cites it; the entry stays for the historical record.)*
 
 ## 7. Compute-budget data (seed from VISION_SCOPE §8)
 

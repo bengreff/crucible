@@ -6,7 +6,7 @@
 | **Family** | META |
 | **Status** | Draft |
 | **Depends on** | VISION_SCOPE.md |
-| **Version** | 0.2 (v1.3 pivot) |
+| **Version** | 0.3 (v1.3 pivot; 2026-08-13 determinism regime→guarantee mapping reconciled to S6 — Principle 3, §2.1, §2.4) |
 
 ---
 
@@ -38,9 +38,12 @@ the lower number wins.
    first-class data type (FND-1), propagated, never bolted on afterward. A headline number without a
    band is a bug, not a simplification.
 
-3. **Full determinism & reproducibility by construction** (S6). See §2 — this is large enough to
-   own a section. Any result is bit-reproducible from `{config + pinned table versions + seed}` on a
-   fixed build/target; any table is regenerable from its pinned pipeline script + inputs.
+3. **Determinism & reproducibility by construction** (S6). See §2 — this is large enough to own a
+   section. On a fixed build/target, any result is reproducible from `{config + pinned table versions
+   + seed}`: **bit-exact on fixed-order paths** (mandatory in chaotic regimes; the default wherever
+   the cost is acceptable), **within a negligible, provably non-spiraling tolerance** on declared
+   relaxed-reduction paths (non-chaotic only); any table is regenerable from its pinned pipeline
+   script + inputs.
 
 4. **Fidelity doctrine: utter completeness for the reaction, zero simulation for what we don't care
    about.** The two razors (VISION_SCOPE §4.1) are applied at *design-doc* time, not discovered at
@@ -52,7 +55,7 @@ the lower number wins.
    conservation. The earlier "grid is the accountant; reduced-dimension solvers are the physicists"
    split is **retired** — it was a Rule-12 seam (two discretizations reconciled by transfer
    machinery). Reduced dimensionality survives only as an *adaptive, conservative* projection
-   (spectral azimuthal-mode truncation) applied where geometry and state are symmetric: a
+   (adaptive azimuthal resolution — conservative ring coarsening, v1.4) applied where geometry and state are symmetric: a
    controlled-error compute optimization within the one solver, never a separate physics.
 
 6. **Fail loud, halt clean, never guess.** Out-of-envelope table access, conservation-audit
@@ -71,9 +74,9 @@ the lower number wins.
    config. This is the structural defense against the tool degenerating into a speculation generator.
 
 9. **3-D by default; dimensionality follows the physics** (v1.3). The runtime solves in full 3-D and
-   *adaptively, conservatively* collapses to 2-D-axisymmetric / 1-D (azimuthal-mode truncation) only
+   *adaptively, conservatively* collapses to 2-D-axisymmetric / 1-D (adaptive azimuthal resolution N_θ, v1.4) only
    where geometry and state are symmetric — a controlled-error optimization, never a fidelity
-   ceiling. Compute reality (§8/VISION_SCOPE §8): the backbone **sweep** runs reduced; full-3-D is
+   ceiling. Compute reality (VISION_SCOPE §8): the backbone **sweep** runs reduced; full-3-D is
    reserved for anchors, validation, and symmetry-breaking cases, and UQ at full-3-D is **multi-
    fidelity** (cheap reduced-dim members anchored by a few full-3-D runs). Offline 3-D oracle runs
    (OFFL-6) remain a cross-check and calibration source, not the only 3-D.
@@ -128,13 +131,16 @@ un-quantified.* Determinism is a load-bearing feature of this project, not a nic
 - **Tier 1 — Reproducibility within a negligible, non-spiraling tolerance** *(v1.3, required for the
   runtime).* Same binary/target/`{config, pinned tables, seed}` ⇒ results reproducible to a tolerance
   **orders of magnitude below the physics error bound**, with **no chaotic (butterfly) divergence** and
-  **never a conflicting verdict**. Where reductions are cheap this is enforced as **byte-identical**
-  output via fixed-order reductions at any thread count (the former strict contract, kept as the
-  default). In **chaotic/turbulent regimes** — where round-off genuinely butterflies (real sensitive
-  dependence, not a bug) — instantaneous fields are *not* bit-reproducible; there the contract is
-  **ensemble/statistical consistency** (ECT-style) *plus* **fixed-order deterministic reductions
-  retained, accepting the cost**, so a run can neither spiral nor contradict itself. Bit-exact where
-  affordable; statistically-consistent-and-non-spiraling where chaos forbids it. (Ben, 2026-07-19.)
+  **never a conflicting verdict**. The regime→guarantee mapping (S6): **fixed-order reductions are the
+  default wherever their cost is acceptable** (always on CPU), giving **byte-identical** output at any
+  thread count; a **declared relaxed-reduction path** (GPU throughput) may replace byte-identity with
+  the negligible-tolerance contract **only in non-chaotic regimes**, where a round-off perturbation
+  provably damps rather than amplifies. In **chaotic/turbulent regimes** — where round-off genuinely
+  butterflies (real sensitive dependence, not a bug) — relaxed reductions are **forbidden**: fixed-order
+  deterministic reductions are **mandatory, accepting the cost**, so that *within a build* even chaotic
+  results are byte-identical and a run can neither spiral nor contradict itself. Only
+  **cross-build/cross-platform** comparison of chaotic results falls back to **ensemble/statistical
+  consistency** (ECT-style, §2.4). (Ben, 2026-07-19.)
 - **Tier 2 — Scientific reproducibility** *(required where Tier 1 is unreasonable — primarily the
   offline Monte-Carlo pipelines).* Same `{script, seed, code+data versions, rank count}` ⇒ results
   identical within declared Monte-Carlo statistics. The *runtime never depends on Tier-2
@@ -165,12 +171,15 @@ un-quantified.* Determinism is a load-bearing feature of this project, not a nic
 ### 2.4 Enforcement
 
 Determinism is **tested, not trusted**: a standing CI check (VAL-3) reruns representative configs
-at 1 vs N threads and across repeat invocations. Non-chaotic payloads (physics + provenance,
-excluding recorded timestamps) must be **byte-identical**; chaotic-regime results must pass an
-**ensemble-consistency test** (ECT-style — the rerun is statistically indistinguishable from the
-accepted ensemble) and show **no verdict divergence**. A determinism regression — bitwise where
-required, or a failed consistency / non-spiraling check where chaotic — is a build-breaking failure,
-ranked with correctness.
+at 1 vs N threads and across repeat invocations. Payloads on **fixed-order paths — which includes
+every chaotic-regime run** — (physics + provenance, excluding recorded timestamps) must be
+**byte-identical**; payloads on **declared relaxed-reduction paths** (non-chaotic regimes only) must
+agree **within the declared negligible tolerance** and pass the **non-spiraling check**; **no
+comparison may ever show verdict divergence**. Cross-platform jobs compare statistically — an
+**ensemble-consistency test** (ECT-style — statistically indistinguishable from the accepted
+ensemble) for chaotic regimes. A determinism regression — bitwise where required, a failed
+tolerance / non-spiraling / consistency check elsewhere — is a build-breaking failure, ranked with
+correctness.
 
 ---
 

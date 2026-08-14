@@ -4,9 +4,9 @@
 |---|---|
 | **ID** | COUP-8 |
 | **Family** | COUP (Coupling & orchestration) |
-| **Status** | Draft — **skeleton** (per META-0 §5, W1) |
+| **Status** | Reviewed (2026-08-14) — **skeleton** (per META-0 §5, W1) |
 | **Depends on** | FND-1, FND-2, FND-5 |
-| **Version** | 0.2 (v1.3 unified-grid pivot) |
+| **Version** | 0.4 |
 | **Skeleton/complete split** | **Fixed now:** the `Manifest` capability-declaration contract; the closed-enum vocabularies (grid-field reads/writes on `U`, coupler kinds, exchanged quantities, halt conditions); the deterministic registry + dispatch decision; the four config-time wiring-validation checks; the interface-version policy; the *declared-or-forbidden* invariant. **Deferred** (filled as dependents land, W2+): the concrete Rust trait method signatures; each of the 8 SOLV operators' actual manifests (each SOLV doc supplies its own); the per-step operator-split call sequence (→ COUP-3). |
 
 ---
@@ -25,7 +25,7 @@ Read after META-1 (Rules 12/13), FND-2 (the grid = unified solver). It is consum
 
 **Defers (owner named):**
 - The **config document structure**, the loader pipeline, and the run manifest → **FND-4** (FND-4 *invokes* the §3.3 checks; COUP-8 defines them).
-- The **adaptive azimuthal-mode reduction** (how 3-D collapses to 2-D-axi where symmetric) → **FND-2 §3.4** (COUP-8 operators are dimension-agnostic; they declare only which fields of `U` they read/write on the one grid).
+- The **adaptive azimuthal resolution N_θ** (how 3-D collapses toward 2-D-axi where symmetric) → **FND-2 §3.4** (COUP-8 operators are dimension-agnostic; they declare only which fields of `U` they read/write on the one grid).
 - The **coupler catalog + conservation audit** (the 7 coupler types, the every-step global audit) → **COUP-2** (COUP-8 only records *which* coupler ports a mechanism participates in).
 - The **boundary-object registration contract** (citation + envelope + band) → **COUP-7** (COUP-8 only records *which* ports a mechanism needs/provides).
 - **Table schema/loader/interpolation** → **FND-5**; the **halt/verdict control flow** → **COUP-4**; **time integration / operator split** → **COUP-3**.
@@ -36,7 +36,7 @@ Read after META-1 (Rules 12/13), FND-2 (the grid = unified solver). It is consum
 
 | Interface | Consumed by | Contract |
 |---|---|---|
-| **`Manifest`** (§3.1) | FND-4 loader, orchestrator (COUP-3/4) | a static, pre-construction descriptor: a mechanism's id, interface version, mesh kind, required tables (by semantic name + envelope), coupler ports, boundary ports, halt conditions it can raise, and its config-parameter schema |
+| **`Manifest`** (§3.1) | FND-4 loader, orchestrator (COUP-3/4) | a static, pre-construction descriptor: a mechanism's id, interface version, `grid_fields` reads/writes on `U`, required tables (by semantic name + envelope), coupler ports, boundary ports, halt conditions it can raise, and its config-parameter schema |
 | **Registry** (§3.2) | FND-4 loader | a fixed, source-ordered map `mechanism-id → {Manifest, constructor}`; deterministic to iterate; the sole way config strings become mechanisms |
 | **Wiring-validation checks** (§3.3) | FND-4 loader | four total, all-errors-collected checks that a selected mechanism set is fully wired; each returns diagnoses in a deterministic order or the run halts at load |
 | **Interface version** (§3.4) | every SOLV module, the core | a SemVer contract split into required + optional capabilities; modules migrate independently within a supported range |
@@ -53,11 +53,12 @@ Every mechanism exposes a **static, const-evaluable `Manifest`**, returned **bef
 |---|---|
 | `id` | stable registry key; config selects the mechanism by this string |
 | `interface_version` | the COUP-8 contract SemVer this module was written against (§3.4) |
-| `grid_fields` | which components of the conserved state `U` (FND-2 §3.4) the operator **reads** and **writes** — the unified-grid analog of a mesh declaration. Every operator runs on the one 3-D grid; adaptive dimensionality (azimuthal-mode reduction) is FND-2's, not per-operator |
+| `grid_fields` | which components of the conserved state `U` (FND-2 §3.4) the operator **reads** and **writes** — the unified-grid analog of a mesh declaration. Every operator runs on the one 3-D grid; adaptive dimensionality (azimuthal resolution N_θ) is FND-2's, not per-operator |
 | `tables[]` | required offline tables, each `{semantic_name, envelope, required}` — **named**, never a pointer/index; the loader resolves the supplier (FND-5) |
 | `couplers[]` | participation in the 7 coupler types, each `{coupler_kind, quantity, direction}` — `coupler_kind` and `quantity` are **closed enums**, `direction ∈ {Source, Sink, Bidirectional}` |
 | `ports[]` | boundary-object ports, each `{name, role ∈ {Require, Provide}, kind}` (COUP-7) |
 | `halts[]` | the closed set of halt conditions this mechanism can raise (COUP-4) |
+| `chaotic_class` *(O21)* | the mechanism's **per-regime chaotic classification**: for each operating regime it declares (closed enum), whether the resolved dynamics exhibit genuine sensitive dependence (turbulence-resolving, chaotic kinetics) — `{regime → chaotic \| non_chaotic}`. Consumed by **FND-4**'s load-time determinism check: `chaotic` + relaxed determinism mode ⇒ **load refusal** (the S6 guarantee made mechanical, META-1 §2.1). A mechanism with no chaotic regime declares the classification explicitly, never by omission |
 | `params` | typed config schema: per parameter `{name, type, default, required, validity-range}` — the sub-schema FND-4 dispatches a config block against |
 
 Design rules, each from precedent:
@@ -82,7 +83,7 @@ The registry is a single explicit table `id → {Manifest, constructor}`, either
 
 When FND-4's loader has parsed a config and dispatched each block to the registry, it runs these **four checks before any solve**, collecting **all** failures (never bailing on the first — the DI `ValidateOnBuild` lesson) and reporting them in a **deterministic order** (sorted by `(mechanism-id, field)`; never HashMap order). Any failure **halts at load with a diagnosis** (META-1 Principle 6). The checks are *defined* here and *invoked* by FND-4 §3.4.
 
-1. **Structural resolve.** Every `Manifest` semantic name resolves: every required table name exists in the pinned table set; every `Require` port has a matching `Provide`; every config parameter satisfies its schema. Unknown mechanism → error listing the valid ids. (preCICE `precice-config-validate`: undefined-data / missing-mesh detection, run without launching the solve.) [META-3: `precice`]
+1. **Structural resolve.** Every `Manifest` semantic name resolves: every required table name exists in the pinned table set; every `Require` port is **explicitly bound**; every config parameter satisfies its schema. **Require↔Provide "matching" is defined (O20): an explicit named binding in the config's `[engine]` composition block (FND-4 §3.2) — `Require → provider instance` per port. There is no auto-matching by kind or name:** a `Require` with **no** binding is a load error **listing the candidate `Provide`s** (matching kind) so the author can bind one; a binding whose target is missing, of the wrong kind, or which two bindings claim exclusively is likewise an error naming the candidates. Two same-kind `Provide`s are never disambiguated silently. Unknown mechanism → error listing the valid ids. (preCICE `precice-config-validate`: undefined-data / missing-mesh detection, run without launching the solve.) [META-3: `precice`]
 2. **Envelope coverage.** For each required table, intersect the loaded table's covered domain (FND-5 metadata) with the **union of consumer envelopes**; a gap fails loud naming the mechanism, table, and uncovered region — *not* a silent mid-solve extrapolation. (Project extension; no framework does this for you.)
 3. **Coupler source/sink balance** *(the one most easily skipped)*. Build the directed graph of coupler edges over the closed `(coupler_kind × quantity)` space; for every `Source` require ≥1 `Sink` and vice-versa; flag dangling or one-sided edges. This is the Modelica "locally balanced model" analog — the compile-time twin of the grid's every-step conservation audit (COUP-2). preCICE explicitly notes its *basic* validator does **not** check "is all necessary data actually exchanged," so this pass is built deliberately, not assumed free. [META-3: `modelica-connector`, `precice`]
 4. **Interface-version.** Each `Manifest.interface_version` must lie in the core's supported range (§3.4); otherwise fail loud (`mechanism X built against interface 2.x; core requires 3.x`).
@@ -119,6 +120,8 @@ Unit/property tests (test-first, VAL-3):
 5. **All-errors-collected:** a config with several independent faults reports them all at once, in deterministic order (not first-only).
 6. **Registry determinism:** the registry's iteration order is identical across repeated builds and across platforms (guards against any distributed-registration regression).
 7. **Sandbox smoke test:** a new (toy) mechanism composes from config with **no core edit beyond its one registration row** — the Rule-13 acceptance test.
+8. **Binding resolution (O20):** two same-kind `Provide`s with an unbound `Require` fail loud listing both candidates; a binding to a missing/wrong-kind target fails naming it; nothing auto-matches.
+9. **`chaotic_class` completeness (O21):** a `Manifest` lacking the explicit per-regime classification fails registration — never classified by omission.
 
 ## 7. References
 
@@ -131,4 +134,6 @@ META-3 keys: `moose-inputparams`, `openfoam-runtimeselection`, `petsc-ts`, `sund
 | Date | Version | Change |
 |---|---|---|
 | 2026-07-19 | 0.1 | Initial **skeleton**. Fixed the `Manifest` capability-declaration contract (id/interface-version/mesh-kind/tables+envelopes/couplers/ports/halts/params; semantic names resolved by orchestrator; closed enums; required-vs-optional; declared-or-forbidden invariant); ruled compile-time enum dispatch + deterministic source-ordered `const` registry over distributed-registration crates (determinism); defined the four config-time wiring-validation checks (structural resolve, envelope coverage, coupler source/sink balance, interface-version) with all-errors-collected fail-loud; interface-version policy (SemVer, required+optional split, deprecation aliases). Concrete trait signatures + per-mechanism manifests deferred to the SOLV docs (W2+). |
+| 2026-08-13 | 0.3 | Consistency sweep: §2 Manifest row still said "mesh kind" — replaced with `grid_fields` reads/writes on `U` (the field retired at 0.2). |
+| 2026-08-14 | 0.4 | **Review fix wave (O20, O21).** §3.3(1): Require↔Provide **matching defined** — an explicit named binding in FND-4's `[engine]` composition block (`Require → provider instance`); no auto-matching by kind; missing/ambiguous binding = load error **listing candidates** (O20). §3.1: `Manifest` gains **`chaotic_class`** — per-regime chaotic classification (explicit, never by omission), feeding FND-4's load-time refusal of chaotic+relaxed (S6 mechanical; META-1 §2.1) (O21). §6 items 8–9 added. |
 | 2026-07-19 | 0.2 | **v1.3 unified-grid pivot.** "Mechanisms" are now the unified-grid **operators** (SOLV-1…8, 8 not 16); `mesh_kind` retired → `grid_fields` (which components of the conserved state `U` an operator reads/writes on the one grid); COUP-1 binding dependency removed (adaptive azimuthal-mode reduction is FND-2 §3.4, not a per-operator binding); coupling relationships rewired to FND-2/COUP-3 (SDC-IMEX schedule) + COUP-2 (audit). Registry/dispatch/validation contracts unchanged (dimension-agnostic). |

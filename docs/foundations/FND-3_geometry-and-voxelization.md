@@ -4,9 +4,9 @@
 |---|---|
 | **ID** | FND-3 |
 | **Family** | FND (Foundations / spine) |
-| **Status** | Draft |
+| **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-1, FND-2 |
-| **Version** | 0.2 |
+| **Version** | 0.3 (review fix wave S10 + v1.4 cylindrical metric) |
 
 ---
 
@@ -36,7 +36,7 @@ capability.
 | **CSG config** (§3.1) | config author, FND-4 | primitives + booleans + revolved profiles → an analytic SDF tree |
 | **STL/mesh import** (§3.2) | config author | watertight-ish surface → robust inside/outside + partial fractions |
 | **Voxelize()** (§3.3) | grid construction (FND-2 §3.6) | emit per-cell material fractions + 6 face apertures + interface (centroid/normal/area) |
-| **Refinement tags** (§3.4) | FND-2 | cells to refine at interfaces/gradients |
+| **Refinement tags** (§3.4) | FND-2 | cells to refine at interfaces/gradients + per-region `N_θ^geom` azimuthal floors |
 
 **Invariant:** emitted per-cell fractions are **partial** (accurate sub-cell coverage in [0,1]), not boolean
 occupancy; and the pipeline is **deterministic** (exact predicates + fixed seeds).
@@ -48,7 +48,14 @@ Geometry is an **analytic signed-distance tree**: primitive SDFs (sphere, box, c
 booleans (**union = min(a,b), intersection = max(a,b), subtraction A−B = max(a, −b)** — always the correct *sign*
 everywhere), and **revolved profiles** (2-D profile → axisymmetric solid, matching the axisymmetric engine
 bias). Per voxel, the **exact partial volume** is obtained by analytic half-space/box clipping where a leaf
-is a plane/box, else by **stratified point sampling** of the SDF (fixed jittered pattern). Caveat: `max`/
+is a plane/box, else by **stratified point sampling** of the SDF — a **fixed jittered pattern** of
+**`N_FRAC_SAMPLES` = 8³ = 512** strata per cut cell (named constant, config-overridable;
+interior/exterior cells are decided by corner/SDF-bound tests, not sampled). The **declared per-cell
+fraction-error bound is derived from the pattern** (S10, 2026-08-14): jittered-stratified sampling of
+an indicator with a smooth interface converges at `N^(−1/2−1/(2d))` = `N^(−2/3)` in 3-D, so
+`ε_α = C_jitter · N_FRAC_SAMPLES^(−2/3)`, with `C_jitter` calibrated once against the analytic
+primitives of §6.1; the derived bound is **recorded in the run manifest** (FND-6) and feeds FND-2 §5's
+geometric-error budget. [META-3: `jittered-sampling`] Caveat: `max`/
 subtraction give a distance *bound* (sign correct, magnitude unreliable near concave joins) — fine for
 occupancy, and the reason we sample rather than trust the magnitude. Because CSG is analytic and mesh-free,
 it is exact, cheap, deterministic, and **parametric/sweepable**. [META-3: `gen-winding-number` (contrast),
@@ -65,6 +72,14 @@ known-watertight input. Triangle-touch gating uses the Akenine-Möller SAT test.
 supported CAD route (FreeCAD etc.). [META-3: `gen-winding-number`]
 
 ### 3.3 Voxelize() output — fractions, apertures, surfaces
+*(v1.4 — cylindrical cell metric, D-A.)* Voxelization targets the grid's **cylindrical-structured ring
+cells** (FND-2 §3.2): cell volume `½(r_o²−r_i²)·Δθ·Δz` (∝ r̄), six faces `{r−, r+, θ−, θ+, z−, z+}`.
+Sample points are stratified **in the cylindrical volume measure** (uniform in `r²`, θ, z — the jitter
+pattern is uniform over the cell's actual volume) and evaluated in Cartesian coordinates, where the SDF /
+winding number is authored (the mapping is exact); PLIC planes are fitted in the cell's local Cartesian
+frame. Voxelization always runs at the config-declared finest azimuthal resolution `N_θ^max`; FND-2's
+adaptive coarsening starts from these fractions.
+
 Emit, per cell: **material volume fractions** α_k (partial, Σ = 1 incl. vacuum); **six face apertures**
 (open-area fraction per face); and, for cut cells, the **interface centroid, outward normal, and area** via
 **PLIC** (volume-exact, closed-form Scardovelli–Zaleski offset — deterministic). PLIC areas (not Marching-
@@ -76,7 +91,11 @@ consistency check). [META-3: `vof-plic`, `mc33-dc`]
 ### 3.4 Refinement tagging (config-time)
 Tag cells for refinement where the **material-interface / volume-fraction gradient** is high (primary) and
 where initial-field gradients are steep (Löhner). Hand tags to FND-2 §3.6, which buffers, 2:1-balances, and
-freezes. The **small-cut-cell** stability issue (a tiny κ collapsing the explicit step) is handled downstream
+freezes. **Geometry-driven N_θ floor (v1.4):** from the emitted fractions, compute per (r,z) region the
+azimuthal variation of geometry (variance over θ of α_k and face apertures); a region whose *geometry* is
+non-axisymmetric receives an **`N_θ^geom` floor** — the coarsest N_θ that reproduces its fractions within
+the declared ε_α (§3.1) — handed to FND-2 §3.4 as a per-region azimuthal-resolution floor that holds
+**independent of the flow state**. The **small-cut-cell** stability issue (a tiny κ collapsing the explicit step) is handled downstream
 by **State Redistribution** in the field solvers (FND-2/SOLV), designed in from the start — FND-3 just
 produces the fractions. [META-3: `lohner`, `state-redistribution`]
 
@@ -98,20 +117,25 @@ Infrastructure rung; CI-gated.
 
 ## 6. Validation plan
 1. **Analytic volumes:** recovered fractions of sphere/cone/revolved-profile converge to exact volume at the
-   expected order under refinement.
+   expected order under refinement, and at the declared `N^(−2/3)` jittered-sampling rate under
+   sample-count growth — the fit constant is the `C_jitter` of §3.1's error bound.
 2. **Imperfect-STL robustness:** winding-number classification stays correct on meshes with holes/self-
    intersections where ray-parity fails.
 3. **PLIC area/volume consistency:** extracted interface area is consistent with fractions; radiation
    reciprocity holds.
 4. **CSG↔STL cross-check:** identical part via both paths agrees within sampling tolerance.
 5. **Determinism:** identical voxelization across runs; fixed seeds reproduce fractions bit-for-bit.
+6. **Cylindrical metric & floors:** an axisymmetric revolved solid yields zero azimuthal geometry
+   variance (no `N_θ^geom` floor imposed); an off-axis feature yields the correct floor; ring-cell
+   volumes ∝ r̄ recover analytic volumes.
 
 ## 7. References
-META-3 keys: `gen-winding-number`, `vof-plic`, `mc33-dc`, `eb-cutcell`, `lohner`, `state-redistribution`.
-Depends on FND-1, FND-2.
+META-3 keys: `gen-winding-number`, `vof-plic`, `mc33-dc`, `eb-cutcell`, `lohner`, `state-redistribution`,
+`jittered-sampling` (v1.4). Depends on FND-1, FND-2 (§3.2 cylindrical index space).
 
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
 | 2026-07-14 | 0.1 | Initial draft. CSG-first (analytic SDF, parametric/sweepable) with full STL support (generalized winding number, not raw ray-parity); partial volume fractions + face apertures + PLIC interface surfaces; config-time interface refinement tagging; deterministic (exact predicates + fixed seeds); CSG↔STL cross-check. Authoring-path emphasis marked as an open fork (FND-3-Q1). |
 | 2026-07-19 | 0.2 | **CSG-first authoring confirmed by Ben** (2026-07-19); FND-3-Q1 resolved and its open-questions register removed (v1.3 convention: no in-doc question registers). |
+| 2026-08-14 | 0.3 | **Review fix wave (S10; ruling D-A).** §3.1: fraction sampling pinned to a **fixed jittered pattern with named `N_FRAC_SAMPLES` = 8³ = 512** strata per cut cell; **declared per-cell fraction-error bound** `ε_α = C_jitter·N^(−2/3)` derived from it (C_jitter calibrated in §6.1) and recorded in the run manifest. §3.3 restated on the **cylindrical cell metric** (ring cells, volume ∝ r̄, sampling stratified in the cylindrical volume measure, evaluated in Cartesian; voxelization at finest `N_θ^max`). §3.4: **geometry-driven `N_θ^geom` floor** computed from azimuthal fraction variance and emitted to FND-2 §3.4 (holds independent of flow state). §2/§6/§7 aligned. |

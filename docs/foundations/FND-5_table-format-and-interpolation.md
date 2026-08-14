@@ -4,9 +4,9 @@
 |---|---|
 | **ID** | FND-5 |
 | **Family** | FND (Foundations / spine) |
-| **Status** | Draft |
+| **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-1 |
-| **Version** | 0.1 |
+| **Version** | 0.3 |
 
 ---
 
@@ -29,12 +29,14 @@ for all data (Rule 12): a cross-section table and an EOS table obey the same sch
 |---|---|---|
 | **Table schema** (§3.1) | all OFFL producers, the loader | group-per-table + explicit axes + mandatory metadata |
 | **Loader** (§3.2) | orchestrator (config-time) | verify version pins + provenance + envelope; refuse on mismatch |
-| **Interpolate(query)** (§3.3) | every solver reading a table | deterministic value + propagated uncertainty, or a hard `OutOfEnvelope` |
+| **Interpolate(query)** (§3.3) | every solver reading a table | a deterministic **scalar** value, or a hard `OutOfEnvelope` — never a distribution (META-1 §4 pure outer loop) |
 | **Provenance handle** | FND-6, COUP-6 | table semantic-version + content hash → walkable to META-3 keys |
 
-**Invariant:** a value returned by interpolation carries (a) the physical uncertainty of the table plus (b)
-its own interpolation-error contribution, RSS-combined (FND-1); and no value is *ever* returned outside the
-declared validity envelope.
+**Invariant:** interpolation returns **scalars only** — the inner run carries no distribution arithmetic
+(META-1 §4). The table's physical uncertainty enters the ensemble by **outer-loop sampling** (FND-1: a
+sampled realization / perturbed sample-set member per ensemble member), and the declared
+`interp_error_bound` is carried by COUP-5 as an **epistemic interval** into the p-box (COUP-5 §3.3) — never
+RSS'd into a runtime return value. No value is *ever* returned outside the declared validity envelope.
 
 ## 3. Method
 
@@ -69,6 +71,15 @@ reproducibility by construction, not by discipline (META-1 §5).
   (reactivity coefficients and EOS quantities that get differenced) — monotonicity/positivity preserved per
   interval, unlike natural cubic splines (which overshoot) or RBF (ill-conditioned, non-deterministic).
 - **Scattered data is pre-resampled to a regular grid offline**; RBF is not used at runtime.
+- **Thermodynamic-potential tables (spine EOS, S11):** a table declared `kind = thermo_potential` stores a
+  **Helmholtz free energy F(ρ,T) per species**, with its tabulated partial derivatives, interpolated by
+  **tensor-product Hermite (biquintic-class) interpolation** (the Timmes–Swesty precedent). p, e, s, and
+  sound speed are obtained by **fixed-order analytic differentiation of that one interpolant** — never
+  independently interpolated — so Maxwell-relation consistency holds by construction. The generator writes a
+  mandatory **`thermo_audit` metadata block**: the offline convexity / sound-speed-positivity audit over the
+  declared envelope; a potential table without a passing audit **cannot load**. (The physical requirement and
+  the quantity set are FND-7 §3.2's; this bullet owns only the schema + interpolation rule.) [META-3:
+  `helmholtz-table`]
 - **Interpolate in the linearizing space** named by `interp_rule` (log-log for XS, log-T for opacity) to
   shrink curvature and hence error.
 - **Coefficients are precomputed offline** and shipped in the table; the runtime does stencil-fetch + fixed-
@@ -77,9 +88,10 @@ reproducibility by construction, not by discipline (META-1 §5).
 ### 3.4 Interpolation-error budget (fed to UQ, never assumed negligible)
 Interpolation error is bounded and knowable (multilinear ≈ (h²/8)·max|∂²f|; cubic ≈ O(h⁴)). **Offline**, the
 generator measures the actual error per table (grid refinement or holdout) and writes `interp_error_bound`;
-the grid spacing is *chosen* offline to hit a target budget. At runtime the returned uncertainty is the RSS of
-the physical band and this interpolation bound, so it **propagates in the ensemble** (FND-1, COUP-5). This is
-the structural defense against silent interpolation error corrupting a headline result. [META-3:
+the grid spacing is *chosen* offline to hit a target budget. The bound is **declared table metadata, not a
+runtime return value**: COUP-5 consumes it as an **epistemic interval** in the outer loop (§3.3 there), so it
+**propagates into the p-box** without ever being RSS'd with the physical band or attached to an inner-loop
+scalar. This is the structural defense against silent interpolation error corrupting a headline result. [META-3:
 `interp-error-budget`]
 
 ### 3.5 Validity-envelope enforcement
@@ -96,7 +108,8 @@ interpolation). [META-3: `table-precedent`]
 ## 4. Coupling relationships
 - **OFFL-1…6** produce tables to this schema (incl. OFFL-5, the constitutive-spine generator); a producer
   that can't supply provenance+envelope+uncertainty cannot ship a table.
-- **Every table-reading solver** calls §3.3; it receives value+uncertainty or a halt, never a guess.
+- **Every table-reading solver** calls §3.3; it receives a scalar value or a halt, never a guess —
+  uncertainty rides the outer loop (COUP-5).
 - **FND-6** records the pinned versions/hashes for regeneration (S6); **COUP-6** scores pedigree from the
   provenance chain.
 - **FND-1** supplies the uncertainty type; **FND-7** material tables are a client of this schema.
@@ -114,12 +127,17 @@ not originate physical uncertainty (that is the producing OFFL doc's). Infrastru
 5. **Version/provenance:** major-version mismatch and hash mismatch both halt; provenance round-trips to the
    results bundle.
 6. **Determinism:** identical interpolation results across threads/runs.
+7. **Potential-table consistency (S11):** p/e/s/a derived from a `thermo_potential` table satisfy the Maxwell
+   relations to round-off; a² > 0 everywhere the `thermo_audit` asserts; a table with a failing audit is
+   refused at load.
 
 ## 7. References
-META-3 keys: `hdf5-schema`, `interp-monotone`, `interp-error-budget`, `table-precedent`. Depends on FND-1
-(uncertainty type, empirical sample-sets).
+META-3 keys: `hdf5-schema`, `interp-monotone`, `interp-error-budget`, `table-precedent`, `helmholtz-table`.
+Depends on FND-1 (uncertainty type, empirical sample-sets).
 
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-14 | 0.3 | **Post-review fix wave (S11).** §3.3 gains the **thermodynamic-potential table rule**: `kind = thermo_potential` stores Helmholtz F(ρ,T) per species + derivatives, tensor-product Hermite (biquintic-class, Timmes–Swesty) interpolation, p/e/s/sound-speed by fixed-order analytic differentiation of the one interpolant (Maxwell consistency by construction); mandatory `thermo_audit` (offline convexity/sound-speed-positivity) metadata — no passing audit, no load. §6 consistency-validation item added. Physical requirement owned by FND-7 §3.2 (clean split, no restating). |
+| 2026-08-13 | 0.2 | **Consistency sweep: pure-outer-loop reconciliation.** Interpolate() returns scalars only; the table's physical band enters by outer-loop sampling and `interp_error_bound` is consumed by COUP-5 as an epistemic interval, never RSS'd into a runtime return value (§2 row + invariant, §3.4, §4 reworded to match META-1 §4 / FND-1 §3.4b / COUP-5 §3.3). |
 | 2026-07-14 | 0.1 | Initial draft. HDF5 group-per-table schema with mandatory provenance/version/envelope/units/uncertainty; loader with version-pin + hash + envelope enforcement (halt on mismatch); multilinear-default / monotone-cubic interpolation with offline-measured error bound RSS'd into UQ; refuse-out-of-envelope; deterministic fixed-order evaluation; scattered→regular offline (no runtime RBF/stochastic interpolation). |

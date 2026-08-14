@@ -77,7 +77,7 @@ first). META-3 (sources) is a reference, consulted per datum.
 | ID | Title | Scope (owns) |
 |---|---|---|
 | FND-1 | Data & Uncertainty Model | The value-with-provenance-and-uncertainty type; units; `M`; how "a result is a distribution/p-box" is represented end to end |
-| FND-2 | World-State Grid **& Unified Field Solver** | *(v1.3 rescoped)* The single 3-D grid that **evolves** all matter/fields over `M` and audits itself; cell state; adaptive **azimuthal-mode dimensional reduction**; static-topology sparse structure; determinism |
+| FND-2 | World-State Grid **& Unified Field Solver** | *(v1.3 rescoped)* The single 3-D grid that **evolves** all matter/fields over `M` and audits itself; cell state; adaptive **azimuthal resolution N_θ** (v1.4 ring-FV); static-topology sparse structure; determinism |
 | FND-3 | Geometry & Voxelization | CSG (first-class) + STL import; material/volume-fraction assignment; interface refinement |
 | FND-4 | Config Schema & Run Manifest | TOML schema; registry-driven sub-schemas; config↔manifest split; the regeneration key |
 | FND-5 | Table Format, Loader & Interpolation | HDF5 table schema; provenance; validity-envelope enforcement; N-D interpolation + interpolation-error budget |
@@ -88,9 +88,9 @@ first). META-3 (sources) is a reference, consulted per datum.
 
 | ID | Title | Scope (owns) |
 |---|---|---|
-| COUP-1 | ~~Solver–Grid Binding & Conservative Source-Term Mapping~~ **RETIRED (v1.3)** | Absorbed — the unified grid *is* the solver, so there are no reduced-dimension native meshes to bind. Adaptive azimuthal-mode reduction (FND-2) replaces it. ID retained, retired, not reused |
+| COUP-1 | ~~Solver–Grid Binding & Conservative Source-Term Mapping~~ **RETIRED (v1.3)** | Absorbed — the unified grid *is* the solver, so there are no reduced-dimension native meshes to bind. Adaptive azimuthal resolution (FND-2 §3.4) replaces it. ID retained, retired, not reused |
 | COUP-2 | Conservation Audit & Operator Coupling *(rescoped)* | The every-step global conservation/consistency audit over the one grid; the operator-coupling contract (which operator reads/writes which field of `U`); the **radiation-partition invariant** (emit-once/transport-once) |
-| COUP-3 | Time Integration & Orchestrator | Global clock; **SDC-coupled IMEX** operator split (explicit hydro/MHD + cell-local implicit stiff sources); sub-cycling; pulsed-event sequencing; stiffness/convergence |
+| COUP-3 | Time Integration & Orchestrator | Global clock; **SDC-coupled IMEX** four-class operator split (explicit hydro/MHD + spatially-coupled implicit diffusion + cell-local stiff sources + declared global-ODE systems); pseudo-transient mode; pulsed-event sequencing; stiffness/convergence *(sub-cycling cut from v1, 2026-08-14)* |
 | COUP-4 | Two-Stage Execution & Halt/Failure Model | Stage-1 FUNCTION / Stage-2 LIFETIME control flow; halt conditions; verdict object |
 | COUP-5 | UQ Engine | Latin-hypercube ensembles; correlation; Sobol; **multi-fidelity UQ** (cheap reduced-dim members anchored by few full-3-D runs, v1.3); parallel ensemble execution & determinism |
 | COUP-6 | Pedigree Scoring | Per-result **PCMM-style maturity vector, reported by weakest-link min** (v1.3); PIRT assumption register; partition of the backbone map |
@@ -123,7 +123,7 @@ two verification harnesses merge.)*
 | OFFL-1 | OpenMC Transport Pipeline | Geometry classes; k-eff, deposition/dose kernels, kinetics params, reactivity sweeps; multigroup cross-sections for SOLV-2's Sₙ; fidelity tiering |
 | OFFL-2 | Nuclear Data & SANDY UQ | ENDF/TENDL/FENDL handling; SANDY perturbed-library covariance sampling |
 | OFFL-3 | Equilibrium Chemistry Pipeline | Cantera + CEA/RocketCEA property tables; B′ ablation tables |
-| OFFL-4 | Annihilation Source Pipeline | Geant4 annihilation **source terms only** (products moved by SOLV-2/3); model-form band |
+| OFFL-4 | Annihilation Source Pipeline | Geant4 annihilation **source terms only** (products moved by SOLV-2/3); per-quantity physics-list spread (model-form, R3) |
 | OFFL-5 | Constitutive-Spine Pipeline | **DFT average-atom backbone** (atoMEC-class) → consistent EOS + transport + opacity + stopping tables over `M` for arbitrary materials; QEOS/FEOS + Lee-More-Desjarlais + Stanton-Murillo closures; **GP data-calibration**. Generates the FND-7 spine |
 | OFFL-6 | Verification-Oracle Harness | OpenFOAM (flow) & Athena++ (MHD) offline 3-D oracles + optional WarpX **kinetic calibration** (closure coefficients + bands); discrepancy → widened model-form band |
 
@@ -169,9 +169,9 @@ what gets written when, not a rigid schedule.
 |---|---|---|
 | **W0 — Meta** *(done)* | META-0, META-1, META-2, META-3 | Conventions & principles fixed (now v1.3). |
 | **W1 — Spine** *(done; rescoped for v1.3)* | FND-1, FND-2, FND-3, FND-5, FND-7, FND-6, FND-4, COUP-8 | Data model, the grid+solver, materials→constitutive spine, the table seam, the operator contract. FND-2 (grid=solver + adaptive dim) and FND-7 (constitutive spine) rewritten for the pivot; FND-4/6/COUP-8 (config/results/registry) are dimension-agnostic and survive. |
-| **W2 — Chemical vertical slice** | COUP-2, COUP-3, COUP-4, COUP-7, SOLV-1 (reacting-flow config), SOLV-2 (thermal), SOLV-6, SOLV-7, OFFL-3, OFFL-5 (chemical/cold corner of the spine), VAL-1, VAL-2 (RL10 + unit anchors), VAL-3 | Everything to run the chemical engine end-to-end to the RL10 anchor (S1) on the unified solver. Proves the architecture on the most-validated regime. |
-| **W3 — Nuclear leg** | OFFL-1, OFFL-2, SOLV-4 (fission kinetics), SOLV-2 (Sₙ nuclear deposition), SOLV-8, COUP-5, COUP-6, VAL-2 (NERVA/KRUSTY) | The NTP path + UQ + pedigree; validated vs NERVA/KRUSTY (S2). |
-| **W4 — Advanced regimes fan-out** | SOLV-1 (two-phase/MHD extensions), SOLV-3, SOLV-4 (fusion/annihilation), SOLV-5; OFFL-4, OFFL-6; the rest of the constitutive spine (WDM/plasma corner); VAL-2 (remaining) | Two-phase, plasma/MHD, energetic-particle transport, fusion, pulsed, charged-particle — the rest of §5. |
+| **W2 — Chemical vertical slice** *(done 2026-07-21)* | COUP-2, COUP-3, COUP-4, COUP-7, SOLV-1 (reacting-flow config), SOLV-2 (thermal), SOLV-6, SOLV-7, OFFL-3, OFFL-5 (chemical/cold corner of the spine), VAL-1, VAL-2 (RL10 + unit anchors), VAL-3 | Everything to run the chemical engine end-to-end to the RL10 anchor (S1) on the unified solver. Proves the architecture on the most-validated regime. |
+| **W3 — Nuclear leg** *(docs done 2026-07-21)* | OFFL-1, OFFL-2, SOLV-4 (fission kinetics), SOLV-2 (Sₙ nuclear deposition), SOLV-8, COUP-5, COUP-6, VAL-2 (NERVA/KRUSTY) | The NTP path + UQ + pedigree; validated vs NERVA/KRUSTY (S2). |
+| **W4 — Advanced regimes fan-out** *(docs done 2026-07-21)* | SOLV-1 (two-phase/MHD extensions), SOLV-3, SOLV-4 (fusion/annihilation), SOLV-5; OFFL-4, OFFL-6; the rest of the constitutive spine (WDM/plasma corner); VAL-2 (remaining) | Two-phase, plasma/MHD, energetic-particle transport, fusion, pulsed, charged-particle — the rest of §5. *(Every catalog doc now has a v0.1 Draft; the SOLV-1 two-phase/MHD extensions and the FND-7/OFFL-5 WDM-plasma spine corner are explicitly deferred content **within** those written docs, to be filled as those regimes are built.)* |
 
 These are *design-doc* waves, distinct from (though aligned with) the VISION_SCOPE §12 *build* roadmap.
 
@@ -189,6 +189,8 @@ code).** IDs that were only ever catalog entries may be restructured under a Lay
 | 2026-07-14 | v0.2: added FND-7 and COUP-8 → 46 docs; tightened COUP-1/COUP-2 boundary; removed status dashboard and per-doc Owner field | Coverage/cleanup pass |
 | 2026-07-14 | v0.3: removed the dependency graph and per-doc "Depends on" columns; added §4 optional add-ons with SIDE-1 | Ben directive |
 | 2026-07-14 | v0.4: Rule-12 (no-seams) pass on calc-file scopes; SOLV-12 rescoped to medium-agnostic particle transport, SOLV-9 to product-sourcing, OFFL-6 to cold→plasma stopping, OFFL-4 to annihilation sources, SOLV-6 to any-origin deposition, SOLV-5 gains source-driven subcritical, SOLV-7 to one uniform energy-balance + polytropic nozzle; COUP-2 gains the radiation-partition invariant | Ben directive: sandbox, no seams; research 2026-07-14 |
+| 2026-08-13 | v0.5.1: OFFL-4 scope cell updated to R3's per-quantity physics-list spread (was "model-form band") | Consistency sweep post-R3 |
+| 2026-08-14 | **v0.6: review cycle closed — 29 docs promoted Draft → Reviewed (2026-08-14).** Full trail: 3-agent critical-path review (68 findings, REVIEW_FINDINGS.md) → Ben's rulings D-A…D-I (VISION_SCOPE v1.4: cylindrical grid + adaptive N_θ, liquid-interface capability, one wall law, universal SGS closure, staged spine, P(WORKS), blind rule, CPU-first, δf blessed) → 4-agent fix wave (all findings discharged) → verification pass (V1–V7 closed). Catalog scope rows aligned to v1.4 (FND-2 N_θ; COUP-3 four-class split, sub-cycling cut; COUP-1 wording). **Not promoted:** SOLV-5, OFFL-4 (deferred set — review before their build wave), COUP-1 (retired), META-0..3 (ambient). The META-0 §1 gate is now open: Layer-3 code may implement any Reviewed doc | Review cycle 2026-08-13/14 |
 | 2026-07-19/20 | **v0.5: unified-grid pivot (VISION_SCOPE v1.3).** Runtime collapsed to one 3-D field solver over `M` (FND-2 = grid+solver); the reduced-dimension solver zoo and the accountant/physicist split retired. **SOLV 16 → 8 operators**, **OFFL 8 → 6**, **COUP-1 retired** (binding absorbed by adaptive azimuthal-mode reduction), COUP-2 rescoped (audit + operator coupling), COUP-3 central (SDC-IMEX), COUP-5 gains multi-fidelity UQ, COUP-6 → PCMM weakest-link pedigree. **FND-7 rescoped** materials→constitutive spine; **OFFL-5** rescoped EOS/opacity→DFT-average-atom spine generator (absorbs old OFFL-6 stopping); **OFFL-6** = merged verification/kinetic-oracle harness. **VAL-1** → predictive-V&V 4-tier framework; **VAL-2** gains unit-physics anchors. Prior SOLV/OFFL entries were never instantiated → restructured (ID-reuse rule waived for them, §1). **Merge mapping below.** | Ben directive (2026-07-19): resolve untested-regime uncertainty with a first-principles high-fidelity 3-D simulator; Rules 12/13 supreme; research 2026-07-19/20 |
 
 ### 6.1 v0.5 merge mapping (old reduced-dimension modules → new operators)

@@ -4,9 +4,9 @@
 |---|---|
 | **ID** | FND-2 |
 | **Family** | FND (Foundations / spine) |
-| **Status** | Draft |
+| **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-1, COUP-3 (time integration), SOLV-1 (field operator) |
-| **Version** | 0.4 (v1.3 unified-grid pivot) |
+| **Version** | 0.5 (v1.4 review fix wave) |
 
 ---
 
@@ -65,7 +65,8 @@ is simulated in full — no magic interfaces.* A laser is abstracted (its photon
 source); but the moment that energy reaches matter, the matter, its heating, ablation, phase change,
 and any reacting mixture are **full grid physics**. Ablating throats, NSWR fuel-in-water, and the CNTR
 liquid-uranium film on hydrogen are **fully simulated multi-material cells** (§3.3), not interface
-closures.
+closures. The sharp liquid-surface capability this promises is designed into the cell state now as a
+**dormant reserved capability** (§3.3(7), v1.4) and built with the liquid-interface wave.
 
 ### 1.4 Not owned here (deferred, owner named)
 - The value/units/uncertainty types and `M`'s field list → **FND-1**.
@@ -87,8 +88,8 @@ closures.
 
 **Invariant promised to everyone:** there is exactly **one authoritative discretization** — the grid cells —
 and every operator reads and writes them **in place**. There are no reduced-dimension meshes and no
-gather/scatter "views" (retired with COUP-1); adaptive dimensionality is the spectral azimuthal-mode
-reduction of §3.4. The grid's traversal order is deterministic and independent of thread count (§3.7).
+gather/scatter "views" (retired with COUP-1); adaptive dimensionality is the adaptive azimuthal
+resolution N_θ of §3.4 (v1.4). The grid's traversal order is deterministic and independent of thread count (§3.7).
 
 ## 3. Method & governing structure
 
@@ -99,21 +100,33 @@ is what makes the grid the backbone: adding a new geometry, swapping a reactor c
 ablate into a plasma are all just changes to cell contents, never new representations or code paths
 (Rules 12/13, §1.2).
 
-### 3.2 Data structure
-- **A static-topology, VDB-shaped sparse "brick tree"** (NanoVDB-style): shallow-wide, fixed-depth, with
-  small dense leaf bricks (e.g. 8³) under one or two coarse index levels, linearized into a contiguous
-  arena with computed offsets rather than pointers. Topology is built once at config time and **frozen**
-  for the run; only cell *values* change (recession updates fractions, not topology — VISION_SCOPE §7.2).
+### 3.2 Data structure *(v1.4 — natively cylindrical-structured, D-A)*
+- **A natively cylindrical-structured index space:** cells are indexed `(i_r, i_θ, i_z)` about **one
+  config-declared symmetry axis** per run (FND-4). Metric factors are precomputed per radial ring: cell
+  volume `½(r_o²−r_i²)·Δθ·Δz` (∝ r̄), face areas likewise — the conservative flux-form update uses the
+  true cylindrical metric, never a Cartesian approximation of it. At `r = 0` the axis gets a
+  **reflecting treatment**: axis faces have zero area (they drop out of the flux stencil geometrically),
+  and cross-axis stencil needs are met by **θ↔θ+π parity pairing** of the innermost rings (the standard
+  conservative polar-axis treatment). [META-3: `cyl-axis-fv`]
+- **A static-(r,z)-topology, VDB-shaped sparse "brick tree"** (NanoVDB-style): shallow-wide, fixed-depth,
+  with small dense leaf bricks in the **(i_r, i_z) plane** (e.g. 8×8) under one or two coarse index
+  levels, linearized into a contiguous arena with computed offsets rather than pointers. Each brick
+  stores its azimuthal ring as **N_θ(brick) contiguous θ-planes** (§3.4). The **(r,z) topology is built
+  once at config time and frozen** (recession updates fractions, not topology — VISION_SCOPE §7.2);
+  **θ-resolution is dynamic**: an N_θ change is a deterministic value-representation change within the
+  config-declared finest `N_θ^max`, exactly like tile materialization (§3.5), never a topology change.
   This is why the hand-rolled implementation stays small: the hardest VDB machinery (dynamic insertion,
   rebalancing, pruning) is unneeded. [META-3: `vdb`, `nanovdb`]
-- **Coordinates are f64** (Ben, 2026-07-14). Cell positions are *derived* from the integer cell index and
-  the grid's f64 origin/spacing (not stored per cell); all geometry the grid carries in f64 — interface
+- **Coordinates are f64** (Ben, 2026-07-14). Cell positions are *derived* from `(i_r, i_θ, i_z)` and
+  the grid's f64 axis frame (origin, axis direction) + spacings (not stored per cell); all geometry the
+  grid carries in f64 — interface
   positions, recession depths, EB centroids/normals, vertex coordinates. **Physical state fields are f64**
   as well (META-1 §3: f64 for all physics state/accumulation). f32 is used only for optional visualization
   export, never in the physics or the audit.
 - **Variable-size cells via uniform grouping** (§3.5) — the "efficiency algorithm groups uniform cells
   into larger cells."
-- **Deterministic layout:** active bricks are held in a **Morton (Z-order) array**; all sweeps and audits
+- **Deterministic layout:** active bricks are held in a **Morton (Z-order) array over (i_r, i_z)**,
+  θ-planes in fixed ascending `i_θ` order within each brick; all sweeps and audits
   iterate that array, never a hash map (§3.7). [META-3: `p4est` for Morton order only]
 
 ### 3.3 The cell state model (uniform for all matter)
@@ -129,7 +142,8 @@ coefficients — is *derived* from them**, so no two representations can drift.
 f64 origin/spacing + level. No per-cell xyz.
 
 **(1) Geometry** *(static; changes only via recession)* — material volume fractions α_k (Σ = 1, **including a
-vacuum material** — "in vacuum" is just α_vacuum ≈ 1); **six face apertures** (open-area fraction per face,
+vacuum material** — "in vacuum" is just α_vacuum ≈ 1); **six face apertures** (open-area fraction per face
+`{r−, r+, θ−, θ+, z−, z+}` of the ring cell, v1.4,
 gating the flux stencils; a receded face → aperture 0 drops out with no remeshing); and for cut cells the
 interface **centroid, outward normal, area** (from PLIC — feeds radiation view factors + flow-path wall area).
 [META-3: `eb-cutcell`]
@@ -163,6 +177,19 @@ n/γ dose rates, radiosity/exchange state for surface cells, structural margin f
 **(6) Degradation / lifetime clocks** *(dynamic but slow; stage-2)* — recession depth, accumulated neutron
 fluence & DPA, burnup, corrosion depth, accumulated dose, decay-heat state.
 
+**(7) Reserved sharp-interface fields** *(dormant capability — designed now, built with the
+liquid-interface wave; v1.4, D-B)* — per interface-bearing cell and tracked material pair: the interface
+**unit normal n̂** and **PLIC plane constant d** (the same volume-exact plane representation FND-3 §3.3
+emits at config time, so voxelization output is the initial condition when the capability activates).
+**Capability spec:** a general **geometric sharp liquid-surface capture** — VOF/PLIC-class
+volume-fraction advection: the tracked α_k becomes an *advected* conserved fraction (geometric,
+conservative fluxes against the reconstructed interface plane) instead of static-with-recession, with
+n̂/d re-reconstructed from the α_k field each step. It is a *general* free-surface / film /
+immiscible-interface capability of the one solver — never tied to an engine or regime — and it is
+**dormant**: the fields are reserved in the state layout now (activating it changes no layout and opens
+no seam), the α_k-advection contract is stated here, and the numerics land with the future
+liquid-interface SOLV wave. [META-3: `vof-plic`]
+
 **Not held per cell:** xyz (derived), any uncertainty/distribution, any provenance tag. *(There is no
 solver-binding map — post-v1.3 there are no reduced-dimension regions; every operator runs on the cell in
 place, §3.4.)* Fields are grouped **hot** (M, densities, T, p, heating — every step) vs **cold** (clocks,
@@ -174,7 +201,7 @@ law needs a single number*, by the physically-correct mixing rule (series/parall
 thermodynamic *state* is never homogenized, only the specific transport coefficient a law asks for.
 [META-3: `multimat-closure`]
 
-### 3.4 The unified conserved state and adaptive dimensionality *(v1.3)*
+### 3.4 The unified conserved state and adaptive dimensionality *(v1.3; adaptive mechanism v1.4)*
 There is now **one discretization** — the grid cells — and the whole solver runs on it. The
 reduced-dimension native meshes and the gather/scatter binding (former COUP-1) are **retired**.
 
@@ -188,36 +215,73 @@ two-moment); ∇·𝐁 is held by **constrained transport** (𝐁 on faces) — 
 runtime correction. [META-3: `castro-source`, `athena-ct`, `radiation-m1`]
 
 **Time integration** is owned by COUP-3: an **SDC-coupled IMEX** scheme — explicit hyperbolic hydro/MHD
-(PPM/PLM reconstruction + HLLD/HLLC flux) with the stiff pieces (M1 radiation source, conduction,
-reaction sources) as **cell-local implicit** updates, iterated to 2nd order (Strang splitting is a
+(PPM/PLM reconstruction + HLLD/HLLC flux), **spatially-coupled implicit diffusion** (conduction/viscous —
+neighbor-coupled, solved by COUP-3 §3.1's deterministic fixed-cycle class-`D` solver; a cell-local conduction
+solve does not exist), and the genuinely **cell-local implicit** stiff sources (reactions, M1 radiation
+*source* coupling), iterated to 2nd order (Strang splitting is a
 documented failure mode for stiff/energetic reactions — the nuclear/antimatter end — so it is not used
 there). FND-2 provides the deterministic swept cell traversal + face connectivity the update runs on
 (§3.7). [META-3: `sdc-imex`, `stiff-reactions`]
 
-**Adaptive dimensionality — spectral azimuthal-mode truncation (the compute lever, §3.8).** 3-D is the
-default, but the solver collapses the azimuthal direction where geometry *and* state are axisymmetric:
-- Represent azimuthal fidelity **spectrally**: mode **m=0 everywhere** (the exact axisymmetric field),
-  plus modes **m=1…M(r,z)** carried **only where** an azimuthal-energy indicator
-  `A(r,z) = Σ_{m≥1}|û_m|² / (|û_0|²+ε)` exceeds a threshold τ. Collapse = truncate to m=0 (≈ "2-D-axi");
-  re-expand = admit more modes where symmetry breaks (instabilities, plume asymmetry, film breakup,
-  tilt). This is the FBPIC/QPAD quasi-3-D mechanism made *adaptive in M per region*. [META-3:
-  `spectral-azimuthal`, `symmetry-indicator`]
-- It is **one uniform law projected onto fewer azimuthal DOF** — no separate solver, no stitched
-  dimensional interface. Zonal 1-D/2-D/3-D stitching is **rejected**: every precedent reflects waves /
-  needs iterative coupling / adds an interface multiplier — a Rule-12 seam. [META-3: `dim-hetero-coupling`]
-- **Conservation & honesty:** azimuthal truncation is an *exact conservative projection* for the m=0
-  conserved integrals; the discarded Σ_{m≥1} energy is **bounded by τ**. So it is **conservative always,
-  controlled-error by design, lossless never.** Between regions of differing mode count, missing modes
-  carry zero flux (the mode-space analog of AMR refluxing).
-- **Determinism & anti-thrash:** the indicator, the azimuthal transform, and the collapse/expand
-  decision use fixed reduction order and are gated to coarse time intervals; **dual thresholds with
-  hysteresis** (τ_collapse < τ_expand) + a dwell time prevent thrashing (§3.7).
+**Adaptive dimensionality — adaptive azimuthal resolution N_θ(r,z) (the compute lever, §3.8).** *(v1.4,
+D-A — supersedes the v1.3 spectral azimuthal-mode formulation, which had no shock-capturing story for
+nonlinear fluxes on spectral θ-modes; REVIEW_FINDINGS S3/S5.)* 3-D is the default; where geometry *and*
+state are axisymmetric the solver **coarsens the azimuthal direction** — ordinary conservative
+finite-volume **ring cells**, refined/coarsened in θ per region:
 
-*Consequence for scale/cost (VISION_SCOPE §8):* cost scales with **resolved azimuthal modes × (r,z)
-cells**, not the nominal 3-D voxel count. A mostly-axisymmetric engine costs ≈ 2-D (m=0), with local
-3-D only where symmetry breaks — which is why the ~5000 GPU-h backbone *sweep* is affordable at adaptive
-dimensionality while full-3-D is reserved for anchors/validation and UQ at full-3-D is multi-fidelity
-(META-1 §9; COUP-5).
+- **Mechanism.** Each (r,z) brick carries its ring at a resolution `N_θ(brick) ∈ {N_θ^max, N_θ^max/2, …,
+  N_θ^guard}` (factor-2 levels of the config-declared finest `N_θ^max`). The full operator — PPM/PLM
+  reconstruction, HLLC/HLLD fluxes, all source terms — runs **unchanged** at every N_θ: fewer θ-cells,
+  the *same* shock-capturing numerics (what the spectral formulation could not offer). **`N_θ = 1` *is*
+  the axisymmetric-with-swirl calculation** (the ring cell carries ρu_θ — "2.5-D swirl"). Between
+  neighboring regions of differing N_θ, face fluxes are conservatively aggregated/subdivided
+  (AMR-refluxing-style), so the audit telescopes as before. Zonal 1-D/2-D/3-D stitching remains
+  **rejected** — this is one uniform law on fewer θ-cells, not a stitched dimensional interface.
+  [META-3: `adaptive-theta-coarsening`, `dim-hetero-coupling`]
+- **Coarsening/refinement are conservative projections of `U` (S6).** Coarsen = volume-weighted
+  averaging of conserved variables over merged θ-cells (ring integrals of mass, species, momentum,
+  energy preserved **exactly**); refine = conservative prolongation (limited piecewise-linear in θ —
+  introduces no new extrema, preserves the ring integrals exactly). **Collapse thermalizes discarded
+  azimuthal kinetic energy:** projecting `ρ𝐮` onto merged cells conserves momentum but not the kinetic
+  energy of the sub-ring velocity deviations; since `ρE_total` is conserved, that ΔKE reappears as
+  internal energy. This is stated, not hidden: each collapse event **logs its thermalized ΔKE into the
+  conservation-ledger diagnostics** (COUP-2), and the accumulated ΔKE is a term of the run's **declared
+  truncation-error bound** (§5).
+- **Symmetry indicator (S7) — concrete.** Per brick `b` and conserved field `q ∈ U`:
+  `A_q(b) = Σ_cells V·(U_q − ⟨U_q⟩_ring)² / ( Σ_cells V·⟨U_q⟩_ring² + V_b·(U_q^floor)² )` — a
+  **normalized azimuthal-variance energy norm**, with `⟨·⟩_ring` the volume-weighted ring mean and
+  `U_q^floor` a per-field **absolute floor** (config-documented default: 10⁻⁶ × the field's global
+  reference magnitude taken from the run's initial/inflow state), so the indicator has both a relative
+  and an absolute scale and cannot blow up where `⟨U_q⟩ → 0` (stagnation, near-vacuum). The brick
+  indicator is `A(b) = max_q A_q(b)` — over **ALL conserved fields**, so asymmetry in any quantity
+  (composition striations, field asymmetry) is seen, not just velocity. Granularity: **per brick**.
+  [META-3: `symmetry-indicator`]
+- **Thresholds, cadence, dwell (named defaults with rationale).** `τ_collapse = 10⁻⁶`,
+  `τ_expand = 10⁻⁴` (config-documented defaults): τ_collapse sits orders below any declared physics
+  band, so a collapse discards only content already negligible against the result's error budget;
+  τ_expand > τ_collapse by 10² gives **hysteresis** against thrashing while still re-resolving
+  asymmetry when its energy fraction is far below the physics band. Evaluated every `N_sym = 32` steps,
+  with a dwell of `N_dwell = 4` consecutive over/under-threshold evaluations before any change (both
+  config-documented defaults); the evaluation uses fixed-order reductions (§3.7), so decisions are a
+  function of the data, never the schedule.
+- **Guard resolution (S4) — asymmetry stays detectable.** Regions eligible for *adaptive* collapse
+  never drop below **`N_θ^guard` = 4** (named constant). Rationale: 4 is the coarsest ring that carries
+  **both phases of m = 1** (sin θ and cos θ) — the first symmetry-breaking mode — with no blind
+  orientation: at N_θ = 2 a perturbation aligned with the cell boundaries is invisible, and at N_θ = 1
+  everything aliases into the ring mean and the indicator is structurally zero (the S4 defect). The
+  **re-expansion trigger reads guard-ring variance growth, which is nonzero and can actually fire**, at
+  a cost of only 4× the axisymmetric ring. Full `N_θ = 1` is available **only as a recorded config
+  assertion** (a per-region or global axisymmetry assertion, carried into the results bundle and
+  **pedigree-visible** — COUP-6/FND-6), never an adaptive decision.
+- **Geometry floor.** A region whose *geometry* is non-axisymmetric receives an **`N_θ^geom` floor from
+  FND-3 §3.4** (computed from the voxelized fractions' azimuthal variation), which holds **independent
+  of the flow state** — flow-adaptive collapse can never under-resolve the geometry itself.
+
+*Consequence for scale/cost (VISION_SCOPE §8):* cost scales with **Σ_bricks N_θ(brick) × (r,z) cells**,
+not the nominal 3-D voxel count. A mostly-axisymmetric engine costs ≈ its (r,z) plane × N_θ^guard (× 1
+only under a recorded axisymmetry assertion), with full azimuthal resolution only where symmetry breaks
+— which is why the ~5000 GPU-h backbone *sweep* is affordable at adaptive resolution while full-3-D is
+reserved for anchors/validation and UQ at full-3-D is multi-fidelity (META-1 §9; COUP-5).
 
 ### 3.4.1 Sub-cell reaction scales: why the grid needn't resolve the reaction
 Reactions occur at scales (nuclear ~fm; atomic/chemical ~Å; reaction zones ~µm) **far below any cell**. The
@@ -241,8 +305,10 @@ not a shortcut. The reason "full simulation of the reaction" (§1.3) is compatib
 - **Cell size is set by continuum-field gradients (mm–cm), not the reaction scale.** Refinement (§3.6) goes
   where T/flux/composition/interface gradients are steep — never "where the reaction is small" (it always is).
 - **Energy deposition is handled by range, not site:** short-range products (fission fragments, α; ≪ cell)
-  deposit locally in the source cell; long-range (n, γ; cm–m) are transported to other cells by the
-  precomputed kernels (SOLV-6). The range test (R vs cell size) decides which, per product.
+  deposit locally in the source cell; long-range (n, γ; cm–m) enter the one transport operator (SOLV-2) —
+  precomputed kernels are the **precomputed solution mode of that same operator** (valid within its
+  tabulated geometry class), runtime Sₙ the general mode, with **exactly one mode per particle-class+band
+  per run, config-declared** (E-1). The range test (R vs cell size) decides local-vs-transported, per product.
 
 So this is the **opposite** of a magic interface: a homogenized cross-section from OpenMC + SANDY covariances,
 validated against hardware and carrying propagated bands, is the reaction done *right* at the scale where its
@@ -271,10 +337,11 @@ contract.
 
 ### 3.6 Config-time construction & refinement
 Built once, then frozen:
-1. **Ingest geometry** from FND-3: per-cell material fractions + apertures (CSG via analytic sampling; STL
+1. **Ingest geometry** from FND-3: per-cell material fractions + apertures at the finest `N_θ^max`, plus
+   per-region `N_θ^geom` azimuthal floors (§3.4) (CSG via analytic sampling; STL
    via generalized winding number — FND-3 owns the algorithms; robustness is FND-3's problem, the grid just
    receives fractions).
-2. **Refine** to the chosen finest resolution using indicators evaluated on the initial geometry/fields:
+2. **Refine** in the (r,z) plane to the chosen finest resolution using indicators evaluated on the initial geometry/fields:
    the **Löhner normalized-second-difference** (steep gradients, needs no time history) plus a
    **material-interface / volume-fraction-gradient** tag (refine at interfaces). Anticipate where runtime
    gradients will develop (reaction zones, heat sources, interfaces) and refine there, since topology is
@@ -307,23 +374,43 @@ voxel count.
 - **10⁹ *distinct* f64 heavy cells would exceed 128 GB** — so a "billion-cell" run means a billion-cell
   *nominal finest resolution* reached largely through uniform grouping (few distinct heavy cells), or a
   deliberately capped high-cost study, **not** a billion distinct multi-material cells. The number that
-  scares the memory budget is *distinct grid cells* — and with adaptive azimuthal-mode reduction (§3.4) a
-  mostly-axisymmetric engine stores ≈ its (r,z) plane (m=0), not the nominal 3-D voxel count.
+  scares the memory budget is *distinct grid cells* — and with adaptive azimuthal resolution (§3.4) a
+  mostly-axisymmetric engine stores ≈ its (r,z) plane × N_θ^guard (× 1 only under a recorded axisymmetry
+  assertion), not the nominal 3-D voxel count.
 - Sweeps are **bandwidth-bound** (~seconds per billion cells touched); minimizing bytes-touched-per-cell
   (hot/cold field grouping) matters more than FLOPs. [META-3: `amrex` layout, `aosoa-cabana`]
 
+### 3.9 Execution model & data layout *(v1.4, D-H)*
+- **GPU-portable SoA layout from day one.** Within a brick, per-field **structure-of-arrays** storage:
+  each `U`/`M` component is a contiguous array over the brick's cells (hot/cold grouping per §3.3), and
+  hot loops are index arithmetic over those arrays — **no pointer-chasing in hot loops**, no per-cell
+  heap objects or dynamic dispatch. The same layout serves CPU SIMD and a GPU port unchanged; layout is
+  a day-one constraint precisely so the port is a port, not a rewrite. [META-3: `amrex`, `aosoa-cabana`]
+- **Sequencing: CPU fixed-order reference solver first.** The first implementation is the **CPU
+  fixed-order solver — the Tier-1 correctness oracle** (byte-identical at any thread count, META-1
+  §2.1). The **GPU port comes later as a *declared relaxed-reduction path***, validated against the CPU
+  reference (VAL-3: negligible-tolerance + non-spiraling gate) and permitted in **non-chaotic regimes
+  only** (S6; META-1 §2.1); chaotic/turbulent regimes stay on fixed-order paths on every target.
+- **Which paths may later be declared relaxed-reduction:** the bulk per-cell
+  reconstruction/flux/update sweeps and ensemble-member throughput — the bandwidth-bound majority
+  (§3.8). **Never relaxed:** the conservation audit and ledger (COUP-2), halt logic, the
+  symmetry-indicator evaluation and N_θ decisions (§3.4), and every RNG-consuming path — these remain
+  fixed-order on every target, so verdicts and adaptivity decisions can never diverge between CPU and
+  GPU.
+
 ## 4. Coupling relationships
 - **COUP-3 (time integration):** wraps the whole per-step update — the SDC-coupled IMEX advance of `U`
-  (§3.4), the adaptive azimuthal-mode collapse/expand decisions, and the pulsed-event sequencing. FND-2
+  (§3.4), the adaptive-N_θ coarsen/refine decisions (§3.4), and the pulsed-event sequencing. FND-2
   supplies the deterministic swept traversal + face connectivity; COUP-3 owns the operator-split schedule.
 - **COUP-2 (conservation audit + operator coupling):** the grid provides the per-quantity stored ledger
   and port hooks; COUP-2 runs the every-step `Δ(stored) = Σ port fluxes + sources` audit (Modelica-style
   flow connectors), halting on violation beyond tolerance. Because the field update is flux-form, the audit
-  telescopes to boundary/port accounting. [META-3: `fv-telescoping`, `modelica-connector`]
+  telescopes to boundary/port accounting; N_θ-collapse events log their thermalized ΔKE into the ledger
+  diagnostics (§3.4). [META-3: `fv-telescoping`, `modelica-connector`]
 - **The operators sweep the cells directly** (SOLV-1/2/3/4/6/8), reading `M` and material sub-states,
   writing to `U` and the derived/field state. Recession (fractions per §3.3; physics owned by SOLV-8) is
   the one that mutates geometry. *(COUP-1 solver–grid binding is retired — there are no reduced-dimension
-  native meshes to bind; the adaptive azimuthal-mode reduction of §3.4 replaces it.)*
+  native meshes to bind; the adaptive azimuthal resolution of §3.4 replaces it.)*
 - **`M` is read identically by every operator** (Rule 12): the grid guarantees one consistent `M` per cell,
   reconstructed from `U` + the constitutive spine (FND-7); no operator recomputes matter classification or
   branches on a material/regime label.
@@ -333,7 +420,10 @@ The grid introduces **discretization/geometric error**, not physical model-form 
 material fractions and interface position, and field-physics truncation error. Both are **budgeted and
 declared** (FND-1 uncertainty typing; the interpolation/discretization error feeds the UQ bands, META-1 §3).
 Validity is a resolution statement: a run declares its finest resolution and the resulting geometric fidelity;
-a feature thinner than the finest cell is flagged as under-resolved rather than silently smeared. Validation-
+a feature thinner than the finest cell is flagged as under-resolved rather than silently smeared. The
+adaptive-N_θ machinery (§3.4) contributes a **declared truncation term**: azimuthal content discarded at
+collapse, bounded by τ_collapse, plus the logged thermalized-ΔKE ledger — both reported with the run's
+discretization budget. Validation-
 ladder status: infrastructure (rung i — analytic), CI-gated (§6).
 
 ## 6. Validation plan
@@ -349,6 +439,13 @@ ladder status: infrastructure (rung i — analytic), CI-gated (§6).
    fully-materialized region until a gradient triggers materialization; no accuracy loss from grouping.
 6. **Multi-material invariants:** Σα_k = 1, mass, and energy are conserved through a pressure-relaxation step;
    two phases retain distinct temperatures.
+7. **Conservative θ-coarsen/refine:** a coarsen→refine round trip preserves the ring integrals of all
+   conserved variables exactly; face fluxes across an N_θ jump close the audit.
+8. **Collapse thermalization accounting:** a seeded azimuthal velocity perturbation collapsed to guard
+   resolution logs a thermalized ΔKE equal to the resolved-KE difference; total energy is unchanged.
+9. **Guard-band re-expansion fires:** a growing seeded m=1 perturbation in an `N_θ^guard = 4` region
+   drives the §3.4 indicator across τ_expand and triggers re-expansion (the S4 regression); the r=0
+   axis treatment preserves a uniform free stream across the axis.
 
 ## 7. Open questions
 | # | Kind | Question |
@@ -358,9 +455,11 @@ ladder status: infrastructure (rung i — analytic), CI-gated (§6).
 ## 8. References
 META-3 keys: `vdb`, `nanovdb`, `amrex`, `p4est`, `aosoa-cabana`, `lohner`, `berger-amr`, `repro-sum`,
 `gamer2-determinism`, `fp-nonassoc`, `eb-cutcell`, `state-redistribution`, `multimat-closure`,
-`ablation-recession`, `fv-telescoping`, `modelica-connector`; and (v1.3 unified solver, §6.5) `castro-source`,
-`athena-ct`, `radiation-m1`, `sdc-imex`, `stiff-reactions`, `spectral-azimuthal`, `symmetry-indicator`,
-`dim-hetero-coupling`. Depends on FND-1 (`Quantity`, `M`, uncertainty types), COUP-3 (time integration),
+`ablation-recession`, `fv-telescoping`, `modelica-connector`; (v1.3 unified solver) `castro-source`,
+`athena-ct`, `radiation-m1`, `sdc-imex`, `stiff-reactions`, `symmetry-indicator`,
+`dim-hetero-coupling`; and (v1.4 cylindrical grid / adaptive N_θ / dormant interface capture)
+`cyl-axis-fv`, `adaptive-theta-coarsening`, `vof-plic` — `spectral-azimuthal` retired with the
+superseded formulation. Depends on FND-1 (`Quantity`, `M`, uncertainty types), COUP-3 (time integration),
 SOLV-1 (field operator), FND-7 (constitutive spine).
 
 ## 9. Change log
@@ -371,3 +470,4 @@ SOLV-1 (field operator), FND-7 (constitutive spine).
 | 2026-07-14 | 0.3 | Expanded §3.3 into a complete categorized cell-data enumeration (geometry, segregated matter sub-states incl. composition/ionization/burnup/char, reconciled state, `M`, field-physics state, degradation clocks; conserved-authoritative/derived split; explicit "not held per cell": xyz, uncertainty, provenance, binding map). |
 | 2026-07-20 | 0.4* | **Consistency-review fixes** (same version, contract-surface completion): the §2 interface table was rewritten (dropped the retired COUP-1 region-binding + gather/scatter rows and reduced-solver "views" invariant → Conserved-state `U` + in-place Cell sweep API on the one grid; SOLV IDs → operators); §3.3(2) `material_id` restricted to identity/fundamental data + static handbook limits (EOS/transport/opacity/stopping come from the spine over `M`, not a per-material lookup — closes a Rule-12 seam the review flagged); §3.3 "not held per cell" solver-binding-map clause removed. |
 | 2026-07-19 | 0.4 | **v1.3 unified-grid pivot.** Retitled *World-State Grid & Unified Field Solver*. The grid now **evolves** the physics (is the solver) and audits itself; the accountant/physicist split and reduced-dimension native meshes retired (§0, §1.1). **§3.4 rewritten**: one discretization; the unified conserved state vector `U` (with radiation moments in `U`, constrained-transport `B`); time integration = SDC-coupled IMEX (COUP-3); **adaptive spectral azimuthal-mode dimensional reduction** (m=0 everywhere + adaptive m≥1 where an azimuthal-energy indicator fires; conservative + controlled-error, *not* lossless; hysteresis; zonal stitching rejected). §4 coupling updated (COUP-1 retired, COUP-3 central, SOLV IDs → operators); §3.8 scale note updated; references updated. §3.3 cell model, §3.2 sparse structure, §3.4.1 sub-cell homogenization, §3.5–3.7 all retained (still valid). |
+| 2026-08-14 | 0.5 | **Review fix wave (S3–S9, E-1; rulings D-A/D-B/D-H).** §3.2 restated on the **natively cylindrical-structured index space** (`(i_r, i_θ, i_z)` about a config-declared axis; volumes ∝ r; reflecting r=0 axis treatment; static (r,z) topology with dynamic θ-resolution inside a config-declared `N_θ^max`) (S3). §3.4 adaptive dimensionality rewritten as **adaptive azimuthal resolution N_θ(r,z)** — conservative ring-FV coarsening/refinement running the same shock-capturing operator at every N_θ, superseding the v1.3 spectral-mode formulation (S3/S5); collapse = **conserved-variable projection with thermalized ΔKE logged per event** into the ledger diagnostics and the declared truncation bound (S6); **concrete symmetry indicator** (normalized azimuthal-variance energy norm over all conserved fields, per-brick, absolute+relative floor, named τ_collapse/τ_expand + cadence/dwell defaults with rationale) (S7); **`N_θ^guard` = 4** guard resolution so re-expansion can actually fire, full N_θ=1 only a recorded pedigree-visible config assertion (S4); **geometry-driven `N_θ^geom` floor** from FND-3. §3.3(7): **reserved sharp-interface fields** — dormant VOF/PLIC-class liquid-surface capture (normal + plane constant reserved, α_k-advection contract stated; general capability, built with the liquid-interface wave) (S9/D-B). New §3.9 **execution model**: GPU-portable SoA layout mandated day one; CPU fixed-order reference solver first (Tier-1 oracle), GPU later as a declared relaxed-reduction path on throughput sweeps only (S8/D-H). §3.4.1 deposition wording aligned to **E-1** (kernels = precomputed solution mode of the one transport operator; one mode per particle-class+band per run, config-declared). §2/§3.6/§3.8/§4/§5/§6/§8 aligned. |
