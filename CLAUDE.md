@@ -16,11 +16,17 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   green) + `crucible-registry` (COUP-8 §3.1–§3.4 loader-facing subset). Known deferrals are listed
   in `crates/config/src/lib.rs` (FND-5 pin resolution + §6-4; deferred grammars refuse non-empty;
   span-annotated diagnostics pending — paths only).
+- Session 3 (2026-08-15): **FND-5 table loader done** (`crucible-tables`: §3.1 schema on statically
+  pinned libhdf5 2.2.0, §3.2 pin/digest/provenance gates, §3.3 multilinear in `interp_rule` space,
+  §3.5 Refuse/Flag envelope policy, §6 tests 1–6 green + golden digest vector). The canonical
+  content-digest algorithm in `crates/tables/src/digest.rs` is the **cross-language contract** —
+  the Python OFFL side must mirror it exactly. Deferred with loud load refusals: `thermo_potential`
+  (S11) + `sample_set` kinds, `pchip` method, config→tables pin wiring (FND-4 §6-4).
 - **Goal deliverable (next few sessions): the CONVERGENCE CERTIFICATE** — heat conduction on the
   cylindrical grid driven config→results end-to-end: MMS order-of-accuracy table (observed ≈ 2),
   analytic annulus (log profile) + transient-cylinder (Bessel) anchors to tolerance, byte-identical
-  rerun. Build order to get there: **FND-5 table loader next**, then FND-2 grid core, then the
-  conduction operator + MMS harness. Then the Sod certificate (SOLV-1 HLLC vs exact Riemann).
+  rerun. Remaining bricks: **FND-2 grid core next**, then the conduction operator + MMS harness.
+  Then the Sod certificate (SOLV-1 HLLC vs exact Riemann).
 - Not yet reviewed (do **not** implement without a review pass first): SOLV-5, OFFL-4 (deferred
   pulsed/antimatter set). COUP-1 is a retired tombstone — never build it.
 - `VISION_SCOPE.md` is at **v1.4** and outranks everything (§15 = amendment log).

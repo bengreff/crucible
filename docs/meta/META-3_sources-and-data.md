@@ -71,7 +71,7 @@ union of those keys. Nothing is cited that isn't here; nothing here that a resul
 | `geant4` | Geant4 | Offline antiproton annihilation/fission (FTFP/INCL/CHIPS) | `[pin]` | Geant4 license (permissive) | clear | OFFL-4 |
 | `njoy`/`endftk` | NJOY / ENDFtk | Nuclear data processing | `[pin]` | open | clear | OFFL-2 |
 | `sandy` | SANDY | Perturbed-library covariance sampling | `[pin]` | open | clear | OFFL-2 |
-| `hdf5` | HDF5 (+ Rust `hdf5` crate) | The cross-language table seam | `[pin]` | BSD-style | clear | FND-5, all OFFL |
+| `hdf5` | HDF5 (+ Rust `hdf5` crate) | The cross-language table seam | **libhdf5 2.2.0** statically built via `hdf5-metno` 0.14.1 / `-src` 0.10.4, locked in Cargo.lock (2026-08-15); Python side `[pin: h5py, with OFFL-3]` | BSD-style | clear | FND-5, all OFFL |
 | `openfoam` | OpenFOAM | Offline 3-D compressible-flow oracle | `[pin]` | GPL (oracle only, never linked) | clear | OFFL-6 |
 | `athena++` | Athena++ | Offline 3-D MHD oracle | `[pin]` | open (oracle only) | clear | OFFL-6 |
 | `warpx` | WarpX | Optional kinetic runs to calibrate mag-nozzle closure | `[pin]` | open | clear | OFFL-6 |

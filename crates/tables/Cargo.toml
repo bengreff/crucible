@@ -1,9 +1,21 @@
 [package]
 name = "crucible-tables"
-description = "FND-5 HDF5 table loader & N-D interpolation (skeleton)"
+description = "FND-5 HDF5 table loader & N-D interpolation — the cross-language seam"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+
+[dependencies]
+# META-3 §2 `hdf5`: the maintained fork of the Rust hdf5 bindings, aliased to
+# its canonical name. `static` builds a pinned libhdf5 from source (versioned
+# through Cargo.lock — the S6-friendly choice; no system HDF5 needed).
+hdf5 = { package = "hdf5-metno", version = "0.14", features = ["static"] }
+sha2 = "0.10"
+
+[dev-dependencies]
+# Integration tests manipulate fixture files directly (attribute stripping
+# for the §6-5b missing-metadata gate).
+hdf5 = { package = "hdf5-metno", version = "0.14", features = ["static"] }
 
 [lints]
 workspace = true
