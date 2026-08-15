@@ -26,4 +26,7 @@ pub use loader::{
     OLDEST_SUPPORTED_SCHEMA_VERSION, load_str,
 };
 pub use manifest::{ChaoticRecord, RunManifest};
-pub use schema::ResolvedConfig;
+pub use schema::{ResolvedConfig, ResolvedExtents, ResolvedGeometry};
+/// Resolved block bodies are `toml::Table`s; re-export the crate so
+/// downstream consumers name those types without a version-skew risk.
+pub use toml;

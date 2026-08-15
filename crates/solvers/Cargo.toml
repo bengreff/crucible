@@ -1,0 +1,14 @@
+[package]
+name = "crucible-solvers"
+description = "SOLV-family operators on the world-state grid (first: conduction)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+crucible-config = { path = "../config" }
+crucible-grid = { path = "../grid" }
+crucible-registry = { path = "../registry" }
+
+[lints]
+workspace = true

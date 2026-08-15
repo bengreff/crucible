@@ -56,12 +56,30 @@ pub(crate) struct MetaBlock {
 /// `[geometry]` — grammar owned by FND-3; only the pieces the loader checks
 /// now are typed (the CSG/STL grammar lands with the FND-3 session).
 /// `n_theta_max` is the config-declared finest azimuthal resolution
-/// (FND-3 §3.3), gated by the θ-ladder rule (FND-4 §3.4-5b / FND-2 §3.4).
+/// (FND-3 §3.3), gated by the θ-ladder rule (FND-4 §3.4-5b / FND-2 §3.4);
+/// `axisymmetric = true` is the FND-2 §3.4 **recorded axisymmetry
+/// assertion** (pedigree-visible) that alone admits `n_theta_max = 1`.
+/// The explicit grid extents (uniform spacings, FND-2 §3.2) are the minimal
+/// pre-CSG world declaration: all six present, or none.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct GeometryBlock {
     #[serde(default)]
     pub n_theta_max: Option<i64>,
+    #[serde(default)]
+    pub axisymmetric: Option<bool>,
+    #[serde(default)]
+    pub r_min: Option<f64>,
+    #[serde(default)]
+    pub dr: Option<f64>,
+    #[serde(default)]
+    pub n_r: Option<i64>,
+    #[serde(default)]
+    pub z_min: Option<f64>,
+    #[serde(default)]
+    pub dz: Option<f64>,
+    #[serde(default)]
+    pub n_z: Option<i64>,
 }
 
 /// A `type`-keyed registry-dispatched block (§3.3). Body deliberately open:
@@ -131,6 +149,20 @@ pub struct ResolvedMeta {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ResolvedGeometry {
     pub n_theta_max: i64,
+    /// The recorded, pedigree-visible axisymmetry assertion (FND-2 §3.4).
+    pub axisymmetric: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extents: Option<ResolvedExtents>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResolvedExtents {
+    pub r_min: f64,
+    pub dr: f64,
+    pub n_r: i64,
+    pub z_min: f64,
+    pub dz: f64,
+    pub n_z: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -190,21 +190,76 @@ pub fn load_str(author_toml: &str, registry: &Registry) -> Result<Loaded, Diagno
     // lands exactly on the guard resolution N_θ^guard = 4 (FND-2 §3.4).
     let resolved_geometry = match &author.geometry {
         None => None,
-        Some(g) => match g.n_theta_max {
-            None => {
-                diags.push(
-                    "geometry.n_theta_max",
-                    "required when [geometry] is declared (no hidden defaults, §3.5)",
-                );
-                None
-            }
-            Some(v) => {
-                if !is_theta_ladder_aligned(v) {
-                    diags.push("geometry.n_theta_max", theta_ladder_message(v));
+        Some(g) => {
+            let axisymmetric = g.axisymmetric.unwrap_or(false);
+            let n_theta = match g.n_theta_max {
+                None => {
+                    diags.push(
+                        "geometry.n_theta_max",
+                        "required when [geometry] is declared (no hidden defaults, §3.5)",
+                    );
+                    0
                 }
-                Some(ResolvedGeometry { n_theta_max: v })
-            }
-        },
+                // N_θ = 1 is admissible only under the recorded axisymmetry
+                // assertion (FND-2 §3.4, S4) — never silently.
+                Some(1) if axisymmetric => 1,
+                Some(1) => {
+                    diags.push(
+                        "geometry.n_theta_max",
+                        "N_θ^max = 1 requires `axisymmetric = true` — the recorded, \
+                         pedigree-visible axisymmetry assertion (FND-2 §3.4)",
+                    );
+                    1
+                }
+                Some(v) => {
+                    if !is_theta_ladder_aligned(v) {
+                        diags.push("geometry.n_theta_max", theta_ladder_message(v));
+                    }
+                    v
+                }
+            };
+            // Extents: all six or none (a half-declared world is a fault).
+            let ext = [
+                g.r_min.is_some(),
+                g.dr.is_some(),
+                g.n_r.is_some(),
+                g.z_min.is_some(),
+                g.dz.is_some(),
+                g.n_z.is_some(),
+            ];
+            let extents = if ext.iter().all(|&p| p) {
+                let (r_min, dr, n_r) = (g.r_min.unwrap(), g.dr.unwrap(), g.n_r.unwrap());
+                let (z_min, dz, n_z) = (g.z_min.unwrap(), g.dz.unwrap(), g.n_z.unwrap());
+                if r_min.is_nan() || r_min < 0.0 || dr <= 0.0 || dz <= 0.0 || n_r < 1 || n_z < 1 {
+                    diags.push(
+                        "geometry",
+                        "extents need r_min ≥ 0, dr > 0, dz > 0, n_r ≥ 1, n_z ≥ 1",
+                    );
+                }
+                Some(crate::schema::ResolvedExtents {
+                    r_min,
+                    dr,
+                    n_r,
+                    z_min,
+                    dz,
+                    n_z,
+                })
+            } else {
+                if ext.iter().any(|&p| p) {
+                    diags.push(
+                        "geometry",
+                        "grid extents are all-or-none: declare r_min, dr, n_r, z_min, dz, n_z \
+                         together (FND-2 §3.2), or omit all six",
+                    );
+                }
+                None
+            };
+            Some(ResolvedGeometry {
+                n_theta_max: n_theta,
+                axisymmetric,
+                extents,
+            })
+        }
     };
 
     // O20 — explicit Require→provider bindings; nothing auto-matches.

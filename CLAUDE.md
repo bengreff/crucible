@@ -28,11 +28,20 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   symmetry indicator + guard/hysteresis/dwell controller, fixed-shape tree reductions; §6 items
   3/7/8/9 green). Deferred with owners (in `crates/grid/src/lib.rs` header): §3.3 full cell model
   (FND-1/FND-7 wave), §3.5 tiles, §3.6 FND-3 ingest, §3.3(7) PLIC fields.
-- **Goal deliverable: the CONVERGENCE CERTIFICATE** — heat conduction on the cylindrical grid,
-  config→results end-to-end: MMS order-of-accuracy table (observed ≈ 2), analytic annulus (log
-  profile) + transient-cylinder (Bessel) anchors, byte-identical rerun. **Last brick: the
-  conduction operator + MMS harness (SOLV-1 §3.5 / COUP-3 class-D path) — next session.**
-  Then the Sod certificate (SOLV-1 HLLC vs exact Riemann).
+- Session 5 (2026-08-15): **GOAL A COMPLETE — the CONVERGENCE CERTIFICATE is earned and committed**
+  (`certificates/convergence_certificate.md`, regenerable via
+  `cargo run --bin convergence_certificate`; criteria CI-enforced in
+  `crates/solvers/tests/goal_a_certificate.rs`). `crucible-solvers`: flux-form conduction on the
+  exact cylindrical metric (one law, no branches; axis + N_θ=1 handled by geometry, not code),
+  first real registry mechanism (`conduction`), config→grid `from_loaded` wiring, `[geometry]`
+  extents + `axisymmetric` assertion grammar in FND-4. **Data: MMS orders 2.001/2.000 (2-D) and
+  2.006/2.002 (3-D m=2 θ-mode); annulus 4.3e-4 rel; Bessel cylinder 6.3e-3 K on 100 K (crosses
+  r=0); conservation drift 1.1e-16; byte-identical rerun.** Honest scaffolding note: explicit
+  fixed-order reference integrator drives the certificate; superseded (not extended) by COUP-3's
+  SDC-IMEX class-D implicit path when it lands. Uniform-N_θ sweeps only (refluxing = COUP-2/3 wave).
+- **Next goal (Ben to confirm scope): the SOD CERTIFICATE** — SOLV-1 quasi-1D HLLC/PPM at N_θ=1 vs
+  the exact Riemann solution, L1 convergence at formal order + conservation to round-off. Then
+  OFFL-3 chemistry tables (the seam certificate) → blind RL10 (M2).
 - Not yet reviewed (do **not** implement without a review pass first): SOLV-5, OFFL-4 (deferred
   pulsed/antimatter set). COUP-1 is a retired tombstone — never build it.
 - `VISION_SCOPE.md` is at **v1.4** and outranks everything (§15 = amendment log).

@@ -103,6 +103,15 @@ name = "crucible-registry"
 version = "0.1.0"
 
 [[package]]
+name = "crucible-solvers"
+version = "0.1.0"
+dependencies = [
+ "crucible-config",
+ "crucible-grid",
+ "crucible-registry",
+]
+
+[[package]]
 name = "crucible-tables"
 version = "0.1.0"
 dependencies = [
