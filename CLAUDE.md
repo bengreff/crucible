@@ -22,10 +22,16 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   content-digest algorithm in `crates/tables/src/digest.rs` is the **cross-language contract** —
   the Python OFFL side must mirror it exactly. Deferred with loud load refusals: `thermo_potential`
   (S11) + `sample_set` kinds, `pchip` method, config→tables pin wiring (FND-4 §6-4).
-- **Goal deliverable (next few sessions): the CONVERGENCE CERTIFICATE** — heat conduction on the
-  cylindrical grid driven config→results end-to-end: MMS order-of-accuracy table (observed ≈ 2),
-  analytic annulus (log profile) + transient-cylinder (Bessel) anchors to tolerance, byte-identical
-  rerun. Remaining bricks: **FND-2 grid core next**, then the conduction operator + MMS harness.
+- Session 4 (2026-08-15): **FND-2 grid core done** (`crucible-grid`: cylindrical index space with
+  exact ring metrics + zero-area axis faces + θ↔θ+π parity pairing, Morton-ordered 8×8 brick arena
+  with SoA fields and per-brick N_θ, conservative θ-coarsen/refine with thermalized-ΔKE ledger,
+  symmetry indicator + guard/hysteresis/dwell controller, fixed-shape tree reductions; §6 items
+  3/7/8/9 green). Deferred with owners (in `crates/grid/src/lib.rs` header): §3.3 full cell model
+  (FND-1/FND-7 wave), §3.5 tiles, §3.6 FND-3 ingest, §3.3(7) PLIC fields.
+- **Goal deliverable: the CONVERGENCE CERTIFICATE** — heat conduction on the cylindrical grid,
+  config→results end-to-end: MMS order-of-accuracy table (observed ≈ 2), analytic annulus (log
+  profile) + transient-cylinder (Bessel) anchors, byte-identical rerun. **Last brick: the
+  conduction operator + MMS harness (SOLV-1 §3.5 / COUP-3 class-D path) — next session.**
   Then the Sod certificate (SOLV-1 HLLC vs exact Riemann).
 - Not yet reviewed (do **not** implement without a review pass first): SOLV-5, OFFL-4 (deferred
   pulsed/antimatter set). COUP-1 is a retired tombstone — never build it.
