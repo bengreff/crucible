@@ -39,9 +39,22 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   r=0); conservation drift 1.1e-16; byte-identical rerun.** Honest scaffolding note: explicit
   fixed-order reference integrator drives the certificate; superseded (not extended) by COUP-3's
   SDC-IMEX class-D implicit path when it lands. Uniform-N_θ sweeps only (refluxing = COUP-2/3 wave).
-- **Next goal (Ben to confirm scope): the SOD CERTIFICATE** — SOLV-1 quasi-1D HLLC/PPM at N_θ=1 vs
-  the exact Riemann solution, L1 convergence at formal order + conservation to round-off. Then
-  OFFL-3 chemistry tables (the seam certificate) → blind RL10 (M2).
+- **GOAL B (confirmed by Ben 2026-08-16): the BLIND RL10 — M2 itself.** Five certificate stations,
+  each a physical system, ladder order strict (VAL-1: analytic → benchmark → hardware):
+  **(1) Bursting diaphragm (Sod)** — SOLV-1 HLLC/PPM Euler at N_θ=1 vs exact Riemann; L1 at formal
+  order in smooth regions, conservation to round-off. **← NEXT: in progress.**
+  **(2) De Laval nozzle** — cold-gas choked flow vs isentropic area–Mach relations; emergent p_c.
+  **(3) Flame (seam)** — OFFL-3 Python CEA/Cantera → HDF5 (p,h,Z) surfaces vs CEA manual cases;
+  h5py must mirror `crates/tables/src/digest.rs` byte-for-byte.
+  **(4) Cooled wall** — the one wall-function heat law (SOLV-1 §3.5/COUP-3 class-D) + certified
+  conduction; declared ±20–30% band.
+  **(5) Blind RL10** — 1966 design geometry + universal closures + technology-class data only
+  (§9 blind rule: nothing measured on the engine under test); predict 73.4 kN / Isp ≈ 444 s ≤ 2%;
+  thrust measured from exit momentum flux (SOLV-7), never assumed; uncertainty from declared
+  closure bands (full COUP-5 UQ is a later wave).
+- Working rules for sessions: read the owning doc §3 before coding its operator (SOLV-1 for
+  stations 1–2); explain results to Ben as physical systems (auto-memory has the preference);
+  every session ends gates-green and committed.
 - Not yet reviewed (do **not** implement without a review pass first): SOLV-5, OFFL-4 (deferred
   pulsed/antimatter set). COUP-1 is a retired tombstone — never build it.
 - `VISION_SCOPE.md` is at **v1.4** and outranks everything (§15 = amendment log).
