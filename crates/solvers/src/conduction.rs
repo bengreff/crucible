@@ -11,8 +11,18 @@
 //! vanishes identically (the neighbor is the cell itself) — the same
 //! operator is the axisymmetric operator, no special case.
 //!
+//! Sweep structure (post-review): neighbor bricks are resolved ONCE per
+//! brick (≤4 Morton lookups), and every in-brick access — the center, both
+//! θ-neighbors, and all (r,z) neighbors of the 36/64 interior cells — is
+//! direct index arithmetic. The v1 sweep did up to 8 binary searches per
+//! cell per step, exactly the pointer-chasing FND-2 §3.9 forbids; this
+//! sweep is the template the flow solver copies, so the pattern matters
+//! more than this operator's own cost.
+//!
 //! Determinism (§3.7): fixed Morton-brick / θ-plane / cell sweep order,
-//! two-pass rate-then-update (Jacobi form), plain f64.
+//! two-pass rate-then-update (Jacobi form), plain f64, and the per-cell
+//! accumulation order (r−, r+, θ−, θ+, z−, z+, source) is part of the
+//! certified bit-identical behavior.
 
 use crucible_grid::{BRICK, BRICK_CELLS, FieldId, Grid};
 
@@ -49,6 +59,8 @@ impl std::error::Error for SolverError {}
 
 /// Boundary condition on one grid face. Functions receive `(r, θ, z, t)` at
 /// the face centroid — pure functions, so determinism is preserved.
+/// (COUP-7 will replace these closures with declarative boundary-object
+/// data; recorded as a tracked deferral in CLAUDE.md.)
 pub enum FaceBc<'a> {
     /// Prescribed temperature at the face.
     Dirichlet(&'a dyn Fn(f64, f64, f64, f64) -> f64),
@@ -74,6 +86,15 @@ pub struct Conduction<'a> {
     pub bcs: Bcs<'a>,
 }
 
+/// Where a face's neighbor value comes from: same brick (index offset), a
+/// specific adjacent brick (resolved once per brick), or the domain edge.
+#[derive(Clone, Copy)]
+enum Nbr {
+    InBrick(isize),
+    Cross { bi: usize, local: usize },
+    Edge,
+}
+
 impl Conduction<'_> {
     /// One explicit step: fills `rate` with dT/dt at time `t`, then applies
     /// `T += dt·rate`. Fixed traversal order; bit-reproducible.
@@ -85,123 +106,195 @@ impl Conduction<'_> {
         t: f64,
         dt: f64,
     ) -> Result<(), SolverError> {
-        let nt = g.bricks[0].n_theta;
-        if g.bricks.iter().any(|b| b.n_theta != nt) {
+        let nt = g.brick(0).n_theta();
+        if g.bricks().iter().any(|b| b.n_theta() != nt) {
             return Err(SolverError::MixedThetaResolution);
         }
         let dtheta = std::f64::consts::TAU / f64::from(nt);
-        let (dr, dz) = (g.spec.dr, g.spec.dz);
-        let (n_r, n_z) = (g.spec.n_r, g.spec.n_z);
-        let z0 = g.spec.z_min;
-        let r0 = g.spec.r_min;
+        let (dr, dz) = (g.spec().dr, g.spec().dz);
+        let (n_r, n_z) = (g.spec().n_r, g.spec().n_z);
+        let z0 = g.spec().z_min;
+        let r0 = g.spec().r_min;
+
+        // Reused rate buffer: rates are staged per brick, then written once
+        // (keeps reads of neighbor bricks and the write disjoint).
+        let mut buf = vec![0.0f64; nt as usize * BRICK_CELLS];
 
         // Pass 1: rates, brick by brick in Morton order.
-        for bi in 0..g.bricks.len() {
-            let (br, bz, mask) = (g.bricks[bi].br, g.bricks[bi].bz, g.bricks[bi].mask);
+        for bi in 0..g.n_bricks() {
+            let (br, bz, mask) = {
+                let b = g.brick(bi);
+                (b.br(), b.bz(), b.mask())
+            };
+            // Adjacent bricks, resolved once per brick (≤4 Morton lookups).
+            let nb_rm = (br > 0)
+                .then(|| g.brick_index_by_coords(br - 1, bz))
+                .flatten();
+            let nb_rp = g.brick_index_by_coords(br + 1, bz);
+            let nb_zm = (bz > 0)
+                .then(|| g.brick_index_by_coords(br, bz - 1))
+                .flatten();
+            let nb_zp = g.brick_index_by_coords(br, bz + 1);
+
             for j in 0..nt {
                 let theta = (f64::from(j) + 0.5) * dtheta;
                 for local in 0..BRICK_CELLS {
                     if mask & (1u64 << local) == 0 {
                         continue;
                     }
-                    let i_r = br as usize * BRICK + local / BRICK;
-                    let i_z = bz as usize * BRICK + local % BRICK;
+                    let (lr, lz) = (local / BRICK, local % BRICK);
+                    let (i_r, i_z) = (br as usize * BRICK + lr, bz as usize * BRICK + lz);
                     let rbar = r0 + (i_r as f64 + 0.5) * dr;
                     let zbar = z0 + (i_z as f64 + 0.5) * dz;
                     let vol = g.cell_volume(i_r, nt);
-                    let t_c = self.read(g, t_field, i_r, j, i_z);
+
+                    let here = g.brick(bi);
+                    let t_here = here.field(t_field);
+                    let idx = here.cell_index(j, local);
+                    let t_c = t_here[idx];
                     if !t_c.is_finite() {
                         return Err(SolverError::NonFiniteState { i_r, i_z });
                     }
 
+                    // Face neighbor resolution — pure index arithmetic.
+                    let n_rm = if i_r == 0 {
+                        Nbr::Edge
+                    } else if lr > 0 {
+                        Nbr::InBrick(-(BRICK as isize))
+                    } else {
+                        Nbr::Cross {
+                            bi: nb_rm.expect("in-bounds neighbor brick exists"),
+                            local: (BRICK - 1) * BRICK + lz,
+                        }
+                    };
+                    let n_rp = if i_r + 1 >= n_r {
+                        Nbr::Edge
+                    } else if lr + 1 < BRICK {
+                        Nbr::InBrick(BRICK as isize)
+                    } else {
+                        Nbr::Cross {
+                            bi: nb_rp.expect("in-bounds neighbor brick exists"),
+                            local: lz,
+                        }
+                    };
+                    let n_zm = if i_z == 0 {
+                        Nbr::Edge
+                    } else if lz > 0 {
+                        Nbr::InBrick(-1)
+                    } else {
+                        Nbr::Cross {
+                            bi: nb_zm.expect("in-bounds neighbor brick exists"),
+                            local: lr * BRICK + (BRICK - 1),
+                        }
+                    };
+                    let n_zp = if i_z + 1 >= n_z {
+                        Nbr::Edge
+                    } else if lz + 1 < BRICK {
+                        Nbr::InBrick(1)
+                    } else {
+                        Nbr::Cross {
+                            bi: nb_zp.expect("in-bounds neighbor brick exists"),
+                            local: lr * BRICK,
+                        }
+                    };
+                    let fetch = |n: Nbr| -> f64 {
+                        match n {
+                            Nbr::InBrick(off) => t_here[(idx as isize + off) as usize],
+                            Nbr::Cross { bi: nbi, local: nl } => {
+                                let nb = g.brick(nbi);
+                                debug_assert!(
+                                    nb.mask() & (1u64 << nl) != 0,
+                                    "flux against an inactive cell — mask/bounds invariant broken"
+                                );
+                                nb.field(t_field)[nb.cell_index(j, nl)]
+                            }
+                            Nbr::Edge => unreachable!("edge faces take the BC path"),
+                        }
+                    };
+
                     let mut heat_in = 0.0f64; // W
 
-                    // r− face.
+                    // r− face. a_in == 0.0 at the r = 0 axis: drops out.
                     let a_in = g.face_area_r(i_r, false, nt);
-                    if i_r > 0 {
-                        heat_in +=
-                            self.kappa * a_in * (self.read(g, t_field, i_r - 1, j, i_z) - t_c) / dr;
-                    } else if a_in > 0.0 {
-                        heat_in += self.face_bc_heat(
-                            &self.bcs.r_inner,
-                            a_in,
-                            t_c,
-                            0.5 * dr,
-                            (r0, theta, zbar, t),
-                        );
-                    } // a_in == 0.0: the r = 0 axis face — drops out geometrically.
+                    match n_rm {
+                        Nbr::Edge => {
+                            if a_in > 0.0 {
+                                heat_in += self.face_bc_heat(
+                                    &self.bcs.r_inner,
+                                    a_in,
+                                    t_c,
+                                    0.5 * dr,
+                                    (r0, theta, zbar, t),
+                                );
+                            }
+                        }
+                        n => heat_in += self.kappa * a_in * (fetch(n) - t_c) / dr,
+                    }
 
                     // r+ face.
                     let a_out = g.face_area_r(i_r, true, nt);
-                    if i_r + 1 < n_r {
-                        heat_in +=
-                            self.kappa * a_out * (self.read(g, t_field, i_r + 1, j, i_z) - t_c)
-                                / dr;
-                    } else {
-                        heat_in += self.face_bc_heat(
-                            &self.bcs.r_outer,
-                            a_out,
-                            t_c,
-                            0.5 * dr,
-                            (r0 + n_r as f64 * dr, theta, zbar, t),
-                        );
+                    match n_rp {
+                        Nbr::Edge => {
+                            heat_in += self.face_bc_heat(
+                                &self.bcs.r_outer,
+                                a_out,
+                                t_c,
+                                0.5 * dr,
+                                (r0 + n_r as f64 * dr, theta, zbar, t),
+                            );
+                        }
+                        n => heat_in += self.kappa * a_out * (fetch(n) - t_c) / dr,
                     }
 
-                    // θ faces: periodic, arc distance r̄·Δθ. At N_θ = 1 the
-                    // neighbor is the cell itself ⇒ flux exactly zero.
+                    // θ faces: periodic, arc distance r̄·Δθ, always in-brick.
+                    // At N_θ = 1 the neighbor is the cell itself ⇒ flux 0.
                     let a_th = g.face_area_theta();
                     let arc = rbar * dtheta;
                     let jm = (j + nt - 1) % nt;
                     let jp = (j + 1) % nt;
-                    heat_in +=
-                        self.kappa * a_th * (self.read(g, t_field, i_r, jm, i_z) - t_c) / arc;
-                    heat_in +=
-                        self.kappa * a_th * (self.read(g, t_field, i_r, jp, i_z) - t_c) / arc;
+                    heat_in += self.kappa * a_th * (t_here[here.cell_index(jm, local)] - t_c) / arc;
+                    heat_in += self.kappa * a_th * (t_here[here.cell_index(jp, local)] - t_c) / arc;
 
                     // z faces.
                     let a_z = g.face_area_z(i_r, nt);
-                    if i_z > 0 {
-                        heat_in +=
-                            self.kappa * a_z * (self.read(g, t_field, i_r, j, i_z - 1) - t_c) / dz;
-                    } else {
-                        heat_in += self.face_bc_heat(
-                            &self.bcs.z_lo,
-                            a_z,
-                            t_c,
-                            0.5 * dz,
-                            (rbar, theta, z0, t),
-                        );
+                    match n_zm {
+                        Nbr::Edge => {
+                            heat_in += self.face_bc_heat(
+                                &self.bcs.z_lo,
+                                a_z,
+                                t_c,
+                                0.5 * dz,
+                                (rbar, theta, z0, t),
+                            );
+                        }
+                        n => heat_in += self.kappa * a_z * (fetch(n) - t_c) / dz,
                     }
-                    if i_z + 1 < n_z {
-                        heat_in +=
-                            self.kappa * a_z * (self.read(g, t_field, i_r, j, i_z + 1) - t_c) / dz;
-                    } else {
-                        heat_in += self.face_bc_heat(
-                            &self.bcs.z_hi,
-                            a_z,
-                            t_c,
-                            0.5 * dz,
-                            (rbar, theta, z0 + n_z as f64 * dz, t),
-                        );
+                    match n_zp {
+                        Nbr::Edge => {
+                            heat_in += self.face_bc_heat(
+                                &self.bcs.z_hi,
+                                a_z,
+                                t_c,
+                                0.5 * dz,
+                                (rbar, theta, z0 + n_z as f64 * dz, t),
+                            );
+                        }
+                        n => heat_in += self.kappa * a_z * (fetch(n) - t_c) / dz,
                     }
 
                     let s = (self.source)(rbar, theta, zbar, t);
-                    let rate_val = (heat_in + s * vol) / (self.rho_cp * vol);
-                    let bi_w = g
-                        .brick_index(i_r, i_z)
-                        .expect("cell exists by construction");
-                    let idx = g.bricks[bi_w].cell_index(j, crucible_grid::Grid::local_rz(i_r, i_z));
-                    g.bricks[bi_w].field_mut(rate)[idx] = rate_val;
+                    buf[idx] = (heat_in + s * vol) / (self.rho_cp * vol);
                 }
             }
+            let len = nt as usize * BRICK_CELLS;
+            g.brick_field_mut(bi, rate)[..len].copy_from_slice(&buf[..len]);
         }
 
         // Pass 2: apply.
-        for b in &mut g.bricks {
-            let n = b.n_theta as usize * BRICK_CELLS;
-            for i in 0..n {
-                let r = b.field(rate)[i];
-                b.field_mut(t_field)[i] += dt * r;
+        for bi in 0..g.n_bricks() {
+            let (t_slice, r_slice) = g.brick_fields_mut2(bi, t_field, rate);
+            for (tv, rv) in t_slice.iter_mut().zip(r_slice.iter()) {
+                *tv += dt * rv;
             }
         }
         Ok(())
@@ -226,25 +319,20 @@ impl Conduction<'_> {
     }
 
     /// Explicit-stability step bound `dt ≤ C·ρc_p/(k·Σ 2/d_i²)` with the
-    /// smallest distances on the grid (θ arc at the innermost ring).
+    /// smallest distances on the grid (θ arc at the innermost ring). The
+    /// bound is spectrally sharp including Dirichlet boundaries (a boundary
+    /// face adds to the diagonal but has no off-diagonal partner, leaving
+    /// the Gershgorin radius unchanged — review-verified, with dt at
+    /// 0.999× stable and 1.02× divergent).
     pub fn stable_dt(&self, g: &Grid, safety: f64) -> f64 {
-        let nt = g.bricks[0].n_theta;
+        let nt = g.brick(0).n_theta();
         let dtheta = std::f64::consts::TAU / f64::from(nt);
-        let arc_min = (g.spec.r_min + 0.5 * g.spec.dr) * dtheta;
-        let mut inv = 2.0 / (g.spec.dr * g.spec.dr) + 2.0 / (g.spec.dz * g.spec.dz);
+        let arc_min = (g.spec().r_min + 0.5 * g.spec().dr) * dtheta;
+        let mut inv = 2.0 / (g.spec().dr * g.spec().dr) + 2.0 / (g.spec().dz * g.spec().dz);
         if nt > 1 {
             inv += 2.0 / (arc_min * arc_min);
         }
         safety * self.rho_cp / (self.kappa * inv)
-    }
-
-    #[inline]
-    fn read(&self, g: &Grid, f: FieldId, i_r: usize, j: u32, i_z: usize) -> f64 {
-        let bi = g
-            .brick_index(i_r, i_z)
-            .expect("neighbor within active grid");
-        let b = &g.bricks[bi];
-        b.field(f)[b.cell_index(j, crucible_grid::Grid::local_rz(i_r, i_z))]
     }
 
     #[inline]

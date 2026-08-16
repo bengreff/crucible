@@ -1,2 +1,15 @@
-# Cargo.lock is committed (S6: the build fingerprint hashes it — FND-6 §3.4).
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Rust build (Cargo.lock is committed: the build fingerprint hashes it, FND-6 §3.4)
 /target
+
+# Python offline pipelines (OFFL-*, Goal B station 3)
+__pycache__/
+*.pyc
+.venv/

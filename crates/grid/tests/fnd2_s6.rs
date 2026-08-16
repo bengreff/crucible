@@ -4,7 +4,8 @@
 //! - §6-7 conservative θ-coarsen/refine round trip;
 //! - §6-8 collapse thermalization accounting;
 //! - §6-9 guard-band re-expansion fires (+ axis metric treatment);
-//! - plus metric exactness and the guard/assertion rules.
+//! - plus metric exactness, the guard/assertion rules, and the post-review
+//!   fail-loud regressions (NaN spec, NaN indicator).
 //!
 //! Deferred with their owners: §6-1 voxelization (FND-3), §6-2 conservation
 //! sweep + flux closure across an N_θ jump (conduction session), §6-4
@@ -40,26 +41,15 @@ fn momentum(g: &Grid) -> MomentumFields {
     }
 }
 
-/// Deterministic pseudo-data: a fixed polynomial of the indices (no RNG —
-/// counter-style, reproducible by construction).
+/// Deterministic pseudo-data: a fixed function of the cell position (no RNG
+/// — counter-style, reproducible by construction).
 fn fill_deterministic(g: &mut Grid) {
-    let ids: Vec<_> = FIELDS.iter().map(|f| g.field_id(f).unwrap()).collect();
-    for bi in 0..g.bricks.len() {
-        let nt = g.bricks[bi].n_theta;
-        let (br, bz) = (g.bricks[bi].br, g.bricks[bi].bz);
-        for (k, id) in ids.iter().enumerate() {
-            let data = g.bricks[bi].field_mut(*id);
-            for j in 0..nt as usize {
-                for local in 0..BRICK_CELLS {
-                    let x = (j as f64 + 1.0) * 0.37
-                        + local as f64 * 0.011
-                        + f64::from(br) * 1.3
-                        + f64::from(bz) * 0.7
-                        + k as f64;
-                    data[j * BRICK_CELLS + local] = 1.0 + x.sin() * 0.25 + 0.5;
-                }
-            }
-        }
+    for (k, name) in FIELDS.iter().enumerate() {
+        let id = g.field_id(name).unwrap();
+        g.fill_field(id, move |r, theta, z| {
+            let x = r * 37.0 + theta * 1.1 + z * 53.0 + k as f64;
+            1.5 + x.sin() * 0.25
+        });
     }
 }
 
@@ -101,8 +91,7 @@ fn fnd2_s6_3_reductions_are_bit_identical_and_partial_order_independent() {
     assert_eq!(a.to_bits(), b.to_bits());
 
     // The tree combine is a pure function of the partial slots — identical
-    // no matter which "thread" computed which partial (§3.7). Simulate by
-    // computing partials in reverse order into their slots.
+    // no matter which "thread" computed which partial (§3.7).
     let partials_fwd: Vec<f64> = (0..8).map(|i| (i as f64 + 0.1).sin()).collect();
     let mut partials_rev = vec![0.0f64; 8];
     for i in (0..8).rev() {
@@ -114,7 +103,7 @@ fn fnd2_s6_3_reductions_are_bit_identical_and_partial_order_independent() {
     );
 
     // Morton order is canonical: bricks are strictly sorted.
-    assert!(g.bricks.windows(2).all(|w| w[0].morton < w[1].morton));
+    assert!(g.bricks().windows(2).all(|w| w[0].morton() < w[1].morton()));
     assert_eq!(morton2(3, 5), 0b100111);
 }
 
@@ -128,12 +117,12 @@ fn fnd2_s6_7_theta_round_trip_preserves_ring_integrals() {
 
     let before: Vec<f64> = ids.iter().map(|f| g.reduce_volume_weighted(*f)).collect();
     let mom = momentum(&g);
-    for bi in 0..g.bricks.len() {
+    for bi in 0..g.n_bricks() {
         g.coarsen_theta(bi, Some(mom)).expect("16 → 8");
         g.coarsen_theta(bi, Some(mom)).expect("8 → 4");
     }
     let coarse: Vec<f64> = ids.iter().map(|f| g.reduce_volume_weighted(*f)).collect();
-    for bi in 0..g.bricks.len() {
+    for bi in 0..g.n_bricks() {
         g.refine_theta(bi).expect("4 → 8");
         g.refine_theta(bi).expect("8 → 16");
     }
@@ -156,45 +145,26 @@ fn fnd2_s6_8_collapse_logs_thermalized_ke_exactly() {
     let mt_id = g.field_id("mom_theta").unwrap();
 
     // Uniform ρ = 2, seeded m = 1 azimuthal velocity perturbation in ρu_θ.
-    for bi in 0..g.bricks.len() {
-        let nt = g.bricks[bi].n_theta;
-        for j in 0..nt as usize {
-            let theta = std::f64::consts::TAU * (j as f64 + 0.5) / nt as f64;
-            for local in 0..BRICK_CELLS {
-                let i = j * BRICK_CELLS + local;
-                g.bricks[bi].field_mut(rho_id)[i] = 2.0;
-                g.bricks[bi].field_mut(mt_id)[i] = 0.3 * theta.sin();
-            }
-        }
-    }
+    g.fill_field(rho_id, |_, _, _| 2.0);
+    g.fill_field(mt_id, |_, theta, _| 0.3 * theta.sin());
 
     // Independent KE bookkeeping: resolved KE before and after must differ
-    // by exactly the logged ΔKE, while total energy (ρE untouched here, KE
-    // reappearing as internal energy is the *solver's* ledger entry) and
-    // mass/momentum integrals are conserved by the projection itself.
+    // by exactly the logged ΔKE.
     let resolved_ke = |g: &Grid| -> f64 {
         let mut ke = 0.0f64;
-        for b in &g.bricks {
-            for local in 0..BRICK_CELLS {
-                if b.mask & (1u64 << local) == 0 {
-                    continue;
-                }
-                let i_r = b.br as usize * 8 + local / 8;
-                let v = g.cell_volume(i_r, b.n_theta);
-                for j in 0..b.n_theta as usize {
-                    let i = j * BRICK_CELLS + local;
-                    let m = b.field(mt_id)[i];
-                    ke += v * m * m / (2.0 * b.field(rho_id)[i]);
-                }
-            }
-        }
+        g.for_each_active_cell(|c| {
+            let b = g.brick(c.bi);
+            let v = g.cell_volume(c.i_r, b.n_theta());
+            let m = b.field(mt_id)[c.idx];
+            ke += v * m * m / (2.0 * b.field(rho_id)[c.idx]);
+        });
         ke
     };
 
     let ke_before = resolved_ke(&g);
     let mass_before = g.reduce_volume_weighted(rho_id);
     let mut logged = 0.0f64;
-    for bi in 0..g.bricks.len() {
+    for bi in 0..g.n_bricks() {
         logged += g
             .coarsen_theta(bi, Some(mom))
             .expect("8 → 4")
@@ -223,17 +193,11 @@ fn fnd2_s6_9_indicator_sees_m1_at_guard_and_controller_fires_after_dwell() {
     let mom = momentum(&g);
     let rho_id = g.field_id("rho").unwrap();
     let mt_id = g.field_id("mom_theta").unwrap();
-    for bi in 0..g.bricks.len() {
-        let nt = g.bricks[bi].n_theta as usize;
-        for j in 0..nt {
-            for local in 0..BRICK_CELLS {
-                let i = j * BRICK_CELLS + local;
-                g.bricks[bi].field_mut(rho_id)[i] = 2.0;
-                g.bricks[bi].field_mut(mt_id)[i] = 0.0;
-            }
-        }
+    g.fill_field(rho_id, |_, _, _| 2.0);
+    g.fill_field(mt_id, |_, _, _| 0.0);
+    for bi in 0..g.n_bricks() {
         g.coarsen_theta(bi, Some(mom)).expect("to guard");
-        assert_eq!(g.bricks[bi].n_theta, N_THETA_GUARD);
+        assert_eq!(g.brick(bi).n_theta(), N_THETA_GUARD);
         // Adaptive collapse below the guard is refused (S4).
         assert!(matches!(
             g.coarsen_theta(bi, Some(mom)),
@@ -243,18 +207,20 @@ fn fnd2_s6_9_indicator_sees_m1_at_guard_and_controller_fires_after_dwell() {
 
     // Symmetric state: indicator ~ 0 at guard resolution.
     let fields = [(mt_id, 1e-6), (rho_id, 2e-6)];
-    assert!(g.symmetry_indicator(0, &fields) < 1e-30);
+    assert!(g.symmetry_indicator(0, &fields).unwrap() < 1e-30);
 
     // A seeded m=1 perturbation at N_θ^guard = 4 is visible (both phases
     // carried — the S4 rationale) and can drive the indicator past τ_expand.
-    let nt = g.bricks[0].n_theta as usize;
+    let nt = g.brick(0).n_theta();
+    let (data_start, cells) = (0usize, BRICK_CELLS);
+    let mt = g.brick_field_mut(0, mt_id);
     for j in 0..nt {
-        let theta = std::f64::consts::TAU * (j as f64 + 0.5) / nt as f64;
-        for local in 0..BRICK_CELLS {
-            g.bricks[0].field_mut(mt_id)[j * BRICK_CELLS + local] = 0.05 * theta.cos();
+        let theta = std::f64::consts::TAU * (f64::from(j) + 0.5) / f64::from(nt);
+        for local in 0..cells {
+            mt[data_start + j as usize * BRICK_CELLS + local] = 0.05 * theta.cos();
         }
     }
-    let a = g.symmetry_indicator(0, &fields);
+    let a = g.symmetry_indicator(0, &fields).unwrap();
     assert!(a > TAU_EXPAND, "m=1 at guard must be detectable: A = {a}");
 
     // Dwell: N_DWELL consecutive over-threshold observations before Expand.
@@ -270,7 +236,7 @@ fn fnd2_s6_9_indicator_sees_m1_at_guard_and_controller_fires_after_dwell() {
     assert_eq!(ctl2.observe(a), ThetaAction::Hold);
 
     g.refine_theta(0).expect("expand 4 → 8 after the trigger");
-    assert_eq!(g.bricks[0].n_theta, 8);
+    assert_eq!(g.brick(0).n_theta(), 8);
     assert!(
         matches!(g.refine_theta(0), Err(GridError::BadThetaResolution { .. })),
         "cannot refine past N_θ^max"
@@ -304,7 +270,7 @@ fn fnd2_s34_ladder_and_axisymmetry_assertion_rules() {
         .assert_axisymmetric(0, Some(mom))
         .expect("asserted collapse");
     assert!(log.by_assertion);
-    assert_eq!(g.bricks[0].n_theta, 1);
+    assert_eq!(g.brick(0).n_theta(), 1);
     let after = g.reduce_volume_weighted(rho_e);
     assert!(
         ((before - after) / before).abs() < 1e-13,
@@ -316,4 +282,45 @@ fn fnd2_s34_ladder_and_axisymmetry_assertion_rules() {
     // Without the assertion, assert_axisymmetric is refused.
     let mut g2 = Grid::build(spec(4, 4, 8), FIELDS).unwrap();
     assert!(g2.assert_axisymmetric(0, None).is_err());
+}
+
+// --- Post-review fail-loud regressions ---------------------------------------
+
+#[test]
+fn review_nan_and_inf_spec_values_are_refused_at_build() {
+    for bad in [f64::NAN, f64::INFINITY] {
+        let mut s = spec(4, 4, 8);
+        s.dr = bad;
+        assert!(matches!(Grid::build(s, FIELDS), Err(GridError::BadSpec(_))));
+        let mut s = spec(4, 4, 8);
+        s.dz = bad;
+        assert!(matches!(Grid::build(s, FIELDS), Err(GridError::BadSpec(_))));
+    }
+}
+
+#[test]
+fn review_symmetry_indicator_fails_loud_on_nan_and_bad_floor() {
+    let mut g = Grid::build(spec(8, 8, 8), FIELDS).unwrap();
+    let rho_id = g.field_id("rho").unwrap();
+    g.fill_field(rho_id, |_, _, _| 2.0);
+
+    // Zero/negative/NaN floors are refused (a zero floor makes an all-zero
+    // field divide 0/0 — the exact case f64::max used to swallow).
+    for bad_floor in [0.0, -1.0, f64::NAN] {
+        assert!(g.symmetry_indicator(0, &[(rho_id, bad_floor)]).is_err());
+    }
+
+    // NaN in a monitored field is a halt, never "perfectly symmetric".
+    g.brick_field_mut(0, rho_id)[3] = f64::NAN;
+    match g.symmetry_indicator(0, &[(rho_id, 1e-6)]) {
+        Err(GridError::NonFinite { .. }) => {}
+        other => panic!("expected NonFinite halt, got {other:?}"),
+    }
+
+    // And the collapse ΔKE path refuses NaN density rather than merging it.
+    let mom = momentum(&g);
+    assert!(matches!(
+        g.coarsen_theta(0, Some(mom)),
+        Err(GridError::NonPositiveDensity { .. })
+    ));
 }

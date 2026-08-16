@@ -419,6 +419,110 @@ fn fnd5_s32_digest_golden_vector_guards_the_python_contract() {
     let digest = write_table(&path, "/g", &s).expect("write");
     assert_eq!(
         digest,
-        "sha256:3c91f6cab9e9ac1f76e4fdeffaf586f74efa9a98e0bea7610c141f8da4b2f2a4"
+        "sha256:e76ad40b893659821d94c2ca8b6608b1c2bc7a2397d9c5afb2cd40cda546fc4d"
     );
+}
+
+// --- Post-review seam regressions --------------------------------------------
+
+#[test]
+fn review_newline_in_provenance_changes_the_digest() {
+    // v1 digest terminated strings with \n, so a newline INSIDE a field
+    // shifted bytes into the next field and two different tables hashed
+    // identically. v2 length-prefixes every string.
+    let path = scratch("nl.h5");
+    let base = spec(
+        vec![axis("x", vec![0.0, 1.0])],
+        vec![value("t", vec![1.0, 2.0], "lin-lin", 1e-9)],
+    );
+    let mut a = base.clone();
+    a.provenance.producer = "cea\nv2".into();
+    a.provenance.producer_version = "1.0".into();
+    let mut b = base;
+    b.provenance.producer = "cea".into();
+    b.provenance.producer_version = "v2\n1.0".into();
+    let da = write_table(&path, "/a", &a).expect("write a");
+    let db = write_table(&path, "/b", &b).expect("write b");
+    assert_ne!(da, db, "different provenance must hash differently");
+}
+
+#[test]
+fn review_sigma_prefix_is_reserved_and_orphans_refuse() {
+    // Writer side: a physics value named sigma_* is refused up front.
+    let path = scratch("sigma.h5");
+    let s = spec(
+        vec![axis("e", vec![0.0, 1.0])],
+        vec![value("sigma_t", vec![1.0, 2.0], "lin-lin", 1e-9)],
+    );
+    assert!(matches!(
+        write_table(&path, "/xs", &s),
+        Err(TableError::UnexpectedMember { .. })
+    ));
+
+    // Reader side: an orphan sigma_ dataset smuggled in refuses at load
+    // (v1 silently ignored it AND left it out of the digest).
+    let ok = spec(
+        vec![axis("e", vec![0.0, 1.0])],
+        vec![value("t", vec![1.0, 2.0], "lin-lin", 1e-9)],
+    );
+    let d = write_table(&path, "/t", &ok).expect("write");
+    {
+        let f = hdf5::File::append(&path).expect("reopen");
+        f.group("/t/values")
+            .expect("group")
+            .new_dataset_builder()
+            .with_data(&[9.0f64])
+            .create("sigma_ghost")
+            .expect("orphan");
+    }
+    assert!(matches!(
+        Table::open(&path, "/t", &pin(&d)),
+        Err(TableError::UnexpectedMember { .. })
+    ));
+}
+
+#[test]
+fn review_unaccounted_datasets_refuse_instead_of_evading_the_digest() {
+    let path = scratch("orphan.h5");
+    let ok = spec(
+        vec![axis("e", vec![0.0, 1.0])],
+        vec![value("t", vec![1.0, 2.0], "lin-lin", 1e-9)],
+    );
+    let d = write_table(&path, "/t", &ok).expect("write");
+    // A dataset under axes/ not listed in axis_order.
+    {
+        let f = hdf5::File::append(&path).expect("reopen");
+        f.group("/t/axes")
+            .expect("group")
+            .new_dataset_builder()
+            .with_data(&[0.0f64, 1.0])
+            .create("stowaway")
+            .expect("extra axis ds");
+    }
+    assert!(matches!(
+        Table::open(&path, "/t", &pin(&d)),
+        Err(TableError::UnexpectedMember { .. })
+    ));
+
+    // An unknown top-level member of the table group.
+    let d2 = write_table(
+        &path,
+        "/u",
+        &spec(
+            vec![axis("e", vec![0.0, 1.0])],
+            vec![value("t", vec![1.0, 2.0], "lin-lin", 1e-9)],
+        ),
+    )
+    .expect("write");
+    {
+        let f = hdf5::File::append(&path).expect("reopen");
+        f.group("/u")
+            .expect("group")
+            .create_group("extra")
+            .expect("subgroup");
+    }
+    assert!(matches!(
+        Table::open(&path, "/u", &pin(&d2)),
+        Err(TableError::UnexpectedMember { .. })
+    ));
 }

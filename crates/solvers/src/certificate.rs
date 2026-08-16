@@ -1,13 +1,54 @@
 //! The Goal-A **convergence certificate** studies (VAL-1 ladder, rung
 //! "analytic"; VAL-3 §3.2 MMS gate). Each runner returns structured data;
 //! `tests/` asserts the pass criteria and `bin/convergence_certificate`
-//! renders the committed artifact. Everything here is deterministic: fixed
-//! grids, fixed step counts, no RNG, no wall-clock.
+//! renders the committed artifact — both from the SAME named constants
+//! below, so the artifact can never assert criteria the tests don't
+//! enforce. Everything here is deterministic: fixed grids, fixed step
+//! counts, no RNG, no wall-clock.
 
 use crate::conduction::{Bcs, Conduction, FaceBc};
-use crucible_grid::{BRICK, BRICK_CELLS, FieldId, Grid, GridSpec};
+use crucible_grid::{Grid, GridSpec};
 
 pub const FIELDS: &[&str] = &["T", "rate"];
+
+// --- Named certificate constants (META-2 §4: no magic numbers) --------------
+
+/// Observed-order acceptance band around the formal order 2 (VAL-3 §3.2:
+/// "observed order within ~5–10% of formal"; ±0.2 is the 10% band).
+pub const MMS_ORDER_MIN: f64 = 1.8;
+pub const MMS_ORDER_MAX: f64 = 2.2;
+
+/// MMS refinement ladder and step base: level ℓ runs `MMS_BASE_STEPS·4^ℓ`
+/// steps to `MMS_T_FINAL`, so dt ∝ h² and the O(dt) Euler error refines at
+/// the same 2nd-order rate as space. At every level dt sits at ≈0.57× the
+/// spectral stability limit (asserted at run time against `stable_dt`).
+pub const MMS_LEVELS: [usize; 3] = [8, 16, 32];
+pub const MMS_BASE_STEPS: usize = 25;
+pub const MMS_T_FINAL: f64 = 0.05;
+
+/// March safety factor for anchor runs: 0.4× the spectral limit also sits
+/// below the ~0.66× discrete-maximum-principle threshold, so anchor data is
+/// free of bounded transient overshoot, not just divergence.
+pub const CFL_SAFETY: f64 = 0.4;
+
+/// Steady annulus anchor tolerance, relative to ΔT: the measured 2nd-order
+/// discretization error at 32 radial cells is ≈4.3e-4 (see the committed
+/// certificate); 2e-3 gives ~5× regression headroom while still failing on
+/// any loss of 2nd-order boundary treatment.
+pub const ANNULUS_TOL_REL: f64 = 2e-3;
+pub const ANNULUS_CELLS: usize = 32;
+
+/// Bessel-cylinder anchor tolerance [K] on T₀ = 100 K: spatial error at
+/// 48 cells is ≈6e-3 K and series truncation ≈1e-8 K, so 0.5 K (0.5%)
+/// passes with ~80× margin yet catches any axis-treatment defect, which
+/// produces O(1) K errors at the centerline.
+pub const BESSEL_TOL_K: f64 = 0.5;
+
+/// Closed-sweep conservation tolerance: FND-2 §6-2 asks ~1e-10 relative;
+/// flux-form telescoping actually delivers round-off (~1e-16), so 1e-12
+/// enforces 4 decades tighter than the doc's requirement.
+pub const CONSERVATION_TOL_REL: f64 = 1e-12;
+pub const CONSERVATION_STEPS: usize = 500;
 
 /// One refinement level of an MMS study: grid spacing and L2 error.
 #[derive(Debug, Clone, PartialEq)]
@@ -46,55 +87,18 @@ fn annulus_spec(n: usize, n_theta: u32, axisym: bool) -> GridSpec {
     }
 }
 
-fn fill<F: Fn(f64, f64, f64) -> f64>(g: &mut Grid, f_id: FieldId, f: F) {
-    let (dr, dz, r0, z0) = (g.spec.dr, g.spec.dz, g.spec.r_min, g.spec.z_min);
-    for bi in 0..g.bricks.len() {
-        let nt = g.bricks[bi].n_theta;
-        let dtheta = std::f64::consts::TAU / f64::from(nt);
-        let (br, bz, mask) = (g.bricks[bi].br, g.bricks[bi].bz, g.bricks[bi].mask);
-        let data = g.bricks[bi].field_mut(f_id);
-        for j in 0..nt {
-            let theta = (f64::from(j) + 0.5) * dtheta;
-            for local in 0..BRICK_CELLS {
-                if mask & (1u64 << local) == 0 {
-                    continue;
-                }
-                let i_r = br as usize * BRICK + local / BRICK;
-                let i_z = bz as usize * BRICK + local % BRICK;
-                let r = r0 + (i_r as f64 + 0.5) * dr;
-                let z = z0 + (i_z as f64 + 0.5) * dz;
-                data[j as usize * BRICK_CELLS + local] = f(r, theta, z);
-            }
-        }
-    }
-}
-
-/// Volume-weighted L2 norm of (field − exact).
-fn l2_error<F: Fn(f64, f64, f64) -> f64>(g: &Grid, f_id: FieldId, exact: F) -> f64 {
-    let (dr, dz, r0, z0) = (g.spec.dr, g.spec.dz, g.spec.r_min, g.spec.z_min);
+/// Volume-weighted L2 norm of (field − exact), in the canonical traversal
+/// order (fixed-shape reduction; bit-reproducible).
+fn l2_error<F: Fn(f64, f64, f64) -> f64>(g: &Grid, f_id: crucible_grid::FieldId, exact: F) -> f64 {
     let mut num = 0.0f64;
     let mut den = 0.0f64;
-    for b in &g.bricks {
-        let nt = b.n_theta;
-        let dtheta = std::f64::consts::TAU / f64::from(nt);
-        let data = b.field(f_id);
-        for j in 0..nt {
-            let theta = (f64::from(j) + 0.5) * dtheta;
-            for local in 0..BRICK_CELLS {
-                if b.mask & (1u64 << local) == 0 {
-                    continue;
-                }
-                let i_r = b.br as usize * BRICK + local / BRICK;
-                let i_z = b.bz as usize * BRICK + local % BRICK;
-                let r = r0 + (i_r as f64 + 0.5) * dr;
-                let z = z0 + (i_z as f64 + 0.5) * dz;
-                let v = g.cell_volume(i_r, nt);
-                let d = data[j as usize * BRICK_CELLS + local] - exact(r, theta, z);
-                num += v * d * d;
-                den += v;
-            }
-        }
-    }
+    g.for_each_active_cell(|c| {
+        let b = g.brick(c.bi);
+        let v = g.cell_volume(c.i_r, b.n_theta());
+        let d = b.field(f_id)[c.idx] - exact(c.r, c.theta, c.z);
+        num += v * d * d;
+        den += v;
+    });
     (num / den).sqrt()
 }
 
@@ -104,24 +108,18 @@ fn l2_error<F: Fn(f64, f64, f64) -> f64>(g: &Grid, f_id: FieldId, exact: F) -> f
 /// `∇²T = [−α²cos(αr) − (α/r)sin(αr)]cos(βz) − β²cos(αr)cos(βz)` (× e^{−λt});
 /// feeding S back must reproduce T to 2nd order in h.
 pub fn mms_axisymmetric() -> MmsStudy {
-    mms_run(
-        "MMS 2-D axisymmetric (N_θ = 1 asserted)",
-        &[8, 16, 32],
-        1,
-        0,
-    )
+    mms_run("MMS 2-D axisymmetric (N_θ = 1 asserted)", &MMS_LEVELS, 1, 0)
 }
 
 /// 3-D MMS with an m = 2 azimuthal mode on the same annulus — exercises the
 /// θ-flux path at matching θ refinement (N_θ = n).
 pub fn mms_theta_mode() -> MmsStudy {
-    mms_run("MMS 3-D with m = 2 θ-mode", &[8, 16, 32], 0, 2)
+    mms_run("MMS 3-D with m = 2 θ-mode", &MMS_LEVELS, 0, 2)
 }
 
 fn mms_run(label: &'static str, ns: &[usize], n_theta_fixed: u32, m: u32) -> MmsStudy {
     let (kappa, rho_cp, lambda) = (1.0f64, 1.0f64, 1.0f64);
     let (alpha, beta) = (std::f64::consts::PI, std::f64::consts::PI);
-    let t_final = 0.05f64;
     let mf = f64::from(m);
 
     let spatial = move |r: f64, theta: f64, z: f64| -> f64 {
@@ -156,7 +154,7 @@ fn mms_run(label: &'static str, ns: &[usize], n_theta_fixed: u32, m: u32) -> Mms
         let mut g = Grid::build(spec, FIELDS).expect("valid spec");
         let t_id = g.field_id("T").unwrap();
         let rate_id = g.field_id("rate").unwrap();
-        fill(&mut g, t_id, |r, th, z| exact(r, th, z, 0.0));
+        g.fill_field(t_id, |r, th, z| exact(r, th, z, 0.0));
 
         let op = Conduction {
             kappa,
@@ -169,10 +167,10 @@ fn mms_run(label: &'static str, ns: &[usize], n_theta_fixed: u32, m: u32) -> Mms
                 z_hi: FaceBc::Dirichlet(&dirichlet),
             },
         };
-        // dt ∝ h² (kept well under the stability bound at every level), so
-        // the O(dt) Euler error refines at the same 2nd-order rate as space.
-        let n_steps = 25 * 4usize.pow(lvl as u32);
-        let dt = t_final / n_steps as f64;
+        let n_steps = MMS_BASE_STEPS * 4usize.pow(lvl as u32);
+        let dt = MMS_T_FINAL / n_steps as f64;
+        // Guard against the true spectral limit (factor 1.0 — the bound
+        // itself, review-verified sharp), not a safety-scaled one.
         assert!(
             dt < op.stable_dt(&g, 1.0),
             "certificate step must be stable"
@@ -183,7 +181,7 @@ fn mms_run(label: &'static str, ns: &[usize], n_theta_fixed: u32, m: u32) -> Mms
         levels.push(MmsLevel {
             n,
             h: 1.0 / n as f64,
-            l2_error: l2_error(&g, t_id, |r, th, z| exact(r, th, z, t_final)),
+            l2_error: l2_error(&g, t_id, |r, th, z| exact(r, th, z, MMS_T_FINAL)),
         });
     }
     MmsStudy { label, levels }
@@ -197,8 +195,8 @@ pub fn annulus_anchor() -> (f64, Grid) {
     let (r1, r2) = (0.05f64, 0.15f64);
     let spec = GridSpec {
         r_min: r1,
-        dr: (r2 - r1) / 32.0,
-        n_r: 32,
+        dr: (r2 - r1) / ANNULUS_CELLS as f64,
+        n_r: ANNULUS_CELLS,
         z_min: 0.0,
         dz: 0.05,
         n_z: 2,
@@ -208,7 +206,7 @@ pub fn annulus_anchor() -> (f64, Grid) {
     let mut g = Grid::build(spec, FIELDS).expect("valid spec");
     let t_id = g.field_id("T").unwrap();
     let rate_id = g.field_id("rate").unwrap();
-    fill(&mut g, t_id, |_, _, _| 0.5 * (t1 + t2));
+    g.fill_field(t_id, |_, _, _| 0.5 * (t1 + t2));
 
     let inner = move |_r: f64, _th: f64, _z: f64, _t: f64| t1;
     let outer = move |_r: f64, _th: f64, _z: f64, _t: f64| t2;
@@ -224,8 +222,10 @@ pub fn annulus_anchor() -> (f64, Grid) {
             z_hi: FaceBc::HeatFlux(0.0),
         },
     };
-    let dt = op.stable_dt(&g, 0.4);
-    // ~8 diffusion times across the gap: comfortably steady.
+    let dt = op.stable_dt(&g, CFL_SAFETY);
+    // ~8 diffusion times across the gap: transients decay like e^{-t/τ}, so
+    // 8τ leaves relative transient content ~e⁻⁸ ≈ 3e-4 of the initial
+    // offset — an order below the anchor tolerance.
     let tau = (r2 - r1) * (r2 - r1) * op.rho_cp / op.kappa;
     let n_steps = (8.0 * tau / dt).ceil() as usize;
     op.advance(&mut g, t_id, rate_id, 0.0, dt, n_steps)
@@ -233,10 +233,10 @@ pub fn annulus_anchor() -> (f64, Grid) {
 
     let exact = move |r: f64| (t1 * (r2 / r).ln() + t2 * (r / r1).ln()) / (r2 / r1).ln();
     let mut worst = 0.0f64;
-    for i_r in 0..32 {
-        let r = r1 + (i_r as f64 + 0.5) * g.spec.dr;
+    for i_r in 0..ANNULUS_CELLS {
+        let r = g.r_center(i_r);
         let bi = g.brick_index(i_r, 0).unwrap();
-        let b = &g.bricks[bi];
+        let b = g.brick(bi);
         let t = b.field(t_id)[b.cell_index(0, Grid::local_rz(i_r, 0))];
         worst = worst.max((t - exact(r)).abs() / (t1 - t2));
     }
@@ -264,7 +264,7 @@ pub fn bessel_cylinder_anchor() -> f64 {
     let mut g = Grid::build(spec, FIELDS).expect("valid spec");
     let t_id = g.field_id("T").unwrap();
     let rate_id = g.field_id("rate").unwrap();
-    fill(&mut g, t_id, |_, _, _| t0);
+    g.fill_field(t_id, |_, _, _| t0);
 
     let cold = |_: f64, _: f64, _: f64, _: f64| 0.0;
     let zero_src = |_: f64, _: f64, _: f64, _: f64| 0.0;
@@ -281,13 +281,15 @@ pub fn bessel_cylinder_anchor() -> f64 {
     };
     let t_tilde = 0.1f64;
     let t_final = t_tilde * radius * radius; // κ̃ = 1
-    let dt = op.stable_dt(&g, 0.4);
+    let dt = op.stable_dt(&g, CFL_SAFETY);
     let n_steps = (t_final / dt).ceil() as usize;
     let dt = t_final / n_steps as f64;
     op.advance(&mut g, t_id, rate_id, 0.0, dt, n_steps)
         .expect("advance");
 
-    // First five positive zeros of J₀ (classic values).
+    // First five positive zeros of J₀ [META-3: `bessel-j0-zeros` — DLMF
+    // §10.21 / Abramowitz & Stegun Table 9.5]. Five terms suffice: at
+    // t̃ = 0.1 the n = 5 mode carries e^{−λ₅²·0.1} ≈ 2e-10 of T₀.
     const J0_ZEROS: [f64; 5] = [
         2.404_825_557_695_773,
         5.520_078_110_286_311,
@@ -307,9 +309,9 @@ pub fn bessel_cylinder_anchor() -> f64 {
 
     let mut worst = 0.0f64;
     for i_r in 0..n_r {
-        let r = (i_r as f64 + 0.5) * g.spec.dr;
+        let r = g.r_center(i_r);
         let bi = g.brick_index(i_r, 0).unwrap();
-        let b = &g.bricks[bi];
+        let b = g.brick(bi);
         let t = b.field(t_id)[b.cell_index(0, Grid::local_rz(i_r, 0))];
         worst = worst.max((t - series(r)).abs());
     }
@@ -354,7 +356,7 @@ pub fn conservation_drift(n_steps: usize) -> f64 {
     let mut g = Grid::build(spec, FIELDS).expect("valid spec");
     let t_id = g.field_id("T").unwrap();
     let rate_id = g.field_id("rate").unwrap();
-    fill(&mut g, t_id, |r, th, z| {
+    g.fill_field(t_id, |r, th, z| {
         300.0
             + 50.0
                 * ((r - 1.0) * std::f64::consts::PI).cos()
@@ -374,7 +376,7 @@ pub fn conservation_drift(n_steps: usize) -> f64 {
         },
     };
     let before = g.reduce_volume_weighted(t_id);
-    let dt = op.stable_dt(&g, 0.5);
+    let dt = op.stable_dt(&g, CFL_SAFETY);
     op.advance(&mut g, t_id, rate_id, 0.0, dt, n_steps)
         .expect("advance");
     let after = g.reduce_volume_weighted(t_id);

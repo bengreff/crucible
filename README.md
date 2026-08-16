@@ -6,14 +6,17 @@ thermal / radiation / structural / uncertainty framework so regimes are cross-co
 is a distribution with a pedigree.
 
 A 12-month inquiry project (Jul 2026 – Jun 2027). This repository holds the **design docs**
-(Layer 1 + Layer 2) and the **Rust runtime workspace** (started 2026-08-14; scaffold + constants so
-far — the FND-4 config loader and FND-5 table loader are next).
+(Layer 1 + Layer 2) and the **Rust runtime workspace**: the FND-4 config loader + run manifest,
+the FND-5 HDF5 table seam (statically pinned libhdf5), the FND-2 cylindrical world-state grid,
+and the first solver — conduction, certified by the committed Goal-A convergence certificate
+(`certificates/`). Current goal: **Goal B, the blind RL10** (see CLAUDE.md for station status).
 
 ## Build & test
 
 Rust 1.93.1, pinned in `rust-toolchain.toml` (META-3 §2). `./scripts/check.sh` runs the VAL-3 §3.2
-per-commit gate battery (fmt → clippy `-D warnings` → tests) in fixed order; CI mirrors it. Every
-session ends with the battery green and the work committed (VISION_SCOPE §12).
+per-commit gate battery (fmt → clippy `-D warnings` → tests → certificate regenerate-and-diff) in
+fixed order; CI mirrors it. Every session ends with the battery green and the work committed
+(VISION_SCOPE §12).
 
 ## Reading order
 

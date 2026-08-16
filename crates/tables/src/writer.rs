@@ -56,6 +56,30 @@ pub fn write_table(
     group_path: &str,
     spec: &WriteSpec,
 ) -> Result<String, TableError> {
+    // Mirror the reader's schema contract so writer and reader can never
+    // disagree about a file's contents (review finding): the `sigma_`
+    // prefix is reserved for uncertainty companions, and axis names must
+    // survive the `\n`-joined `axis_order` encoding.
+    for v in &spec.values {
+        if v.name.starts_with("sigma_") {
+            return Err(TableError::UnexpectedMember {
+                path: format!("{group_path}/values/{}", v.name),
+                reason: "`sigma_` is reserved for uncertainty companions (§3.1); name the \
+                         value outside the reserved prefix"
+                    .into(),
+            });
+        }
+    }
+    for a in &spec.axes {
+        if a.name.contains('\n') || a.name.is_empty() {
+            return Err(TableError::UnexpectedMember {
+                path: format!("{group_path}/axes/{}", a.name),
+                reason: "axis names must be non-empty and newline-free (the `axis_order` \
+                         attribute is `\\n`-joined)"
+                    .into(),
+            });
+        }
+    }
     let mut values = spec.values.clone();
     values.sort_by(|a, b| a.name.cmp(&b.name));
 

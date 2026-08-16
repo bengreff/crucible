@@ -151,7 +151,12 @@ pub struct ResolvedGeometry {
     pub n_theta_max: i64,
     /// The recorded, pedigree-visible axisymmetry assertion (FND-2 §3.4).
     pub axisymmetric: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Flattened so the resolved form serializes to the SAME flat grammar
+    /// the author `GeometryBlock` parses — the §6-1 fixed-point/replay
+    /// contract requires load(serialize(resolved)) to succeed (review
+    /// finding: a nested `[geometry.extents]` table broke replay for every
+    /// extents-declaring config).
+    #[serde(flatten)]
     pub extents: Option<ResolvedExtents>,
 }
 
@@ -187,5 +192,26 @@ impl ResolvedConfig {
     /// serialization is canonical by construction (§3.8).
     pub fn to_toml(&self) -> String {
         toml::to_string(self).expect("resolved config is TOML-representable by construction")
+    }
+
+    /// All mechanism instances of one registry type, in canonical
+    /// (`BTreeMap`) order — the seam every solver's setup goes through, so
+    /// no consumer hand-scans resolved TOML (and none can silently pick
+    /// "the first" of several instances; count before you choose).
+    pub fn mechanisms_of_type<'a>(&'a self, type_id: &str) -> Vec<(&'a str, &'a toml::Table)> {
+        self.mechanisms
+            .iter()
+            .filter(|(_, b)| b.get("type").and_then(|v| v.as_str()) == Some(type_id))
+            .map(|(name, b)| (name.as_str(), b))
+            .collect()
+    }
+
+    /// Loader-validated parameter access on a resolved block: every param the
+    /// registry `Manifest` declares is present (defaults materialized, §3.5),
+    /// so `None` here means the caller asked for an undeclared name.
+    pub fn param_f64(block: &toml::Table, name: &str) -> Option<f64> {
+        block
+            .get(name)
+            .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)))
     }
 }

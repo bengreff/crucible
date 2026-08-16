@@ -162,6 +162,14 @@ pub enum TableError {
     UnknownInterpMethod {
         method: String,
     },
+    /// A dataset/group the schema does not account for: unlisted axis
+    /// dataset, unknown group member, or a `sigma_<x>` with no value `<x>`.
+    /// Refused so the content digest covers every byte the file carries
+    /// (same-label/different-bytes must fail the pin, §3.2).
+    UnexpectedMember {
+        path: String,
+        reason: String,
+    },
 }
 
 impl fmt::Display for TableError {
@@ -273,6 +281,13 @@ impl fmt::Display for TableError {
                 write!(
                     f,
                     "unknown interp_method {method:?}; known: multilinear, pchip"
+                )
+            }
+            Self::UnexpectedMember { path, reason } => {
+                write!(
+                    f,
+                    "{path}: unexpected member — {reason}; the digest must cover every byte \
+                     (§3.2), so unaccounted content refuses to load"
                 )
             }
         }

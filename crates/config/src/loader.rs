@@ -26,6 +26,13 @@ pub const DEFAULT_DETERMINISM_MODE: &str = "fixed-order";
 /// The FND-1 §3.5 counter-based PRNG contract; Philox4x32-10 (Random123) is
 /// the pinned engineering choice, implemented when COUP-5 first draws.
 pub const DEFAULT_RNG_ALGORITHM: &str = "philox4x32-10";
+/// Load-time sanity bounds (named per META-2 §4). Rationale: FND-2 §3.8 —
+/// 10⁹ distinct cells already exceeds a 128 GB box, so any axis beyond 2²⁴
+/// cells (or a ring beyond 2²⁴ wedges) describes a world that cannot exist;
+/// refusing here also guarantees the values survive the grid's u32/usize
+/// index representation instead of aborting in the allocator.
+pub const MAX_AXIS_CELLS: i64 = 1 << 24;
+pub const MAX_N_THETA: i64 = 1 << 24;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Loaded {
@@ -192,30 +199,42 @@ pub fn load_str(author_toml: &str, registry: &Registry) -> Result<Loaded, Diagno
         None => None,
         Some(g) => {
             let axisymmetric = g.axisymmetric.unwrap_or(false);
-            let n_theta = match g.n_theta_max {
+            // No sentinel values: `n_theta` stays `None` unless the author
+            // supplied one (diagnostics carry the refusals; a resolved
+            // geometry is only constructed around real author values).
+            let n_theta: Option<i64> = match g.n_theta_max {
                 None => {
                     diags.push(
                         "geometry.n_theta_max",
                         "required when [geometry] is declared (no hidden defaults, §3.5)",
                     );
-                    0
+                    None
                 }
                 // N_θ = 1 is admissible only under the recorded axisymmetry
                 // assertion (FND-2 §3.4, S4) — never silently.
-                Some(1) if axisymmetric => 1,
+                Some(1) if axisymmetric => Some(1),
                 Some(1) => {
                     diags.push(
                         "geometry.n_theta_max",
                         "N_θ^max = 1 requires `axisymmetric = true` — the recorded, \
                          pedigree-visible axisymmetry assertion (FND-2 §3.4)",
                     );
-                    1
+                    Some(1)
                 }
                 Some(v) => {
                     if !is_theta_ladder_aligned(v) {
                         diags.push("geometry.n_theta_max", theta_ladder_message(v));
+                    } else if v > MAX_N_THETA {
+                        diags.push(
+                            "geometry.n_theta_max",
+                            format!(
+                                "{v} exceeds MAX_N_THETA = {MAX_N_THETA} — beyond any \
+                                 physically buildable ring (FND-2 §3.8 memory reality) and \
+                                 the grid's index representation"
+                            ),
+                        );
                     }
-                    v
+                    Some(v)
                 }
             };
             // Extents: all six or none (a half-declared world is a fault).
@@ -230,10 +249,32 @@ pub fn load_str(author_toml: &str, registry: &Registry) -> Result<Loaded, Diagno
             let extents = if ext.iter().all(|&p| p) {
                 let (r_min, dr, n_r) = (g.r_min.unwrap(), g.dr.unwrap(), g.n_r.unwrap());
                 let (z_min, dz, n_z) = (g.z_min.unwrap(), g.dz.unwrap(), g.n_z.unwrap());
-                if r_min.is_nan() || r_min < 0.0 || dr <= 0.0 || dz <= 0.0 || n_r < 1 || n_z < 1 {
+                // `is_finite` everywhere: `dr <= 0.0` is false for BOTH NaN
+                // and +inf, so comparison checks alone admit non-finite
+                // worlds (review finding, empirically demonstrated).
+                if !r_min.is_finite()
+                    || r_min < 0.0
+                    || !dr.is_finite()
+                    || dr <= 0.0
+                    || !dz.is_finite()
+                    || dz <= 0.0
+                    || !z_min.is_finite()
+                    || n_r < 1
+                    || n_z < 1
+                {
                     diags.push(
                         "geometry",
-                        "extents need r_min ≥ 0, dr > 0, dz > 0, n_r ≥ 1, n_z ≥ 1",
+                        "extents need finite z_min, finite r_min ≥ 0, finite dr > 0, \
+                         finite dz > 0, n_r ≥ 1, n_z ≥ 1",
+                    );
+                } else if n_r > MAX_AXIS_CELLS || n_z > MAX_AXIS_CELLS {
+                    diags.push(
+                        "geometry",
+                        format!(
+                            "n_r/n_z exceed MAX_AXIS_CELLS = {MAX_AXIS_CELLS}: a world this \
+                             large cannot exist in memory (FND-2 §3.8) — refuse at load, \
+                             never abort in the allocator"
+                        ),
                     );
                 }
                 Some(crate::schema::ResolvedExtents {
@@ -254,8 +295,8 @@ pub fn load_str(author_toml: &str, registry: &Registry) -> Result<Loaded, Diagno
                 }
                 None
             };
-            Some(ResolvedGeometry {
-                n_theta_max: n_theta,
+            n_theta.map(|n_theta_max| ResolvedGeometry {
+                n_theta_max,
                 axisymmetric,
                 extents,
             })
@@ -523,19 +564,24 @@ fn is_theta_ladder_aligned(v: i64) -> bool {
 }
 
 fn theta_ladder_message(v: i64) -> String {
-    // Nearest admissible 4·2^n below and above v.
+    // Nearest admissible 4·2^n below and above v. Checked arithmetic: for
+    // v > 2^62 the doubling would overflow i64 — a debug panic and a
+    // release-mode INFINITE LOOP inside the diagnostic path (review finding,
+    // reproduced). The ladder tops out at 4·2^60 = 2^62; beyond that there
+    // is no admissible value above v.
     let mut lower: Option<i64> = None;
-    let mut upper: i64 = 4;
-    while upper < v {
-        lower = Some(upper);
-        upper *= 2;
+    let mut upper: Option<i64> = Some(4);
+    while let Some(u) = upper
+        && u < v
+    {
+        lower = Some(u);
+        upper = u.checked_mul(2);
     }
-    if upper == v {
-        upper *= 2; // unreachable for misaligned v; defensive
-    }
-    let near = match lower {
-        Some(l) => format!("{l} and {upper}"),
-        None => format!("{upper}"),
+    let near = match (lower, upper) {
+        (Some(l), Some(u)) => format!("{l} and {u}"),
+        (Some(l), None) => format!("{l} (no admissible value above {v})"),
+        (None, Some(u)) => format!("{u}"),
+        (None, None) => unreachable!("ladder starts at 4"),
     };
     format!(
         "N_θ^max = {v} is not 4·2^n (n ≥ 0); the factor-2 coarsening ladder must land on \

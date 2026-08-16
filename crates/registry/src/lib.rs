@@ -196,11 +196,6 @@ pub struct Registry {
 }
 
 impl Registry {
-    pub const EMPTY: Registry = Registry {
-        mechanisms: &[],
-        materials: &[],
-    };
-
     /// Build a registry, asserting COUP-8 §3.2/§3.5 invariants: ids sorted
     /// and unique; chaotic classification explicitly declared (never by
     /// omission); no param named `type` (reserved by the FND-4 block

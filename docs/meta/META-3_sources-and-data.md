@@ -515,6 +515,7 @@ Two-phase pass (best-practice web research → first-principles design/consisten
 | `binomial-ci` | Wilson score interval for a binomial proportion — the P(WORKS) Monte-Carlo error bound | Wilson (1927); Brown, Cai & DasGupta, *Stat. Sci.* 16:101 (2001) | COUP-5 |
 | `direct-optimizer` | DIRECT deterministic bound-constrained global optimization (fixed division/iteration structure — manifest-freezable) for the epistemic-box enclosure | Jones, Perttunen & Stuckman, *JOTA* 79:157 (1993) | COUP-5 |
 | `morris-screening` | Morris elementary-effects screening for epistemic-dimension freezing/grouping | Morris, *Technometrics* 33:161 (1991); Campolongo et al. (2007) | COUP-5 |
+| `bessel-j0-zeros` | First five positive zeros of J₀ (2.404825557695773 … 14.930917708487786) — the transient-cylinder analytic anchor's mode eigenvalues | DLMF §10.21 / Abramowitz & Stegun, Table 9.5 | VAL (Goal-A certificate, `crates/solvers/src/certificate.rs`) |
 
 *(`spectral-azimuthal` is retired with the v1.4 ring-FV realization — FND-2 v0.5 no longer cites it; the entry stays for the historical record.)*
 

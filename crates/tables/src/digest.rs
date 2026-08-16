@@ -6,25 +6,36 @@
 //!
 //! Digest = `"sha256:" + hex(SHA-256(stream))` where `stream` is:
 //!
-//! 1. the ASCII tag `crucible-table-digest-v1\n`;
-//! 2. for each **axis in table order**: `axis\n`, name, `\n`, point count as
-//!    u64 LE, points as f64 LE, envelope min then max as f64 LE;
-//! 3. for each **value dataset sorted by name**: `value\n`, name, `\n`,
-//!    units, `\n`, interp_rule, `\n`, interp_error_bound as f64 LE, element
-//!    count as u64 LE, data as f64 LE, then the sigma marker: `0u8` (none),
-//!    or `1u8` + per-point sigma as f64 LE, or `2u8` + scalar sigma f64 LE;
-//! 4. the trailer `meta\n`, kind, `\n`, data_version, `\n`, interp_method,
-//!    `\n`, then each provenance field (producer, producer_version,
-//!    input_deck_hash, source_library, generator_commit) each followed by
-//!    `\n`, and the rng-seed marker: `0u8`, or `1u8` + seed as i64 LE.
+//! 1. the ASCII tag `crucible-table-digest-v2\n`;
+//! 2. for each **axis in table order**: the tag `axis\n`, then STR(name),
+//!    point count as u64 LE, points as f64 LE, envelope min then max as
+//!    f64 LE;
+//! 3. for each **value dataset sorted by name**: the tag `value\n`, then
+//!    STR(name), STR(units), STR(interp_rule), interp_error_bound as
+//!    f64 LE, element count as u64 LE, data as f64 LE, then the sigma
+//!    marker: `0u8` (none), or `1u8` + per-point sigma as f64 LE, or
+//!    `2u8` + scalar sigma as f64 LE;
+//! 4. the trailer `meta\n`, then STR(kind), STR(data_version),
+//!    STR(interp_method), STR(producer), STR(producer_version),
+//!    STR(input_deck_hash), STR(source_library), STR(generator_commit),
+//!    and the rng-seed marker: `0u8`, or `1u8` + seed as i64 LE.
 //!
-//! Floats hash by their IEEE-754 bit pattern (`to_le_bytes`), so the digest
-//! is exact — no formatting, no rounding. Provenance is included
+//! `STR(s)` = UTF-8 byte length as u64 LE, then the bytes — **length-
+//! prefixed, never delimiter-terminated**: the v1 encoding used `\n`
+//! terminators, so a newline *inside* one field shifted bytes into the next
+//! and two different tables could hash identically (review finding). v2
+//! makes every field boundary explicit. Floats hash by their IEEE-754 bit
+//! pattern (`to_le_bytes`) — exact, no formatting. Provenance is included
 //! deliberately: *any* difference from the pinned bytes must fail the pin
-//! (the DVC same-label/different-bytes lesson, §3.6 of FND-4).
+//! (the DVC same-label/different-bytes lesson).
 
 use crate::model::{Axis, Provenance, TableValue};
 use sha2::{Digest, Sha256};
+
+fn put_str(h: &mut Sha256, s: &str) {
+    h.update((s.len() as u64).to_le_bytes());
+    h.update(s.as_bytes());
+}
 
 pub(crate) fn content_digest(
     kind: &str,
@@ -35,11 +46,10 @@ pub(crate) fn content_digest(
     values_sorted_by_name: &[TableValue],
 ) -> String {
     let mut h = Sha256::new();
-    h.update(b"crucible-table-digest-v1\n");
+    h.update(b"crucible-table-digest-v2\n");
     for a in axes {
         h.update(b"axis\n");
-        h.update(a.name.as_bytes());
-        h.update(b"\n");
+        put_str(&mut h, &a.name);
         h.update((a.points.len() as u64).to_le_bytes());
         for p in &a.points {
             h.update(p.to_le_bytes());
@@ -55,12 +65,9 @@ pub(crate) fn content_digest(
     );
     for v in values_sorted_by_name {
         h.update(b"value\n");
-        h.update(v.name.as_bytes());
-        h.update(b"\n");
-        h.update(v.units.as_bytes());
-        h.update(b"\n");
-        h.update(v.interp_rule.as_bytes());
-        h.update(b"\n");
+        put_str(&mut h, &v.name);
+        put_str(&mut h, &v.units);
+        put_str(&mut h, &v.interp_rule);
         h.update(v.interp_error_bound.to_le_bytes());
         h.update((v.data.len() as u64).to_le_bytes());
         for x in &v.data {
@@ -81,19 +88,17 @@ pub(crate) fn content_digest(
         }
     }
     h.update(b"meta\n");
-    for s in [kind, data_version, interp_method] {
-        h.update(s.as_bytes());
-        h.update(b"\n");
-    }
     for s in [
+        kind,
+        data_version,
+        interp_method,
         provenance.producer.as_str(),
         provenance.producer_version.as_str(),
         provenance.input_deck_hash.as_str(),
         provenance.source_library.as_str(),
         provenance.generator_commit.as_str(),
     ] {
-        h.update(s.as_bytes());
-        h.update(b"\n");
+        put_str(&mut h, s);
     }
     match provenance.rng_seed {
         Some(seed) => {

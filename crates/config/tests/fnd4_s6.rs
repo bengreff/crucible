@@ -452,3 +452,49 @@ fn fnd4_s31_omitted_seed_is_auto_drawn_and_recorded() {
         loaded.resolved.rng.master_seed
     );
 }
+
+// --- Post-review fail-loud regressions ---------------------------------------
+
+#[test]
+fn review_nan_and_inf_extents_are_refused() {
+    for bad in ["nan", "inf"] {
+        let cfg = format!(
+            "schema_version = 1\n[geometry]\nn_theta_max = 8\nr_min = 0.0\n\
+             dr = {bad}\nn_r = 4\nz_min = 0.0\ndz = 0.01\nn_z = 4\n"
+        );
+        let err = load_str(&cfg, &registry()).unwrap_err();
+        assert!(format!("{err}").contains("finite"), "{bad}: {err}");
+    }
+}
+
+#[test]
+fn review_huge_misaligned_n_theta_refuses_fast_no_overflow() {
+    // v1's nearest-admissible search overflowed i64: debug panic, release
+    // infinite loop — inside the diagnostic path.
+    let cfg = format!(
+        "schema_version = 1\n[geometry]\nn_theta_max = {}\n",
+        (1i64 << 62) + 4
+    );
+    let err = load_str(&cfg, &registry()).unwrap_err();
+    assert!(format!("{err}").contains("4·2^n"), "{err}");
+}
+
+#[test]
+fn review_world_size_bounds_refuse_at_load_not_in_the_allocator() {
+    let big_axis = format!(
+        "schema_version = 1\n[geometry]\nn_theta_max = 8\nr_min = 0.0\ndr = 0.01\n\
+         n_r = {}\nz_min = 0.0\ndz = 0.01\nn_z = 4\n",
+        1i64 << 40
+    );
+    let err = load_str(&big_axis, &registry()).unwrap_err();
+    assert!(format!("{err}").contains("MAX_AXIS_CELLS"), "{err}");
+
+    // 2^32 is ladder-aligned in i64 but truncates to 0 in u32 — must be
+    // refused here, not misdiagnosed downstream.
+    let big_theta = format!(
+        "schema_version = 1\n[geometry]\nn_theta_max = {}\n",
+        1i64 << 32
+    );
+    let err = load_str(&big_theta, &registry()).unwrap_err();
+    assert!(format!("{err}").contains("MAX_N_THETA"), "{err}");
+}

@@ -12,7 +12,7 @@
 //! - `REGISTRY` iterates in the fixed META-3 §4 table order (deterministic
 //!   output ordering, META-1 §2 / META-2 §4 ★).
 //!
-//! Unit-typed (`uom`) wrappers arrive with the FND-4 config boundary work;
+//! Unit-typed (`uom`) boundary wrappers are a tracked deferral (CLAUDE.md, review finding 9);
 //! this crate exposes the documented-SI `f64` layer used inside kernels.
 
 /// Where a constant's value comes from, and what uncertainty it carries.

@@ -39,6 +39,24 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   r=0); conservation drift 1.1e-16; byte-identical rerun.** Honest scaffolding note: explicit
   fixed-order reference integrator drives the certificate; superseded (not extended) by COUP-3's
   SDC-IMEX class-D implicit path when it lands. Uniform-N_θ sweeps only (refluxing = COUP-2/3 wave).
+- Session 6 (2026-08-16): **review fix wave** — 8-angle multi-agent review of sessions 1–5 (41
+  candidates, independently verified; 10 confirmed findings) then all fixes landed: resolved-config
+  replay fixed for extents configs (§6-1 fixed point now flat-serialized + regression-tested);
+  loader refuses NaN/inf extents, huge worlds (MAX_AXIS_CELLS/MAX_N_THETA, named), and the θ-ladder
+  diagnostic no longer overflows/hangs; digest **v2** (length-prefixed strings — Python mirror must
+  implement v2), reader/writer refuse `sigma_` orphans + unaccounted datasets; symmetry indicator
+  fails loud on NaN/bad floors (now `Result`); `from_loaded` refuses multiple same-type instances
+  and uses checked narrowing via the new typed seam (`mechanisms_of_type`/`param_f64` +
+  `grid_spec_from`); conduction sweep restructured (≤4 Morton lookups per BRICK, none per cell —
+  certified bit-identical, the SOLV-1 template); **grid surface sealed** (private bricks/masks/
+  n_theta; `for_each_active_cell` visitor, `fill_field`, `r_center`/`global_rz` single owners);
+  certificate criteria are named shared constants and **check.sh gate 4 regenerates + diffs the
+  committed artifact**; .gitignore restored (Python rules back), README/check.sh headers current;
+  META-3 `bessel-j0-zeros` entry added. True test count: **58** (session-5 commit message said 54 —
+  wrong, was 48).
+- **Tracked deferral (review finding 9, not yet fixed):** META-2 §4 ★ units typing (`uom`) at
+  interface boundaries — schedule as its own small wave BEFORE station-3 params proliferate; the
+  stale "arrives with FND-4" note in crucible-constants still needs rewording to point here.
 - **GOAL B (confirmed by Ben 2026-08-16): the BLIND RL10 — M2 itself.** Five certificate stations,
   each a physical system, ladder order strict (VAL-1: analytic → benchmark → hardware):
   **(1) Bursting diaphragm (Sod)** — SOLV-1 HLLC/PPM Euler at N_θ=1 vs exact Riemann; L1 at formal

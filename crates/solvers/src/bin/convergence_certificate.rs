@@ -1,11 +1,15 @@
 //! Renders the Goal-A convergence certificate to
 //! `certificates/convergence_certificate.md` — the committed, regenerable
-//! artifact. Every number here is also asserted by
-//! `tests/goal_a_certificate.rs`; this binary only records them.
+//! artifact. Criteria come from the SAME named constants the test suite
+//! asserts (`certificate::MMS_ORDER_*` etc.), and gate 4 of
+//! `scripts/check.sh` regenerates this file and diffs it against the
+//! committed copy, so artifact and code cannot silently diverge.
 //! Regenerate with: `cargo run --bin convergence_certificate`.
 
 use crucible_solvers::certificate::{
-    annulus_anchor, bessel_cylinder_anchor, conservation_drift, mms_axisymmetric, mms_theta_mode,
+    ANNULUS_CELLS, ANNULUS_TOL_REL, BESSEL_TOL_K, CONSERVATION_STEPS, CONSERVATION_TOL_REL,
+    MMS_ORDER_MAX, MMS_ORDER_MIN, annulus_anchor, bessel_cylinder_anchor, conservation_drift,
+    mms_axisymmetric, mms_theta_mode,
 };
 use std::fmt::Write as _;
 
@@ -19,9 +23,11 @@ fn main() {
         w,
         "Heat conduction on the unified cylindrical world-state grid, driven \
          config → loader → registry → grid → operator → this data. Criteria are \
-         enforced by `crates/solvers/tests/goal_a_certificate.rs` (CI gate); this \
-         file records the numbers. Regenerate: `cargo run --bin convergence_certificate` \
-         (deterministic — no RNG, no wall-clock; the git commit records provenance)."
+         the named constants in `crates/solvers/src/certificate.rs`, asserted by \
+         `crates/solvers/tests/goal_a_certificate.rs` and enforced against this \
+         committed file by gate 4 of `scripts/check.sh` (regenerate-and-diff). \
+         Regenerate: `cargo run --bin convergence_certificate` (deterministic — \
+         no RNG, no wall-clock; the git commit records provenance)."
     )
     .unwrap();
 
@@ -48,7 +54,7 @@ fn main() {
         writeln!(w).unwrap();
         writeln!(
             w,
-            "**Criterion:** observed order in [1.8, 2.2] (formal = 2)."
+            "**Criterion:** observed order in [{MMS_ORDER_MIN}, {MMS_ORDER_MAX}] (formal = 2)."
         )
         .unwrap();
     }
@@ -59,24 +65,24 @@ fn main() {
     writeln!(w).unwrap();
     writeln!(
         w,
-        "- **Steady annulus (log profile), 32 radial cells:** max error {:.3e} \
-         relative to ΔT = 200 K — criterion < 2e-3.",
-        annulus_rel
+        "- **Steady annulus (log profile), {ANNULUS_CELLS} radial cells:** max error \
+         {annulus_rel:.3e} relative to ΔT = 200 K — criterion < {ANNULUS_TOL_REL:e}."
     )
     .unwrap();
     let bessel_abs = bessel_cylinder_anchor();
     writeln!(
         w,
         "- **Transient cylinder vs 5-term Bessel series at t̃ = 0.1 (crosses the \
-         r = 0 axis):** max error {:.3e} K on T₀ = 100 K — criterion < 0.5 K.",
-        bessel_abs
+         r = 0 axis):** max error {bessel_abs:.3e} K on T₀ = 100 K — criterion < \
+         {BESSEL_TOL_K} K."
     )
     .unwrap();
-    let drift = conservation_drift(500);
+    let drift = conservation_drift(CONSERVATION_STEPS);
     writeln!(
         w,
-        "- **Closed insulated sweep, 500 steps:** total-energy drift {drift:.3e} \
-         relative — criterion < 1e-12 (flux-form telescoping)."
+        "- **Closed insulated sweep, {CONSERVATION_STEPS} steps:** total-energy drift \
+         {drift:.3e} relative — criterion < {CONSERVATION_TOL_REL:e} (flux-form \
+         telescoping)."
     )
     .unwrap();
     writeln!(w).unwrap();

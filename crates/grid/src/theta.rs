@@ -131,7 +131,10 @@ impl Grid {
                 for j in 0..to {
                     let (ia, ib) = (b.cell_index(2 * j, local), b.cell_index(2 * j + 1, local));
                     let (ra, rb) = (b.field(m.rho)[ia], b.field(m.rho)[ib]);
-                    if ra <= 0.0 || rb <= 0.0 {
+                    // `!(x > 0.0)` (not `x <= 0.0`): NaN fails every
+                    // comparison, so the naive form waved NaN density
+                    // through into the ΔKE ledger (review finding).
+                    if !(ra > 0.0 && rb > 0.0 && ra.is_finite() && rb.is_finite()) {
                         return Err(GridError::NonPositiveDensity { brick: bi });
                     }
                     let ke = |i: usize| {
@@ -224,11 +227,27 @@ impl Grid {
     /// over the given conserved fields (each with its absolute floor —
     /// config-documented default 10⁻⁶ × the field's global reference
     /// magnitude). Fixed-order reductions; a pure function of the data.
-    pub fn symmetry_indicator(&self, bi: usize, fields: &[(FieldId, f64)]) -> f64 {
+    ///
+    /// Fails loud (review finding): floors must be finite and > 0 (a zero
+    /// floor makes an all-zero field produce 0/0), and a NaN anywhere in a
+    /// monitored field is an error — `f64::max` silently DISCARDS NaN, so
+    /// the unguarded version reported corrupted bricks as "perfectly
+    /// symmetric" and the controller collapsed them (META-1 P6 inversion).
+    pub fn symmetry_indicator(
+        &self,
+        bi: usize,
+        fields: &[(FieldId, f64)],
+    ) -> Result<f64, GridError> {
         let b = &self.bricks[bi];
         let nt = b.n_theta as usize;
         let mut a_max = 0.0f64;
         for &(f, floor) in fields {
+            if !(floor.is_finite() && floor > 0.0) {
+                return Err(GridError::BadSpec(format!(
+                    "symmetry-indicator floor must be finite and > 0, got {floor} \
+                     (§3.4: an absolute floor; a zero floor divides 0/0 on a zero field)"
+                )));
+            }
             let data = b.field(f);
             let mut num = 0.0f64;
             let mut den = 0.0f64;
@@ -252,9 +271,14 @@ impl Grid {
                 v_brick += v * nt as f64;
             }
             let a = num / (den + v_brick * floor * floor);
+            if !a.is_finite() {
+                return Err(GridError::NonFinite {
+                    context: format!("symmetry indicator of brick {bi} (corrupted field data)"),
+                });
+            }
             a_max = a_max.max(a);
         }
-        a_max
+        Ok(a_max)
     }
 }
 

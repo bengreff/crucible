@@ -156,9 +156,34 @@ impl Table {
             }
         }
 
+        // Strict membership (review finding): every member of the table
+        // group must be accounted for, or the digest would not cover the
+        // file's bytes and same-label/different-bytes could pass the pin.
+        let mut top = group.member_names().map_err(h5err)?;
+        top.sort();
+        for m in &top {
+            if m != "axes" && m != "values" {
+                return Err(TableError::UnexpectedMember {
+                    path: format!("{group_path}/{m}"),
+                    reason: "a table group holds exactly the `axes` and `values` subgroups".into(),
+                });
+            }
+        }
+
         // Axes, in the declared order.
         let axis_order = read_str_attr(&group, group_path, "axis_order")?;
         let axes_group = group.group("axes").map_err(h5err)?;
+        let declared: Vec<&str> = axis_order.split('\n').filter(|s| !s.is_empty()).collect();
+        let mut axis_members = axes_group.member_names().map_err(h5err)?;
+        axis_members.sort();
+        for m in &axis_members {
+            if !declared.contains(&m.as_str()) {
+                return Err(TableError::UnexpectedMember {
+                    path: format!("{group_path}/axes/{m}"),
+                    reason: "dataset not listed in `axis_order`".into(),
+                });
+            }
+        }
         let mut axes = Vec::new();
         for name in axis_order.split('\n').filter(|s| !s.is_empty()) {
             let path = format!("{group_path}/axes/{name}");
@@ -191,9 +216,27 @@ impl Table {
         let expected_len: usize = axes.iter().map(|a| a.points.len()).product();
 
         // Value datasets, sorted by name (deterministic §3.6; digest order).
+        // The `sigma_` prefix is RESERVED for uncertainty companions
+        // (§3.1: "a sibling sigma_<name> uncertainty dataset"); a
+        // `sigma_<x>` with no value `<x>` is refused loudly — the v1 reader
+        // silently dropped it, so a physics value named e.g. `sigma_t`
+        // vanished and the writer/reader digests disagreed (review finding).
+        // Producers must name values outside the reserved prefix.
         let values_group = group.group("values").map_err(h5err)?;
         let mut member_names = values_group.member_names().map_err(h5err)?;
         member_names.sort();
+        for m in member_names.iter().filter(|n| n.starts_with("sigma_")) {
+            let base = &m["sigma_".len()..];
+            if !member_names.iter().any(|n| n == base) {
+                return Err(TableError::UnexpectedMember {
+                    path: format!("{group_path}/values/{m}"),
+                    reason: format!(
+                        "`sigma_` is reserved for uncertainty companions and no value {base:?} \
+                         exists; rename the dataset if it is a physical value"
+                    ),
+                });
+            }
+        }
         let mut values = Vec::new();
         for name in member_names.iter().filter(|n| !n.starts_with("sigma_")) {
             let path = format!("{group_path}/values/{name}");
