@@ -49,9 +49,38 @@ pub static CONDUCTION_MANIFEST: Manifest = Manifest {
     ],
 };
 
-/// The production registry, v0: one mechanism. Grows one row per landed
-/// operator (COUP-8 §3.2 — the only core touch a new mechanism makes).
-static MECHANISMS: [&Manifest; 1] = [&CONDUCTION_MANIFEST];
+/// SOLV-1's conserved-flux operator (the Euler subset, station 1). γ is the
+/// gamma-law EOS parameter — pure data, the degenerate FND-7 spine occupant
+/// until the general convex EOS lands (SOLV-1 §3.2).
+///
+/// Validity range (refusal bounds, sourced): γ ∈ [1.001, 1.667] — the
+/// isothermal limit γ → 1 is a singular EOS (c² → isothermal, the gamma-law
+/// energy relation degenerates) and no classical ideal gas exceeds the
+/// monatomic 5/3; Sod's diatomic 1.4 sits mid-range. Chaotic class: the
+/// resolved Euler subset at station-1/2 scales is non-chaotic (no
+/// turbulence-resolving content); the LES-resolved tier re-declares this
+/// per-regime when it lands (SOLV-1 §3.4, O21).
+pub static FLOW_MANIFEST: Manifest = Manifest {
+    id: "flow",
+    interface_version: InterfaceVersion { major: 1, minor: 0 },
+    tables: &[],
+    couplers: &[],
+    ports: &[],
+    chaotic_class: &[
+        (Regime::Steady, ChaoticClass::NonChaotic),
+        (Regime::Transient, ChaoticClass::NonChaotic),
+    ],
+    params: &[ParamSpec {
+        name: "gamma",
+        ty: ParamType::Float,
+        default: None,
+        range: Some((1.001, 1.667)),
+    }],
+};
+
+/// The production registry: one row per landed operator, sorted by id
+/// (COUP-8 §3.2 — the only core touch a new mechanism makes).
+static MECHANISMS: [&Manifest; 2] = [&CONDUCTION_MANIFEST, &FLOW_MANIFEST];
 
 pub fn registry() -> Registry {
     Registry::new(&MECHANISMS, &[])
@@ -133,30 +162,38 @@ pub fn grid_spec_from(geo: &ResolvedGeometry) -> Result<GridSpec, SetupError> {
     })
 }
 
-/// Build the grid and extract conduction parameters from a loaded config.
-/// `fields` is the field set to register (config-time, FND-2 §3.6).
-pub fn from_loaded(loaded: &Loaded, fields: &[&str]) -> Result<ConductionSetup, SetupError> {
-    let geo = loaded
+/// The exactly-one-instance seam shared by every single-instance runner:
+/// zero instances or several are both refusals (never a silent pick).
+fn sole_instance<'a>(
+    loaded: &'a Loaded,
+    type_id: &str,
+) -> Result<(&'a str, &'a crucible_config::toml::Table), SetupError> {
+    let candidates = loaded.resolved.mechanisms_of_type(type_id);
+    match candidates.as_slice() {
+        [] => Err(SetupError::Missing(format!(
+            "a mechanism with type = {type_id:?}"
+        ))),
+        [one] => Ok(*one),
+        many => Err(SetupError::Ambiguous {
+            type_id: type_id.to_string(),
+            instances: many.iter().map(|(n, _)| (*n).to_string()).collect(),
+        }),
+    }
+}
+
+fn resolved_geometry(loaded: &Loaded) -> Result<&ResolvedGeometry, SetupError> {
+    loaded
         .resolved
         .geometry
         .as_ref()
-        .ok_or_else(|| SetupError::Missing("[geometry] block".into()))?;
-    let candidates = loaded.resolved.mechanisms_of_type("conduction");
-    let (instance, block) = match candidates.as_slice() {
-        [] => {
-            return Err(SetupError::Missing(
-                "a mechanism with type = \"conduction\"".into(),
-            ));
-        }
-        [one] => *one,
-        many => {
-            return Err(SetupError::Ambiguous {
-                type_id: "conduction".into(),
-                instances: many.iter().map(|(n, _)| (*n).to_string()).collect(),
-            });
-        }
-    };
+        .ok_or_else(|| SetupError::Missing("[geometry] block".into()))
+}
 
+/// Build the grid and extract conduction parameters from a loaded config.
+/// `fields` is the field set to register (config-time, FND-2 §3.6).
+pub fn from_loaded(loaded: &Loaded, fields: &[&str]) -> Result<ConductionSetup, SetupError> {
+    let geo = resolved_geometry(loaded)?;
+    let (instance, block) = sole_instance(loaded, "conduction")?;
     let param = |name: &str| -> Result<f64, SetupError> {
         ResolvedConfig::param_f64(block, name)
             .ok_or_else(|| SetupError::Missing(format!("{instance}.{name}")))
@@ -166,5 +203,28 @@ pub fn from_loaded(loaded: &Loaded, fields: &[&str]) -> Result<ConductionSetup, 
         instance: instance.to_string(),
         kappa: param("kappa_w_per_m_k")?,
         rho_cp: param("rho_cp_j_per_m3_k")?,
+    })
+}
+
+/// Everything a flow run needs from config: the built grid (with the `U`
+/// component fields registered) and the EOS parameter.
+#[derive(Debug)]
+pub struct FlowSetup {
+    pub grid: Grid,
+    pub instance: String,
+    pub gamma: f64,
+}
+
+/// Build the grid and extract flow parameters from a loaded config — the
+/// same typed seam as `from_loaded` (no hand-scanning, no silent picks).
+pub fn flow_from_loaded(loaded: &Loaded, fields: &[&str]) -> Result<FlowSetup, SetupError> {
+    let geo = resolved_geometry(loaded)?;
+    let (instance, block) = sole_instance(loaded, "flow")?;
+    let gamma = ResolvedConfig::param_f64(block, "gamma")
+        .ok_or_else(|| SetupError::Missing(format!("{instance}.gamma")))?;
+    Ok(FlowSetup {
+        grid: Grid::build(grid_spec_from(geo)?, fields)?,
+        instance: instance.to_string(),
+        gamma,
     })
 }

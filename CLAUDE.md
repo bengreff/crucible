@@ -54,14 +54,45 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   committed artifact**; .gitignore restored (Python rules back), README/check.sh headers current;
   META-3 `bessel-j0-zeros` entry added. True test count: **58** (session-5 commit message said 54 —
   wrong, was 48).
+- Session 7 (2026-08-16): **GOAL-B STATION 1 COMPLETE — the bursting diaphragm (Sod)**
+  (`certificates/station1_sod_certificate.md`, regenerable via
+  `cargo run --release --bin station1_sod_certificate`; criteria CI-enforced in
+  `crates/solvers/tests/solv1_station1_sod.rs`; check.sh gate 4 now diffs both certificates).
+  `crucible-solvers::euler` = SOLV-1 §3.1–3.3 reacting-gas subset: U = (ρ, ρu_r, ρu_θ, ρu_z, ρE,
+  ρC) on the exact cylindrical metric, PPM (CW84, MOL form — no characteristic tracing; Castro's
+  SDC path uses the same, so COUP-3 consumes this operator unchanged) + HLLC with Batten
+  wavespeeds + well-balanced geometric sources; gamma-law EOS struct = first degenerate FND-7
+  spine occupant (γ is config data); one passive composition ρC advected from day one (the
+  Batten contact wave). Exact Riemann oracle (Toro; star state vs Table 4.2 to 5 figs). Registry
+  row 2: `flow` mechanism (γ validity [1.001, 1.667], load-refused outside; `flow_from_loaded`
+  through the typed seam). MOL SSP-RK2 = honest scaffolding (session-5 pattern), superseded by
+  COUP-3 SDC-IMEX. **Data (n_z=800 finest): shock position 0.16 cells; contact 1.11 cells; star
+  plateaus ≤ 7.3e-5; star-window L1 order 2.2–2.6 (formal order in smooth regions); fan interior
+  ~1.0 (known centered-fan startup behavior, reported honestly); smooth advection: C at textbook
+  2.0, ρ mean 2.09; closed-tube mass/energy drift ≤ 4e-16 through wall reflections; uniform gas
+  at rest = BITWISE fixed point (axis N_θ=1 + annulus N_θ=8); radially-uniform tube stays
+  radially uniform bitwise through the whole shock.** Two upstream fixes the certificate forced:
+  grid **`face_radius` single owner** (ring i's outer face ≡ ring i+1's inner face bitwise — the
+  old `r_i + dr` rounding broke flux telescoping by 1 ulp at particular radii, latent under
+  conduction's tolerances; Goal-A artifact unchanged at printed precision) and z/θ sweeps use
+  exact metric ratios (A_z/V = 1/dz) instead of per-ring A·F products. `[profile.test]
+  opt-level = 2` (real marches in tests; f64 bit-identical across opt levels — no fast-math);
+  the test profile's overflow checks caught a θ-wrap underflow that release wrapping had masked.
+  True test count: **76**. Euler deferrals (loud refusals, owners in `euler/mod.rs` header):
+  r_min=0 with N_θ>1 (cross-axis parity gather), mixed per-brick N_θ (COUP-2/3 refluxing),
+  apertures/cut cells (FND-3 not yet consumed — worlds are full boxes). Not yet done for
+  SOLV-1's validation plan: full-Euler MMS with swirl on the cylindrical metric (§6-2 — natural
+  opener for the station-2 session; the `source` intake + `Prescribed` BC machinery it needs are
+  already in place).
 - **Tracked deferral (review finding 9, not yet fixed):** META-2 §4 ★ units typing (`uom`) at
   interface boundaries — schedule as its own small wave BEFORE station-3 params proliferate; the
   stale "arrives with FND-4" note in crucible-constants still needs rewording to point here.
 - **GOAL B (confirmed by Ben 2026-08-16): the BLIND RL10 — M2 itself.** Five certificate stations,
   each a physical system, ladder order strict (VAL-1: analytic → benchmark → hardware):
   **(1) Bursting diaphragm (Sod)** — SOLV-1 HLLC/PPM Euler at N_θ=1 vs exact Riemann; L1 at formal
-  order in smooth regions, conservation to round-off. **← NEXT: in progress.**
+  order in smooth regions, conservation to round-off. **✓ COMPLETE (session 7, 2026-08-16).**
   **(2) De Laval nozzle** — cold-gas choked flow vs isentropic area–Mach relations; emergent p_c.
+  **← NEXT.**
   **(3) Flame (seam)** — OFFL-3 Python CEA/Cantera → HDF5 (p,h,Z) surfaces vs CEA manual cases;
   h5py must mirror `crates/tables/src/digest.rs` byte-for-byte.
   **(4) Cooled wall** — the one wall-function heat law (SOLV-1 §3.5/COUP-3 class-D) + certified

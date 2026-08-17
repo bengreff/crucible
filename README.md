@@ -8,8 +8,10 @@ is a distribution with a pedigree.
 A 12-month inquiry project (Jul 2026 – Jun 2027). This repository holds the **design docs**
 (Layer 1 + Layer 2) and the **Rust runtime workspace**: the FND-4 config loader + run manifest,
 the FND-5 HDF5 table seam (statically pinned libhdf5), the FND-2 cylindrical world-state grid,
-and the first solver — conduction, certified by the committed Goal-A convergence certificate
-(`certificates/`). Current goal: **Goal B, the blind RL10** (see CLAUDE.md for station status).
+and the first two SOLV-1 operators — conduction (the Goal-A convergence certificate) and the
+compressible-Euler flux operator (PPM + HLLC-Batten, the Goal-B Station-1 Sod certificate), each
+certified by a committed, regenerable record in `certificates/`. Current goal: **Goal B, the
+blind RL10** (see CLAUDE.md for station status).
 
 ## Build & test
 
@@ -33,8 +35,8 @@ fixed order; CI mirrors it. Every session ends with the battery green and the wo
 The runtime is **one 3-D multiphysics field solver** on a single world-state grid that evolves all matter
 and fields over a local medium-state vector `M` (Rule 12: one law per physical quantity, no `if(material)`
 seams; Rule 13: engines are pure-data configurations, no per-concept code). Reactions are source terms
-feeding shared transport. Dimensionality adapts (spectral azimuthal-mode reduction) to spend 3-D cost only
-where symmetry breaks. Runtime = 100% Rust; offline table generation = Python; the only seam is versioned
+feeding shared transport. Dimensionality adapts (adaptive azimuthal resolution N_θ, FND-2 §3.4) to spend
+3-D cost only where symmetry breaks. Runtime = 100% Rust; offline table generation = Python; the only seam is versioned
 HDF5 tables. Every result is a p-box with a PCMM pedigree; the goal is to **resolve** untested-regime
 uncertainty, not accept it.
 

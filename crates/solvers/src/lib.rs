@@ -16,7 +16,12 @@
 
 pub mod certificate;
 mod conduction;
+pub mod euler;
 mod mechanism;
+pub mod station1_sod;
 
 pub use conduction::{Bcs, Conduction, FaceBc, SolverError};
-pub use mechanism::{CONDUCTION_MANIFEST, ConductionSetup, SetupError, from_loaded, registry};
+pub use mechanism::{
+    CONDUCTION_MANIFEST, ConductionSetup, FLOW_MANIFEST, FlowSetup, SetupError, flow_from_loaded,
+    from_loaded, registry,
+};

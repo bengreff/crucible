@@ -354,11 +354,22 @@ impl Grid {
 
     // --- Cylindrical metric (§3.2): exact ring factors, never Cartesian ---
 
+    /// Radius of radial face `f` (the inner face of ring `f`) — the single
+    /// owner of the face-radius rounding. Ring `i`'s outer face and ring
+    /// `i+1`'s inner face MUST be the same number bitwise, or flux-form
+    /// telescoping (COUP-2) and the well-balanced geometric sources
+    /// (SOLV-1 §3.3) pick up one-ulp seams at particular radii (found by
+    /// the Station-1 uniform-fixed-point certificate: the former
+    /// `r_i + dr` rounds differently from `r_min + (i+1)·dr`).
+    #[inline]
+    pub fn face_radius(&self, f: usize) -> f64 {
+        self.spec.r_min + f as f64 * self.spec.dr
+    }
+
     /// Inner/outer radii of ring `i_r`.
     #[inline]
     pub fn ring_radii(&self, i_r: usize) -> (f64, f64) {
-        let r_i = self.spec.r_min + i_r as f64 * self.spec.dr;
-        (r_i, r_i + self.spec.dr)
+        (self.face_radius(i_r), self.face_radius(i_r + 1))
     }
 
     /// Cell-center coordinates — the single owner of the centroid

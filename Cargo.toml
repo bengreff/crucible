@@ -24,3 +24,11 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# The certificate studies (Goal A conduction, Station 1 Sod ladder) are real
+# solver marches; unoptimized they multiply the fast-gate wall time ~20×.
+# Optimization level does not change f64 results in Rust (no fast-math, no
+# reassociation — META-1 §2.2), so test-profile output is bit-identical to
+# dev/release; VAL-3's determinism gates would catch any regression of that.
+[profile.test]
+opt-level = 2
