@@ -6,6 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+crucible-units = { path = "../units" }
 crucible-config = { path = "../config" }
 crucible-grid = { path = "../grid" }
 crucible-registry = { path = "../registry" }

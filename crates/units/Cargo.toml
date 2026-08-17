@@ -1,0 +1,13 @@
+[package]
+name = "crucible-units"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# META-2 §4 ★: the one owner of the units-typing dependency. Exact pin —
+# a units-library change is a build-fingerprint event, not a float.
+uom = { version = "=0.38.0", default-features = false, features = ["f64", "si", "std"] }
+
+[lints]
+workspace = true

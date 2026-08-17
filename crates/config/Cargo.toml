@@ -6,6 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+crucible-units = { path = "../units" }
 crucible-registry = { path = "../registry" }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"

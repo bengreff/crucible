@@ -4,6 +4,7 @@
 resolver = "3"
 members = [
     "crates/constants",
+    "crates/units",
     "crates/registry",
     "crates/config",
     "crates/tables",

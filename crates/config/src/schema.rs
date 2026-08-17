@@ -215,3 +215,81 @@ impl ResolvedConfig {
             .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)))
     }
 }
+
+/// META-2 §4 ★ — dimensioned parameter access at the parse boundary. The
+/// FND-4 param-name convention already spells the unit in the name
+/// (`kappa_w_per_m_k`); these accessors are the enforcement: the value
+/// leaves the config layer as a typed quantity, so a consumer wanting the
+/// wrong dimension fails to compile instead of misreading a number.
+/// Dimensionless params (γ, Pr, Z) stay on [`ResolvedConfig::param_f64`].
+/// Each accessor is named for its unit — it must agree with the param-name
+/// suffix it reads, and the pairing is the reviewable surface.
+impl ResolvedConfig {
+    pub fn param_length_m(block: &toml::Table, name: &str) -> Option<crucible_units::Length> {
+        Self::param_f64(block, name).map(crucible_units::length_m)
+    }
+
+    pub fn param_temperature_k(
+        block: &toml::Table,
+        name: &str,
+    ) -> Option<crucible_units::ThermodynamicTemperature> {
+        Self::param_f64(block, name).map(crucible_units::temperature_k)
+    }
+
+    pub fn param_pressure_pa(block: &toml::Table, name: &str) -> Option<crucible_units::Pressure> {
+        Self::param_f64(block, name).map(crucible_units::pressure_pa)
+    }
+
+    pub fn param_thermal_conductivity_w_per_m_k(
+        block: &toml::Table,
+        name: &str,
+    ) -> Option<crucible_units::ThermalConductivity> {
+        Self::param_f64(block, name).map(crucible_units::thermal_conductivity_w_per_m_k)
+    }
+
+    pub fn param_volumetric_heat_capacity_j_per_m3_k(
+        block: &toml::Table,
+        name: &str,
+    ) -> Option<crucible_units::VolumetricHeatCapacity> {
+        Self::param_f64(block, name).map(crucible_units::volumetric_heat_capacity_j_per_m3_k)
+    }
+
+    pub fn param_heat_transfer_w_per_m2_k(
+        block: &toml::Table,
+        name: &str,
+    ) -> Option<crucible_units::HeatTransfer> {
+        Self::param_f64(block, name).map(crucible_units::heat_transfer_w_per_m2_k)
+    }
+
+    pub fn param_dynamic_viscosity_pa_s(
+        block: &toml::Table,
+        name: &str,
+    ) -> Option<crucible_units::DynamicViscosity> {
+        Self::param_f64(block, name).map(crucible_units::dynamic_viscosity_pa_s)
+    }
+
+    pub fn param_specific_heat_capacity_j_per_kg_k(
+        block: &toml::Table,
+        name: &str,
+    ) -> Option<crucible_units::SpecificHeatCapacity> {
+        Self::param_f64(block, name).map(crucible_units::specific_heat_capacity_j_per_kg_k)
+    }
+}
+
+impl ResolvedExtents {
+    /// Typed views of the geometry extents (the config→grid seam). The
+    /// serialized struct itself stays plain SI `f64` — the §6-1 replay
+    /// grammar must not change shape under a units library.
+    pub fn r_min_length(&self) -> crucible_units::Length {
+        crucible_units::length_m(self.r_min)
+    }
+    pub fn dr_length(&self) -> crucible_units::Length {
+        crucible_units::length_m(self.dr)
+    }
+    pub fn z_min_length(&self) -> crucible_units::Length {
+        crucible_units::length_m(self.z_min)
+    }
+    pub fn dz_length(&self) -> crucible_units::Length {
+        crucible_units::length_m(self.dz)
+    }
+}

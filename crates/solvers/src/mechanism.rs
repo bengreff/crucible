@@ -87,13 +87,15 @@ pub fn registry() -> Registry {
 }
 
 /// Everything a conduction run needs from config: the built grid and the
-/// operator parameters, plus the instance name it came from.
+/// operator parameters, plus the instance name it came from. Parameters are
+/// unit-typed at this boundary (META-2 §4 ★); the operator extracts SI
+/// `f64` at construction ([`crucible_units::si`]) — kernels stay plain.
 #[derive(Debug)]
 pub struct ConductionSetup {
     pub grid: Grid,
     pub instance: String,
-    pub kappa: f64,
-    pub rho_cp: f64,
+    pub kappa: crucible_units::ThermalConductivity,
+    pub rho_cp: crucible_units::VolumetricHeatCapacity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -150,12 +152,14 @@ pub fn grid_spec_from(geo: &ResolvedGeometry) -> Result<GridSpec, SetupError> {
         .map_err(|_| SetupError::OutOfRange(format!("n_z = {}", ext.n_z)))?;
     let n_theta_max = u32::try_from(geo.n_theta_max)
         .map_err(|_| SetupError::OutOfRange(format!("n_theta_max = {}", geo.n_theta_max)))?;
+    // Through the typed extents views (META-2 §4 ★): the seam names the
+    // dimension, the kernel-facing GridSpec receives documented-SI f64.
     Ok(GridSpec {
-        r_min: ext.r_min,
-        dr: ext.dr,
+        r_min: crucible_units::si(ext.r_min_length()),
+        dr: crucible_units::si(ext.dr_length()),
         n_r,
-        z_min: ext.z_min,
-        dz: ext.dz,
+        z_min: crucible_units::si(ext.z_min_length()),
+        dz: crucible_units::si(ext.dz_length()),
         n_z,
         n_theta_max,
         axisymmetry_assertion: geo.axisymmetric,
@@ -194,15 +198,17 @@ fn resolved_geometry(loaded: &Loaded) -> Result<&ResolvedGeometry, SetupError> {
 pub fn from_loaded(loaded: &Loaded, fields: &[&str]) -> Result<ConductionSetup, SetupError> {
     let geo = resolved_geometry(loaded)?;
     let (instance, block) = sole_instance(loaded, "conduction")?;
-    let param = |name: &str| -> Result<f64, SetupError> {
-        ResolvedConfig::param_f64(block, name)
-            .ok_or_else(|| SetupError::Missing(format!("{instance}.{name}")))
-    };
+    let missing = |name: &str| SetupError::Missing(format!("{instance}.{name}"));
     Ok(ConductionSetup {
         grid: Grid::build(grid_spec_from(geo)?, fields)?,
         instance: instance.to_string(),
-        kappa: param("kappa_w_per_m_k")?,
-        rho_cp: param("rho_cp_j_per_m3_k")?,
+        kappa: ResolvedConfig::param_thermal_conductivity_w_per_m_k(block, "kappa_w_per_m_k")
+            .ok_or_else(|| missing("kappa_w_per_m_k"))?,
+        rho_cp: ResolvedConfig::param_volumetric_heat_capacity_j_per_m3_k(
+            block,
+            "rho_cp_j_per_m3_k",
+        )
+        .ok_or_else(|| missing("rho_cp_j_per_m3_k"))?,
     })
 }
 

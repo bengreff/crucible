@@ -113,7 +113,9 @@ fn cert_config_drives_a_run_and_reruns_bit_identically() {
         let setup = from_loaded(&loaded, FIELDS).expect("setup");
         let mut g = setup.grid;
         assert_eq!(setup.instance, "wall");
-        assert_eq!(setup.kappa, 20.0);
+        // The setup boundary is unit-typed (META-2 §4 ★); the kernel
+        // receives documented-SI f64 via the one extraction point.
+        assert_eq!(crucible_units::si(setup.kappa), 20.0);
         let t_id = g.field_id("T").unwrap();
         let rate_id = g.field_id("rate").unwrap();
         g.fill_field(t_id, |_, _, _| 400.0);
@@ -121,8 +123,8 @@ fn cert_config_drives_a_run_and_reruns_bit_identically() {
         let cold = |_: f64, _: f64, _: f64, _: f64| 300.0;
         let zero_src = |_: f64, _: f64, _: f64, _: f64| 0.0;
         let op = Conduction {
-            kappa: setup.kappa,
-            rho_cp: setup.rho_cp,
+            kappa: crucible_units::si(setup.kappa),
+            rho_cp: crucible_units::si(setup.rho_cp),
             source: &zero_src,
             bcs: Bcs {
                 r_inner: FaceBc::Dirichlet(&hot),
