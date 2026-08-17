@@ -49,7 +49,10 @@ uncertainty, not accept it.
 | `docs/foundations/` | Spine: data/UQ model, grid+solver, geometry, config, tables, results, constitutive spine |
 | `docs/coupling/` | Coupling & orchestration (time integration, audit, registry) |
 | `crates/` | The Rust runtime workspace — one crate per doc area (META-2 §4); each cites the doc it implements |
-| `scripts/check.sh` | The VAL-3 per-commit gate battery |
+| `offline/` | The Python OFFL pipelines (VISION_SCOPE §6 two-language rule; `crucible_offl`, venv-pinned) — offline only, never at simulation time |
+| `tables/` | Committed production HDF5 tables (FND-5 schema, digest-pinned; the one cross-language seam) |
+| `certificates/` | Goal-A/Goal-B station certificates — regenerated and diffed by the gate battery |
+| `scripts/check.sh` | The VAL-3 per-commit gate battery (5 gates: fmt, clippy, cargo test, offline pytest, certificate diff) |
 
 The 29 critical-path Layer-2 docs are **Reviewed (2026-08-14)** — the coding gate is open
 (`REVIEW_FINDINGS.md` is the record). Still unreviewed: SOLV-5, OFFL-4 (deferred set — do not

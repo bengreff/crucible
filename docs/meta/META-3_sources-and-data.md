@@ -66,12 +66,12 @@ union of those keys. Nothing is cited that isn't here; nothing here that a resul
 |---|---|---|---|---|---|---|
 | `rust` | Rust toolchain | Runtime core | **1.93.1** (pinned 2026-08-14, `rust-toolchain.toml`; edition 2024) | MIT/Apache-2.0 | clear | all runtime |
 | `openmc` | OpenMC | Offline neutron/photon transport, k-eff, kernels, reactivity sweeps | `[pin]` | MIT | clear (embeds/redistributes freely) | OFFL-1/2 |
-| `cantera` | Cantera | Offline equilibrium chemistry / thermo | `[pin]` | BSD-3 | clear | OFFL-3 |
-| `nasa-cea` | NASA CEA + RocketCEA | Rocket equilibrium performance, ~2000-species Glenn DB | `[pin]` | open (github.com/nasa/cea) / GPLv3 wrapper (pipeline-only) | clear | OFFL-3 |
+| `cantera` | Cantera | Offline equilibrium chemistry / thermo | **3.2.0** (PyPI wheel, pinned 2026-08-17, `offline/pyproject.toml`) | BSD-3 | clear | OFFL-3 |
+| `nasa-cea` | NASA CEA + RocketCEA | Rocket equilibrium performance, ~2000-species Glenn DB | **cea 3.3.2** (PyPI, the modern github.com/nasa/cea re-implementation with native Python bindings, pinned 2026-08-17; bundled Glenn thermo DB; RocketCEA wrapper not needed so far) | Apache-2.0 / GPLv3 wrapper (oracle-only if ever used) | clear | OFFL-3 |
 | `geant4` | Geant4 | Offline antiproton annihilation/fission (FTFP/INCL/CHIPS) | `[pin]` | Geant4 license (permissive) | clear | OFFL-4 |
 | `njoy`/`endftk` | NJOY / ENDFtk | Nuclear data processing | `[pin]` | open | clear | OFFL-2 |
 | `sandy` | SANDY | Perturbed-library covariance sampling | `[pin]` | open | clear | OFFL-2 |
-| `hdf5` | HDF5 (+ Rust `hdf5` crate) | The cross-language table seam | **libhdf5 2.2.0** statically built via `hdf5-metno` 0.14.1 / `-src` 0.10.4, locked in Cargo.lock (2026-08-15); Python side `[pin: h5py, with OFFL-3]` | BSD-style | clear | FND-5, all OFFL |
+| `hdf5` | HDF5 (+ Rust `hdf5` crate) | The cross-language table seam | **libhdf5 2.2.0** statically built via `hdf5-metno` 0.14.1 / `-src` 0.10.4, locked in Cargo.lock (2026-08-15); Python side **h5py 3.16.0 + numpy 2.5.2 on Python 3.13.7** (pinned 2026-08-17, `offline/pyproject.toml`) | BSD-style | clear | FND-5, all OFFL |
 | `openfoam` | OpenFOAM | Offline 3-D compressible-flow oracle | `[pin]` | GPL (oracle only, never linked) | clear | OFFL-6 |
 | `athena++` | Athena++ | Offline 3-D MHD oracle | `[pin]` | open (oracle only) | clear | OFFL-6 |
 | `warpx` | WarpX | Optional kinetic runs to calibrate mag-nozzle closure | `[pin]` | open | clear | OFFL-6 |

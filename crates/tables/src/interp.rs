@@ -63,6 +63,31 @@ impl Table {
         Ok(v)
     }
 
+    /// META-2 §4 ★ — the units check at the table boundary: a consumer
+    /// binds a column by (name, expected SI units string) **once, at bind
+    /// time**, and gets a refusal — not a misread quantity — if a producer
+    /// relabeled the column. Data-driven of necessity: column units cross
+    /// the language seam as data (FND-5 §3.1), so this is the seam's units
+    /// gate; the `uom`-typed wrapper layer over these scalars is the
+    /// tracked units wave (CLAUDE.md, review finding 9).
+    pub fn expect_units(&self, value_name: &str, units: &str) -> Result<(), TableError> {
+        let value = self
+            .values
+            .iter()
+            .find(|v| v.name == value_name)
+            .ok_or_else(|| TableError::UnknownValue {
+                name: value_name.to_string(),
+            })?;
+        if value.units != units {
+            return Err(TableError::UnitsMismatch {
+                value: value_name.to_string(),
+                expected: units.to_string(),
+                found: value.units.clone(),
+            });
+        }
+        Ok(())
+    }
+
     /// §3.5 `Flag` policy: computes the value when the query is inside the
     /// tabulated domain, reporting each envelope excursion for COUP-5 to
     /// record per-member. Outside the grid domain still hard-errors.

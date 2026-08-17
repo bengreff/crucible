@@ -1,0 +1,31 @@
+# OFFL pipelines — the Python half of the two-language rule (VISION_SCOPE §6).
+# Offline only; versioned HDF5 to the FND-5 schema is the sole product.
+#
+# Dependency pins are exact (==): Tier-2 determinism (META-1 §2.1) — every
+# table is reproducible from {generator script hash, tool versions, inputs},
+# so the tool versions are part of the record, not a range. Bumping a pin is
+# a data_version event for the tables it produces. META-3 `hdf5` row records
+# the h5py pin; `cantera` row the Cantera pin.
+[project]
+name = "crucible-offl"
+version = "0.1.0"
+description = "CRUCIBLE offline table pipelines (OFFL-*): equilibrium chemistry to FND-5 HDF5"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy==2.5.2",
+    "h5py==3.16.0",
+    "cantera==3.2.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.1.1"]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["crucible_offl"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

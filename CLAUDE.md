@@ -116,21 +116,61 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   FND-3/COUP-7 waves: partial apertures + cut cells + State Redistribution retire the stair
   wall + transpiration; the COUP-7 injector object retires StagnationInflow; check.sh notes the
   station-2 ladder as the battery's heavy item (split to milestone tier if it grows).
+- Session 9 (2026-08-17): **GOAL-B STATION 3 COMPLETE — the flame seam**
+  (`certificates/station3_flame_certificate.md`, regenerable via
+  `offline/scripts/station3_flame_certificate.py`; criteria CI-enforced in `offline/tests/`
+  pytest + `crates/tables/tests/{fnd5_python_seam,station3_tables}.rs`; **check.sh is now 5
+  gates** — gate 4 = the offline pytest battery, gate 5 diffs all four certificates). **The
+  Python side begins**: `offline/` = `crucible_offl` on Python 3.13.7 (`offline/.venv`,
+  bootstrap line in check.sh), exact pins in `pyproject.toml` (h5py 3.16.0, numpy 2.5.2,
+  cantera 3.2.0, cea 3.3.2 — all stamped in META-3). **Digest v2 mirrored byte-for-byte**
+  (`tables.py`: stdlib-pure digest half + h5py writer to the reader.rs schema; golden vector
+  asserted in both languages); committed cross-language fixture (UTF-8 byte-length probe, all
+  three sigma markers, log rules, rng_seed) written by Python, opened by the Rust loader under
+  the Python-stamped pin. **NASA CEA is pip-installable as `cea` 3.3.2** — the modern
+  Apache-2.0 github.com/nasa/cea re-implementation, native Python bindings, bundled Glenn DB,
+  RP-1311 samples in-tree (RocketCEA never needed). `chemistry.py` wraps it behind SI
+  boundaries ((p,h,Z) HP solves; (p_c,MR) IAC rocket; Z = 1/(1+MR); h_SI = h/R·R_CEA pinned by
+  round-trip). **Production tables committed** (`tables/chem/lox_lh2_v0.1.0.h5` + pins
+  sidecar): (p,h,Z) equilibrium surface 41×31×13 log-p (T, ρ, γ_eff, a, M̄, condensed_fraction,
+  6 X_k) + (p_c,MR) performance reference 11×11 (c*_ideal ±2.7 m/s, T_c ±10.4 K stored
+  bounds). Error-bound honesty loop the §6-4 gate forced twice: midpoint-only holdout
+  understated a minor-species onset (→ midpoints + ¼-offsets), then 1.28× sampling variance on
+  a coarse grid (→ declared ×1.5 margin); enforcement = fresh disjoint ⅜-offset CI sweep on the
+  committed artifact — violation means refine the grid, never relax the gate. **Data: RP-1311
+  example 8 reproduced through the pipeline to ≤2.7e-4 rel across 14 quantities (T_c 3383.845 K,
+  c* 2332.34 m/s, compositions, Isp ladder); CEA↔Cantera two-solver agreement ≤0.13% T, ≤0.05%
+  M̄ (no shared code, different thermo fits); frozen↔shifting bracket 3.91% at ε=25 — contains
+  the JANNAF 0.8–1% kinetic band, sampled by COUP-5 as the S19 epistemic dimension;
+  (p,h,Z)↔(p_c,MR) coordinate consistency ≤2.5 K along the design line; the RL10 chamber
+  through the whole seam: Rust pin-verifies and interpolates T within 0.42 K and c* within
+  0.05 m/s of CEA direct, Rust≡Python interpolation to 1e-6.** Honest note: the surface is the
+  equilibrium *including* condensed H₂O in deep-cold rectangle corners (`condensed_fraction`
+  column reports it; no engine trajectory goes there; full-envelope bounds are kink-dominated,
+  gas-region ~50× tighter). Deferrals owned (certificate + `chemistry.py` header): frozen-path
+  surface (SOLV-1 frozen-advection wave), expansion oracles (station 5), B′ (SOLV-8), transport
+  feed (OFFL-5, S23), config→tables pin wiring (FND-4 §6-4, sidecar TOML is the interim
+  record), per-point sigma columns (COUP-5 wave). True test count: **89 Rust + 23 Python**.
 - **Ben's post-checkpoint BIG goal (2026-08-17): data visualizations** of CRUCIBLE results once
   the station ladder yields meaningful data — its own wave after the stations; keep FND-6
   results-bundle design viz-friendly meanwhile (auto-memory `project-dataviz-goal`).
-- **Tracked deferral (review finding 9, not yet fixed):** META-2 §4 ★ units typing (`uom`) at
-  interface boundaries — schedule as its own small wave BEFORE station-3 params proliferate; the
-  stale "arrives with FND-4" note in crucible-constants still needs rewording to point here.
+- **Tracked deferral (review finding 9) — first slice landed session 9:** the seam's
+  data-driven units gate exists (`Table::expect_units` bind-time refusal; columns carry SI
+  units strings enforced at load + bind; crucible-constants header points here correctly). The
+  `uom` typed-wrapper layer at Rust interface boundaries (config parse, mechanism params,
+  results) is scheduled as the **first wave of the station-4 session** — that is where
+  dimensioned Rust params actually proliferate (wall-function coefficients, material
+  properties); station 3 added none.
 - **GOAL B (confirmed by Ben 2026-08-16): the BLIND RL10 — M2 itself.** Five certificate stations,
   each a physical system, ladder order strict (VAL-1: analytic → benchmark → hardware):
   **(1) Bursting diaphragm (Sod)** — SOLV-1 HLLC/PPM Euler at N_θ=1 vs exact Riemann; L1 at formal
   order in smooth regions, conservation to round-off. **✓ COMPLETE (session 7, 2026-08-16).**
   **(2) De Laval nozzle** — cold-gas choked flow vs isentropic area–Mach relations; emergent p_c.
   **✓ COMPLETE (session 8, 2026-08-17).**
-  **← NEXT: (3) the flame seam** — OFFL-3 Python side begins; digest v2 mirror first.
   **(3) Flame (seam)** — OFFL-3 Python CEA/Cantera → HDF5 (p,h,Z) surfaces vs CEA manual cases;
-  h5py must mirror `crates/tables/src/digest.rs` byte-for-byte.
+  h5py mirrors `crates/tables/src/digest.rs` byte-for-byte. **✓ COMPLETE (session 9, 2026-08-17).**
+  **← NEXT: (4) the cooled wall** — units wave (`uom` at boundaries) FIRST, then the one
+  wall-function heat law; SOLV-1 §3.5 + COUP-3 class-D + COUP-2 §3.5 are the owning docs.
   **(4) Cooled wall** — the one wall-function heat law (SOLV-1 §3.5/COUP-3 class-D) + certified
   conduction; declared ±20–30% band.
   **(5) Blind RL10** — 1966 design geometry + universal closures + technology-class data only

@@ -136,6 +136,13 @@ pub enum TableError {
     UnknownValue {
         name: String,
     },
+    /// META-2 §4 ★ boundary units check: the consumer's expected units
+    /// string does not match the column's declared `units` metadata.
+    UnitsMismatch {
+        value: String,
+        expected: String,
+        found: String,
+    },
     QueryArity {
         expected: usize,
         found: usize,
@@ -237,6 +244,18 @@ impl fmt::Display for TableError {
                 )
             }
             Self::UnknownValue { name } => write!(f, "no value dataset named {name:?}"),
+            Self::UnitsMismatch {
+                value,
+                expected,
+                found,
+            } => {
+                write!(
+                    f,
+                    "value {value:?}: consumer expects units {expected:?} but the table declares \
+                     {found:?} — refusing the bind (META-2 §4 ★); a relabeled column must never \
+                     be silently misread"
+                )
+            }
             Self::QueryArity { expected, found } => {
                 write!(
                     f,
