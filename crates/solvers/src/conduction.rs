@@ -24,7 +24,7 @@
 //! accumulation order (r−, r+, θ−, θ+, z−, z+, source) is part of the
 //! certified bit-identical behavior.
 
-use crucible_grid::{BRICK, BRICK_CELLS, FieldId, Grid};
+use crucible_grid::{BRICK, BRICK_CELLS, FaceDir, FieldId, Grid};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SolverError {
@@ -35,6 +35,16 @@ pub enum SolverError {
         i_r: usize,
         i_z: usize,
     },
+    /// A face against a cell outside this operator's domain, with no
+    /// interior-face treatment configured — refuse, never guess (the
+    /// Goal-A full-box fixtures declare `InteriorFaces::refuse()`).
+    UnhandledInteriorFace {
+        i_r: usize,
+        i_z: usize,
+    },
+    /// A non-physical coefficient (κ, ρc_p, or a Robin h must be finite
+    /// and positive).
+    BadCoefficient(&'static str),
 }
 
 impl std::fmt::Display for SolverError {
@@ -49,6 +59,20 @@ impl std::fmt::Display for SolverError {
                 write!(
                     f,
                     "non-finite temperature at (i_r={i_r}, i_z={i_z}) — halt with diagnosis"
+                )
+            }
+            Self::UnhandledInteriorFace { i_r, i_z } => {
+                write!(
+                    f,
+                    "cell (i_r={i_r}, i_z={i_z}) has a face against a cell outside the \
+                     operator's domain but no interior-face treatment is configured — \
+                     refusing rather than guessing (COUP-2 §3.5)"
+                )
+            }
+            Self::BadCoefficient(which) => {
+                write!(
+                    f,
+                    "{which} must be finite and positive (fail loud, META-1 P6)"
                 )
             }
         }
@@ -66,6 +90,46 @@ pub enum FaceBc<'a> {
     Dirichlet(&'a dyn Fn(f64, f64, f64, f64) -> f64),
     /// Prescribed outward heat flux [W/m²]; 0.0 = insulated.
     HeatFlux(f64),
+    /// Convective exchange against an ambient at `t_inf` through film
+    /// coefficient `h` [W/(m²·K)], discretized as the film + half-cell
+    /// conduction series resistance (the consistent 2nd-order face form;
+    /// COUP-2 §3.5's coolant side until COUP-7's jacket object lands).
+    Robin { h: f64, t_inf: f64 },
+}
+
+/// What a face against a cell *outside the operator's domain* does — the
+/// interior counterpart of `Bcs` (domain edges), COUP-2 §3.5's interface
+/// delineation. Both fields are explicit at every construction site (no
+/// hidden defaults, FND-4 §3.5).
+pub struct InteriorFaces<'a> {
+    /// Face against a flow-active (gas) cell: heat INTO this domain cell
+    /// [W/m²], from the coupler's single per-face evaluation (conservation
+    /// by construction — the gas side applies the same number negated).
+    /// `None` ⇒ such a face is a hard error.
+    pub gas: Option<&'a dyn Fn(usize, usize, u32, FaceDir) -> f64>,
+    /// Face against an exterior cell: `None` ⇒ hard error; `Some` ⇒ the BC
+    /// (insulated `HeatFlux(0.0)`, coolant `Robin`, …). Position-dependent
+    /// `Dirichlet` closures see the face centroid as usual.
+    pub exterior: Option<FaceBc<'a>>,
+}
+
+impl InteriorFaces<'_> {
+    /// The full-box declaration: any interior face is a loud error (the
+    /// Goal-A fixtures — their domain has no interior boundary at all).
+    pub fn refuse() -> Self {
+        InteriorFaces {
+            gas: None,
+            exterior: None,
+        }
+    }
+}
+
+/// Which region mask is this operator's domain (data from the config-time
+/// region classification — never an `if(material)` in the sweep).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Domain {
+    FlowActive,
+    Solid,
 }
 
 pub struct Bcs<'a> {
@@ -84,14 +148,20 @@ pub struct Conduction<'a> {
     pub rho_cp: f64,
     pub source: &'a dyn Fn(f64, f64, f64, f64) -> f64,
     pub bcs: Bcs<'a>,
+    /// The region mask this operator sweeps (config-time data).
+    pub domain: Domain,
+    /// Treatment of faces against cells outside that domain.
+    pub interior: InteriorFaces<'a>,
 }
 
 /// Where a face's neighbor value comes from: same brick (index offset), a
-/// specific adjacent brick (resolved once per brick), or the domain edge.
+/// specific adjacent brick (resolved once per brick), an in-bounds position
+/// whose brick is not allocated (exterior), or the grid edge.
 #[derive(Clone, Copy)]
 enum Nbr {
     InBrick(isize),
     Cross { bi: usize, local: usize },
+    Missing,
     Edge,
 }
 
@@ -106,6 +176,7 @@ impl Conduction<'_> {
         t: f64,
         dt: f64,
     ) -> Result<(), SolverError> {
+        self.validate()?;
         let nt = g.brick(0).n_theta();
         if g.bricks().iter().any(|b| b.n_theta() != nt) {
             return Err(SolverError::MixedThetaResolution);
@@ -122,9 +193,13 @@ impl Conduction<'_> {
 
         // Pass 1: rates, brick by brick in Morton order.
         for bi in 0..g.n_bricks() {
-            let (br, bz, mask) = {
+            let (br, bz, dmask, gmask) = {
                 let b = g.brick(bi);
-                (b.br(), b.bz(), b.mask())
+                let dm = match self.domain {
+                    Domain::FlowActive => b.mask(),
+                    Domain::Solid => b.solid_mask(),
+                };
+                (b.br(), b.bz(), dm, b.mask())
             };
             // Adjacent bricks, resolved once per brick (≤4 Morton lookups).
             let nb_rm = (br > 0)
@@ -139,7 +214,7 @@ impl Conduction<'_> {
             for j in 0..nt {
                 let theta = (f64::from(j) + 0.5) * dtheta;
                 for local in 0..BRICK_CELLS {
-                    if mask & (1u64 << local) == 0 {
+                    if dmask & (1u64 << local) == 0 {
                         continue;
                     }
                     let (lr, lz) = (local / BRICK, local % BRICK);
@@ -156,15 +231,20 @@ impl Conduction<'_> {
                         return Err(SolverError::NonFiniteState { i_r, i_z });
                     }
 
-                    // Face neighbor resolution — pure index arithmetic.
+                    // Face neighbor resolution — pure index arithmetic. A
+                    // `None` neighbor brick is an unallocated (fully
+                    // exterior) region: the face is an interior boundary.
                     let n_rm = if i_r == 0 {
                         Nbr::Edge
                     } else if lr > 0 {
                         Nbr::InBrick(-(BRICK as isize))
                     } else {
-                        Nbr::Cross {
-                            bi: nb_rm.expect("in-bounds neighbor brick exists"),
-                            local: (BRICK - 1) * BRICK + lz,
+                        match nb_rm {
+                            Some(bi) => Nbr::Cross {
+                                bi,
+                                local: (BRICK - 1) * BRICK + lz,
+                            },
+                            None => Nbr::Missing,
                         }
                     };
                     let n_rp = if i_r + 1 >= n_r {
@@ -172,9 +252,9 @@ impl Conduction<'_> {
                     } else if lr + 1 < BRICK {
                         Nbr::InBrick(BRICK as isize)
                     } else {
-                        Nbr::Cross {
-                            bi: nb_rp.expect("in-bounds neighbor brick exists"),
-                            local: lz,
+                        match nb_rp {
+                            Some(bi) => Nbr::Cross { bi, local: lz },
+                            None => Nbr::Missing,
                         }
                     };
                     let n_zm = if i_z == 0 {
@@ -182,9 +262,12 @@ impl Conduction<'_> {
                     } else if lz > 0 {
                         Nbr::InBrick(-1)
                     } else {
-                        Nbr::Cross {
-                            bi: nb_zm.expect("in-bounds neighbor brick exists"),
-                            local: lr * BRICK + (BRICK - 1),
+                        match nb_zm {
+                            Some(bi) => Nbr::Cross {
+                                bi,
+                                local: lr * BRICK + (BRICK - 1),
+                            },
+                            None => Nbr::Missing,
                         }
                     };
                     let n_zp = if i_z + 1 >= n_z {
@@ -192,23 +275,65 @@ impl Conduction<'_> {
                     } else if lz + 1 < BRICK {
                         Nbr::InBrick(1)
                     } else {
-                        Nbr::Cross {
-                            bi: nb_zp.expect("in-bounds neighbor brick exists"),
-                            local: lr * BRICK,
+                        match nb_zp {
+                            Some(bi) => Nbr::Cross {
+                                bi,
+                                local: lr * BRICK,
+                            },
+                            None => Nbr::Missing,
                         }
                     };
-                    let fetch = |n: Nbr| -> f64 {
-                        match n {
-                            Nbr::InBrick(off) => t_here[(idx as isize + off) as usize],
+
+                    // Per non-edge face: in-domain neighbor ⇒ two-point
+                    // conductive flux; out-of-domain ⇒ the interior-face
+                    // treatment (gas exchange or exterior BC), classified
+                    // from the neighbor's masks — data, not `if(material)`.
+                    let face = |n: Nbr,
+                                area: f64,
+                                dist: f64,
+                                dir: FaceDir,
+                                pos: (f64, f64, f64, f64)|
+                     -> Result<f64, SolverError> {
+                        let (nbr_t, in_domain, is_gas) = match n {
+                            Nbr::InBrick(off) => {
+                                let nl = (local as isize + off) as usize;
+                                (
+                                    t_here[(idx as isize + off) as usize],
+                                    dmask & (1u64 << nl) != 0,
+                                    gmask & (1u64 << nl) != 0,
+                                )
+                            }
                             Nbr::Cross { bi: nbi, local: nl } => {
                                 let nb = g.brick(nbi);
-                                debug_assert!(
+                                let ndm = match self.domain {
+                                    Domain::FlowActive => nb.mask(),
+                                    Domain::Solid => nb.solid_mask(),
+                                };
+                                (
+                                    nb.field(t_field)[nb.cell_index(j, nl)],
+                                    ndm & (1u64 << nl) != 0,
                                     nb.mask() & (1u64 << nl) != 0,
-                                    "flux against an inactive cell — mask/bounds invariant broken"
-                                );
-                                nb.field(t_field)[nb.cell_index(j, nl)]
+                                )
                             }
+                            Nbr::Missing => (f64::NAN, false, false),
                             Nbr::Edge => unreachable!("edge faces take the BC path"),
+                        };
+                        if in_domain {
+                            return Ok(self.kappa * area * (nbr_t - t_c) / dist);
+                        }
+                        // Interior boundary. Gas side ⇒ coupler flux; the
+                        // domain being FlowActive makes a solid/exterior
+                        // neighbor exterior-like by the same rule.
+                        if is_gas && self.domain == Domain::Solid {
+                            match self.interior.gas {
+                                Some(q_in) => Ok(q_in(i_r, i_z, j, dir) * area),
+                                None => Err(SolverError::UnhandledInteriorFace { i_r, i_z }),
+                            }
+                        } else {
+                            match &self.interior.exterior {
+                                Some(bc) => Ok(self.face_bc_heat(bc, area, t_c, 0.5 * dist, pos)),
+                                None => Err(SolverError::UnhandledInteriorFace { i_r, i_z }),
+                            }
                         }
                     };
 
@@ -228,7 +353,15 @@ impl Conduction<'_> {
                                 );
                             }
                         }
-                        n => heat_in += self.kappa * a_in * (fetch(n) - t_c) / dr,
+                        n => {
+                            heat_in += face(
+                                n,
+                                a_in,
+                                dr,
+                                FaceDir::RMinus,
+                                (r0 + i_r as f64 * dr, theta, zbar, t),
+                            )?;
+                        }
                     }
 
                     // r+ face.
@@ -243,7 +376,15 @@ impl Conduction<'_> {
                                 (r0 + n_r as f64 * dr, theta, zbar, t),
                             );
                         }
-                        n => heat_in += self.kappa * a_out * (fetch(n) - t_c) / dr,
+                        n => {
+                            heat_in += face(
+                                n,
+                                a_out,
+                                dr,
+                                FaceDir::RPlus,
+                                (r0 + (i_r + 1) as f64 * dr, theta, zbar, t),
+                            )?;
+                        }
                     }
 
                     // θ faces: periodic, arc distance r̄·Δθ, always in-brick.
@@ -267,7 +408,15 @@ impl Conduction<'_> {
                                 (rbar, theta, z0, t),
                             );
                         }
-                        n => heat_in += self.kappa * a_z * (fetch(n) - t_c) / dz,
+                        n => {
+                            heat_in += face(
+                                n,
+                                a_z,
+                                dz,
+                                FaceDir::ZMinus,
+                                (rbar, theta, z0 + i_z as f64 * dz, t),
+                            )?;
+                        }
                     }
                     match n_zp {
                         Nbr::Edge => {
@@ -279,7 +428,15 @@ impl Conduction<'_> {
                                 (rbar, theta, z0 + n_z as f64 * dz, t),
                             );
                         }
-                        n => heat_in += self.kappa * a_z * (fetch(n) - t_c) / dz,
+                        n => {
+                            heat_in += face(
+                                n,
+                                a_z,
+                                dz,
+                                FaceDir::ZPlus,
+                                (rbar, theta, z0 + (i_z + 1) as f64 * dz, t),
+                            )?;
+                        }
                     }
 
                     let s = (self.source)(rbar, theta, zbar, t);
@@ -349,6 +506,44 @@ impl Conduction<'_> {
                 self.kappa * area * (f(pos.0, pos.1, pos.2, pos.3) - t_c) / half_d
             }
             FaceBc::HeatFlux(q_out) => -q_out * area,
+            // Film + half-cell conduction in series — the consistent face
+            // form; bounded above by the Dirichlet coefficient, so the
+            // `stable_dt` Gershgorin bound continues to cover it.
+            FaceBc::Robin { h, t_inf } => area * (t_inf - t_c) / (1.0 / h + half_d / self.kappa),
         }
+    }
+
+    /// Fail-loud coefficient checks, once per step (META-1 P6).
+    fn validate(&self) -> Result<(), SolverError> {
+        if !(self.kappa.is_finite() && self.kappa > 0.0) {
+            return Err(SolverError::BadCoefficient("kappa"));
+        }
+        if !(self.rho_cp.is_finite() && self.rho_cp > 0.0) {
+            return Err(SolverError::BadCoefficient("rho_cp"));
+        }
+        let robin_ok = |bc: &FaceBc<'_>| match bc {
+            FaceBc::Robin { h, t_inf } => h.is_finite() && *h > 0.0 && t_inf.is_finite(),
+            _ => true,
+        };
+        for bc in [
+            &self.bcs.r_inner,
+            &self.bcs.r_outer,
+            &self.bcs.z_lo,
+            &self.bcs.z_hi,
+        ] {
+            if !robin_ok(bc) {
+                return Err(SolverError::BadCoefficient(
+                    "Robin (h, T∞) on a domain edge",
+                ));
+            }
+        }
+        if let Some(bc) = &self.interior.exterior
+            && !robin_ok(bc)
+        {
+            return Err(SolverError::BadCoefficient(
+                "Robin (h, T∞) on an exterior face",
+            ));
+        }
+        Ok(())
     }
 }

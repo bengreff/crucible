@@ -126,6 +126,8 @@ fn cert_config_drives_a_run_and_reruns_bit_identically() {
             kappa: crucible_units::si(setup.kappa),
             rho_cp: crucible_units::si(setup.rho_cp),
             source: &zero_src,
+            domain: crucible_solvers::Domain::FlowActive,
+            interior: crucible_solvers::InteriorFaces::refuse(),
             bcs: Bcs {
                 r_inner: FaceBc::Dirichlet(&hot),
                 r_outer: FaceBc::Dirichlet(&cold),

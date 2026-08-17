@@ -154,13 +154,45 @@ instrument; the research uses the instrument.** No engine-specific features, eve
 - **Ben's post-checkpoint BIG goal (2026-08-17): data visualizations** of CRUCIBLE results once
   the station ladder yields meaningful data — its own wave after the stations; keep FND-6
   results-bundle design viz-friendly meanwhile (auto-memory `project-dataviz-goal`).
-- **Tracked deferral (review finding 9) — first slice landed session 9:** the seam's
-  data-driven units gate exists (`Table::expect_units` bind-time refusal; columns carry SI
-  units strings enforced at load + bind; crucible-constants header points here correctly). The
-  `uom` typed-wrapper layer at Rust interface boundaries (config parse, mechanism params,
-  results) is scheduled as the **first wave of the station-4 session** — that is where
-  dimensioned Rust params actually proliferate (wall-function coefficients, material
-  properties); station 3 added none.
+- Session 10 (2026-08-17): **units wave + GOAL-B STATION 4 COMPLETE — the cooled wall.**
+  **Wave 1 — units (META-2 §4 ★, review finding 9 CLOSED; own commit):** `crucible-units` =
+  sole owner of pinned uom 0.38.0 (SI-base constructors, `si()` kernel-boundary extraction,
+  the TemperatureKind ΔT guard — `delta_t` → `TemperatureInterval`); config gains
+  dimensioned param accessors (named for their unit, paired with the FND-4 name-suffix
+  convention) + typed extents views; `ConductionSetup` carries typed κ/ρc_p; kernels stay
+  documented-SI f64; the serialized resolved-config grammar is unchanged (§6-1 replay).
+  **Wave 2 — station 4** (`certificates/station4_cooled_wall_certificate.md`; criteria
+  CI-enforced in `crates/solvers/tests/solv1_station4_cooled_wall.rs`; gate 5 diffs all five
+  certificates). Machinery, all doc-seamed: **grid regions** (FND-2 §3.6 ingest widened
+  binary→ternary gas/solid/exterior as config-time data; `solid_mask`,
+  `build_with_regions`, `gas_solid_faces()` deterministic wall-face enumeration,
+  `interface_area_per_theta`); **conduction generalized** (Domain selector,
+  `InteriorFaces` {gas-exchange closure, exterior BC}, `FaceBc::Robin` as film + half-cell
+  series, unallocated-neighbor handling, `validate()` fail-loud — Goal-A behavior
+  preserved, artifact unchanged); **`wall_heat.rs` = SOLV-1 §3.5's one law** (Colburn-class
+  wall function: C_f/2 = 0.0225·Re_y^−1/4, St = (C_f/2)·Pr^−2/3, molecular floor k_g/y —
+  smooth to u_t = 0, no regime branch; recovery T_aw = T + Pr^{1/3}u²/2c_p; **±20–30%
+  declared band**; registry row 3 + typed `wall_law_from_loaded`); **coupled exchange**:
+  one wall-function evaluation per face per step applied to both sides (conservation by
+  construction; the same-face-area guarantee is session 7's `face_radius` single owner),
+  explicit flux-matched splitting at the gas CFL dt, guarded against both thermal
+  stability limits (fail-loud) — honest scaffolding, superseded by COUP-3's class-D
+  Robin-Robin Picard/Aitken. Fixture: M = 2 / 800 K gas (recovery ≈ 1374 K) in a straight
+  duct, steel-class liner, coolant Robin film. **Data: the coupled system reproduces the
+  cylindrical series-resistance conjugate solution to 9.4e-4 worst-case (oracle built from
+  gas state + declared coolant data only — the simulated solid never enters); three-way
+  energy ledger (gas enthalpy deficit / wall exchange / coolant extraction) closes to
+  3.2e-3 and 1.4e-7; q ≈ 1.06 MW/m² rocket-scale, liner ΔT 762→400 K; stepped-cavity
+  stair interface (r- and z-faces) conserves gas→liner energy to 4.2e-12; Robin annulus
+  analytic anchor ≤ 2e-3; uniform rest at coolant T = bitwise fixed point of the full
+  coupled step; reruns bit-identical.** Findings: (1) near-wall sampling — the
+  wall-adjacent cell is itself cooled, reading recovery T_aw 6% under free-stream at
+  2.5 mm cells; declared, inside the band, shrinks with FND-3 + finer wall cells.
+  (2) liner ρc_p = 200 is a declared steady-state continuation device (steady solution
+  independent of ρc_p). Deferrals owned: Bartz nozzle-envelope cross-check → station 5
+  (the nozzle+liner assembly exists there; its stair machinery is certified here);
+  Robin-Robin-in-class-D → COUP-3; coolant closure → COUP-7 jacket object; per-cell
+  transport → OFFL-5 spine. True test count: **102 Rust + 23 Python**.
 - **GOAL B (confirmed by Ben 2026-08-16): the BLIND RL10 — M2 itself.** Five certificate stations,
   each a physical system, ladder order strict (VAL-1: analytic → benchmark → hardware):
   **(1) Bursting diaphragm (Sod)** — SOLV-1 HLLC/PPM Euler at N_θ=1 vs exact Riemann; L1 at formal
@@ -169,10 +201,14 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   **✓ COMPLETE (session 8, 2026-08-17).**
   **(3) Flame (seam)** — OFFL-3 Python CEA/Cantera → HDF5 (p,h,Z) surfaces vs CEA manual cases;
   h5py mirrors `crates/tables/src/digest.rs` byte-for-byte. **✓ COMPLETE (session 9, 2026-08-17).**
-  **← NEXT: (4) the cooled wall** — units wave (`uom` at boundaries) FIRST, then the one
-  wall-function heat law; SOLV-1 §3.5 + COUP-3 class-D + COUP-2 §3.5 are the owning docs.
   **(4) Cooled wall** — the one wall-function heat law (SOLV-1 §3.5/COUP-3 class-D) + certified
-  conduction; declared ±20–30% band.
+  conduction; declared ±20–30% band. **✓ COMPLETE (session 10, 2026-08-17).**
+  **← NEXT: (5) the BLIND RL10 assembly.** Big pieces before the blind run, each its own
+  wave: (p,h,Z) surface wired into the Euler operator as its EOS (SOLV-1 §3.4 shifting
+  mode — the FND-4 §6-4 config→tables pin grammar lands here); nozzle+liner assembly
+  (Bartz cross-check rides along); COUP-7 injector + cooling-jacket boundary objects;
+  the expander-cycle closure so p_c emerges; SOLV-7 thrust/Isp readout vs TM-107318
+  under the VAL-2 §9 blind rule.
   **(5) Blind RL10** — 1966 design geometry + universal closures + technology-class data only
   (§9 blind rule: nothing measured on the engine under test); predict 73.4 kN / Isp ≈ 444 s ≤ 2%;
   thrust measured from exit momentum flux (SOLV-7), never assumed; uncertainty from declared

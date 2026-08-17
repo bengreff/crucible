@@ -6,7 +6,7 @@
 //! enforce. Everything here is deterministic: fixed grids, fixed step
 //! counts, no RNG, no wall-clock.
 
-use crate::conduction::{Bcs, Conduction, FaceBc};
+use crate::conduction::{Bcs, Conduction, Domain, FaceBc, InteriorFaces};
 use crucible_grid::{Grid, GridSpec};
 
 pub const FIELDS: &[&str] = &["T", "rate"];
@@ -160,6 +160,8 @@ fn mms_run(label: &'static str, ns: &[usize], n_theta_fixed: u32, m: u32) -> Mms
             kappa,
             rho_cp,
             source: &source,
+            domain: Domain::FlowActive,
+            interior: InteriorFaces::refuse(),
             bcs: Bcs {
                 r_inner: FaceBc::Dirichlet(&dirichlet),
                 r_outer: FaceBc::Dirichlet(&dirichlet),
@@ -215,6 +217,8 @@ pub fn annulus_anchor() -> (f64, Grid) {
         kappa: 20.0,
         rho_cp: 4.0e6,
         source: &zero_src,
+        domain: Domain::FlowActive,
+        interior: InteriorFaces::refuse(),
         bcs: Bcs {
             r_inner: FaceBc::Dirichlet(&inner),
             r_outer: FaceBc::Dirichlet(&outer),
@@ -272,6 +276,8 @@ pub fn bessel_cylinder_anchor() -> f64 {
         kappa: 1.0,
         rho_cp: 1.0,
         source: &zero_src,
+        domain: Domain::FlowActive,
+        interior: InteriorFaces::refuse(),
         bcs: Bcs {
             r_inner: FaceBc::HeatFlux(0.0), // ignored: zero-area axis face
             r_outer: FaceBc::Dirichlet(&cold),
@@ -368,6 +374,8 @@ pub fn conservation_drift(n_steps: usize) -> f64 {
         kappa: 5.0,
         rho_cp: 1.0e3,
         source: &zero_src,
+        domain: Domain::FlowActive,
+        interior: InteriorFaces::refuse(),
         bcs: Bcs {
             r_inner: FaceBc::HeatFlux(0.0),
             r_outer: FaceBc::HeatFlux(0.0),

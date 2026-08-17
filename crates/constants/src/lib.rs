@@ -12,8 +12,10 @@
 //! - `REGISTRY` iterates in the fixed META-3 §4 table order (deterministic
 //!   output ordering, META-1 §2 / META-2 §4 ★).
 //!
-//! Unit-typed (`uom`) boundary wrappers are a tracked deferral (CLAUDE.md, review finding 9);
-//! this crate exposes the documented-SI `f64` layer used inside kernels.
+//! Units typing (review finding 9) is closed at the boundaries by
+//! `crucible-units` (session 10); this crate deliberately remains the
+//! documented-SI `f64` kernel layer — a constant gains a typed wrapper at
+//! the boundary that consumes it, when one appears.
 
 /// Where a constant's value comes from, and what uncertainty it carries.
 #[derive(Debug, Clone, Copy, PartialEq)]

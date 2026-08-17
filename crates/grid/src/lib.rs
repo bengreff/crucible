@@ -106,6 +106,41 @@ impl std::error::Error for GridError {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FieldId(pub(crate) usize);
 
+/// Per-cell medium region — the §3.6 ingest surface in ternary degenerate
+/// form (FND-3 fractions/apertures refine this same seam later). `Gas` is
+/// the flow-active domain (the mask every existing consumer reads);
+/// `Solid` cells carry conductive media (the station-4 liner); `Exterior`
+/// cells are outside the world. The classification is config-time data —
+/// an operator's domain comes from here, never from an `if(material)`
+/// (META-1 Rule 12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Region {
+    Exterior,
+    Gas,
+    Solid,
+}
+
+/// Direction from a cell to a face-adjacent neighbor, in the fixed sweep
+/// order (r−, r+, z−, z+) every deterministic enumeration uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaceDir {
+    RMinus,
+    RPlus,
+    ZMinus,
+    ZPlus,
+}
+
+/// One config-time-identified gas↔solid interface face (SOLV-1 §3.5's
+/// "wall faces identified geometrically from config data"). `dir` points
+/// from the gas cell toward the solid cell; faces are θ-uniform (regions
+/// are (r,z)-shaped, like activity).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InterfaceFace {
+    pub gas: (usize, usize),
+    pub solid: (usize, usize),
+    pub dir: FaceDir,
+}
+
 /// One 8×8 (r,z) leaf brick carrying its azimuthal ring as `n_theta`
 /// contiguous θ-planes (§3.2). Storage per field: `n_theta × 64` values,
 /// θ-plane-major (`idx = i_theta·64 + local_rz`), SoA across fields (§3.9).
@@ -117,6 +152,7 @@ pub struct Brick {
     pub(crate) bz: u32,
     pub(crate) morton: u64,
     pub(crate) mask: u64,
+    pub(crate) solid_mask: u64,
     pub(crate) n_theta: u32,
     pub(crate) n_theta_geom_floor: u32,
     pub(crate) data: Vec<Vec<f64>>,
@@ -138,10 +174,17 @@ impl Brick {
         self.morton
     }
 
-    /// Active-cell mask over the 8×8 (r,z) plane (bit `lr·8 + lz`).
+    /// Flow-active (gas) cell mask over the 8×8 (r,z) plane (bit `lr·8 + lz`).
     #[inline]
     pub fn mask(&self) -> u64 {
         self.mask
+    }
+
+    /// Solid-region mask over the same plane; disjoint from `mask` by
+    /// construction (a cell has exactly one [`Region`]).
+    #[inline]
+    pub fn solid_mask(&self) -> u64 {
+        self.solid_mask
     }
 
     #[inline]
@@ -246,6 +289,25 @@ impl Grid {
         field_names: &[&str],
         active: impl Fn(usize, usize) -> bool,
     ) -> Result<Grid, GridError> {
+        Self::build_with_regions(spec, field_names, |i_r, i_z| {
+            if active(i_r, i_z) {
+                Region::Gas
+            } else {
+                Region::Exterior
+            }
+        })
+    }
+
+    /// Build with a per-(i_r, i_z) [`Region`] classifier — the §3.6 ingest
+    /// surface in ternary degenerate form (gas / solid / exterior; FND-3
+    /// fractions and apertures arrive through this same config-time seam).
+    /// Regions are (r,z)-shaped, uniform in θ. Bricks with no gas and no
+    /// solid cells are not allocated.
+    pub fn build_with_regions(
+        spec: GridSpec,
+        field_names: &[&str],
+        classify: impl Fn(usize, usize) -> Region,
+    ) -> Result<Grid, GridError> {
         // `is_finite` everywhere: `<= 0.0` is false for NaN AND +inf, so
         // comparisons alone admit non-finite worlds (review finding).
         if !spec.r_min.is_finite()
@@ -285,15 +347,20 @@ impl Grid {
         for br in 0..nbr as u32 {
             for bz in 0..nbz as u32 {
                 let mut mask = 0u64;
+                let mut solid_mask = 0u64;
                 for lr in 0..BRICK {
                     for lz in 0..BRICK {
                         let (ir, iz) = (br as usize * BRICK + lr, bz as usize * BRICK + lz);
-                        if ir < spec.n_r && iz < spec.n_z && active(ir, iz) {
-                            mask |= 1u64 << (lr * BRICK + lz);
+                        if ir < spec.n_r && iz < spec.n_z {
+                            match classify(ir, iz) {
+                                Region::Gas => mask |= 1u64 << (lr * BRICK + lz),
+                                Region::Solid => solid_mask |= 1u64 << (lr * BRICK + lz),
+                                Region::Exterior => {}
+                            }
                         }
                     }
                 }
-                if mask == 0 {
+                if mask == 0 && solid_mask == 0 {
                     continue;
                 }
                 let len = spec.n_theta_max as usize * BRICK_CELLS;
@@ -302,6 +369,7 @@ impl Grid {
                     bz,
                     morton: morton2(br, bz),
                     mask,
+                    solid_mask,
                     n_theta: spec.n_theta_max,
                     n_theta_geom_floor: N_THETA_GUARD.min(spec.n_theta_max),
                     data: vec![vec![0.0; len]; n_fields],
@@ -471,6 +539,70 @@ impl Grid {
             && self
                 .brick_index(i_r, i_z)
                 .is_some_and(|bi| self.bricks[bi].mask & (1u64 << Self::local_rz(i_r, i_z)) != 0)
+    }
+
+    /// Is cell (i_r, i_z) solid? (Out-of-range indices are exterior.)
+    pub fn is_solid(&self, i_r: usize, i_z: usize) -> bool {
+        i_r < self.spec.n_r
+            && i_z < self.spec.n_z
+            && self.brick_index(i_r, i_z).is_some_and(|bi| {
+                self.bricks[bi].solid_mask & (1u64 << Self::local_rz(i_r, i_z)) != 0
+            })
+    }
+
+    /// The cell's [`Region`] (out-of-range ⇒ `Exterior`).
+    pub fn region(&self, i_r: usize, i_z: usize) -> Region {
+        if self.is_active(i_r, i_z) {
+            Region::Gas
+        } else if self.is_solid(i_r, i_z) {
+            Region::Solid
+        } else {
+            Region::Exterior
+        }
+    }
+
+    /// Config-time enumeration of every gas↔solid interface face (SOLV-1
+    /// §3.5 wall faces), in the fixed deterministic order: gas cell by
+    /// (i_r, i_z) lexicographic, then face direction (r−, r+, z−, z+).
+    pub fn gas_solid_faces(&self) -> Vec<InterfaceFace> {
+        let mut out = Vec::new();
+        for i_r in 0..self.spec.n_r {
+            for i_z in 0..self.spec.n_z {
+                if !self.is_active(i_r, i_z) {
+                    continue;
+                }
+                let mut probe = |nbr: Option<(usize, usize)>, dir: FaceDir| {
+                    if let Some((nr, nz)) = nbr
+                        && self.is_solid(nr, nz)
+                    {
+                        out.push(InterfaceFace {
+                            gas: (i_r, i_z),
+                            solid: (nr, nz),
+                            dir,
+                        });
+                    }
+                };
+                probe(i_r.checked_sub(1).map(|r| (r, i_z)), FaceDir::RMinus);
+                probe(Some((i_r + 1, i_z)), FaceDir::RPlus);
+                probe(i_z.checked_sub(1).map(|z| (i_r, z)), FaceDir::ZMinus);
+                probe(Some((i_r, i_z + 1)), FaceDir::ZPlus);
+            }
+        }
+        out
+    }
+
+    /// Interface face area per θ-plane slice (the θ-uniform region shape
+    /// makes one area serve all `n_theta` planes): the r-face ring area or
+    /// the z-face annular sector, evaluated on the SOLID side's ring index
+    /// so both sides of the exchange integrate over the identical face.
+    pub fn interface_area_per_theta(&self, face: &InterfaceFace, n_theta: u32) -> f64 {
+        match face.dir {
+            // Gas at (i_r, i_z), solid at (i_r∓1, i_z): the shared face is
+            // the gas cell's r∓ face.
+            FaceDir::RMinus => self.face_area_r(face.gas.0, false, n_theta),
+            FaceDir::RPlus => self.face_area_r(face.gas.0, true, n_theta),
+            FaceDir::ZMinus | FaceDir::ZPlus => self.face_area_z(face.gas.0, n_theta),
+        }
     }
 
     /// THE canonical active-cell traversal (§3.7): Morton brick order, then

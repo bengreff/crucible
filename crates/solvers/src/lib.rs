@@ -23,9 +23,11 @@ pub mod euler_mms;
 mod mechanism;
 pub mod station1_sod;
 pub mod station2_nozzle;
+pub mod station4_cooled_wall;
+pub mod wall_heat;
 
-pub use conduction::{Bcs, Conduction, FaceBc, SolverError};
+pub use conduction::{Bcs, Conduction, Domain, FaceBc, InteriorFaces, SolverError};
 pub use mechanism::{
-    CONDUCTION_MANIFEST, ConductionSetup, FLOW_MANIFEST, FlowSetup, SetupError, flow_from_loaded,
-    from_loaded, registry,
+    CONDUCTION_MANIFEST, ConductionSetup, FLOW_MANIFEST, FlowSetup, SetupError, WALL_HEAT_MANIFEST,
+    flow_from_loaded, from_loaded, registry, wall_law_from_loaded,
 };

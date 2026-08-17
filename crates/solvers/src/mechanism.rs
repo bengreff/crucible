@@ -78,9 +78,53 @@ pub static FLOW_MANIFEST: Manifest = Manifest {
     }],
 };
 
+/// SOLV-1 §3.5's one wall-function heat law (station 4). Transport
+/// constants are the degenerate FND-7 spine occupant (the gamma-law
+/// pattern); the spine supplies per-cell transport when OFFL-5 lands.
+///
+/// Validity ranges (refusal bounds, sourced): c_p spans heavy combustion
+/// products (~500) through hydrogen (~14 300 J/(kg·K)) with margin ⇒
+/// [50, 1e5]; μ spans cold rarefied gas (~1e-6) through hot dense gas
+/// (~2e-4 Pa·s) with margin ⇒ [1e-7, 1e-2] (a liquid-viscosity μ here
+/// means a mis-set deck — the law is a gas-side closure); Pr for gases
+/// clusters in [0.2, 1] — bounds [0.05, 5] with margin (a Pr outside that
+/// is not a gas). Chaotic class: the closure is algebraic-local,
+/// non-chaotic in both regimes.
+pub static WALL_HEAT_MANIFEST: Manifest = Manifest {
+    id: "wall_heat",
+    interface_version: InterfaceVersion { major: 1, minor: 0 },
+    tables: &[],
+    couplers: &[],
+    ports: &[],
+    chaotic_class: &[
+        (Regime::Steady, ChaoticClass::NonChaotic),
+        (Regime::Transient, ChaoticClass::NonChaotic),
+    ],
+    params: &[
+        ParamSpec {
+            name: "cp_j_per_kg_k",
+            ty: ParamType::Float,
+            default: None,
+            range: Some((50.0, 1e5)),
+        },
+        ParamSpec {
+            name: "mu_pa_s",
+            ty: ParamType::Float,
+            default: None,
+            range: Some((1e-7, 1e-2)),
+        },
+        ParamSpec {
+            name: "pr",
+            ty: ParamType::Float,
+            default: None,
+            range: Some((0.05, 5.0)),
+        },
+    ],
+};
+
 /// The production registry: one row per landed operator, sorted by id
 /// (COUP-8 §3.2 — the only core touch a new mechanism makes).
-static MECHANISMS: [&Manifest; 2] = [&CONDUCTION_MANIFEST, &FLOW_MANIFEST];
+static MECHANISMS: [&Manifest; 3] = [&CONDUCTION_MANIFEST, &FLOW_MANIFEST, &WALL_HEAT_MANIFEST];
 
 pub fn registry() -> Registry {
     Registry::new(&MECHANISMS, &[])
@@ -233,4 +277,23 @@ pub fn flow_from_loaded(loaded: &Loaded, fields: &[&str]) -> Result<FlowSetup, S
         instance: instance.to_string(),
         gamma,
     })
+}
+
+/// The `wall_heat` law from config (station 4): the sole-instance seam,
+/// typed accessors (META-2 §4 ★ — cp and μ dimensioned, Pr dimensionless),
+/// and the law's own operand validation on top of the registry ranges. No
+/// grid here — the law is algebraic; the coupler owns the geometry.
+pub fn wall_law_from_loaded(
+    loaded: &Loaded,
+) -> Result<(String, crate::wall_heat::WallLaw), SetupError> {
+    let (instance, block) = sole_instance(loaded, "wall_heat")?;
+    let missing = |name: &str| SetupError::Missing(format!("{instance}.{name}"));
+    let cp = ResolvedConfig::param_specific_heat_capacity_j_per_kg_k(block, "cp_j_per_kg_k")
+        .ok_or_else(|| missing("cp_j_per_kg_k"))?;
+    let mu = ResolvedConfig::param_dynamic_viscosity_pa_s(block, "mu_pa_s")
+        .ok_or_else(|| missing("mu_pa_s"))?;
+    let pr = ResolvedConfig::param_f64(block, "pr").ok_or_else(|| missing("pr"))?;
+    let law = crate::wall_heat::WallLaw::new(cp, mu, pr)
+        .map_err(|e| SetupError::Missing(format!("{instance}: {e}")))?;
+    Ok((instance.to_string(), law))
 }

@@ -9,8 +9,10 @@
 # station2_* choked-nozzle battery vs isentropic theory), closed-sweep
 # conservation (cert_closed_sweep_*, station1_closed_tube_*),
 # determinism/rerun byte-identity (cert_config_drives_*, station1_sod_rerun_*,
-# station2_rerun_*, fnd2_s6_3, fnd5_s6_6), cross-language seam
-# (fnd5_python_seam, station3_tables vs the Python-stamped pins).
+# station2_rerun_*, station4_rerun_*, fnd2_s6_3, fnd5_s6_6), cross-language
+# seam (fnd5_python_seam, station3_tables vs the Python-stamped pins),
+# conjugate-wall battery (station4_*: series-resistance oracle, stair-
+# interface round-off ledger, Robin annulus anchor, coupled fixed point).
 # Armed inside gate 4 (offline pytest): digest v2 golden vector + fixture
 # pin, RP-1311 example-8 reproduction, CEA↔Cantera cross-check,
 # frozen/shifting bracket, production-table fresh-holdout bounds,
@@ -18,9 +20,9 @@
 # Not yet armed (arrive with their subject): full COUP-2 port-accounting
 # audit; 1-vs-N-thread byte identity (first parallel sweep); Su-Olson
 # anchor (SOLV-2).
-# Battery budget note: the station-2 ladder is the heavy item (~1 min in
-# gate 3 + ~1 min in gate 5); if it grows further, split it to the VAL-3
-# §3.2 milestone tier.
+# Battery budget note: the station-2 ladder and the station-4 coupled duct
+# are the heavy items (~1 min each in gate 3; station-2 ~1 min + station-4
+# ~15 s in gate 5); next growth splits to the VAL-3 §3.2 milestone tier.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -52,6 +54,7 @@ cargo run -q --release --bin convergence_certificate >/dev/null
 cargo run -q --release --bin station1_sod_certificate >/dev/null
 cargo run -q --release --bin station2_nozzle_certificate >/dev/null
 offline/.venv/bin/python offline/scripts/station3_flame_certificate.py >/dev/null
+cargo run -q --release --bin station4_cooled_wall_certificate >/dev/null
 git diff --exit-code certificates/
 
 echo "== all gates green"
