@@ -324,3 +324,29 @@ fn review_symmetry_indicator_fails_loud_on_nan_and_bad_floor() {
         Err(GridError::NonPositiveDensity { .. })
     ));
 }
+
+// --- §3.6 activity ingest, binary degenerate form (station-2 wave) ----------
+
+#[test]
+fn fnd2_s36_activity_predicate_shapes_masks_and_skips_empty_bricks() {
+    // A wedge world: active only where i_r < i_z. The predicate must be
+    // honored cell-exactly, out-of-shape queries must read inactive, and
+    // bricks with no active cells must not be allocated at all.
+    let full = Grid::build(spec(16, 16, 4), &["q"]).unwrap();
+    let masked = Grid::build_with_activity(spec(16, 16, 4), &["q"], |i_r, i_z| i_r < i_z).unwrap();
+    for i_r in 0..16 {
+        for i_z in 0..16 {
+            assert_eq!(masked.is_active(i_r, i_z), i_r < i_z, "cell ({i_r}, {i_z})");
+        }
+    }
+    // Out-of-range is inactive, not a panic.
+    assert!(!masked.is_active(16, 0));
+    assert!(!masked.is_active(0, 16));
+    // The all-solid brick (i_r ≥ 8, i_z < 8) is absent entirely.
+    assert!(masked.n_bricks() < full.n_bricks());
+    assert!(masked.brick_index(15, 0).is_none());
+    // Morton order + mask ⇔ in-shape invariants still hold by construction.
+    for b in masked.bricks() {
+        assert!(b.mask() != 0, "no empty brick may be allocated");
+    }
+}

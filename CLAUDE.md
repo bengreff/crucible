@@ -90,6 +90,35 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   smooth extrema is locally 1st-order over O(h) measure — L2 shows a ~O(h^1.6) tail while **L1
   (the shock-capturing verification norm, SOLV-1 §6-1's own choice) retains formal order**;
   MMS gates therefore assert L1 per component. True test count: **79**.
+- Session 8 (2026-08-17): **GOAL-B STATION 2 COMPLETE — the De Laval nozzle**
+  (`certificates/station2_nozzle_certificate.md`; criteria CI-enforced in
+  `crates/solvers/tests/solv1_station2_nozzle.rs`; gate 4 diffs all three certificates).
+  Machinery this station forced, all doc-seamed: grid gains **`build_with_activity`** — the
+  FND-2 §3.6 ingest surface in binary degenerate form (FND-3 fractions/apertures arrive through
+  the same seam) + `is_active`; Euler sweeps are **mask-aware** (pencil lines decompose into
+  maximal active runs; interior run boundary = stair wall face, domain edge = configured BC);
+  **`FlowBc::StagnationInflow`** (reservoir isentrope at interior-extrapolated u; vacuum-limit
+  refusal); **`Euler::wall_normal` slip-ghost walls** — stair faces mirror about the true contour
+  normal (ghost-cell immersed boundary), cutting spurious waves from O(slope) to O(h·curvature);
+  SOLV-7 §3.1/§3.2-subset plane diagnostics (ṁ, momentum+pressure thrust integral, emergent p_c
+  as inlet-plane stagnation avg per N11). Fixture: parabolic-radius contour, 9.5° max slope,
+  area ratio 1.5625, reservoir-fed, exit supersonic. **Findings the physics forced:** (1)
+  Anderson's `1+2.2(z−1.5)²` profile revolved literally is a 44° wall — the 2-D flow genuinely
+  departs ~2× from quasi-1-D (steep-wall shocks); the station contour must sit inside the
+  oracle's validity envelope. (2) Naive stair-mirror walls in supersonic flow shed a wave train
+  (a shock crossed the axis at z≈5); slip ghosts fixed it (steady resid 4.5e-2 → 7.6e-4 at
+  finest, shock gone). **Data: Cd = ṁ/ṁ_ideal = 1.0060/1.0022/1.0020 across the ladder (choked
+  mass flow to 0.2% at finest, |Cd−1| non-increasing); emergent p_c/p0 = 0.99999; centerline
+  area–Mach within 3.6–4.2% past the entrance band (compound of stair + the oracle's own 2-D
+  centerline floor); C_F within 4.3% of ideal vacuum C_F; masked-cavity uniform gas at rest =
+  bitwise fixed point under BOTH wall treatments; declared slip-wall transpiration (plane-ṁ
+  spread) 7.2→5.2→3.8% shrinking with h.** True test count: **83**. Deferrals now owned by
+  FND-3/COUP-7 waves: partial apertures + cut cells + State Redistribution retire the stair
+  wall + transpiration; the COUP-7 injector object retires StagnationInflow; check.sh notes the
+  station-2 ladder as the battery's heavy item (split to milestone tier if it grows).
+- **Ben's post-checkpoint BIG goal (2026-08-17): data visualizations** of CRUCIBLE results once
+  the station ladder yields meaningful data — its own wave after the stations; keep FND-6
+  results-bundle design viz-friendly meanwhile (auto-memory `project-dataviz-goal`).
 - **Tracked deferral (review finding 9, not yet fixed):** META-2 §4 ★ units typing (`uom`) at
   interface boundaries — schedule as its own small wave BEFORE station-3 params proliferate; the
   stale "arrives with FND-4" note in crucible-constants still needs rewording to point here.
@@ -98,7 +127,8 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   **(1) Bursting diaphragm (Sod)** — SOLV-1 HLLC/PPM Euler at N_θ=1 vs exact Riemann; L1 at formal
   order in smooth regions, conservation to round-off. **✓ COMPLETE (session 7, 2026-08-16).**
   **(2) De Laval nozzle** — cold-gas choked flow vs isentropic area–Mach relations; emergent p_c.
-  **← NEXT.**
+  **✓ COMPLETE (session 8, 2026-08-17).**
+  **← NEXT: (3) the flame seam** — OFFL-3 Python side begins; digest v2 mirror first.
   **(3) Flame (seam)** — OFFL-3 Python CEA/Cantera → HDF5 (p,h,Z) surfaces vs CEA manual cases;
   h5py must mirror `crates/tables/src/digest.rs` byte-for-byte.
   **(4) Cooled wall** — the one wall-function heat law (SOLV-1 §3.5/COUP-3 class-D) + certified

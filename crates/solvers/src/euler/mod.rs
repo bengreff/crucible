@@ -127,6 +127,12 @@ pub enum FlowBc<'a> {
     /// Prescribed primitive state at `(r, θ, z, t)` — MMS verification and
     /// supersonic inflow.
     Prescribed(&'a dyn Fn(f64, f64, f64, f64) -> Prim),
+    /// Subsonic reservoir inflow: the ghost state sits on the isentrope of
+    /// a stagnation reservoir `(p0, ρ0)` at the interior-extrapolated
+    /// normal velocity — `c² = c0² − ½(γ−1)u²`, `p = p0·(c²/c0²)^(γ/(γ−1))`
+    /// (the standard total-condition inflow; the COUP-7 injector object
+    /// supersedes this with declared provenance/envelope/band).
+    StagnationInflow { p0: f64, rho0: f64, c_frac: f64 },
 }
 
 pub struct FlowBcs<'a> {
@@ -153,6 +159,10 @@ pub enum FlowError {
         i_theta: u32,
         what: &'static str,
     },
+    /// A `StagnationInflow` face saw an interior velocity beyond the
+    /// reservoir's vacuum limit `u² < 2c0²/(γ−1)` — the isentrope has no
+    /// state there; halt, never clamp (META-1 P6).
+    InflowBeyondVacuumLimit,
 }
 
 impl std::fmt::Display for FlowError {
@@ -176,6 +186,11 @@ impl std::fmt::Display for FlowError {
             } => write!(
                 f,
                 "{what} at (i_r={i_r}, i_z={i_z}, i_θ={i_theta}) — halt with diagnosis"
+            ),
+            Self::InflowBeyondVacuumLimit => write!(
+                f,
+                "stagnation-inflow face saw interior velocity beyond the reservoir's \
+                 vacuum limit — no state on the isentrope; halt, never clamp"
             ),
         }
     }
@@ -226,6 +241,15 @@ pub struct Euler<'a> {
     pub eos: GammaLaw,
     pub source: &'a dyn Fn(f64, f64, f64, f64) -> Cons,
     pub bcs: FlowBcs<'a>,
+    /// Outward unit wall normal `(n_r, n_z)` of the true (smooth) wall at
+    /// `(r, z)`, for masked stair-step walls: when `Some`, ghost states at
+    /// **interior** run-boundary faces mirror the velocity about the true
+    /// wall tangent (`v − 2(v·n̂)n̂` — ghost-cell immersed-boundary slip
+    /// wall) instead of the grid-aligned stair face, cutting spurious wave
+    /// generation from O(wall slope) to O(h·curvature). `None` → grid-
+    /// aligned mirror (walls that lie exactly on grid faces). Superseded by
+    /// FND-3's partial apertures + cut cells when that wave lands.
+    pub wall_normal: Option<&'a dyn Fn(f64, f64) -> (f64, f64)>,
 }
 
 /// Per-brick scratch: primitives (AoS is fine for the CPU reference path;
@@ -234,9 +258,15 @@ struct Scratch {
     prim: Vec<Vec<Prim>>,
     rate: Vec<Vec<Cons>>,
     u0: Vec<Vec<Cons>>,
-    /// Brick index by (br·nbz + bz) — resolved once, not per cell.
-    bmap: Vec<usize>,
+    /// Brick index by (br·nbz + bz) — resolved once, not per cell; `None`
+    /// where a fully-inactive brick was never allocated (masked worlds).
+    bmap: Vec<Option<usize>>,
     nbz: usize,
+    /// Cell activity by (i_r·n_z + i_z): the pencil sweeps decompose each
+    /// line into maximal active runs against this map; a run boundary in
+    /// the interior is a stair-step wall face (reflecting), a run boundary
+    /// at the domain edge takes the configured BC.
+    act: Vec<bool>,
 }
 
 impl Euler<'_> {
@@ -254,14 +284,22 @@ impl Euler<'_> {
     fn scratch(&self, g: &Grid, nt: u32) -> Scratch {
         let plane = nt as usize * BRICK_CELLS;
         let nb = g.n_bricks();
-        let nbr = g.spec().n_r.div_ceil(BRICK);
-        let nbz = g.spec().n_z.div_ceil(BRICK);
-        let mut bmap = vec![0usize; nbr * nbz];
+        let (n_r, n_z) = (g.spec().n_r, g.spec().n_z);
+        let nbr = n_r.div_ceil(BRICK);
+        let nbz = n_z.div_ceil(BRICK);
+        let mut bmap = vec![None; nbr * nbz];
         for br in 0..nbr {
             for bz in 0..nbz {
-                bmap[br * nbz + bz] = g
-                    .brick_index_by_coords(br as u32, bz as u32)
-                    .expect("full-box world: every in-range brick is active");
+                bmap[br * nbz + bz] = g.brick_index_by_coords(br as u32, bz as u32);
+            }
+        }
+        let mut act = vec![false; n_r * n_z];
+        for b in g.bricks() {
+            for local in 0..BRICK_CELLS {
+                if b.mask() & (1u64 << local) != 0 {
+                    let (i_r, i_z) = b.global_rz(local);
+                    act[i_r * n_z + i_z] = true;
+                }
             }
         }
         Scratch {
@@ -270,6 +308,7 @@ impl Euler<'_> {
             u0: vec![vec![[0.0; NCOMP]; plane]; nb],
             bmap,
             nbz,
+            act,
         }
     }
 
@@ -398,9 +437,9 @@ impl Euler<'_> {
                 *cell = [0.0; NCOMP];
             }
         }
-        self.sweep_r(g, nt, s, t);
+        self.sweep_r(g, nt, s, t)?;
         self.sweep_theta(g, nt, s);
-        self.sweep_z(g, nt, s, t);
+        self.sweep_z(g, nt, s, t)?;
         self.add_sources(g, nt, s, t);
         Ok(())
     }
@@ -441,16 +480,98 @@ impl Euler<'_> {
         Ok(())
     }
 
-    /// Fill the low-side ghosts of a pencil from a BC. `normal` is the
+    /// Solid-wall mirror ghosts on the low side of a run (`normal` is the
+    /// velocity slot to negate) — used for reflecting domain faces AND for
+    /// interior stair-step wall faces when no true wall normal is declared.
+    fn mirror_low(w: &mut [Prim], n: usize, normal: usize) {
+        for k in 1..=NGHOST {
+            let mut m = w[NGHOST + (k - 1).min(n - 1)];
+            m[normal] = -m[normal];
+            w[NGHOST - k] = m;
+        }
+    }
+
+    fn mirror_high(w: &mut [Prim], n: usize, normal: usize) {
+        for k in 1..=NGHOST {
+            let mut m = w[NGHOST + n.saturating_sub(k).min(n - 1)];
+            m[normal] = -m[normal];
+            w[NGHOST + n - 1 + k] = m;
+        }
+    }
+
+    /// Reflect a primitive state's meridional velocity about the true wall
+    /// tangent: `v ← v − 2(v·n̂)n̂` on (u_r, u_z); u_θ is tangential to any
+    /// axisymmetric wall and untouched.
+    #[inline]
+    fn slip_reflect(mut m: Prim, n_hat: (f64, f64)) -> Prim {
+        let vn = m[I_MR] * n_hat.0 + m[I_MZ] * n_hat.1;
+        m[I_MR] -= 2.0 * vn * n_hat.0;
+        m[I_MZ] -= 2.0 * vn * n_hat.1;
+        m
+    }
+
+    /// Interior-wall ghosts on the low side of a run: slip-mirror about the
+    /// true wall normal at `(r, z)` when declared, else the grid-aligned
+    /// mirror in slot `normal`.
+    fn wall_ghosts_low(&self, w: &mut [Prim], n: usize, normal: usize, r: f64, z: f64) {
+        match self.wall_normal {
+            Some(nf) => {
+                let n_hat = nf(r, z);
+                for k in 1..=NGHOST {
+                    w[NGHOST - k] = Self::slip_reflect(w[NGHOST + (k - 1).min(n - 1)], n_hat);
+                }
+            }
+            None => Self::mirror_low(w, n, normal),
+        }
+    }
+
+    fn wall_ghosts_high(&self, w: &mut [Prim], n: usize, normal: usize, r: f64, z: f64) {
+        match self.wall_normal {
+            Some(nf) => {
+                let n_hat = nf(r, z);
+                for k in 1..=NGHOST {
+                    w[NGHOST + n - 1 + k] =
+                        Self::slip_reflect(w[NGHOST + n.saturating_sub(k).min(n - 1)], n_hat);
+                }
+            }
+            None => Self::mirror_high(w, n, normal),
+        }
+    }
+
+    /// Reservoir-isentrope ghost state from the interior-extrapolated
+    /// normal velocity (see `FlowBc::StagnationInflow`).
+    fn stagnation_ghost(
+        &self,
+        p0: f64,
+        rho0: f64,
+        c_frac: f64,
+        u_n: f64,
+        normal: usize,
+    ) -> Result<Prim, FlowError> {
+        let ga = self.eos.gamma;
+        let c0sq = ga * p0 / rho0;
+        let csq = c0sq - 0.5 * (ga - 1.0) * u_n * u_n;
+        if csq <= 0.0 {
+            return Err(FlowError::InflowBeyondVacuumLimit);
+        }
+        let p = p0 * (csq / c0sq).powf(ga / (ga - 1.0));
+        let rho = ga * p / csq;
+        let mut m = [rho, 0.0, 0.0, 0.0, p, c_frac];
+        m[normal] = u_n;
+        Ok(m)
+    }
+
+    /// Fill the low-side ghosts of a run from a domain BC. `normal` is the
     /// velocity slot to mirror; `pos(k)` gives the k-th ghost centroid.
     fn fill_ghosts_low(
+        &self,
         w: &mut [Prim],
         n: usize,
         bc: &FlowBc<'_>,
         normal: usize,
         pos: impl Fn(usize) -> (f64, f64, f64),
         t: f64,
-    ) {
+    ) -> Result<(), FlowError> {
         for k in 1..=NGHOST {
             w[NGHOST - k] = match bc {
                 FlowBc::Reflecting => {
@@ -463,18 +584,23 @@ impl Euler<'_> {
                     let (r, th, z) = pos(k);
                     f(r, th, z, t)
                 }
+                FlowBc::StagnationInflow { p0, rho0, c_frac } => {
+                    self.stagnation_ghost(*p0, *rho0, *c_frac, w[NGHOST][normal], normal)?
+                }
             };
         }
+        Ok(())
     }
 
     fn fill_ghosts_high(
+        &self,
         w: &mut [Prim],
         n: usize,
         bc: &FlowBc<'_>,
         normal: usize,
         pos: impl Fn(usize) -> (f64, f64, f64),
         t: f64,
-    ) {
+    ) -> Result<(), FlowError> {
         for k in 1..=NGHOST {
             w[NGHOST + n - 1 + k] = match bc {
                 FlowBc::Reflecting => {
@@ -487,14 +613,22 @@ impl Euler<'_> {
                     let (r, th, z) = pos(k);
                     f(r, th, z, t)
                 }
+                FlowBc::StagnationInflow { p0, rho0, c_frac } => {
+                    self.stagnation_ghost(*p0, *rho0, *c_frac, w[NGHOST + n - 1][normal], normal)?
+                }
             };
         }
+        Ok(())
     }
 
     /// Radial sweep. Face f (0..=n_r) sits at radius `r_min + f·dr`; the
     /// axis face (f = 0 when r_min = 0) has zero area and drops out
-    /// geometrically (FND-2 §3.2).
-    fn sweep_r(&self, g: &Grid, nt: u32, s: &mut Scratch, t: f64) {
+    /// geometrically (FND-2 §3.2). Each pencil line is decomposed into
+    /// maximal active runs (`Scratch::act`): an interior run boundary is a
+    /// stair-step wall face (reflecting mirror — the binary-aperture
+    /// degenerate wall; FND-3 cut cells supersede), a domain-edge boundary
+    /// takes the configured BC.
+    fn sweep_r(&self, g: &Grid, nt: u32, s: &mut Scratch, t: f64) -> Result<(), FlowError> {
         let spec = g.spec();
         let (n, n_z) = (spec.n_r, spec.n_z);
         let (r0, dr) = (spec.r_min, spec.dr);
@@ -520,54 +654,75 @@ impl Euler<'_> {
             let z = g.z_center(i_z);
             for j in 0..nt {
                 let theta = Grid::theta_center(j, nt);
-                for i in 0..n {
-                    let bi = s.bmap[(i / BRICK) * s.nbz + bz];
-                    w[NGHOST + i] = s.prim[bi][j as usize * BRICK_CELLS + (i % BRICK) * BRICK + lz];
-                }
-                if on_axis {
-                    // Through-axis mirror: ê_r and ê_θ both flip (the N_θ=1
-                    // degenerate parity pairing) — u_r AND u_θ negate.
-                    for k in 1..=NGHOST {
-                        let mut m = w[NGHOST + (k - 1).min(n - 1)];
-                        m[I_MR] = -m[I_MR];
-                        m[I_MT] = -m[I_MT];
-                        w[NGHOST - k] = m;
+                let mut i = 0usize;
+                while i < n {
+                    if !s.act[i * n_z + i_z] {
+                        i += 1;
+                        continue;
                     }
-                } else {
-                    Self::fill_ghosts_low(
-                        &mut w,
-                        n,
-                        &self.bcs.r_inner,
-                        I_MR,
-                        |k| (r0 - (k as f64 - 0.5) * dr, theta, z),
-                        t,
-                    );
-                }
-                Self::fill_ghosts_high(
-                    &mut w,
-                    n,
-                    &self.bcs.r_outer,
-                    I_MR,
-                    |k| (r0 + (n as f64 + k as f64 - 0.5) * dr, theta, z),
-                    t,
-                );
-                ppm_faces(&w, n, &mut fl, &mut fr);
-                for fi in 0..=n {
-                    let flux = hllc_flux(&fl[fi], &fr[fi], I_MR, &self.eos);
-                    for k in 0..NCOMP {
-                        af[fi][k] = area[fi] * flux[k];
+                    let start = i;
+                    while i < n && s.act[i * n_z + i_z] {
+                        i += 1;
                     }
-                }
-                for i in 0..n {
-                    let bi = s.bmap[(i / BRICK) * s.nbz + bz];
-                    let idx = j as usize * BRICK_CELLS + (i % BRICK) * BRICK + lz;
-                    let rate = &mut s.rate[bi][idx];
-                    for k in 0..NCOMP {
-                        rate[k] += (af[i][k] - af[i + 1][k]) / vol[i];
+                    let len = i - start;
+                    for (q, ii) in (start..start + len).enumerate() {
+                        let bi = s.bmap[(ii / BRICK) * s.nbz + bz].expect("active cell's brick");
+                        w[NGHOST + q] =
+                            s.prim[bi][j as usize * BRICK_CELLS + (ii % BRICK) * BRICK + lz];
+                    }
+                    if start == 0 && on_axis {
+                        // Through-axis mirror: ê_r and ê_θ both flip (the
+                        // N_θ=1 degenerate parity pairing).
+                        for k in 1..=NGHOST {
+                            let mut m = w[NGHOST + (k - 1).min(len - 1)];
+                            m[I_MR] = -m[I_MR];
+                            m[I_MT] = -m[I_MT];
+                            w[NGHOST - k] = m;
+                        }
+                    } else if start == 0 {
+                        self.fill_ghosts_low(
+                            &mut w,
+                            len,
+                            &self.bcs.r_inner,
+                            I_MR,
+                            |k| (r0 - (k as f64 - 0.5) * dr, theta, z),
+                            t,
+                        )?;
+                    } else {
+                        self.wall_ghosts_low(&mut w, len, I_MR, r0 + start as f64 * dr, z);
+                    }
+                    if start + len == n {
+                        self.fill_ghosts_high(
+                            &mut w,
+                            len,
+                            &self.bcs.r_outer,
+                            I_MR,
+                            |k| (r0 + (n as f64 + k as f64 - 0.5) * dr, theta, z),
+                            t,
+                        )?;
+                    } else {
+                        self.wall_ghosts_high(&mut w, len, I_MR, r0 + (start + len) as f64 * dr, z);
+                    }
+                    ppm_faces(&w[..len + 2 * NGHOST], len, &mut fl, &mut fr);
+                    for fi in 0..=len {
+                        let flux = hllc_flux(&fl[fi], &fr[fi], I_MR, &self.eos);
+                        for k in 0..NCOMP {
+                            af[fi][k] = area[start + fi] * flux[k];
+                        }
+                    }
+                    for q in 0..len {
+                        let ii = start + q;
+                        let bi = s.bmap[(ii / BRICK) * s.nbz + bz].expect("active cell's brick");
+                        let idx = j as usize * BRICK_CELLS + (ii % BRICK) * BRICK + lz;
+                        let rate = &mut s.rate[bi][idx];
+                        for k in 0..NCOMP {
+                            rate[k] += (af[q][k] - af[q + 1][k]) / vol[ii];
+                        }
                     }
                 }
             }
         }
+        Ok(())
     }
 
     /// Azimuthal sweep: periodic ring pencils, each inside one brick. At
@@ -619,7 +774,7 @@ impl Euler<'_> {
     /// also what keeps a radially-uniform state radially uniform **bitwise**:
     /// with per-ring `A_z·F` products, identical physics on different rings
     /// rounds differently by an ulp (found by the Station-1 certificate).
-    fn sweep_z(&self, g: &Grid, nt: u32, s: &mut Scratch, t: f64) {
+    fn sweep_z(&self, g: &Grid, nt: u32, s: &mut Scratch, t: f64) -> Result<(), FlowError> {
         let spec = g.spec();
         let (n, n_r) = (spec.n_z, spec.n_r);
         let (z0, dz) = (spec.z_min, spec.dz);
@@ -634,40 +789,63 @@ impl Euler<'_> {
             let r = g.r_center(i_r);
             for j in 0..nt {
                 let theta = Grid::theta_center(j, nt);
-                for i in 0..n {
-                    let bi = s.bmap[br * s.nbz + i / BRICK];
-                    w[NGHOST + i] = s.prim[bi][j as usize * BRICK_CELLS + lr * BRICK + (i % BRICK)];
-                }
-                Self::fill_ghosts_low(
-                    &mut w,
-                    n,
-                    &self.bcs.z_lo,
-                    I_MZ,
-                    |k| (r, theta, z0 - (k as f64 - 0.5) * dz),
-                    t,
-                );
-                Self::fill_ghosts_high(
-                    &mut w,
-                    n,
-                    &self.bcs.z_hi,
-                    I_MZ,
-                    |k| (r, theta, z0 + (n as f64 + k as f64 - 0.5) * dz),
-                    t,
-                );
-                ppm_faces(&w, n, &mut fl, &mut fr);
-                for fi in 0..=n {
-                    af[fi] = hllc_flux(&fl[fi], &fr[fi], I_MZ, &self.eos);
-                }
-                for i in 0..n {
-                    let bi = s.bmap[br * s.nbz + i / BRICK];
-                    let idx = j as usize * BRICK_CELLS + lr * BRICK + (i % BRICK);
-                    let rate = &mut s.rate[bi][idx];
-                    for k in 0..NCOMP {
-                        rate[k] += (af[i][k] - af[i + 1][k]) * inv_dz;
+                let mut i = 0usize;
+                while i < n {
+                    if !s.act[i_r * n + i] {
+                        i += 1;
+                        continue;
+                    }
+                    let start = i;
+                    while i < n && s.act[i_r * n + i] {
+                        i += 1;
+                    }
+                    let len = i - start;
+                    for (q, ii) in (start..start + len).enumerate() {
+                        let bi = s.bmap[br * s.nbz + ii / BRICK].expect("active cell's brick");
+                        w[NGHOST + q] =
+                            s.prim[bi][j as usize * BRICK_CELLS + lr * BRICK + (ii % BRICK)];
+                    }
+                    if start == 0 {
+                        self.fill_ghosts_low(
+                            &mut w,
+                            len,
+                            &self.bcs.z_lo,
+                            I_MZ,
+                            |k| (r, theta, z0 - (k as f64 - 0.5) * dz),
+                            t,
+                        )?;
+                    } else {
+                        self.wall_ghosts_low(&mut w, len, I_MZ, r, z0 + start as f64 * dz);
+                    }
+                    if start + len == n {
+                        self.fill_ghosts_high(
+                            &mut w,
+                            len,
+                            &self.bcs.z_hi,
+                            I_MZ,
+                            |k| (r, theta, z0 + (n as f64 + k as f64 - 0.5) * dz),
+                            t,
+                        )?;
+                    } else {
+                        self.wall_ghosts_high(&mut w, len, I_MZ, r, z0 + (start + len) as f64 * dz);
+                    }
+                    ppm_faces(&w[..len + 2 * NGHOST], len, &mut fl, &mut fr);
+                    for fi in 0..=len {
+                        af[fi] = hllc_flux(&fl[fi], &fr[fi], I_MZ, &self.eos);
+                    }
+                    for q in 0..len {
+                        let ii = start + q;
+                        let bi = s.bmap[br * s.nbz + ii / BRICK].expect("active cell's brick");
+                        let idx = j as usize * BRICK_CELLS + lr * BRICK + (ii % BRICK);
+                        let rate = &mut s.rate[bi][idx];
+                        for k in 0..NCOMP {
+                            rate[k] += (af[q][k] - af[q + 1][k]) * inv_dz;
+                        }
                     }
                 }
             }
         }
+        Ok(())
     }
 
     /// Geometric sources (SOLV-1 §3.3) + the external source intake.

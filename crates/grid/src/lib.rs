@@ -230,6 +230,22 @@ impl Grid {
     /// and refinement land with the voxelization wave; edge bricks get
     /// partial masks.) Field set is fixed at construction — config-time.
     pub fn build(spec: GridSpec, field_names: &[&str]) -> Result<Grid, GridError> {
+        Self::build_with_activity(spec, field_names, |_, _| true)
+    }
+
+    /// Build with a per-(i_r, i_z) activity predicate — the §3.6 ingest
+    /// surface in its binary (occupancy) degenerate form: FND-3's
+    /// voxelization will supply partial fractions and apertures through
+    /// this same config-time seam; until then a certificate fixture may
+    /// activate cells from an analytic contour. Activity is (r,z)-shaped
+    /// (uniform in θ — a non-axisymmetric mask is FND-3 §3.4's `N_θ^geom`
+    /// floor territory, not this seam). Inactive cells are excluded from
+    /// every mask; fully-inactive bricks are not allocated at all.
+    pub fn build_with_activity(
+        spec: GridSpec,
+        field_names: &[&str],
+        active: impl Fn(usize, usize) -> bool,
+    ) -> Result<Grid, GridError> {
         // `is_finite` everywhere: `<= 0.0` is false for NaN AND +inf, so
         // comparisons alone admit non-finite worlds (review finding).
         if !spec.r_min.is_finite()
@@ -272,7 +288,7 @@ impl Grid {
                 for lr in 0..BRICK {
                     for lz in 0..BRICK {
                         let (ir, iz) = (br as usize * BRICK + lr, bz as usize * BRICK + lz);
-                        if ir < spec.n_r && iz < spec.n_z {
+                        if ir < spec.n_r && iz < spec.n_z && active(ir, iz) {
                             mask |= 1u64 << (lr * BRICK + lz);
                         }
                     }
@@ -445,6 +461,16 @@ impl Grid {
     #[inline]
     pub fn local_rz(i_r: usize, i_z: usize) -> usize {
         (i_r % BRICK) * BRICK + (i_z % BRICK)
+    }
+
+    /// Is cell (i_r, i_z) active — in bounds, in an allocated brick, mask
+    /// bit set? (Out-of-range indices are simply inactive.)
+    pub fn is_active(&self, i_r: usize, i_z: usize) -> bool {
+        i_r < self.spec.n_r
+            && i_z < self.spec.n_z
+            && self
+                .brick_index(i_r, i_z)
+                .is_some_and(|bi| self.bricks[bi].mask & (1u64 << Self::local_rz(i_r, i_z)) != 0)
     }
 
     /// THE canonical active-cell traversal (§3.7): Morton brick order, then

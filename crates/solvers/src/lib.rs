@@ -22,6 +22,7 @@ pub mod euler;
 pub mod euler_mms;
 mod mechanism;
 pub mod station1_sod;
+pub mod station2_nozzle;
 
 pub use conduction::{Bcs, Conduction, FaceBc, SolverError};
 pub use mechanism::{

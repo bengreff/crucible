@@ -9,9 +9,9 @@ A 12-month inquiry project (Jul 2026 – Jun 2027). This repository holds the **
 (Layer 1 + Layer 2) and the **Rust runtime workspace**: the FND-4 config loader + run manifest,
 the FND-5 HDF5 table seam (statically pinned libhdf5), the FND-2 cylindrical world-state grid,
 and the first two SOLV-1 operators — conduction (the Goal-A convergence certificate) and the
-compressible-Euler flux operator (PPM + HLLC-Batten, the Goal-B Station-1 Sod certificate), each
-certified by a committed, regenerable record in `certificates/`. Current goal: **Goal B, the
-blind RL10** (see CLAUDE.md for station status).
+compressible-Euler flux operator (PPM + HLLC-Batten; the Goal-B Station-1 Sod and Station-2
+choked-nozzle certificates), each certified by a committed, regenerable record in
+`certificates/`. Current goal: **Goal B, the blind RL10** (see CLAUDE.md for station status).
 
 ## Build & test
 

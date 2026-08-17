@@ -271,6 +271,7 @@ fn mms_run(label: &'static str, eps: f64, ns: &[usize]) -> MmsEulerStudy {
                 z_lo: FlowBc::Prescribed(&exact_bc),
                 z_hi: FlowBc::Prescribed(&exact_bc),
             },
+            wall_normal: None,
         };
         march_to(&op, &mut g, &f, 0.0, MMS_T_FINAL).expect("march");
 
