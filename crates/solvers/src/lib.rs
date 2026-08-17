@@ -1,14 +1,16 @@
-//! SOLV-family operators on the world-state grid. First inhabitant: the
-//! **conduction operator** (SOLV-1 §3.5's diffusion class on the FND-2
-//! cylindrical metric) plus the project's first real COUP-8 registry entry,
-//! and the **convergence-certificate studies** (the Goal-A deliverable).
+//! SOLV-family operators on the world-state grid: the **conduction
+//! operator** (SOLV-1 §3.5's diffusion class; the Goal-A convergence
+//! certificate) and the **Euler flux operator** (SOLV-1 §3.1–3.3 reacting-gas
+//! subset — PPM/HLLC-Batten on the exact cylindrical metric; the Goal-B
+//! Station-1 Sod certificate + the §6-2 MMS), with their COUP-8 registry
+//! entries (`conduction`, `flow`).
 //!
 //! Time integration note (honest scaffolding): the production advance is
-//! COUP-3's SDC-coupled IMEX with the deterministic fixed-cycle implicit
-//! diffusion solve (class `D`). This crate's explicit fixed-order reference
-//! integrator exists to drive the certificate's *spatial-operator*
-//! verification (MMS + analytic anchors) and is superseded — not extended —
-//! when COUP-3 lands. The flux-form spatial operator carries over unchanged.
+//! COUP-3's SDC-coupled IMEX (explicit hyperbolic + fixed-cycle implicit
+//! diffusion class `D`). This crate's explicit fixed-order reference
+//! integrators exist to drive the certificates' *spatial-operator*
+//! verification (MMS + analytic anchors) and are superseded — not extended —
+//! when COUP-3 lands. The flux-form spatial operators carry over unchanged.
 //!
 //! Session scope: uniform N_θ across bricks per sweep (asserted); the
 //! conservative flux aggregation across an N_θ jump (AMR-refluxing style,
@@ -17,6 +19,7 @@
 pub mod certificate;
 mod conduction;
 pub mod euler;
+pub mod euler_mms;
 mod mechanism;
 pub mod station1_sod;
 

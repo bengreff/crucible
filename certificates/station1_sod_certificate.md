@@ -34,6 +34,30 @@ Exact star state: p* = 0.30313, u* = 0.92745, ρ*L = 0.42632, ρ*R = 0.26557 (To
 
 **Criteria:** mean ρ order across the ladder ≥ 1.8 (measured 2.09; per-step ≥ 1.4 — ρ couples to the acoustic families and oscillates per step); composition order per step in [1.8, 2.3] (pure contact family — textbook 2nd order). Levels [50, 100, 200, 400].
 
+## Whole-operator MMS (SOLV-1 §6-2)
+
+A manufactured smooth field with radial flow, swirl, and axial flow all active — every flux direction and all three geometric source terms (pressure, centrifugal ρu_θ², swirl advection ρu_ru_θ) carry nonzero operands, which the Sod run structurally cannot exercise (its u_r ≡ 0). The analytic residual enters through the operator's source intake; the computed field must recover the manufactured one at formal order in **L1 per conserved component** (the shock-capturing verification norm: the limiter's clipping at the θ-mode's smooth extrema is locally 1st-order over an O(h) measure, which L2 amplifies to a ~O(h^1.6) tail while L1 retains the formal order — measured and recorded here as the honest caveat). Levels [16, 32, 64].
+
+### Euler MMS 2-D axisymmetric with swirl (N_θ = 1)
+
+| n | L1(rho) | order | L1(mom_r) | order | L1(mom_theta) | order | L1(mom_z) | order | L1(rho_e) | order | L1(rho_c) | order |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 16 | 9.41e-5 | — | 1.23e-4 | — | 3.20e-5 | — | 7.51e-5 | — | 3.77e-4 | — | 8.90e-5 | — |
+| 32 | 2.55e-5 | 1.88 | 2.93e-5 | 2.07 | 7.55e-6 | 2.08 | 1.82e-5 | 2.05 | 9.95e-5 | 1.92 | 2.36e-5 | 1.92 |
+| 64 | 6.37e-6 | 2.00 | 7.33e-6 | 2.00 | 1.90e-6 | 1.99 | 4.44e-6 | 2.03 | 2.48e-5 | 2.00 | 5.95e-6 | 1.99 |
+
+**Criterion:** every component's observed order in [1.8, 2.3] (formal = 2) at every refinement.
+
+### Euler MMS 3-D with m = 2 θ-mode (N_θ = n)
+
+| n | L1(rho) | order | L1(mom_r) | order | L1(mom_theta) | order | L1(mom_z) | order | L1(rho_e) | order | L1(rho_c) | order |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 16 | 7.00e-4 | — | 2.27e-4 | — | 1.16e-3 | — | 3.37e-4 | — | 2.78e-3 | — | 6.84e-4 | — |
+| 32 | 1.53e-4 | 2.20 | 5.88e-5 | 1.95 | 2.51e-4 | 2.21 | 7.97e-5 | 2.08 | 6.07e-4 | 2.19 | 1.56e-4 | 2.13 |
+| 64 | 3.64e-5 | 2.07 | 1.48e-5 | 1.99 | 5.37e-5 | 2.22 | 1.78e-5 | 2.17 | 1.43e-4 | 2.09 | 3.47e-5 | 2.17 |
+
+**Criterion:** every component's observed order in [1.8, 2.3] (formal = 2) at every refinement.
+
 ## Well-balance, conservation, determinism
 
 - **Uniform gas at rest is a bitwise fixed point** over 50 steps — axis config (N_θ = 1, r = 0 inside): true; annulus config (N_θ = 8): true. The geometric sources use the same A·p products as the face fluxes, so the balance is exact, not approximate.

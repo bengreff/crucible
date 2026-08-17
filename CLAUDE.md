@@ -78,12 +78,18 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   exact metric ratios (A_z/V = 1/dz) instead of per-ring A·F products. `[profile.test]
   opt-level = 2` (real marches in tests; f64 bit-identical across opt levels — no fast-math);
   the test profile's overflow checks caught a θ-wrap underflow that release wrapping had masked.
-  True test count: **76**. Euler deferrals (loud refusals, owners in `euler/mod.rs` header):
-  r_min=0 with N_θ>1 (cross-axis parity gather), mixed per-brick N_θ (COUP-2/3 refluxing),
-  apertures/cut cells (FND-3 not yet consumed — worlds are full boxes). Not yet done for
-  SOLV-1's validation plan: full-Euler MMS with swirl on the cylindrical metric (§6-2 — natural
-  opener for the station-2 session; the `source` intake + `Prescribed` BC machinery it needs are
-  already in place).
+  Euler deferrals (loud refusals, owners in `euler/mod.rs` header): r_min=0 with N_θ>1
+  (cross-axis parity gather), mixed per-brick N_θ (COUP-2/3 refluxing), apertures/cut cells
+  (FND-3 not yet consumed — worlds are full boxes).
+  **Same session, second wave: SOLV-1 §6-2 whole-operator MMS done** (`euler_mms.rs` +
+  `tests/solv1_euler_mms.rs`; new artifact section) — manufactured field with radial flow, swirl,
+  and axial flow all active (one shared mode, analytic residual assembled exactly by product rule
+  — the terms Sod structurally cannot exercise since its u_r ≡ 0): **all six components of U at
+  observed order 1.88–2.22 on levels [16,32,64], both 2-D-axisym-with-swirl (N_θ=1) and 3-D m=2
+  θ-mode (N_θ=n).** Norm finding, recorded in the artifact: limiter clipping at the θ-mode's
+  smooth extrema is locally 1st-order over O(h) measure — L2 shows a ~O(h^1.6) tail while **L1
+  (the shock-capturing verification norm, SOLV-1 §6-1's own choice) retains formal order**;
+  MMS gates therefore assert L1 per component. True test count: **79**.
 - **Tracked deferral (review finding 9, not yet fixed):** META-2 §4 ★ units typing (`uom`) at
   interface boundaries — schedule as its own small wave BEFORE station-3 params proliferate; the
   stale "arrives with FND-4" note in crucible-constants still needs rewording to point here.

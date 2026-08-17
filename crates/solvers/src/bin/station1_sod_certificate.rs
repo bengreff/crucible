@@ -7,6 +7,10 @@
 //! committed copy. Regenerate: `cargo run --release --bin
 //! station1_sod_certificate` (deterministic — no RNG, no wall-clock).
 
+use crucible_solvers::euler::{EULER_FIELDS, NCOMP};
+use crucible_solvers::euler_mms::{
+    MMS_LEVELS, MMS_ORDER_MAX, MMS_ORDER_MIN, mms_axisym_swirl, mms_theta_mode,
+};
 use crucible_solvers::station1_sod::{
     ADV_C_ORDER_MAX, ADV_C_ORDER_MIN, ADV_LEVELS, ADV_MEAN_ORDER_MIN, ADV_RAMP_WIDTH,
     ADV_RHO_STEP_ORDER_MIN, ADV_T_FINAL, C_BOUNDS_TOL, CONSERVATION_T_FINAL, CONSERVATION_TOL_REL,
@@ -194,6 +198,60 @@ fn main() {
         adv.mean_order(|l| l.l1_rho)
     )
     .unwrap();
+
+    // --- Whole-operator MMS (SOLV-1 §6-2) ------------------------------------
+    writeln!(w).unwrap();
+    writeln!(w, "## Whole-operator MMS (SOLV-1 §6-2)").unwrap();
+    writeln!(w).unwrap();
+    writeln!(
+        w,
+        "A manufactured smooth field with radial flow, swirl, and axial flow all \
+         active — every flux direction and all three geometric source terms \
+         (pressure, centrifugal ρu_θ², swirl advection ρu_ru_θ) carry nonzero \
+         operands, which the Sod run structurally cannot exercise (its u_r ≡ 0). \
+         The analytic residual enters through the operator's source intake; the \
+         computed field must recover the manufactured one at formal order in \
+         **L1 per conserved component** (the shock-capturing verification norm: \
+         the limiter's clipping at the θ-mode's smooth extrema is locally \
+         1st-order over an O(h) measure, which L2 amplifies to a ~O(h^1.6) tail \
+         while L1 retains the formal order — measured and recorded here as the \
+         honest caveat). Levels {MMS_LEVELS:?}."
+    )
+    .unwrap();
+    for study in [mms_axisym_swirl(), mms_theta_mode()] {
+        writeln!(w).unwrap();
+        writeln!(w, "### {}", study.label).unwrap();
+        writeln!(w).unwrap();
+        write!(w, "| n |").unwrap();
+        for name in EULER_FIELDS {
+            write!(w, " L1({name}) | order |").unwrap();
+        }
+        writeln!(w).unwrap();
+        write!(w, "|---|").unwrap();
+        for _ in 0..NCOMP {
+            write!(w, "---|---|").unwrap();
+        }
+        writeln!(w).unwrap();
+        for (i, lvl) in study.levels.iter().enumerate() {
+            write!(w, "| {} |", lvl.n).unwrap();
+            for k in 0..NCOMP {
+                let p = if i == 0 {
+                    "—".to_string()
+                } else {
+                    format!("{:.2}", study.observed_orders(k)[i - 1])
+                };
+                write!(w, " {:.2e} | {p} |", lvl.l1[k]).unwrap();
+            }
+            writeln!(w).unwrap();
+        }
+        writeln!(w).unwrap();
+        writeln!(
+            w,
+            "**Criterion:** every component's observed order in \
+             [{MMS_ORDER_MIN}, {MMS_ORDER_MAX}] (formal = 2) at every refinement."
+        )
+        .unwrap();
+    }
 
     // --- Well-balance, conservation, determinism -----------------------------
     let (dm, de) = closed_tube_conservation().expect("conservation run");
