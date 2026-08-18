@@ -7,7 +7,7 @@
 
 use crate::geometry::Contour;
 use crucible_config::{Loaded, ResolvedConfig, parse_contour_csv};
-use crucible_grid::{Grid, GridSpec};
+use crucible_grid::{CellGeom, Grid, GridSpec, Region};
 use crucible_solvers::euler::{EULER_FIELDS, EulerFields};
 use crucible_solvers::wall_heat::WallLaw;
 use crucible_units::{dynamic_viscosity_pa_s, specific_heat_capacity_j_per_kg_k};
@@ -166,7 +166,13 @@ pub fn assemble(
         .as_ref()
         .ok_or("engine assembly needs an [operating_profile] (mode = \"steady_march\")")?;
 
-    // The ternary grid through the §3.6 ingest seam.
+    // The ternary grid through the FND-3 §3.3/§3.6 ingest seam: analytic
+    // partial fractions + face apertures from the contour clip. Gas ⇔
+    // κ > 0 (the by-center stair classification is retired); the liner
+    // ring is the κ = 0 band within the declared thickness of the wall,
+    // by center — grid-thickened as before. Face expressions use the
+    // face-coordinate arithmetic of `Grid::face_radius`/`z_center` so a
+    // shared face computes bitwise-identically from both sides.
     let spec = GridSpec {
         r_min: ext.r_min,
         dr: ext.dr,
@@ -180,12 +186,39 @@ pub fn assemble(
     let mut names: Vec<&str> = EULER_FIELDS.to_vec();
     names.push(T_SOLID);
     names.push(RATE_SOLID);
-    let (dr, dz, z0) = (spec.dr, spec.dz, spec.z_min);
+    let (r_min, dr, dz, z0) = (spec.r_min, spec.dr, spec.dz, spec.z_min);
     let c = contour.clone();
-    let grid = Grid::build_with_regions(spec, &names, |i_r, i_z| {
-        let r = (i_r as f64 + 0.5) * dr;
-        let z = z0 + (i_z as f64 + 0.5) * dz;
-        c.classify(r, z)
+    let grid = Grid::build_with_geometry(spec, &names, |i_r, i_z| {
+        let r0 = r_min + i_r as f64 * dr;
+        let r1 = r_min + (i_r + 1) as f64 * dr;
+        let za = z0 + i_z as f64 * dz;
+        let zb = z0 + (i_z + 1) as f64 * dz;
+        let kappa = c.gas_volume_fraction(r0, r1, za, zb);
+        if kappa > 0.0 {
+            CellGeom {
+                region: Region::Gas,
+                kappa,
+                aperture: [
+                    c.r_face_aperture(r0, za, zb),
+                    c.r_face_aperture(r1, za, zb),
+                    c.z_face_aperture(r0, r1, za),
+                    c.z_face_aperture(r0, r1, zb),
+                ],
+            }
+        } else {
+            let rc = r_min + (i_r as f64 + 0.5) * dr;
+            let zc = z0 + (i_z as f64 + 0.5) * dz;
+            let region = if c.liner_thickness_m > 0.0 && rc < c.r_wall(zc) + c.liner_thickness_m {
+                Region::Solid
+            } else {
+                Region::Exterior
+            };
+            CellGeom {
+                region,
+                kappa: 0.0,
+                aperture: [0.0; 4],
+            }
+        }
     })
     .map_err(|e| format!("grid build: {e}"))?;
     let fields = EulerFields::resolve(&grid).map_err(|e| format!("fields: {e}"))?;

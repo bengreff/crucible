@@ -21,11 +21,100 @@ use crate::assembly::EngineSpec;
 use crucible_constants::G0;
 use crucible_grid::{BRICK, FaceDir, Grid, InterfaceFace};
 use crucible_solvers::euler::{
-    Cons, EosLaw, Euler, EulerFields, FlowBc, FlowBcs, I_EN, NCOMP, TableEos,
+    Cons, EosLaw, Euler, EulerFields, FlowBc, FlowBcs, I_EN, NCOMP, TableEos, srd_neighborhood,
 };
 use crucible_solvers::wall_heat::NearWallGas;
 use crucible_solvers::{Bcs, Conduction, Domain, FaceBc, InteriorFaces};
 use crucible_tables::{Pin, Table};
+
+/// One gas-cell wall patch — the SOLV-1 §3.5 exchange surface on the cut
+/// geometry: the embedded-interface area |W| and normal from the grid's
+/// closure identity (the smooth-wall area, not the stair overcount), the
+/// gas↔solid grid faces it spans (the solid-side flux carriers), and the
+/// SRD debit set (a small cut cell cannot absorb its own wall debit — the
+/// merged control volume that stabilizes its flux update absorbs the
+/// exchange too; same neighborhood rule, single owner in the solver).
+struct WallPatch {
+    gas: (usize, usize),
+    faces: Vec<InterfaceFace>,
+    /// Full grid area of each spanned face (Σ = the stair area).
+    face_areas: Vec<f64>,
+    /// |W| — the interface area per full ring (N_θ = 1).
+    area: f64,
+    /// Outward (gas→wall) unit normal (n_r, n_z).
+    n_hat: (f64, f64),
+    /// Primary solid partner (across the largest spanned face).
+    solid: (usize, usize),
+    /// Energy-debit cells (the gas cell's SRD neighborhood; `[self]` for
+    /// regular cells) and Σ κV over them.
+    debit_cells: Vec<(usize, usize)>,
+    debit_kv_sum: f64,
+}
+
+/// Enumerate wall patches (deterministic gas-cell lexicographic order).
+/// The single-valued r_wall(z) contour class cannot produce a multi-sided
+/// wall (slot) inside one cell — the gas region {r < r_wall(z)} puts every
+/// cell's wall on one connected outboard arc — so the closure vector is
+/// always a faithful single interface here; per-side reconstruction for
+/// genuine slots is the FND-3 PLIC/CSG wave. Note the stair-face sum may
+/// legitimately exceed |W| by a large factor at steeply-crossing walls
+/// (a covered face the wall immediately dives away from carries almost no
+/// true interface): that overcount is exactly what |W| corrects.
+fn build_wall_patches(g: &Grid) -> Result<Vec<WallPatch>, String> {
+    let mut patches: Vec<WallPatch> = Vec::new();
+    for face in g.gas_solid_faces() {
+        if patches.last().map(|p| p.gas) != Some(face.gas) {
+            patches.push(WallPatch {
+                gas: face.gas,
+                faces: Vec::new(),
+                face_areas: Vec::new(),
+                area: 0.0,
+                n_hat: (0.0, 0.0),
+                solid: face.solid,
+                debit_cells: Vec::new(),
+                debit_kv_sum: 0.0,
+            });
+        }
+        let p = patches.last_mut().expect("just pushed");
+        p.face_areas.push(g.interface_area_per_theta(&face, 1));
+        p.faces.push(face);
+    }
+    for p in &mut patches {
+        let (i_r, i_z) = p.gas;
+        let (w_r, w_z) = g.wall_closure(i_r, i_z, 1);
+        let area = (w_r * w_r + w_z * w_z).sqrt();
+        if !area.is_finite() || area <= 0.0 {
+            return Err(format!(
+                "wall cell ({i_r}, {i_z}): zero closure interface area yet gas↔solid \
+                 faces exist — geometry incoherent (a slot-class wall? per-side \
+                 interface reconstruction is the FND-3 PLIC wave); refusing"
+            ));
+        }
+        p.area = area;
+        p.n_hat = (-w_r / area, -w_z / area);
+        // Primary partner: across the largest spanned face (first wins ties
+        // — the fixed FaceDir enumeration order).
+        let mut best = 0usize;
+        for (k, a) in p.face_areas.iter().enumerate() {
+            if *a > p.face_areas[best] {
+                best = k;
+            }
+        }
+        p.solid = p.faces[best].solid;
+        let hood = srd_neighborhood(g, i_r, i_z).map_err(|e| format!("wall patch: {e}"))?;
+        match hood {
+            Some(members) => {
+                p.debit_kv_sum = members.iter().map(|(_, kv)| kv).sum();
+                p.debit_cells = members.into_iter().map(|(c, _)| c).collect();
+            }
+            None => {
+                p.debit_cells = vec![p.gas];
+                p.debit_kv_sum = g.kappa(i_r, i_z) * g.cell_volume(i_r, 1);
+            }
+        }
+    }
+    Ok(patches)
+}
 
 /// Fraction of the solid/exchange stability limits the coupled Δt may use
 /// (station-4 constants, same rationale).
@@ -48,6 +137,29 @@ pub struct Progress {
     pub resid: f64,
     pub mdot_exit: f64,
     pub thrust_n: f64,
+}
+
+/// A mid-march halt with its crash artifact. META-1 P6's "fail loud, halt
+/// clean" includes leaving the evidence: the dump is fault-tolerant — raw
+/// conserved `U` for every active cell (the conserved state is the ground
+/// truth at a halt), derived state only where the EOS projection still
+/// succeeds. Empty `crash_csv` ⇔ the halt fired before a field existed.
+#[derive(Debug, Clone)]
+pub struct Halt {
+    pub message: String,
+    pub step: usize,
+    pub t: f64,
+    pub crash_csv: String,
+}
+
+impl std::fmt::Display for Halt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} (step {}, t = {:.6e} s)",
+            self.message, self.step, self.t
+        )
+    }
 }
 
 /// The SOLV-7 §3.4 performance object (scalar subset — the p-box wrapper
@@ -93,12 +205,19 @@ pub fn open_pinned_table(spec: &EngineSpec) -> Result<Table, String> {
 
 /// March the assembled engine to its settle budget and read out the
 /// performance object. `on_progress` fires every [`PROBE_EVERY`] steps.
+/// A mid-march failure returns a [`Halt`] carrying the crash artifact.
 pub fn run(
     spec: &mut EngineSpec,
     table: &Table,
     on_progress: &mut dyn FnMut(&Progress),
-) -> Result<Report, String> {
-    let eos = TableEos::bind(table)?;
+) -> Result<Report, Halt> {
+    let pre = |message: String| Halt {
+        message,
+        step: 0,
+        t: 0.0,
+        crash_csv: String::new(),
+    };
+    let eos = TableEos::bind(table).map_err(pre)?;
 
     // --- Initial fill: quiescent near-vacuum equilibrium gas + cold liner --
     let u_fill: Cons = eos
@@ -108,7 +227,7 @@ pub fn run(
             spec.injector.z_frac,
             [0.0, 0.0, 0.0],
         )
-        .map_err(|e| format!("fill state: {e}"))?;
+        .map_err(|e| pre(format!("fill state: {e}")))?;
     for (k, &v) in u_fill.iter().enumerate() {
         spec.grid.fill_field(spec.fields.ids()[k], move |_, _, _| v);
     }
@@ -118,9 +237,9 @@ pub fn run(
     // --- Injector mass flux through the DISCRETE inlet plane --------------
     // The boundary object states ṁ; the flux is sized by the stair plane's
     // actual open area so the delivered ṁ is exactly the declared one.
-    let a_inlet = plane_area(&spec.grid, 0);
+    let a_inlet = plane_area(&spec.grid, 0, FaceDir::ZMinus);
     if a_inlet <= 0.0 {
-        return Err("no active gas cells on the injector plane".to_string());
+        return Err(pre("no active gas cells on the injector plane".to_string()));
     }
     let inflow = FlowBc::MassFlowInflow {
         mdot_per_area: spec.injector.mdot_kg_per_s / a_inlet,
@@ -134,7 +253,7 @@ pub fn run(
     let a_ref = {
         let w = eos
             .prim_checked(&u_fill)
-            .map_err(|e| format!("fill state sound speed: {e}"))?;
+            .map_err(|e| pre(format!("fill state sound speed: {e}")))?;
         eos.sound_speed_w(&w)
     };
     let t_final = spec.flowthroughs * span / a_ref;
@@ -175,8 +294,8 @@ pub fn run(
         slip_wall_z_faces: true,
     };
 
-    let faces = if spec.wall_law.is_some() {
-        spec.grid.gas_solid_faces()
+    let patches = if spec.wall_law.is_some() {
+        build_wall_patches(&spec.grid).map_err(pre)?
     } else {
         Vec::new()
     };
@@ -190,19 +309,51 @@ pub fn run(
     let mut jacket_watts = 0.0f64;
     while t_final - t > 1e-12 * t_final {
         let dt_cap = t_final - t;
-        let dt = coupled_step(spec, &op, &eos, &faces, t, dt_cap, &mut jacket_watts)?;
+        let dt = match coupled_step(spec, &op, &eos, &patches, t, dt_cap, &mut jacket_watts) {
+            Ok(dt) => dt,
+            Err(message) => {
+                return Err(Halt {
+                    crash_csv: crash_fields_csv(
+                        &spec.grid,
+                        &spec.fields,
+                        &eos,
+                        spec.t_solid,
+                        &message,
+                        steps,
+                        t,
+                    ),
+                    message,
+                    step: steps,
+                    t,
+                });
+            }
+        };
         t += dt;
         steps += 1;
         if steps >= MARCH_STEP_CAP {
-            return Err(format!("runaway march: {steps} steps (mis-sized config?)"));
+            return Err(Halt {
+                message: format!("runaway march: {steps} steps (mis-sized config?)"),
+                step: steps,
+                t,
+                crash_csv: crash_fields_csv(
+                    &spec.grid,
+                    &spec.fields,
+                    &eos,
+                    spec.t_solid,
+                    "runaway march",
+                    steps,
+                    t,
+                ),
+            });
         }
         if steps.is_multiple_of(PROBE_EVERY) {
             let now = snapshot_rho(&spec.grid, &spec.fields);
             resid = max_rel_change(&rho_probe, &now);
             rho_probe = now;
             let exit = exit_plane(&spec.grid);
-            let mdot_exit = plane_mdot(&spec.grid, &spec.fields, exit);
-            let thrust = plane_thrust(&spec.grid, &spec.fields, &eos, exit)?;
+            let mdot_exit = plane_mdot(&spec.grid, &spec.fields, exit, FaceDir::ZPlus);
+            let thrust = plane_thrust(&spec.grid, &spec.fields, &eos, exit, FaceDir::ZPlus)
+                .map_err(|e| halt_at(&spec.grid, &spec.fields, &eos, spec.t_solid, e, steps, t))?;
             on_progress(&Progress {
                 step: steps,
                 t,
@@ -215,10 +366,11 @@ pub fn run(
     }
 
     // --- SOLV-7 readout ----------------------------------------------------
+    let end = |e: String| halt_at(&spec.grid, &spec.fields, &eos, spec.t_solid, e, steps, t);
     let exit = exit_plane(&spec.grid);
-    let mdot_exit = plane_mdot(&spec.grid, &spec.fields, exit);
-    let thrust = plane_thrust(&spec.grid, &spec.fields, &eos, exit)?;
-    let p_c = injector_end_stagnation_p(&spec.grid, &spec.fields, &eos, 0)?;
+    let mdot_exit = plane_mdot(&spec.grid, &spec.fields, exit, FaceDir::ZPlus);
+    let thrust = plane_thrust(&spec.grid, &spec.fields, &eos, exit, FaceDir::ZPlus).map_err(end)?;
+    let p_c = injector_end_stagnation_p(&spec.grid, &spec.fields, &eos, 0).map_err(end)?;
     let a_t = spec.contour.throat_area();
     let c_star = p_c * a_t / mdot_exit;
     let c_f = thrust / (p_c * a_t);
@@ -228,7 +380,7 @@ pub fn run(
     } else {
         f64::NAN
     };
-    let fields_csv = fields_csv(&spec.grid, &spec.fields, &eos, spec.t_solid)?;
+    let fields_csv = fields_csv(&spec.grid, &spec.fields, &eos, spec.t_solid).map_err(end)?;
     Ok(Report {
         thrust_n: thrust,
         isp_s: v_e / G0,
@@ -256,7 +408,7 @@ fn coupled_step(
     spec: &mut EngineSpec,
     op: &Euler<'_, TableEos<'_>>,
     eos: &TableEos<'_>,
-    faces: &[InterfaceFace],
+    patches: &[WallPatch],
     t: f64,
     dt_cap: f64,
     jacket_watts: &mut f64,
@@ -264,39 +416,39 @@ fn coupled_step(
     let ids = spec.fields.ids();
     let (dr, dz) = (spec.grid.spec().dr, spec.grid.spec().dz);
 
-    // Wall exchanges from the pre-step state (single evaluation per face).
-    let mut q = Vec::with_capacity(faces.len());
+    // Wall exchanges from the pre-step state — SOLV-1 §3.5's one law,
+    // evaluated once per wall patch: operands from the patch cell's state
+    // projected on the interface normal (tangential speed incl. swirl),
+    // wall distance the half-cell along the normal (first-order operands,
+    // inside the law's declared band).
+    let mut q = Vec::with_capacity(patches.len());
     let mut u_series_max = 0.0f64;
     if let (Some(law), Some(liner)) = (&spec.wall_law, &spec.liner) {
-        for face in faces {
+        for patch in patches {
             let mut u = [0.0f64; NCOMP];
             for (k, id) in ids.iter().enumerate() {
-                u[k] = cell_value(&spec.grid, *id, face.gas.0, face.gas.1);
+                u[k] = cell_value(&spec.grid, *id, patch.gas.0, patch.gas.1);
             }
             let w = eos
                 .prim_checked(&u)
-                .map_err(|e| format!("wall-face gas state at {:?}: {e}", face.gas))?;
+                .map_err(|e| format!("wall-patch gas state at {:?}: {e}", patch.gas))?;
             let temperature = eos
                 .temperature_w(&w)
-                .map_err(|e| format!("wall-face T at {:?}: {e}", face.gas))?;
-            let (u_t, y, d_s) = match face.dir {
-                FaceDir::RMinus | FaceDir::RPlus => {
-                    ((w[2] * w[2] + w[3] * w[3]).sqrt(), 0.5 * dr, 0.5 * dr)
-                }
-                FaceDir::ZMinus | FaceDir::ZPlus => {
-                    ((w[1] * w[1] + w[2] * w[2]).sqrt(), 0.5 * dz, 0.5 * dz)
-                }
-            };
+                .map_err(|e| format!("wall-patch T at {:?}: {e}", patch.gas))?;
+            let (n_r, n_z) = patch.n_hat;
+            let v_n = w[1] * n_r + w[3] * n_z;
+            let u_t = ((w[1] * w[1] + w[3] * w[3] - v_n * v_n).max(0.0) + w[2] * w[2]).sqrt();
+            let y = 0.5 * (n_r.abs() * dr + n_z.abs() * dz);
             let gas = NearWallGas {
                 rho: w[0],
                 u_t,
                 temperature,
                 y,
             };
-            let t_s = cell_value(&spec.grid, spec.t_solid, face.solid.0, face.solid.1);
+            let t_s = cell_value(&spec.grid, spec.t_solid, patch.solid.0, patch.solid.1);
             let ex = law
-                .wall_exchange(&gas, t_s, d_s, liner.kappa_w_per_m_k)
-                .map_err(|e| format!("wall exchange at {:?}: {e}", face.gas))?;
+                .wall_exchange(&gas, t_s, y, liner.kappa_w_per_m_k)
+                .map_err(|e| format!("wall exchange at {:?}: {e}", patch.gas))?;
             u_series_max = u_series_max.max(ex.u_series);
             q.push(ex.q);
         }
@@ -341,14 +493,22 @@ fn coupled_step(
     }
 
     // Solid advance (exchanges as gas-face fluxes; coolant Robin outside).
+    // A patch's total watts q·|W| are carried to the solid across its
+    // spanned grid faces: per-area face flux q·|W|/Σ(face areas), so the
+    // solid side integrates exactly the gas side's debit (conservation by
+    // construction, smooth-area heat on stair-area carriers).
     if let (Some(liner), Some(jacket)) = (&spec.liner, &spec.jacket) {
         let mut q_map: std::collections::BTreeMap<(usize, usize, u8), f64> =
             std::collections::BTreeMap::new();
-        for (face, &qf) in faces.iter().zip(&q) {
-            q_map.insert(
-                (face.solid.0, face.solid.1, dir_code(opposite(face.dir))),
-                qf,
-            );
+        for (patch, &qp) in patches.iter().zip(&q) {
+            let stair: f64 = patch.face_areas.iter().sum();
+            let q_face = qp * patch.area / stair;
+            for face in &patch.faces {
+                q_map.insert(
+                    (face.solid.0, face.solid.1, dir_code(opposite(face.dir))),
+                    q_face,
+                );
+            }
         }
         let gas_face_q = |i_r: usize, i_z: usize, _j: u32, dir: FaceDir| -> f64 {
             *q_map
@@ -382,19 +542,18 @@ fn coupled_step(
             .step(&mut spec.grid, spec.t_solid, spec.rate_solid, t, dt)
             .map_err(|e| format!("liner conduction: {e}"))?;
 
-        // Gas energy debit: the SAME q, opposite sign, per face.
+        // Gas energy debit: the SAME q·|W|, opposite sign, distributed as a
+        // uniform specific debit over the patch cell's SRD control volume
+        // (Σ ΔE·κV = watts·dt exactly; a sliver cell alone cannot absorb
+        // its wall debit any more than its flux update).
         let mut watts = 0.0f64;
-        for (face, &qf) in faces.iter().zip(&q) {
-            let area = spec.grid.interface_area_per_theta(face, 1);
-            let vol = spec.grid.cell_volume(face.gas.0, 1);
-            cell_add(
-                &mut spec.grid,
-                ids[I_EN],
-                face.gas.0,
-                face.gas.1,
-                -qf * area * dt / vol,
-            );
-            watts += qf * area;
+        for (patch, &qp) in patches.iter().zip(&q) {
+            let w_patch = qp * patch.area;
+            let de = -w_patch * dt / patch.debit_kv_sum;
+            for &(i_r, i_z) in &patch.debit_cells {
+                cell_add(&mut spec.grid, ids[I_EN], i_r, i_z, de);
+            }
+            watts += w_patch;
         }
         *jacket_watts = watts;
     }
@@ -406,30 +565,39 @@ fn coupled_step(
 }
 
 // --- Plane diagnostics (mask-aware, EOS-threaded — SOLV-7 §3.1/§3.2) -------
+// Areas are aperture-weighted on cut worlds (FND-3): the OPEN area of the
+// named z-face side is what flow crosses. `side` picks which z-face of the
+// cells at `i_z` the plane means: z− for upstream planes (injector end),
+// z+ for the exit. Full-box worlds: aperture = 1 exactly.
 
-/// Open flow area of z-plane `i_z` (sum of active-cell z-face areas).
-pub fn plane_area(g: &Grid, i_z: usize) -> f64 {
+fn open_area_z(g: &Grid, i_r: usize, i_z: usize, side: FaceDir) -> f64 {
+    g.face_area_z(i_r, 1) * g.aperture(i_r, i_z, side)
+}
+
+/// Open flow area of z-plane `i_z` on `side`.
+pub fn plane_area(g: &Grid, i_z: usize, side: FaceDir) -> f64 {
     (0..g.spec().n_r)
         .filter(|&i_r| g.is_active(i_r, i_z))
-        .map(|i_r| g.face_area_z(i_r, 1))
+        .map(|i_r| open_area_z(g, i_r, i_z, side))
         .sum()
 }
 
-/// Mass flow through z-plane `i_z`: Σ ρu_z·A_z over active cells.
-pub fn plane_mdot(g: &Grid, f: &EulerFields, i_z: usize) -> f64 {
+/// Mass flow through z-plane `i_z`: Σ ρu_z·a·A_z over active cells.
+pub fn plane_mdot(g: &Grid, f: &EulerFields, i_z: usize, side: FaceDir) -> f64 {
     let ids = f.ids();
     (0..g.spec().n_r)
         .filter(|&i_r| g.is_active(i_r, i_z))
-        .map(|i_r| cell_value(g, ids[3], i_r, i_z) * g.face_area_z(i_r, 1))
+        .map(|i_r| cell_value(g, ids[3], i_r, i_z) * open_area_z(g, i_r, i_z, side))
         .sum()
 }
 
-/// Vacuum thrust integral over z-plane `i_z` (SOLV-7.1): Σ (ρu_z² + p)·A_z.
+/// Vacuum thrust integral over z-plane `i_z` (SOLV-7.1): Σ (ρu_z² + p)·a·A_z.
 pub fn plane_thrust<E: EosLaw>(
     g: &Grid,
     f: &EulerFields,
     eos: &E,
     i_z: usize,
+    side: FaceDir,
 ) -> Result<f64, String> {
     let ids = f.ids();
     let mut acc = 0.0f64;
@@ -444,13 +612,14 @@ pub fn plane_thrust<E: EosLaw>(
         let w = eos
             .prim_checked(&u)
             .map_err(|e| format!("thrust plane ({i_r},{i_z}): {e}"))?;
-        acc += (w[0] * w[3] * w[3] + w[4]) * g.face_area_z(i_r, 1);
+        acc += (w[0] * w[3] * w[3] + w[4]) * open_area_z(g, i_r, i_z, side);
     }
     Ok(acc)
 }
 
 /// N11: area-averaged stagnation pressure at the injector-end plane, per
 /// cell from the local static state + Mach via the field's own EOS.
+/// Weighted by the plane's open (z−) areas.
 pub fn injector_end_stagnation_p<E: EosLaw>(
     g: &Grid,
     f: &EulerFields,
@@ -474,7 +643,7 @@ pub fn injector_end_stagnation_p<E: EosLaw>(
         let m2 = (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]) / (a * a);
         let g1 = w[0] * a * a / w[4]; // Γ₁ from the state itself
         let p0 = w[4] * (1.0 + 0.5 * (g1 - 1.0) * m2).powf(g1 / (g1 - 1.0));
-        let a_z = g.face_area_z(i_r, 1);
+        let a_z = open_area_z(g, i_r, i_z, FaceDir::ZMinus);
         acc += p0 * a_z;
         area += a_z;
     }
@@ -636,6 +805,90 @@ fn fields_csv(
         }
     }
     Ok(out)
+}
+
+fn halt_at(
+    g: &Grid,
+    f: &EulerFields,
+    eos: &TableEos<'_>,
+    t_solid: crucible_grid::FieldId,
+    message: String,
+    step: usize,
+    t: f64,
+) -> Halt {
+    Halt {
+        crash_csv: crash_fields_csv(g, f, eos, t_solid, &message, step, t),
+        message,
+        step,
+        t,
+    }
+}
+
+/// The crash artifact: one row per active/solid cell, never fails. Raw
+/// conserved `U` is always emitted (it is the ground truth at a halt);
+/// derived (p, T, Z, Mach) only where the equilibrium projection still
+/// succeeds — `ok` = 0 marks the cells whose state left the surface, which
+/// is exactly the diagnostic map a starvation/runaway inspection needs.
+/// Leading `#` lines carry the halt diagnosis; (i_r, i_z) indices are
+/// explicit because halts name cells by index.
+pub fn crash_fields_csv(
+    g: &Grid,
+    f: &EulerFields,
+    eos: &TableEos<'_>,
+    t_solid: crucible_grid::FieldId,
+    message: &str,
+    step: usize,
+    t: f64,
+) -> String {
+    use std::fmt::Write;
+    let ids = f.ids();
+    let mut out = format!(
+        "# halt: {}\n# step: {step}  t_s: {t:.9e}\n\
+         i_r,i_z,r_m,z_m,region,kappa,rho,mom_r,mom_theta,mom_z,rho_e,rho_c,ok,p,T,Z,mach\n",
+        message.replace('\n', " / "),
+    );
+    for i_z in 0..g.spec().n_z {
+        for i_r in 0..g.spec().n_r {
+            let z = g.z_center(i_z);
+            let r = g.r_center(i_r);
+            if g.is_active(i_r, i_z) {
+                let mut u = [0.0f64; NCOMP];
+                for (k, id) in ids.iter().enumerate() {
+                    u[k] = cell_value(g, *id, i_r, i_z);
+                }
+                write!(
+                    out,
+                    "{i_r},{i_z},{r:.6},{z:.6},gas,{:.6e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},",
+                    g.kappa(i_r, i_z),
+                    u[0],
+                    u[1],
+                    u[2],
+                    u[3],
+                    u[4],
+                    u[5]
+                )
+                .expect("string write");
+                match eos.prim_checked(&u) {
+                    Ok(w) => {
+                        let a = eos.sound_speed_w(&w);
+                        let mach = (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]).sqrt() / a;
+                        let temp_s = match eos.temperature_w(&w) {
+                            Ok(temp) => format!("{temp:.2}"),
+                            Err(_) => String::new(),
+                        };
+                        writeln!(out, "1,{:.6e},{temp_s},{:.5},{mach:.4}", w[4], w[5])
+                            .expect("string write");
+                    }
+                    Err(_) => writeln!(out, "0,,,,").expect("string write"),
+                }
+            } else if cell_region_is_solid(g, i_r, i_z) {
+                let ts = cell_value(g, t_solid, i_r, i_z);
+                writeln!(out, "{i_r},{i_z},{r:.6},{z:.6},solid,,,,,,,,,,{ts:.2},,")
+                    .expect("string write");
+            }
+        }
+    }
+    out
 }
 
 fn cell_region_is_solid(g: &Grid, i_r: usize, i_z: usize) -> bool {

@@ -130,6 +130,44 @@ pub enum FaceDir {
     ZPlus,
 }
 
+impl FaceDir {
+    /// Index into per-cell face arrays, in the fixed enumeration order.
+    #[inline]
+    pub const fn index(self) -> usize {
+        match self {
+            FaceDir::RMinus => 0,
+            FaceDir::RPlus => 1,
+            FaceDir::ZMinus => 2,
+            FaceDir::ZPlus => 3,
+        }
+    }
+}
+
+/// FND-3 §3.3 cut geometry of one cell, as ingested through the §3.6 seam:
+/// the gas volume fraction κ (cylindrical measure) and the open-area
+/// fraction of each face in [`FaceDir`] order. The supplier must compute a
+/// shared face's aperture from the face coordinates alone so both cells
+/// carry the identical bits — validated at build.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CellGeom {
+    pub region: Region,
+    pub kappa: f64,
+    pub aperture: [f64; 4],
+}
+
+/// Per-brick cut geometry ((r,z)-shaped, θ-uniform, like the masks):
+/// κ and the four face apertures per local cell. Present on every brick of
+/// a grid built through [`Grid::build_with_geometry`]; absent (`None`) on
+/// stair/box worlds, whose accessors degenerate to κ = 1 / aperture = 1 —
+/// the arithmetic identity that keeps every certified full-box operator
+/// bit-identical.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BrickGeom {
+    pub kappa: Vec<f64>,
+    /// Indexed `[FaceDir::index()][local_rz]`.
+    pub aperture: [Vec<f64>; 4],
+}
+
 /// One config-time-identified gas↔solid interface face (SOLV-1 §3.5's
 /// "wall faces identified geometrically from config data"). `dir` points
 /// from the gas cell toward the solid cell; faces are θ-uniform (regions
@@ -155,6 +193,7 @@ pub struct Brick {
     pub(crate) solid_mask: u64,
     pub(crate) n_theta: u32,
     pub(crate) n_theta_geom_floor: u32,
+    pub(crate) geom: Option<BrickGeom>,
     pub(crate) data: Vec<Vec<f64>>,
 }
 
@@ -196,6 +235,30 @@ impl Brick {
     #[inline]
     pub fn n_theta_geom_floor(&self) -> u32 {
         self.n_theta_geom_floor
+    }
+
+    /// Whether FND-3 cut geometry is attached to this brick.
+    #[inline]
+    pub fn has_geom(&self) -> bool {
+        self.geom.is_some()
+    }
+
+    /// Gas volume fraction κ of a local cell (FND-3 §3.3). Full-box worlds
+    /// (no geometry attached) answer exactly 1.0 for active cells — the
+    /// arithmetic-identity default (×1.0 and /1.0 are exact), so consumers
+    /// need no mode branch.
+    #[inline]
+    pub fn kappa_rz(&self, local: usize) -> f64 {
+        self.geom.as_ref().map_or(1.0, |g| g.kappa[local])
+    }
+
+    /// Open-area fraction of a local cell's face (FND-3 §3.3); 1.0 when no
+    /// geometry is attached (see [`Brick::kappa_rz`]).
+    #[inline]
+    pub fn aperture_rz(&self, dir: FaceDir, local: usize) -> f64 {
+        self.geom
+            .as_ref()
+            .map_or(1.0, |g| g.aperture[dir.index()][local])
     }
 
     #[inline]
@@ -372,6 +435,7 @@ impl Grid {
                     solid_mask,
                     n_theta: spec.n_theta_max,
                     n_theta_geom_floor: N_THETA_GUARD.min(spec.n_theta_max),
+                    geom: None,
                     data: vec![vec![0.0; len]; n_fields],
                 });
             }
@@ -393,6 +457,185 @@ impl Grid {
             field_names: field_names.iter().map(|s| s.to_string()).collect(),
             bricks,
         })
+    }
+
+    /// Build through the full FND-3 §3.3/§3.6 ingest seam: per-cell partial
+    /// fractions + face apertures. The invariants a legal voxelization must
+    /// satisfy are validated loudly (META-1 P6, FND-3's mask-disjointness
+    /// validation class):
+    /// - `Gas ⇔ κ > 0`; `Solid`/`Exterior` ⇒ κ = 0;
+    /// - κ and apertures finite in [0, 1];
+    /// - a shared face carries bitwise-identical apertures on both sides
+    ///   (the supplier computes it from face coordinates alone);
+    /// - a face adjoining a κ = 0 cell is fully covered (aperture 0).
+    ///
+    /// Restricted to `n_theta_max = 1`: a cut θ-face needs the azimuthal
+    /// fraction field of the sampled voxelization path — that arrives with
+    /// the 3-D wave; refuse rather than guess.
+    pub fn build_with_geometry(
+        spec: GridSpec,
+        field_names: &[&str],
+        geom_of: impl Fn(usize, usize) -> CellGeom,
+    ) -> Result<Grid, GridError> {
+        if spec.n_theta_max != 1 {
+            return Err(GridError::BadSpec(
+                "cut geometry at N_θ > 1 needs the sampled azimuthal-fraction path \
+                 (FND-3 3-D wave); refusing rather than guessing"
+                    .into(),
+            ));
+        }
+        let mut g =
+            Self::build_with_regions(spec, field_names, |i_r, i_z| geom_of(i_r, i_z).region)?;
+        for b in &mut g.bricks {
+            let mut bg = BrickGeom {
+                kappa: vec![0.0; BRICK_CELLS],
+                aperture: std::array::from_fn(|_| vec![0.0; BRICK_CELLS]),
+            };
+            for local in 0..BRICK_CELLS {
+                let (i_r, i_z) = b.global_rz(local);
+                if i_r >= g.spec.n_r || i_z >= g.spec.n_z {
+                    continue;
+                }
+                let c = geom_of(i_r, i_z);
+                let legal = c.kappa.is_finite()
+                    && (0.0..=1.0).contains(&c.kappa)
+                    && match c.region {
+                        Region::Gas => c.kappa > 0.0,
+                        Region::Solid | Region::Exterior => c.kappa == 0.0,
+                    };
+                if !legal {
+                    return Err(GridError::BadSpec(format!(
+                        "cell ({i_r}, {i_z}): κ = {} inconsistent with region {:?} \
+                         (Gas ⇔ κ > 0; κ ∈ [0, 1])",
+                        c.kappa, c.region
+                    )));
+                }
+                for (d, &a) in c.aperture.iter().enumerate() {
+                    if !a.is_finite() || !(0.0..=1.0).contains(&a) {
+                        return Err(GridError::BadSpec(format!(
+                            "cell ({i_r}, {i_z}) face {d}: aperture {a} outside [0, 1]"
+                        )));
+                    }
+                    bg.aperture[d][local] = a;
+                }
+                bg.kappa[local] = c.kappa;
+            }
+            b.geom = Some(bg);
+        }
+        // Shared-face coherence: identical bits from both sides; covered
+        // against any κ = 0 cell (incl. unallocated bricks / domain-interior
+        // exterior cells).
+        for i_r in 0..g.spec.n_r {
+            for i_z in 0..g.spec.n_z {
+                let here = [
+                    (
+                        FaceDir::RMinus,
+                        i_r.checked_sub(1).map(|r| (r, i_z)),
+                        FaceDir::RPlus,
+                    ),
+                    (
+                        FaceDir::ZMinus,
+                        i_z.checked_sub(1).map(|z| (i_r, z)),
+                        FaceDir::ZPlus,
+                    ),
+                ];
+                let a_here = |dir: FaceDir| {
+                    g.brick_index(i_r, i_z).map_or(0.0, |bi| {
+                        g.bricks[bi].aperture_rz(dir, Self::local_rz(i_r, i_z))
+                    })
+                };
+                let kappa_here = g.kappa(i_r, i_z);
+                for (dir, nbr, opp) in here {
+                    let a = if g.brick_index(i_r, i_z).is_some() {
+                        a_here(dir)
+                    } else {
+                        0.0
+                    };
+                    let (a_nbr, kappa_nbr) = match nbr {
+                        Some((nr, nz)) => (
+                            g.brick_index(nr, nz).map_or(0.0, |bi| {
+                                g.bricks[bi].aperture_rz(opp, Self::local_rz(nr, nz))
+                            }),
+                            g.kappa(nr, nz),
+                        ),
+                        None => continue, // domain-edge face: no partner
+                    };
+                    if a.to_bits() != a_nbr.to_bits() {
+                        return Err(GridError::BadSpec(format!(
+                            "shared face ({i_r}, {i_z})↔{nbr:?}: apertures differ \
+                             ({a} vs {a_nbr}) — the supplier must compute a face from its \
+                             coordinates alone"
+                        )));
+                    }
+                    if (kappa_here == 0.0 || kappa_nbr == 0.0) && a != 0.0 {
+                        return Err(GridError::BadSpec(format!(
+                            "face ({i_r}, {i_z})↔{nbr:?}: open aperture {a} against a \
+                             κ = 0 cell — geometry incoherent"
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(g)
+    }
+
+    /// Whether this world carries FND-3 cut geometry (fractions/apertures).
+    pub fn has_cut_geometry(&self) -> bool {
+        self.bricks.iter().any(|b| b.geom.is_some())
+    }
+
+    /// Gas volume fraction κ of cell (i_r, i_z): 0 outside the gas mask,
+    /// 1 for active cells of full-box worlds.
+    pub fn kappa(&self, i_r: usize, i_z: usize) -> f64 {
+        if !self.is_active(i_r, i_z) {
+            return 0.0;
+        }
+        self.brick_index(i_r, i_z)
+            .map_or(0.0, |bi| self.bricks[bi].kappa_rz(Self::local_rz(i_r, i_z)))
+    }
+
+    /// Face aperture of cell (i_r, i_z) toward `dir` (1.0 on full-box
+    /// worlds' active cells; 0.0 outside the mask).
+    pub fn aperture(&self, i_r: usize, i_z: usize, dir: FaceDir) -> f64 {
+        if !self.is_active(i_r, i_z) {
+            return 0.0;
+        }
+        self.brick_index(i_r, i_z).map_or(0.0, |bi| {
+            self.bricks[bi].aperture_rz(dir, Self::local_rz(i_r, i_z))
+        })
+    }
+
+    /// The discrete wall-closure vector `(W_r, W_z)` of a cut cell — THE
+    /// single owner of the identity that defines the embedded interface
+    /// from apertures on the cylindrical metric (SOLV-1 §3.3 well-balance
+    /// extended to cut cells):
+    ///
+    /// `W_r = a_r₊·A_r₊ − a_r₋·A_r₋ − κ·(A_r₊ − A_r₋)`,
+    /// `W_z = (a_z₊ − a_z₋)·A_z`.
+    ///
+    /// The interface pressure force on the gas is `+p·(W_r, W_z)` (so the
+    /// momentum rate gains `p·W/(κV)`), chosen so a uniform state at rest
+    /// is preserved to round-off — the discrete divergence theorem. `|W|`
+    /// is the interface area (exact for the true geometry under uniform
+    /// p; the smooth-wall area the stair form overcounts), and `−W/|W|`
+    /// the outward (gas→wall) interface normal. Identically (0, 0) for
+    /// uncut interior cells.
+    pub fn wall_closure(&self, i_r: usize, i_z: usize, n_theta: u32) -> (f64, f64) {
+        let Some(bi) = self.brick_index(i_r, i_z) else {
+            return (0.0, 0.0);
+        };
+        let b = &self.bricks[bi];
+        let local = Self::local_rz(i_r, i_z);
+        let a_in = self.face_area_r(i_r, false, n_theta);
+        let a_out = self.face_area_r(i_r, true, n_theta);
+        let a_z = self.face_area_z(i_r, n_theta);
+        let kappa = b.kappa_rz(local);
+        let w_r = b.aperture_rz(FaceDir::RPlus, local) * a_out
+            - b.aperture_rz(FaceDir::RMinus, local) * a_in
+            - kappa * (a_out - a_in);
+        let w_z =
+            (b.aperture_rz(FaceDir::ZPlus, local) - b.aperture_rz(FaceDir::ZMinus, local)) * a_z;
+        (w_r, w_z)
     }
 
     #[inline]

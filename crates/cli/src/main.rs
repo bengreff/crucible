@@ -100,8 +100,20 @@ fn run_config(path: &str) -> i32 {
     };
     let report = match crucible_engine::run::run(&mut spec, &table, &mut on_progress) {
         Ok(r) => r,
-        Err(e) => {
-            eprintln!("run halted: {e}");
+        Err(halt) => {
+            eprintln!("run halted: {halt}");
+            if !halt.crash_csv.is_empty() {
+                let dir = format!("runs/{name}");
+                let path = format!("{dir}/crash_fields.csv");
+                match std::fs::create_dir_all(&dir)
+                    .map_err(|e| e.to_string())
+                    .and_then(|()| {
+                        std::fs::write(&path, &halt.crash_csv).map_err(|e| e.to_string())
+                    }) {
+                    Ok(()) => eprintln!("crash artifact: {path}"),
+                    Err(e) => eprintln!("warning: crash artifact {path}: {e}"),
+                }
+            }
             return 1;
         }
     };

@@ -1,8 +1,16 @@
-//! Contour-of-revolution geometry (FND-3, stair degenerate form): the cited
-//! r(z) station table → the wall function, the ternary region field
-//! (gas / liner / exterior) through FND-2 §3.6's ingest seam, and the true
-//! wall normal for the slip-ghost walls (station-2 machinery). Partial
-//! apertures / cut cells (FND-3 proper) supersede the stair form.
+//! Contour-of-revolution geometry (FND-3): the cited r(z) station table →
+//! the wall function, the ternary region field (gas / liner / exterior)
+//! through FND-2 §3.6's ingest seam, the true wall normal for the
+//! slip-ghost walls (station-2 machinery), and — session 12 — the **FND-3
+//! §3.3 partial fractions and face apertures**, computed by ANALYTIC
+//! clipping of the revolved piecewise-linear profile against each ring
+//! cell in the cylindrical volume measure. A revolved profile is the CSG
+//! revolved-profile leaf on FND-3's analytic path: the clipped integrals
+//! are closed-form (piecewise polynomial), so the emitted fractions carry
+//! **zero sampling error** (the §3.1 jittered-sampling bound degenerates
+//! to round-off; no `N_FRAC_SAMPLES` is consumed) and are exactly
+//! deterministic. Ties (wall touching a face) resolve by strict `>` —
+//! fixed tie-breaking per §3.5.
 
 use crucible_grid::Region;
 
@@ -97,6 +105,91 @@ impl Contour {
         } else {
             Region::Exterior
         }
+    }
+
+    /// Subdivide `[z0, z1]` at interior stations: returns the ordered
+    /// breakpoints (z0, …, z1) between which `r_wall` is exactly linear.
+    fn linear_spans(&self, z0: f64, z1: f64) -> Vec<f64> {
+        let mut cuts = vec![z0];
+        for &(zs, _) in &self.stations {
+            if zs > z0 && zs < z1 {
+                cuts.push(zs);
+            }
+        }
+        cuts.push(z1);
+        cuts
+    }
+
+    /// FND-3 §3.3 — exact gas volume fraction κ of the ring cell
+    /// `[r0, r1] × [z0, z1]` in the cylindrical measure:
+    /// `κ = ∫ ½(clamp(r_w(z), r0, r1)² − r0²) dz / (½(r1²−r0²)(z1−z0))`.
+    /// Piecewise-linear `r_w` ⇒ the integrand is piecewise quadratic and
+    /// the integral closed-form: on a span where `w` is linear and inside
+    /// `[r0, r1]`, `∫w²dz = len·(wa² + wa·wb + wb²)/3` (exact, no division
+    /// by the slope). Clamp crossings are found per linear span.
+    pub fn gas_volume_fraction(&self, r0: f64, r1: f64, z0: f64, z1: f64) -> f64 {
+        debug_assert!(r1 > r0 && z1 > z0);
+        let mut acc = 0.0f64;
+        let cuts = self.linear_spans(z0, z1);
+        for pair in cuts.windows(2) {
+            let (za, zb) = (pair[0], pair[1]);
+            let (wa, wb) = (self.r_wall(za), self.r_wall(zb));
+            // Split [za, zb] at the (at most two) points where the linear
+            // w crosses r0 or r1, then integrate each piece by regime.
+            let mut pts = vec![za];
+            for rc in [r0, r1] {
+                if (wa - rc) * (wb - rc) < 0.0 {
+                    pts.push(za + (zb - za) * (rc - wa) / (wb - wa));
+                }
+            }
+            pts.push(zb);
+            pts.sort_by(|a, b| a.partial_cmp(b).expect("finite z"));
+            for piece in pts.windows(2) {
+                let (pa, pb) = (piece[0], piece[1]);
+                let len = pb - pa;
+                if len <= 0.0 {
+                    continue;
+                }
+                let wm = self.r_wall(0.5 * (pa + pb));
+                if wm <= r0 {
+                    // fully covered piece
+                } else if wm >= r1 {
+                    acc += 0.5 * (r1 * r1 - r0 * r0) * len;
+                } else {
+                    let (va, vb) = (self.r_wall(pa), self.r_wall(pb));
+                    acc += 0.5 * (len * (va * va + va * vb + vb * vb) / 3.0 - r0 * r0 * len);
+                }
+            }
+        }
+        (acc / (0.5 * (r1 * r1 - r0 * r0) * (z1 - z0))).clamp(0.0, 1.0)
+    }
+
+    /// FND-3 §3.3 — open-area fraction of the radial face at radius `r_f`
+    /// spanning `[z0, z1]`: the length fraction where `r_wall(z) > r_f`.
+    pub fn r_face_aperture(&self, r_f: f64, z0: f64, z1: f64) -> f64 {
+        let mut open = 0.0f64;
+        let cuts = self.linear_spans(z0, z1);
+        for pair in cuts.windows(2) {
+            let (za, zb) = (pair[0], pair[1]);
+            let (wa, wb) = (self.r_wall(za), self.r_wall(zb));
+            let len = zb - za;
+            open += if wa > r_f && wb > r_f {
+                len
+            } else if wa <= r_f && wb <= r_f {
+                0.0
+            } else {
+                let t = (r_f - wa) / (wb - wa);
+                if wa > r_f { t * len } else { (1.0 - t) * len }
+            };
+        }
+        (open / (z1 - z0)).clamp(0.0, 1.0)
+    }
+
+    /// FND-3 §3.3 — open-area fraction of the z-face annulus `[r0, r1]` at
+    /// `z_f` (annular measure): `(clamp(r_w, r0, r1)² − r0²)/(r1² − r0²)`.
+    pub fn z_face_aperture(&self, r0: f64, r1: f64, z_f: f64) -> f64 {
+        let x = self.r_wall(z_f).clamp(r0, r1);
+        ((x * x - r0 * r0) / (r1 * r1 - r0 * r0)).clamp(0.0, 1.0)
     }
 
     /// Geometric throat area πr_t² (the c\*/C_F reference, SOLV-7 §3.3).
