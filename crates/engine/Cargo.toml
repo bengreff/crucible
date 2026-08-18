@@ -1,0 +1,20 @@
+[package]
+name = "crucible-engine"
+version = "0.1.0"
+edition = "2024"
+description = "Config-driven engine assembly: geometry + mechanisms + boundary objects -> one coupled run (the VISION_SCOPE §4.3 workflow contract)"
+
+[dependencies]
+crucible-constants = { path = "../constants" }
+crucible-units = { path = "../units" }
+crucible-config = { path = "../config" }
+crucible-grid = { path = "../grid" }
+crucible-registry = { path = "../registry" }
+crucible-solvers = { path = "../solvers" }
+crucible-tables = { path = "../tables" }
+
+[dev-dependencies]
+toml = "0.8"
+
+[lints]
+workspace = true

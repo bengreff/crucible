@@ -29,8 +29,15 @@ pub use loader::{
     CURRENT_SCHEMA_VERSION, DEFAULT_DETERMINISM_MODE, DEFAULT_RNG_ALGORITHM, Loaded,
     OLDEST_SUPPORTED_SCHEMA_VERSION, load_str, load_str_with_sidecars,
 };
+pub use loader::{
+    DEFAULT_CFL, DEFAULT_FILL_P_PA, DEFAULT_FLOWTHROUGHS, INCH_M, MIN_CELLS_ACROSS_THROAT,
+    parse_contour_csv, sha256_hex,
+};
 pub use manifest::{ChaoticRecord, RunManifest, TablePin};
-pub use schema::{ResolvedConfig, ResolvedExtents, ResolvedGeometry, ResolvedTablePin};
+pub use schema::{
+    ResolvedConfig, ResolvedContour, ResolvedExtents, ResolvedGeometry, ResolvedProfile,
+    ResolvedTablePin,
+};
 /// Resolved block bodies are `toml::Table`s; re-export the crate so
 /// downstream consumers name those types without a version-skew risk.
 pub use toml;

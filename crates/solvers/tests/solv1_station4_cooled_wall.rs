@@ -84,6 +84,7 @@ fn station4_uniform_rest_is_a_bitwise_fixed_point() {
             z_hi: crucible_solvers::euler::FlowBc::Reflecting,
         },
         wall_normal: None,
+        slip_wall_z_faces: true, // certified station behavior (slip everywhere)
     };
     // The fixture coolant is T_COOL already; the exchange at equal
     // temperatures is exactly 0 (unit-tested in wall_heat) — so the march

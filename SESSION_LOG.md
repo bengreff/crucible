@@ -225,3 +225,54 @@ the committed artifacts in `certificates/` are the living record.
   (`interpolate` re-parses rule strings + allocates per query — ~10⁸ calls/run at station 5),
   Euler per-step scratch/allocation churn, coupler face-cache + one-stepper merge, shared
   mask-aware plane-diagnostics module. True test count: **104 Rust + 25 Python**.
+- Session 11 (2026-08-18): **STATION-5 WAVES (a)+(b) — the EOS seam and the FIRST
+  CONFIG-DRIVEN ENGINE.** Rulings first (own commit): VISION_SCOPE **v1.4.1** — blind =
+  mechanical input-blindness, `development-observed: yes/no` declared per certificate; RL10
+  campaign = **open development** (Ben); VAL-2 0.2.2 mirrors.
+  **Wave A (commit 2):** `BoundColumn` (FND-5 §3.3) — bind-time units gate/rule parse/ln-hoist,
+  allocation-free queries **bit-identical** to `interpolate()` on the production surface
+  (asserted); **SOLV-1 §3.4 shifting mode** — `EosLaw` seam (monomorphized), NPRIM=8 with aux
+  (e, Γ₁) slots (Castro/PeleC general-convex-EOS treatment: Batten wavespeeds from local/
+  Roe-averaged Γ₁); `TableEos` = per-cell equilibrium projection at (p, h=e+p/ρ, Z), Illinois
+  regula-falsi (fixed tol/iters); η_c\* knockdown hook = `h_offset` (S18, source-level;
+  calibration = cycle wave). **Combustion lives in the EOS**: RL10 chamber T 3225.4 K emerges
+  from (ρ,e,Z) alone; uniform equilibrium rest = bitwise fixed point of the full step; closed
+  hot/cold tube conserves to <1e-12; **all four gamma-law certificates byte-identical through
+  the seam** (gate 5). FND-4 §6-4 `[tables]` grammar (explicit pair or pins-sidecar via
+  `load_str_with_sidecars`; resolved form replays purely; manifest `table_pins`); cross-process
+  regen-determinism pytest.
+  **Wave B (commit 3):** geometry-of-record digitized → `data/anchors/rl10_contour.csv` (Table
+  E1 verbatim + Table 2.5.1 scalars + Fig. E1 planes ±0.5 in; closures declared in-header).
+  **FINDING (anchor erratum):** TM Table 2.5.1's "Diameter 2.47/5.13 in" are **RADII** — c\*
+  identity (Ø-reading → 600 m/s, 4× off; radius → 2381 vs 2385 record), ε=61 exit Ø 38.6 in ≈
+  the known ~40 in bell, and Fig. E1's radius axis all agree (VAL-2 0.2.3 erratum; META-3
+  updated). FND-3 contour grammar in `[geometry]` (content-addressed CSV like a table pin;
+  **fidelity dial `cells_across_throat`** → derived isotropic extents, manifest-recorded;
+  replay pure); `[operating_profile]` steady-march subset (flowthroughs/cfl/fill/pump-down).
+  **`crates/engine`**: the ONE config-parameterized coupled stepper (wall law at
+  `gas_solid_faces`, liner conduction + coolant Robin, flux-matched debit — honest scaffolding
+  until COUP-3 class-D), COUP-7 subset rows (`flow_shifting`, `injector_prior` w/ mass-flow
+  inflow BC + sonic startup cap, `jacket_coolant` coolant-side-only per D-C), O20 bindings
+  exercised for real, SOLV-7 plane readout (N11 stagnation p_c, exit momentum+pressure thrust),
+  fields-CSV viz feed; **`crucible run <config>`** CLI. The RL10 exists ONLY as data (CSV + 2
+  preset TOMLs + pins). Table **v0.2.0** (station5 envelope: p widened to 10 Pa floor for the
+  vacuum-plume fringe — an OFFL-3 R2 envelope setting, 5 s regen; v0.1.0 + station-3 certificate
+  untouched). **Findings the physics forced:** (1) near-vacuum (ρ,e)→p inversion is
+  ill-conditioned (constraint line grazes the ρ-contour) → projection slow path: fixed log-scan
+  + golden-section, acceptance = the density column's own declared interp-error bound (the
+  projection IS the per-step re-equilibration; a miss within the surface's declared error is the
+  surface). (2) Low-p fill startup = injector piston shock heats past the table h-ceiling →
+  quiescent fill near the operating class + **altitude-cell pump-down schedule**
+  (`FlowBc::PressureOutflow` with declared p_amb(t): log-linear fill→floor; supersonic exit =
+  pure extrapolation, zero upstream influence). (3) Slip-ghost stair z-faces transpire; at
+  M≈4.4 the exit-lip corner cell STARVES (ρ runaway → CFL collapse → envelope exit) — mirror
+  z-faces instead shock the chamber off-surface: **both are the small-cut-cell class whose
+  designated cure is FND-3 partial apertures + State Redistribution (SOLV-1 §3.6)** —
+  `slip_wall_z_faces` operator policy flag added (stations keep certified behavior
+  bit-for-bit). **Measured: the coarse preset (dial 5, 41×119, 2584 gas cells) marches 2935
+  steps / 2.5 flow-throughs in 34 s wall on the laptop**, trending F 106.6 kN falling toward
+  the 73 kN class, p_c 4.2 MPa falling, jacket 11 MW (record 8.4), honestly labeled non-steady
+  (resid 0.9); engine smoke test (dial 2.5, 2 FT, full pipeline incl. MPa-class emergent
+  chamber + liner heating) rides the fast battery. **KNOWN LIMIT recorded in the preset:**
+  settle past ~2.9 FT blocked by the exit-lip starvation — first item of the next wave, before
+  the expander cycle. True test count: **122 Rust + 26 Python**.

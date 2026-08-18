@@ -51,7 +51,7 @@ mod table_eos;
 pub use exact::{RiemannSide, RiemannSolution, solve as solve_riemann};
 pub use hllc::{hllc_flux, physical_flux};
 use recon::{NGHOST, ppm_faces};
-pub use table_eos::{EPS_P_PROJECTION, N_P_ITER_MAX, TableEos};
+pub use table_eos::{EPS_P_PROJECTION, N_INFLOW_ITER, N_P_ITER_MAX, TableEos};
 
 use crucible_grid::{BRICK, BRICK_CELLS, FieldId, Grid, GridError};
 
@@ -125,6 +125,25 @@ pub trait EosLaw {
         u_n: f64,
         normal: usize,
     ) -> Result<Prim, FlowError>;
+
+    /// Declared-mass-flux inflow ghost for [`FlowBc::MassFlowInflow`]:
+    /// interior static pressure `p_int`, declared `(ṁ/A, h_total, c_frac)`,
+    /// `sign` = +1 entering through a low face, −1 through a high face,
+    /// `normal` the velocity slot. Default: refuse (occupants opt in with
+    /// their own deterministic solve).
+    fn mass_flow_inflow_ghost(
+        &self,
+        _mdot_per_area: f64,
+        _h_total: f64,
+        _c_frac: f64,
+        _p_int: f64,
+        _sign: f64,
+        _normal: usize,
+    ) -> Result<Prim, FlowError> {
+        Err(FlowError::BcUnsupportedByEos {
+            bc: "MassFlowInflow",
+        })
+    }
 }
 
 /// Grid field names for `U`, in component order (FND-2 §3.4).
@@ -266,6 +285,32 @@ pub enum FlowBc<'a> {
     /// (the standard total-condition inflow; the COUP-7 injector object
     /// supersedes this with declared provenance/envelope/band).
     StagnationInflow { p0: f64, rho0: f64, c_frac: f64 },
+    /// COUP-7 §3.2.1 prior-tier injector inflow: declared mass flux
+    /// `ṁ/A` [kg s⁻¹ m⁻²], total enthalpy `h_total` [J/kg] (table
+    /// coordinate), composition `c_frac` (= Z in shifting mode). Pressure
+    /// extrapolates from the interior (standard subsonic inflow); the EOS
+    /// occupant solves the face state by its own fixed-count iteration
+    /// (`EosLaw::mass_flow_inflow_ghost`). The emergent-quantity rule lives
+    /// here: the boundary states ṁ and inlet enthalpy; `p_c` is whatever
+    /// the field produces (COUP-7 §3.2).
+    MassFlowInflow {
+        mdot_per_area: f64,
+        h_total: f64,
+        c_frac: f64,
+    },
+    /// Ambient-pressure outflow (the vacuum-plume seam at the table-envelope
+    /// floor): while the interior normal flow at the face is subsonic the
+    /// ghost carries the interior state with its pressure replaced by
+    /// `p_ambient` (the standard subsonic pressure outlet — this is what
+    /// lets a quiescent fill column drain and the nozzle establish); once
+    /// the exit runs supersonic the branch condition makes it pure
+    /// extrapolation, and the imposed value has no upstream influence at
+    /// all (characteristics all leave). The branch is a fixed comparison on
+    /// the data — deterministic. The ambient is a declared function of time
+    /// (a deterministic startup schedule — e.g. the altitude-cell pump-down
+    /// that lets a vacuum nozzle establish quasi-statically instead of
+    /// through a violent drain); a constant closure is the steady form.
+    PressureOutflow(&'a dyn Fn(f64) -> f64),
 }
 
 pub struct FlowBcs<'a> {
@@ -393,6 +438,17 @@ pub struct Euler<'a, E: EosLaw = GammaLaw> {
     /// aligned mirror (walls that lie exactly on grid faces). Superseded by
     /// FND-3's partial apertures + cut cells when that wave lands.
     pub wall_normal: Option<&'a dyn Fn(f64, f64) -> (f64, f64)>,
+    /// Whether the slip ghost also applies at stair-step **z-faces** (the
+    /// axial faces where the wall column changes). At a step, the slip
+    /// ghost lets near-tangent flow glide *through* the face (the declared
+    /// stair transpiration, station 2); in hypersonic flow that flux can
+    /// STARVE the cell just downstream of the step (density runaway → CFL
+    /// collapse — observed at the RL10 exit lip at M ≈ 4.4). `false` keeps
+    /// slip on wall-parallel r-faces (the spurious-wave fix that matters)
+    /// while step z-faces take the non-transpiring grid-aligned mirror.
+    /// Numerics policy, pure data (Rule 13); retired with FND-3's cut cells
+    /// + State Redistribution.
+    pub slip_wall_z_faces: bool,
 }
 
 /// Per-brick scratch: primitives (AoS is fine for the CPU reference path;
@@ -658,27 +714,29 @@ impl<E: EosLaw> Euler<'_, E> {
     /// true wall normal at `(r, z)` when declared, else the grid-aligned
     /// mirror in slot `normal`.
     fn wall_ghosts_low(&self, w: &mut [Prim], n: usize, normal: usize, r: f64, z: f64) {
+        let slip = normal != I_MZ || self.slip_wall_z_faces;
         match self.wall_normal {
-            Some(nf) => {
+            Some(nf) if slip => {
                 let n_hat = nf(r, z);
                 for k in 1..=NGHOST {
                     w[NGHOST - k] = Self::slip_reflect(w[NGHOST + (k - 1).min(n - 1)], n_hat);
                 }
             }
-            None => Self::mirror_low(w, n, normal),
+            _ => Self::mirror_low(w, n, normal),
         }
     }
 
     fn wall_ghosts_high(&self, w: &mut [Prim], n: usize, normal: usize, r: f64, z: f64) {
+        let slip = normal != I_MZ || self.slip_wall_z_faces;
         match self.wall_normal {
-            Some(nf) => {
+            Some(nf) if slip => {
                 let n_hat = nf(r, z);
                 for k in 1..=NGHOST {
                     w[NGHOST + n - 1 + k] =
                         Self::slip_reflect(w[NGHOST + n.saturating_sub(k).min(n - 1)], n_hat);
                 }
             }
-            None => Self::mirror_high(w, n, normal),
+            _ => Self::mirror_high(w, n, normal),
         }
     }
 
@@ -708,6 +766,30 @@ impl<E: EosLaw> Euler<'_, E> {
                 FlowBc::StagnationInflow { p0, rho0, c_frac } => {
                     self.eos
                         .stagnation_ghost(*p0, *rho0, *c_frac, w[NGHOST][normal], normal)?
+                }
+                FlowBc::MassFlowInflow {
+                    mdot_per_area,
+                    h_total,
+                    c_frac,
+                } => self.eos.mass_flow_inflow_ghost(
+                    *mdot_per_area,
+                    *h_total,
+                    *c_frac,
+                    w[NGHOST][4],
+                    1.0,
+                    normal,
+                )?,
+                FlowBc::PressureOutflow(p_amb) => {
+                    let m = w[NGHOST];
+                    // Outflow through a LOW face is velocity toward −normal.
+                    let out_mach = (-m[normal]) / self.eos.sound_speed_w(&m);
+                    if out_mach >= 1.0 {
+                        m
+                    } else {
+                        let mut g = m;
+                        g[4] = p_amb(t);
+                        g
+                    }
                 }
             };
         }
@@ -742,6 +824,29 @@ impl<E: EosLaw> Euler<'_, E> {
                     w[NGHOST + n - 1][normal],
                     normal,
                 )?,
+                FlowBc::MassFlowInflow {
+                    mdot_per_area,
+                    h_total,
+                    c_frac,
+                } => self.eos.mass_flow_inflow_ghost(
+                    *mdot_per_area,
+                    *h_total,
+                    *c_frac,
+                    w[NGHOST + n - 1][4],
+                    -1.0,
+                    normal,
+                )?,
+                FlowBc::PressureOutflow(p_amb) => {
+                    let m = w[NGHOST + n - 1];
+                    let out_mach = m[normal] / self.eos.sound_speed_w(&m);
+                    if out_mach >= 1.0 {
+                        m
+                    } else {
+                        let mut g = m;
+                        g[4] = p_amb(t);
+                        g
+                    }
+                }
             };
         }
         Ok(())

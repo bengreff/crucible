@@ -56,6 +56,7 @@ fn closed_tube_op(eos: TableEos<'_>) -> Euler<'_, TableEos<'_>> {
             z_hi: FlowBc::Reflecting,
         },
         wall_normal: None,
+        slip_wall_z_faces: true, // certified station behavior (slip everywhere)
     }
 }
 
@@ -122,8 +123,8 @@ fn solv1_s34_projection_round_trips_across_the_envelope() {
     let t = open_equilibrium();
     let eos = TableEos::bind(&t).expect("bind");
     let mut checked = 0usize;
-    for p in [5.0e3, 1.0e5, 1.0e6, 3.275e6, 6.5e6] {
-        for h in [-11.0e6, -5.0e6, -1.0e6, -4.0e5] {
+    for p in [3.0e3, 5.0e3, 1.0e5, 1.0e6, 3.275e6, 6.5e6] {
+        for h in [-11.0e6, -5.0e6, H_INJ, -1.0e6, -4.0e5] {
             for z in [0.115, Z_MR5, 0.24] {
                 let Ok(u) = eos.cons_from_phz(p, h, z, [120.0, -40.0, 900.0]) else {
                     continue; // corner outside the (p,h) envelope rectangle

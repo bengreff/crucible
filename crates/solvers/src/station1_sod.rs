@@ -203,6 +203,7 @@ fn closed_tube_op(eos: GammaLaw) -> Euler<'static> {
             z_hi: FlowBc::Reflecting,
         },
         wall_normal: None,
+        slip_wall_z_faces: true, // certified station behavior (slip everywhere)
     }
 }
 
@@ -450,6 +451,7 @@ pub fn advection_order() -> AdvStudy {
                 z_hi: FlowBc::Prescribed(&exact_bc),
             },
             wall_normal: None,
+            slip_wall_z_faces: true, // certified station behavior (slip everywhere)
         };
         march_to(&op, &mut g, &f, 0.0, ADV_T_FINAL).expect("march");
         let (rho, _, _, c_frac, _) = tube_profile_any(&g, &f);

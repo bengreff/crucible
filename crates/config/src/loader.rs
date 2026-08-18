@@ -26,6 +26,16 @@ pub const DEFAULT_DETERMINISM_MODE: &str = "fixed-order";
 /// The FND-1 §3.5 counter-based PRNG contract; Philox4x32-10 (Random123) is
 /// the pinned engineering choice, implemented when COUP-5 first draws.
 pub const DEFAULT_RNG_ALGORITHM: &str = "philox4x32-10";
+/// [operating_profile] steady-march defaults (documented, materialized into
+/// the resolved config per §3.5 — never implicit at run time).
+pub const DEFAULT_FLOWTHROUGHS: f64 = 10.0;
+pub const DEFAULT_CFL: f64 = 0.4;
+/// Startup-fill default [Pa]: a mid-envelope quiescent fill that drains
+/// smoothly to the emergent operating point (a violent near-vacuum startup
+/// shock manufactures off-surface states shifting mode rightly refuses).
+pub const DEFAULT_FILL_P_PA: f64 = 2.0e6;
+/// Default ambient pump-down window (flow-through times).
+pub const DEFAULT_PUMPDOWN_FLOWTHROUGHS: f64 = 4.0;
 /// Load-time sanity bounds (named per META-2 §4). Rationale: FND-2 §3.8 —
 /// 10⁹ distinct cells already exceeds a 128 GB box, so any axis beyond 2²⁴
 /// cells (or a ring beyond 2²⁴ wedges) describes a world that cannot exist;
@@ -166,11 +176,7 @@ pub fn load_str_with_sidecars(
     }
 
     // Deferred-grammar blocks refuse when non-empty (fail loud, lib.rs note).
-    for (path, table) in [
-        ("couplers", &author.couplers),
-        ("operating_profile", &author.operating_profile),
-        ("uq", &author.uq),
-    ] {
+    for (path, table) in [("couplers", &author.couplers), ("uq", &author.uq)] {
         if !table.is_empty() {
             diags.push(
                 path,
@@ -359,7 +365,7 @@ pub fn load_str_with_sidecars(
                 g.dz.is_some(),
                 g.n_z.is_some(),
             ];
-            let extents = if ext.iter().all(|&p| p) {
+            let explicit_extents = if ext.iter().all(|&p| p) {
                 let (r_min, dr, n_r) = (g.r_min.unwrap(), g.dr.unwrap(), g.n_r.unwrap());
                 let (z_min, dz, n_z) = (g.z_min.unwrap(), g.dz.unwrap(), g.n_z.unwrap());
                 // `is_finite` everywhere: `dr <= 0.0` is false for BOTH NaN
@@ -408,10 +414,60 @@ pub fn load_str_with_sidecars(
                 }
                 None
             };
+            let (extents, contour) = resolve_contour(&mut diags, g, explicit_extents, read_sidecar);
             n_theta.map(|n_theta_max| ResolvedGeometry {
                 n_theta_max,
                 axisymmetric,
                 extents,
+                contour,
+            })
+        }
+    };
+
+    // [operating_profile] steady-march subset.
+    let resolved_profile = match &author.operating_profile {
+        None => None,
+        Some(p) => {
+            if p.mode != "steady_march" {
+                diags.push(
+                    "operating_profile.mode",
+                    format!(
+                        "unknown mode {:?}; the subset grammar knows \"steady_march\" \
+                         (the complete profile grammar is deferred, FND-4 skeleton)",
+                        p.mode
+                    ),
+                );
+            }
+            let flowthroughs = p.flowthroughs.unwrap_or(DEFAULT_FLOWTHROUGHS);
+            let cfl = p.cfl.unwrap_or(DEFAULT_CFL);
+            let fill_p_pa = p.fill_p_pa.unwrap_or(DEFAULT_FILL_P_PA);
+            if !fill_p_pa.is_finite() || fill_p_pa <= 0.0 {
+                diags.push("operating_profile.fill_p_pa", "must be finite and > 0");
+            }
+            let pumpdown_flowthroughs = p
+                .pumpdown_flowthroughs
+                .unwrap_or(DEFAULT_PUMPDOWN_FLOWTHROUGHS);
+            if !pumpdown_flowthroughs.is_finite() || pumpdown_flowthroughs < 0.0 {
+                diags.push(
+                    "operating_profile.pumpdown_flowthroughs",
+                    "must be finite and >= 0",
+                );
+            }
+            if !flowthroughs.is_finite() || flowthroughs <= 0.0 {
+                diags.push("operating_profile.flowthroughs", "must be finite and > 0");
+            }
+            if !cfl.is_finite() || !(0.0..=0.9).contains(&cfl) || cfl == 0.0 {
+                diags.push(
+                    "operating_profile.cfl",
+                    "must be in (0, 0.9] (explicit SSP-RK2 stability with margin)",
+                );
+            }
+            Some(crate::schema::ResolvedProfile {
+                mode: p.mode.clone(),
+                flowthroughs,
+                cfl,
+                fill_p_pa,
+                pumpdown_flowthroughs,
             })
         }
     };
@@ -468,6 +524,7 @@ pub fn load_str_with_sidecars(
         materials: resolved_materials,
         mechanisms: resolved_mechanisms,
         engine: ResolvedEngine { bindings },
+        operating_profile: resolved_profile,
         determinism: ResolvedDeterminism {
             mode: mode.to_string(),
         },
@@ -527,6 +584,256 @@ pub fn load_str_with_sidecars(
     };
 
     Ok(Loaded { resolved, manifest })
+}
+
+/// Sanity floor on the fidelity dial: below 2 cells across the throat radius
+/// the channel is not a resolved flow path at all.
+pub const MIN_CELLS_ACROSS_THROAT: f64 = 2.0;
+/// Exact inch→metre conversion (record geometry arrives in inches; META-1
+/// §3: convert at the edge, factor recorded).
+pub const INCH_M: f64 = 0.0254;
+
+/// FND-3 contour-of-revolution resolution: parse the cited r(z) CSV, derive
+/// the isotropic grid from the `cells_across_throat` dial, content-address
+/// the CSV. Resolved replay (extents + digest already present) touches no
+/// file. Returns (extents, contour) — `None`s on any diagnosed fault.
+fn resolve_contour(
+    diags: &mut Diagnostics,
+    g: &crate::schema::GeometryBlock,
+    explicit_extents: Option<crate::schema::ResolvedExtents>,
+    read_sidecar: &dyn Fn(&str) -> Result<String, String>,
+) -> (
+    Option<crate::schema::ResolvedExtents>,
+    Option<crate::schema::ResolvedContour>,
+) {
+    let Some(contour_path) = &g.contour else {
+        // No contour: explicit extents (or nothing) pass through unchanged;
+        // stray contour-companion keys are a fault.
+        if g.contour_units.is_some()
+            || g.contour_digest.is_some()
+            || g.liner_thickness_m.is_some()
+            || g.cells_across_throat.is_some()
+        {
+            diags.push(
+                "geometry",
+                "contour_units/contour_digest/liner_thickness_m/cells_across_throat \
+                 require a `contour` declaration",
+            );
+        }
+        return (explicit_extents, None);
+    };
+
+    // Companion requirements.
+    let units = match g.contour_units.as_deref() {
+        Some(u @ ("in" | "m")) => u.to_string(),
+        Some(other) => {
+            diags.push(
+                "geometry.contour_units",
+                format!("unknown units {other:?}; expected \"in\" or \"m\""),
+            );
+            return (None, None);
+        }
+        None => {
+            diags.push(
+                "geometry.contour_units",
+                "required with a contour (no hidden defaults, §3.5)",
+            );
+            return (None, None);
+        }
+    };
+    let Some(liner) = g.liner_thickness_m else {
+        diags.push(
+            "geometry.liner_thickness_m",
+            "required with a contour (0.0 = no liner ring — cold-flow geometry)",
+        );
+        return (None, None);
+    };
+    let Some(dial) = g.cells_across_throat else {
+        diags.push(
+            "geometry.cells_across_throat",
+            "required with a contour — the compute-fidelity dial (cell size = r_throat / dial)",
+        );
+        return (None, None);
+    };
+    if !liner.is_finite() || liner < 0.0 || !dial.is_finite() || dial < MIN_CELLS_ACROSS_THROAT {
+        diags.push(
+            "geometry",
+            format!(
+                "need finite liner_thickness_m ≥ 0 and finite cells_across_throat ≥ \
+                 {MIN_CELLS_ACROSS_THROAT}"
+            ),
+        );
+        return (None, None);
+    }
+
+    // Replay form: derived extents + digest already materialized — pure.
+    if let Some(ext) = explicit_extents {
+        match &g.contour_digest {
+            Some(d) => {
+                return (
+                    Some(ext),
+                    Some(crate::schema::ResolvedContour {
+                        contour: contour_path.clone(),
+                        contour_units: units,
+                        contour_digest: d.clone(),
+                        liner_thickness_m: liner,
+                        cells_across_throat: dial,
+                    }),
+                );
+            }
+            None => {
+                diags.push(
+                    "geometry",
+                    "explicit extents alongside a contour are only valid in the resolved \
+                     replay form (contour_digest present); an author config declares one \
+                     or the other",
+                );
+                return (None, None);
+            }
+        }
+    }
+
+    // Derivation: read + content-address + parse the CSV.
+    let content = match read_sidecar(contour_path) {
+        Ok(c) => c,
+        Err(e) => {
+            diags.push("geometry.contour", e);
+            return (None, None);
+        }
+    };
+    let digest = format!("sha256:{}", sha256_hex(content.as_bytes()));
+    if let Some(author_digest) = &g.contour_digest
+        && author_digest != &digest
+    {
+        diags.push(
+            "geometry.contour_digest",
+            format!(
+                "declared {author_digest} but the file content hashes to {digest} — \
+                 stale digest refused (same-label/different-bytes, FND-5 §3.2 doctrine)"
+            ),
+        );
+        return (None, None);
+    }
+    let scale = if units == "in" { INCH_M } else { 1.0 };
+    let stations = match parse_contour_csv(&content, scale) {
+        Ok(s) => s,
+        Err(e) => {
+            diags.push("geometry.contour", e);
+            return (None, None);
+        }
+    };
+    let r_throat = stations
+        .iter()
+        .map(|&(_, r)| r)
+        .fold(f64::INFINITY, f64::min);
+    let r_max = stations.iter().map(|&(_, r)| r).fold(0.0f64, f64::max);
+    let z_min = stations[0].0;
+    let span = stations[stations.len() - 1].0 - z_min;
+    let dr = r_throat / dial;
+    let n_r = ((r_max + liner) / dr).ceil() as i64;
+    let n_z = (span / dr).ceil() as i64;
+    if n_r > MAX_AXIS_CELLS || n_z > MAX_AXIS_CELLS {
+        diags.push(
+            "geometry",
+            format!(
+                "contour-derived n_r = {n_r} / n_z = {n_z} exceed MAX_AXIS_CELLS = \
+                 {MAX_AXIS_CELLS} — the dial describes a world that cannot exist \
+                 in memory (FND-2 §3.8)"
+            ),
+        );
+        return (None, None);
+    }
+    let dz = span / n_z as f64;
+    (
+        Some(crate::schema::ResolvedExtents {
+            r_min: 0.0,
+            dr,
+            n_r,
+            z_min,
+            dz,
+            n_z,
+        }),
+        Some(crate::schema::ResolvedContour {
+            contour: contour_path.clone(),
+            contour_units: units,
+            contour_digest: digest,
+            liner_thickness_m: liner,
+            cells_across_throat: dial,
+        }),
+    )
+}
+
+/// Parse a contour CSV: `#` comments, one header row naming columns, data
+/// rows. Requires a column starting `z` and one starting `r` (lengths in the
+/// declared units, scaled to metres here); z strictly increasing, r finite
+/// and positive, ≥ 2 stations. The same parser is the engine assembly's
+/// (crates/engine re-reads under the recorded digest).
+pub fn parse_contour_csv(content: &str, scale: f64) -> Result<Vec<(f64, f64)>, String> {
+    let mut z_col: Option<usize> = None;
+    let mut r_col: Option<usize> = None;
+    let mut out: Vec<(f64, f64)> = Vec::new();
+    for (lineno, raw) in content.lines().enumerate() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let cols: Vec<&str> = line.split(',').map(str::trim).collect();
+        if z_col.is_none() {
+            // Header row.
+            z_col = cols.iter().position(|c| c.starts_with('z'));
+            r_col = cols.iter().position(|c| c.starts_with('r'));
+            if z_col.is_none() || r_col.is_none() {
+                return Err(format!(
+                    "line {}: header must name a z-column and an r-column (got {line:?})",
+                    lineno + 1
+                ));
+            }
+            continue;
+        }
+        let (zi, ri) = (z_col.unwrap(), r_col.unwrap());
+        if cols.len() <= zi.max(ri) {
+            return Err(format!("line {}: too few columns", lineno + 1));
+        }
+        let z: f64 = cols[zi]
+            .parse()
+            .map_err(|e| format!("line {}: z {:?}: {e}", lineno + 1, cols[zi]))?;
+        let r: f64 = cols[ri]
+            .parse()
+            .map_err(|e| format!("line {}: r {:?}: {e}", lineno + 1, cols[ri]))?;
+        if !z.is_finite() || !r.is_finite() || r <= 0.0 {
+            return Err(format!(
+                "line {}: stations need finite z and finite r > 0",
+                lineno + 1
+            ));
+        }
+        if let Some(&(z_prev, _)) = out.last()
+            && z * scale <= z_prev
+        {
+            return Err(format!(
+                "line {}: z must be strictly increasing (a contour is a function r(z))",
+                lineno + 1
+            ));
+        }
+        out.push((z * scale, r * scale));
+    }
+    if out.len() < 2 {
+        return Err("a contour needs at least 2 stations".to_string());
+    }
+    Ok(out)
+}
+
+/// Canonical lowercase-hex SHA-256 — shared with the engine assembly's
+/// content re-verification (one hashing form, no drift surface).
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    let mut h = Sha256::new();
+    h.update(bytes);
+    let out = h.finalize();
+    let mut hex = String::with_capacity(64);
+    for b in out {
+        use std::fmt::Write;
+        write!(hex, "{b:02x}").expect("writing to String cannot fail");
+    }
+    hex
 }
 
 // ---------------------------------------------------------------------------

@@ -321,7 +321,8 @@ fn duct_flow_op(
             z_lo: FlowBc::Prescribed(inflow),
             z_hi: FlowBc::Transmissive, // supersonic exit
         },
-        wall_normal: None, // straight duct: grid-aligned mirror is exact
+        wall_normal: None,       // straight duct: grid-aligned mirror is exact
+        slip_wall_z_faces: true, // certified station behavior (slip everywhere)
     }
 }
 
@@ -644,7 +645,8 @@ pub fn build_stepped_cavity() -> (Duct, Euler<'static>) {
             z_lo: FlowBc::Reflecting,
             z_hi: FlowBc::Reflecting,
         },
-        wall_normal: None, // grid-aligned stair mirror (exact for this test)
+        wall_normal: None,       // grid-aligned stair mirror (exact for this test)
+        slip_wall_z_faces: true, // certified station behavior (slip everywhere)
     };
     (
         Duct {

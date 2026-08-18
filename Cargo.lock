@@ -76,7 +76,9 @@ dependencies = [
 name = "crucible"
 version = "0.1.0"
 dependencies = [
+ "crucible-config",
  "crucible-constants",
+ "crucible-engine",
 ]
 
 [[package]]
@@ -94,6 +96,20 @@ dependencies = [
 [[package]]
 name = "crucible-constants"
 version = "0.1.0"
+
+[[package]]
+name = "crucible-engine"
+version = "0.1.0"
+dependencies = [
+ "crucible-config",
+ "crucible-constants",
+ "crucible-grid",
+ "crucible-registry",
+ "crucible-solvers",
+ "crucible-tables",
+ "crucible-units",
+ "toml",
+]
 
 [[package]]
 name = "crucible-grid"

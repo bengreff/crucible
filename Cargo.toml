@@ -10,6 +10,7 @@ members = [
     "crates/tables",
     "crates/grid",
     "crates/solvers",
+    "crates/engine",
     "crates/cli",
 ]
 

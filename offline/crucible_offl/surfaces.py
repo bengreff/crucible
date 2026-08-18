@@ -86,6 +86,23 @@ def design_window_grid() -> EquilibriumGrid:
     )
 
 
+def station5_envelope_grid() -> EquilibriumGrid:
+    """The station-5 full-engine grid (data_version 0.2.x): same axes and
+    density as the design window, with the pressure axis widened DOWN to the
+    vacuum-plume fringe (the epsilon = 61 exit runs ~3 kPa static; lip-corner
+    transients dip further). Envelope widening is a table-version setting of
+    the same pipeline, never a new pipeline (OFFL-3 §3.3 R2 doctrine —
+    applied to p exactly as specified for Z)."""
+    return EquilibriumGrid(
+        p_points=tuple(np.geomspace(5.0, 8.0e6, 69)),  # ~11 pts/decade, as v0.1
+        h_points=tuple(np.linspace(-1.18e7, -1.0e5, 31)),
+        z_points=tuple(np.linspace(0.10, 0.26, 13)),
+        p_envelope=(1.0e1, 7.0e6),
+        h_envelope=(-1.15e7, -2.0e5),
+        z_envelope=(1.0 / 9.0, 0.25),
+    )
+
+
 def design_window_performance_grid() -> PerformanceGrid:
     return PerformanceGrid(
         pc_points=tuple(np.linspace(1.0e6, 6.0e6, 11)),

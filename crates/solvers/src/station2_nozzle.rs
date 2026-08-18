@@ -157,6 +157,7 @@ fn nozzle_op(eos: GammaLaw) -> Euler<'static> {
             z_hi: FlowBc::Transmissive, // exit is supersonic once choked
         },
         wall_normal: Some(&contour_normal),
+        slip_wall_z_faces: true, // certified station behavior (slip everywhere)
     }
 }
 
@@ -420,6 +421,7 @@ pub fn masked_uniform_fixed_point(slip_wall: bool) -> bool {
         } else {
             None
         },
+        slip_wall_z_faces: true, // certified station behavior (slip everywhere)
     };
     let bits = |g: &Grid| -> Vec<u64> {
         g.bricks()

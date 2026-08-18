@@ -15,12 +15,14 @@ the instrument; the research uses the instrument.** No engine-specific features,
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-17)
+## State (2026-08-18)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (`REVIEW_FINDINGS.md`).
-Ten coding sessions, every one gates-green and committed; two multi-agent code reviews (sessions
+Eleven coding sessions, every one gates-green and committed; two multi-agent code reviews (sessions
 6 and 10) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery (fmt,
-clippy, cargo test, offline pytest, certificate regen + diff). **104 Rust + 25 Python tests.**
+clippy, cargo test, offline pytest, certificate regen + diff). **122 Rust + 26 Python tests.**
+**Blind rule v1.4.1** (Ben, session 11): blind = mechanical input-blindness; every certificate
+declares `development-observed: yes/no`; the RL10 campaign is declared **open development**.
 
 **Goal A ✓** — conduction convergence certificate (`certificates/convergence_certificate.md`).
 
@@ -40,51 +42,65 @@ clippy, cargo test, offline pytest, certificate regen + diff). **104 Rust + 25 P
 - `crates/units` — sole owner of pinned uom 0.38 (META-2 §4 ★): typed quantities at interface
   boundaries, `si()` extraction, documented-SI `f64` inside kernels.
 - `crates/config` + `crates/registry` — FND-4 loader (no-hidden-defaults fixed point,
-  resolved-config replay, dimensioned param accessors) + COUP-8 subset; 3 mechanism rows
-  (`conduction`, `flow`, `wall_heat`) with validity-range refusals.
+  resolved-config replay, dimensioned param accessors) + COUP-8 subset; **§6-4 `[tables]` pin
+  grammar live** (explicit pair or pins-sidecar via `load_str_with_sidecars`; resolved replays
+  purely; manifest `table_pins`); **FND-3 contour grammar** (`contour` CSV content-addressed like
+  a pin + the fidelity dial `cells_across_throat` → derived extents, manifest-recorded);
+  `[operating_profile]` steady-march subset (flowthroughs/cfl/fill_p_pa/pumpdown).
 - `crates/tables` — FND-5 loader/interp on static libhdf5: pin/digest/envelope gates, multilinear
-  in `interp_rule` space, `expect_units` bind gate. **`digest.rs` = digest v3, THE cross-language
-  contract** (schema_version and exactly-one-sigma-form are pinned; golden vector asserted in both
-  languages). Deferred kinds refuse loudly.
+  in `interp_rule` space, `expect_units` bind gate; **`BoundColumn`** (bind-once units gate +
+  rule parse + ln-hoist; allocation-free queries bit-identical to `interpolate()`). **`digest.rs`
+  = digest v3, THE cross-language contract** (schema_version and exactly-one-sigma-form are
+  pinned; golden vector asserted in both languages). Deferred kinds refuse loudly.
 - `crates/grid` — FND-2 core: exact cylindrical metrics (`face_radius` single owner), Morton 8×8
   brick arena, SoA fields, per-brick N_θ with θ-coarsen/refine + symmetry controller, **ternary
   regions** (gas/solid/exterior) through the §3.6 ingest seam, `gas_solid_faces()` wall-face
   enumeration; surface sealed.
 - `crates/solvers` — conduction (domain-selected, interface-aware, Robin faces; Goal-A certified);
-  Euler = SOLV-1 §3.1–3.3 subset (PPM/HLLC-Batten on the exact metric, mask-aware sweeps,
-  slip-ghost walls, whole-operator MMS at formal order); `wall_heat` = the one Colburn-class wall
-  law (**±20–30% declared band**); station fixtures + SOLV-7 plane diagnostics. All explicit
-  integrators are **honest scaffolding**, superseded by COUP-3's SDC-IMEX when it lands.
+  Euler = SOLV-1 §3.1–3.4 (PPM/HLLC-Batten on the exact metric, mask-aware sweeps, slip-ghost
+  walls w/ per-op `slip_wall_z_faces` policy, MMS at formal order; **`EosLaw` seam, NPRIM=8 aux
+  (e, Γ₁) slots**); **`TableEos` = shifting-equilibrium mode** (combustion in the EOS: per-cell
+  (p,h,Z) projection, Illinois + declared-bound slow path; η_c\* `h_offset` knockdown hook,
+  S18; mass-flow injector inflow w/ sonic startup cap; scheduled `PressureOutflow`); `wall_heat`
+  = the one Colburn-class law (**±20–30% band**). Explicit integrators = **honest scaffolding**
+  until COUP-3's SDC-IMEX.
+- **`crates/engine` — the sandbox seam (new, session 11)**: config → assembly (content-verified
+  contour → ternary grid) → the ONE coupled stepper (wall law + liner conduction + coolant
+  Robin, flux-matched) → SOLV-7 readout (N11 p_c, exit thrust integral) + fields-CSV viz feed.
+  COUP-7 subset rows: `flow_shifting`, `injector_prior`, `jacket_coolant` (coolant side only,
+  D-C). **An engine is pure data**: `crucible run configs/rl10_coarse.toml` (34 s laptop, dial 5)
+  / `rl10_full.toml` (dial 16, desktop). O20 bindings exercised for real.
 - `offline/` — `crucible_offl` (Python 3.13, exact pins incl. `cea==3.3.2`): digest-v3 mirror +
   h5py writer, NASA-CEA engine behind SI boundaries, Cantera cross-check, surface generators with
   measured interp-error bounds (×1.5 declared sampling margin; fresh-holdout CI gate). Production
-  tables: `tables/chem/lox_lh2_v0.1.0.h5`; **`…pins.toml` sidecar is the single pin owner**
-  (Rust tests parse it; the FND-4 §6-4 grammar will too).
-- `data/anchors/` — **TM-107318 cached** (sha256 2d25422c…, META-3 `rl10-tm107318`): geometry
-  Table 2.5.1 p.6 + App. E p.135; jacket Table 2.4.1 + App. D; 16-station cycle Table 6.1.1 p.37;
-  pump/turbine maps App. B/C are **calibrated-mode only** (blind = coax-family η_c\* ±1–3% +
+  tables: `lox_lh2_v0.1.0.h5` (station-3 certificate) + **`v0.2.0` (station-5 envelope: p floor
+  10 Pa for the vacuum-plume fringe)**; **`…pins.toml` sidecars are the single pin owners** (Rust
+  tests + the §6-4 grammar parse them). Regen ≈ 5 s (`make_station5_tables.py`).
+- `data/anchors/` — **TM-107318 cached** (sha256 2d25422c…, META-3 `rl10-tm107318`) + the
+  **digitized geometry-of-record `rl10_contour.csv`** (Table E1 + Table 2.5.1 + Fig. E1 planes;
+  closures declared in-header). **ERRATUM (session 11): Table 2.5.1's "Diameter" values are
+  RADII** — r_throat = 2.47 in (c\* identity, ε=61 exit ≈ 40 in bell, Fig. E1 axis; VAL-2 0.2.3).
+  Pump/turbine maps App. B/C stay **calibrated-mode only** (blind = coax-family η_c\* ±1–3% +
   pump-class envelopes, VAL-2 N18/D-G).
 
-## Station 5 — the blind RL10 (2–3 sessions; wave (a) committable alone)
+## Station 5 — the blind RL10 (waves (a)+(b) DONE, session 11)
 
-- **(a) EOS seam:** `BoundColumn` handle on crucible-tables FIRST (interpolate() re-parses rule
-  strings + allocates per query; SOLV-1 makes ~10⁸ calls/run); then SOLV-1 §3.4 shifting mode —
-  Z advects in the existing ρC slot, per-cell equilibrium projection at (p, h, Z) via fixed-count
-  p-iteration (h = e + p/ρ), gamma-law retired to table data; FND-4 §6-4 `[tables]` pin grammar
-  consuming the pins.toml sidecar. Add the cross-process table-regeneration determinism test.
-- **(b) Assembly:** digitize the RL10 contour stations (Table 2.5.1/App. E → cached CSV, cited);
-  `build_with_regions` from the contour (gas + liner + exterior); rebuild the coupler as ONE
-  stepper parameterized by BC/ledger config, with per-face brick/cell indices + areas precomputed
-  (retires station-4's duplicate stepper, BTreeMap-per-step, and inline grid indexing); COUP-7
-  injector prior tier (premixed at MR; η_c\* band applied as SOLV-1 §3.4's **source-level**
-  heat-release knockdown — output-side multiplication forbidden) + cooling-jacket coolant side;
-  Bartz nozzle-envelope oracle rides here. Shared mask-aware, eos-threaded plane-diagnostics
-  module (station-4's copies retire).
-- **(c) Cycle + blind run:** COUP-3 §3.5 expander fixed point on ṁ (Aitken, fixed sweep count,
-  pump-class envelopes); p_c emerges; SOLV-7 reads thrust/Isp/c\*/C_F vs the TM-107318 p-box
-  (overlap metric d reported; every score labeled blind/calibrated). Certificate = the blind
-  headline. Thrust from exit momentum flux, never assumed; uncertainty from declared closure
-  bands (full COUP-5 UQ is a later wave).
+- **(a) EOS seam ✓** and **(b) assembly ✓** — see SESSION_LOG session 11. The coarse preset
+  (`configs/rl10_coarse.toml`, fidelity dial = 5) runs the establishment phase in **34 s on the
+  laptop**; the dial is continuous (full preset = 16). Deferred out of (b), recorded: station-4
+  fixture rewire onto the engine stepper (its certificate stays on its own stepper until then);
+  Bartz oracle scoring; the per-face precompute perf item.
+- **(b′) FIRST ITEM NEXT SESSION — the stair-corner blocker:** past ~2.9 flow-throughs an
+  exit-lip corner cell starves (ρ runaway → CFL collapse; slip z-faces transpire, mirror z-faces
+  shock — both are the small-cut-cell class). Designated cure: **FND-3 partial apertures + State
+  Redistribution** (SOLV-1 §3.6 names it). Instrument first: dump fields at halt (crash-artifact
+  writer), inspect the corner, then implement. Until fixed, no steady coarse readout and no
+  settle for the full tier.
+- **(c) Cycle + blind-config run:** COUP-3 §3.5 expander fixed point on ṁ (Aitken, fixed sweep
+  count, pump-class envelopes); η_c\* knockdown calibration (the `h_offset` hook exists); p_c
+  emerges; SOLV-7 vs the TM-107318 p-box (overlap metric d; every score labeled blind/calibrated
+  **+ `development-observed: yes`**). Certificate = the headline. Thrust from exit momentum flux,
+  never assumed; uncertainty from declared closure bands (full COUP-5 UQ later).
 
 ## Cross-cutting deferrals (module headers carry the per-module lists)
 

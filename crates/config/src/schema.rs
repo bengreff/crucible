@@ -29,9 +29,10 @@ pub(crate) struct AuthorConfig {
     pub couplers: toml::Table,
     #[serde(default)]
     pub engine: Option<EngineBlock>,
-    /// Grammar deferred — must be empty to load.
+    /// Minimal steady-march subset of the operating-profile grammar (the
+    /// complete grammar remains deferred per the FND-4 skeleton split).
     #[serde(default)]
-    pub operating_profile: toml::Table,
+    pub operating_profile: Option<ProfileBlock>,
     #[serde(default)]
     pub determinism: Option<DeterminismBlock>,
     /// FND-4 §6-4 `[tables]`: logical name → pinned artifact reference.
@@ -80,6 +81,32 @@ pub(crate) struct GeometryBlock {
     pub dz: Option<f64>,
     #[serde(default)]
     pub n_z: Option<i64>,
+    /// FND-3 contour-of-revolution grammar (stair degenerate form): a cited
+    /// r(z) CSV (columns `z_*,area_ratio,r_*,source`, `#` comments), from
+    /// which the grid extents are DERIVED via the fidelity dial and
+    /// materialized into the resolved form (manifest-recorded). The CSV is
+    /// content-addressed: its digest is resolved at load (like a table pin)
+    /// and re-verified by the engine assembly at build.
+    #[serde(default)]
+    pub contour: Option<String>,
+    /// Units of the CSV's length columns: "in" (converted ×0.0254 exactly,
+    /// META-1 §3 edge conversion) or "m".
+    #[serde(default)]
+    pub contour_units: Option<String>,
+    /// sha256 of the CSV content; author-optional (resolved always carries
+    /// it — its presence alongside explicit extents marks the replay form,
+    /// which needs no file access).
+    #[serde(default)]
+    pub contour_digest: Option<String>,
+    /// Liner ring thickness [m] added outside the contour (0 = no solid
+    /// region: cold-flow geometry).
+    #[serde(default)]
+    pub liner_thickness_m: Option<f64>,
+    /// THE compute-fidelity dial: cell size = r_throat / this, isotropic in
+    /// (r, z). Physically anchored to the throat radius, so it transfers to
+    /// any engine contour; derived n_r/n_z land in the manifest.
+    #[serde(default)]
+    pub cells_across_throat: Option<f64>,
 }
 
 /// A `type`-keyed registry-dispatched block (§3.3). Body deliberately open:
@@ -122,6 +149,30 @@ pub(crate) struct EngineBlock {
     pub bindings: BTreeMap<String, String>,
 }
 
+/// `[operating_profile]` — the steady-march subset: march the transient to
+/// a fixed settle budget (deterministic, never wall-clock), budget stated in
+/// injector-state flow-through times.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ProfileBlock {
+    pub mode: String,
+    #[serde(default)]
+    pub flowthroughs: Option<f64>,
+    #[serde(default)]
+    pub cfl: Option<f64>,
+    /// Startup device: quiescent fill pressure [Pa] the march starts from
+    /// (drains smoothly to the emergent operating point; the steady result
+    /// is fill-independent).
+    #[serde(default)]
+    pub fill_p_pa: Option<f64>,
+    /// Startup device: the ambient pump-down window, in flow-through times
+    /// (the altitude-cell schedule — back-pressure falls log-linearly from
+    /// the fill to the vacuum floor over this window, so the nozzle
+    /// establishes quasi-statically).
+    #[serde(default)]
+    pub pumpdown_flowthroughs: Option<f64>,
+}
+
 /// `[determinism]` (O21) — the S6 regime→guarantee declaration surface.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -156,12 +207,25 @@ pub struct ResolvedConfig {
     pub materials: BTreeMap<String, toml::Table>,
     pub mechanisms: BTreeMap<String, toml::Table>,
     pub engine: ResolvedEngine,
+    /// Steady-march operating profile, when declared (subset grammar).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub operating_profile: Option<ResolvedProfile>,
     pub determinism: ResolvedDeterminism,
     /// FND-4 §6-4: every pin fully resolved (explicit version + digest), so
     /// replay of the resolved form needs no sidecar access.
     #[serde(default)]
     pub tables: BTreeMap<String, ResolvedTablePin>,
     pub rng: ResolvedRng,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResolvedProfile {
+    pub mode: String,
+    pub flowthroughs: f64,
+    pub cfl: f64,
+    pub fill_p_pa: f64,
+    pub pumpdown_flowthroughs: f64,
 }
 
 /// A fully-resolved table pin — the §3.6 regeneration-key row. `pins`
@@ -204,6 +268,22 @@ pub struct ResolvedGeometry {
     /// extents-declaring config).
     #[serde(flatten)]
     pub extents: Option<ResolvedExtents>,
+    /// Contour-of-revolution declaration, digest resolved; flattened for the
+    /// same replay reason. When present, `extents` holds the DERIVED grid
+    /// (dial → cell size → counts), so replay never re-reads the CSV.
+    #[serde(flatten)]
+    #[serde(default)]
+    pub contour: Option<ResolvedContour>,
+}
+
+/// The resolved contour declaration — author-shaped keys, all materialized.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResolvedContour {
+    pub contour: String,
+    pub contour_units: String,
+    pub contour_digest: String,
+    pub liner_thickness_m: f64,
+    pub cells_across_throat: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

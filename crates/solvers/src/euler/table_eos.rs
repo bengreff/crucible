@@ -48,6 +48,28 @@ pub const EPS_P_PROJECTION: f64 = 1e-11;
 /// bracket so endpoint queries cannot fall an ulp outside the envelope.
 const H_BRACKET_MARGIN: f64 = 1e-12;
 
+/// Fixed sign-change scan resolution of the projection's slow path (the
+/// near-vacuum non-monotone corner; see `project_pressure`).
+pub const N_P_SCAN: usize = 16;
+
+/// Slow-path acceptance: when the constraint line `h = e + p/ρ` does not
+/// cross the *interpolated* ρ-contour, the closest on-line state is
+/// accepted iff its density mismatch is within the **table's own declared
+/// interpolation-error bound** (the producer-measured `interp_error_bound`
+/// of the density column, cached at bind). Rationale (SOLV-1 §3.4): the
+/// advected (ρ, e, Z) is off-surface by construction — the per-step
+/// equilibrium projection re-equilibrates it, and a crossing miss within
+/// the surface's own declared error IS the surface, within its band. A
+/// mismatch beyond the declared bound is a genuinely off-surface state and
+/// refuses (META-1 P6) — the bound is data, never a tunable.
+const _EPS_PROJ_ACCEPT_DOC: () = ();
+
+/// Fixed iteration count of the mass-flow-inflow face solve (module-header
+/// determinism form): `ρ = ρ_tab(p, h_total − ½(j/ρ)², Z)` converges
+/// geometrically at injector-plane Mach numbers (~0.02 for the RL10 — the
+/// KE correction is ~10⁻⁴ of h_total); 8 is far past machine convergence.
+pub const N_INFLOW_ITER: usize = 8;
+
 /// The shifting-equilibrium EOS occupant: bound columns of one OFFL-3
 /// `(p, h, Z)` equilibrium surface (columns resolved once — `BoundColumn`,
 /// FND-5 §3.3 — for the ~10⁸ projections of an anchor run).
@@ -56,6 +78,9 @@ pub struct TableEos<'t> {
     rho: BoundColumn<'t>,
     sound: BoundColumn<'t>,
     temperature: BoundColumn<'t>,
+    /// The density column's producer-measured interpolation-error bound
+    /// [kg/m³] — the slow-path acceptance (see module consts).
+    rho_err_bound: f64,
     /// Declared envelopes of the (p, h, Z) axes, cached at bind.
     p_env: (f64, f64),
     h_env: (f64, f64),
@@ -93,6 +118,7 @@ impl<'t> TableEos<'t> {
             p_env: rho.axis_envelope(0),
             h_env: rho.axis_envelope(1),
             z_env: rho.axis_envelope(2),
+            rho_err_bound: rho.interp_error_bound(),
             rho,
             sound,
             temperature,
@@ -125,18 +151,85 @@ impl<'t> TableEos<'t> {
                 .map_err(|_| "equilibrium surface query failed inside the projection bracket")
         };
 
-        let mut ga = g(lo)?;
-        let mut gb = g(hi)?;
-        if ga == 0.0 {
+        let ga0 = g(lo)?;
+        let gb0 = g(hi)?;
+        if ga0 == 0.0 {
             return Ok(lo);
         }
-        if gb == 0.0 {
+        if gb0 == 0.0 {
             return Ok(hi);
         }
-        if ga * gb > 0.0 {
-            return Err("no equilibrium state in the table envelope for this (rho, e, Z)");
+        let (mut a, mut b, mut ga, mut gb);
+        if ga0 * gb0 < 0.0 {
+            // Fast path (the dense interior of the envelope): the endpoints
+            // bracket — ∂ρ/∂p dominates and g is effectively monotone.
+            (a, b, ga, gb) = (lo, hi, ga0, gb0);
+        } else {
+            // Near-vacuum corner: the constraint line h = e + p/ρ runs
+            // almost parallel to the ρ-contour of the surface (the p/ρ term
+            // dominates h), so g is non-monotone and the crossing is
+            // shallow. Fixed log-spaced scan for a sign change; failing
+            // that, a fixed-count golden-section on |g| accepts a tangency
+            // root to EPS_PROJ_ACCEPT (all deterministic, fixed order).
+            let mut prev_p = lo;
+            let mut prev_g = ga0;
+            let mut found: Option<(f64, f64, f64, f64)> = None;
+            let mut best = (prev_p, prev_g.abs());
+            let ratio = hi / lo;
+            for k in 1..=N_P_SCAN {
+                let pk = lo * ratio.powf(k as f64 / N_P_SCAN as f64);
+                let gk = g(pk)?;
+                if gk == 0.0 {
+                    return Ok(pk);
+                }
+                if gk.abs() < best.1 {
+                    best = (pk, gk.abs());
+                }
+                if prev_g * gk < 0.0 && found.is_none() {
+                    found = Some((prev_p, pk, prev_g, gk));
+                }
+                prev_p = pk;
+                prev_g = gk;
+            }
+            match found {
+                Some((pa, pb, gaa, gbb)) => (a, b, ga, gb) = (pa, pb, gaa, gbb),
+                None => {
+                    // Tangency: golden-section minimize |g| around the best
+                    // sample, then accept iff the surface is met to
+                    // EPS_PROJ_ACCEPT relative in ρ.
+                    let phi = 0.618_033_988_749_894_9_f64;
+                    let (mut x0, mut x3) = (
+                        (best.0 / ratio.powf(1.0 / N_P_SCAN as f64)).max(lo),
+                        (best.0 * ratio.powf(1.0 / N_P_SCAN as f64)).min(hi),
+                    );
+                    let mut x1 = x3 - phi * (x3 - x0);
+                    let mut x2 = x0 + phi * (x3 - x0);
+                    let mut f1 = g(x1)?.abs();
+                    let mut f2 = g(x2)?.abs();
+                    for _ in 0..N_P_ITER_MAX {
+                        if f1 < f2 {
+                            x3 = x2;
+                            x2 = x1;
+                            f2 = f1;
+                            x1 = x3 - phi * (x3 - x0);
+                            f1 = g(x1)?.abs();
+                        } else {
+                            x0 = x1;
+                            x1 = x2;
+                            f1 = f2;
+                            x2 = x0 + phi * (x3 - x0);
+                            f2 = g(x2)?.abs();
+                        }
+                    }
+                    let (p_best, g_best) = if f1 < f2 { (x1, f1) } else { (x2, f2) };
+                    if g_best <= self.rho_err_bound {
+                        return Ok(p_best);
+                    }
+                    return Err("state off the equilibrium surface beyond its declared \
+                         interpolation-error bound — no admissible projection");
+                }
+            }
         }
-        let (mut a, mut b) = (lo, hi);
         for _ in 0..N_P_ITER_MAX {
             if (b - a).abs() <= EPS_P_PROJECTION * a.abs().max(b.abs()) {
                 return Ok(0.5 * (a + b));
@@ -288,5 +381,62 @@ impl EosLaw for TableEos<'_> {
         Err(FlowError::BcUnsupportedByEos {
             bc: "StagnationInflow",
         })
+    }
+
+    /// COUP-7 §3.2.1 prior-tier inflow: declared (ṁ/A, h_total, Z), interior
+    /// static pressure. Fixed-count solve of `ρ = ρ_tab(p, h_total − ½u², Z)`
+    /// with `u = (ṁ/A)/ρ` (deterministic, [`N_INFLOW_ITER`]); the resulting
+    /// ghost is the premixed equilibrium injection state — combustion
+    /// completes at the plane by construction of the equilibrium surface
+    /// (the prior tier's declared meaning, SOLV-1 §3.4).
+    ///
+    /// **Startup regularization (declared):** the face velocity is capped at
+    /// the local sound speed — a physical injector face cannot exceed
+    /// sonic injection, so while the chamber is filling from near-vacuum
+    /// the delivered ṁ is the choked-face value and grows with the interior
+    /// pressure. The cap is inactive at any established operating point
+    /// (chamber-face Mach ~10⁻², orders below unity), so it never touches a
+    /// converged state — a startup path device, not a physics closure.
+    fn mass_flow_inflow_ghost(
+        &self,
+        mdot_per_area: f64,
+        h_total: f64,
+        c_frac: f64,
+        p_int: f64,
+        sign: f64,
+        normal: usize,
+    ) -> Result<Prim, FlowError> {
+        let off = |what: &'static str| FlowError::NonPhysicalState {
+            i_r: usize::MAX,
+            i_z: usize::MAX,
+            i_theta: 0,
+            what,
+        };
+        if !(p_int.is_finite() && p_int > 0.0) {
+            return Err(off("non-physical interior pressure at the injector face"));
+        }
+        let mut h_s = h_total;
+        let (mut rho, mut u) = (f64::NAN, 0.0f64);
+        for _ in 0..N_INFLOW_ITER {
+            rho = self
+                .rho
+                .interpolate(&[p_int, h_s, c_frac])
+                .map_err(|_| off("injector inflow state outside the table envelope"))?;
+            let a = self
+                .sound
+                .interpolate(&[p_int, h_s, c_frac])
+                .map_err(|_| off("injector inflow sound speed outside the table envelope"))?;
+            u = (mdot_per_area / rho).min(a);
+            h_s = h_total - 0.5 * u * u;
+        }
+        let a = self
+            .sound
+            .interpolate(&[p_int, h_s, c_frac])
+            .map_err(|_| off("injector inflow sound speed outside the table envelope"))?;
+        let e_true = h_s - p_int / rho - self.h_offset;
+        let g1 = rho * a * a / p_int;
+        let mut m = [rho, 0.0, 0.0, 0.0, p_int, c_frac, e_true, g1];
+        m[normal] = sign * u;
+        Ok(m)
     }
 }
