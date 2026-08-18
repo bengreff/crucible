@@ -34,9 +34,9 @@ pub(crate) struct AuthorConfig {
     pub operating_profile: toml::Table,
     #[serde(default)]
     pub determinism: Option<DeterminismBlock>,
-    /// Pins are FND-5-resolved; until that lands, must be empty to load.
+    /// FND-4 §6-4 `[tables]`: logical name → pinned artifact reference.
     #[serde(default)]
-    pub tables: BTreeMap<String, String>,
+    pub tables: BTreeMap<String, TableRefBlock>,
     /// Grammar deferred (COUP-5) — must be empty to load.
     #[serde(default)]
     pub uq: toml::Table,
@@ -92,6 +92,26 @@ pub(crate) struct TypedBlock {
     pub params: toml::Table,
 }
 
+/// One `[tables.<name>]` entry (FND-4 §6-4). Author intent may state the pin
+/// two ways: **explicitly** (`data_version` + `content_digest`, both — the
+/// grammar the resolved form always emits, so replay needs no file access) or
+/// **via the sidecar** (`pins` = path of the machine-written `…pins.toml`,
+/// the single pin owner; resolution reads the entry for `group`). One of the
+/// two forms is mandatory — a pin-less table reference is a load error, and
+/// FND-5's open gate re-verifies the digest against the actual bytes at bind.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct TableRefBlock {
+    pub file: String,
+    pub group: String,
+    #[serde(default)]
+    pub pins: Option<String>,
+    #[serde(default)]
+    pub data_version: Option<String>,
+    #[serde(default)]
+    pub content_digest: Option<String>,
+}
+
 /// `[engine]` — full composition grammar deferred; the O20 explicit-binding
 /// semantics are fixed now: `[engine.bindings]` maps
 /// `"<instance>.<require_port>"` → `"<provider instance>.<provide_port>"`.
@@ -137,7 +157,33 @@ pub struct ResolvedConfig {
     pub mechanisms: BTreeMap<String, toml::Table>,
     pub engine: ResolvedEngine,
     pub determinism: ResolvedDeterminism,
+    /// FND-4 §6-4: every pin fully resolved (explicit version + digest), so
+    /// replay of the resolved form needs no sidecar access.
+    #[serde(default)]
+    pub tables: BTreeMap<String, ResolvedTablePin>,
     pub rng: ResolvedRng,
+}
+
+/// A fully-resolved table pin — the §3.6 regeneration-key row. `pins`
+/// records which sidecar resolved it (provenance; `None` = the author stated
+/// the pair explicitly).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResolvedTablePin {
+    pub file: String,
+    pub group: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub pins: Option<String>,
+    pub data_version: String,
+    pub content_digest: String,
+}
+
+impl ResolvedTablePin {
+    /// The FND-5 open-gate pin for this entry (the loader-side verification
+    /// key: version + digest, both enforced at `Table::open`).
+    pub fn fnd5_pin(&self) -> (String, Option<String>) {
+        (self.data_version.clone(), Some(self.content_digest.clone()))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

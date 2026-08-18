@@ -225,17 +225,172 @@ fn fnd4_s6_3_multi_fault_config_reports_every_fault_in_deterministic_order() {
     assert_eq!(format!("{err}"), format!("{err2}"));
 }
 
-// --- §6-4 (deferred to FND-5): [tables] currently refuses -------------------
+// --- §6-4: [tables] pin grammar --------------------------------------------
 
 #[test]
-fn fnd4_s6_4_placeholder_nonempty_tables_block_refuses() {
+fn fnd4_s6_4a_explicit_pin_pair_loads_and_reaches_the_manifest() {
     let author = r#"
         schema_version = 1
-        [tables]
-        eos = "eos@3"
+        [tables.chem]
+        file = "tables/chem/lox_lh2_v0.1.0.h5"
+        group = "/chem/lox_lh2/equilibrium"
+        data_version = "0.1.0"
+        content_digest = "sha256:8cc3f8b8"
+        [rng]
+        master_seed = 7
     "#;
-    let err = load_str(author, &registry()).unwrap_err();
-    assert!(format!("{err}").contains("FND-5"), "{err}");
+    let loaded = load_str(author, &registry()).expect("explicit pin pair loads");
+    let pin = &loaded.resolved.tables["chem"];
+    assert_eq!(pin.data_version, "0.1.0");
+    assert_eq!(pin.content_digest, "sha256:8cc3f8b8");
+    assert_eq!(loaded.manifest.table_pins.len(), 1);
+    assert_eq!(loaded.manifest.table_pins[0].logical_name, "chem");
+    assert_eq!(
+        loaded.manifest.table_pins[0].content_hash,
+        "sha256:8cc3f8b8"
+    );
+    assert_eq!(
+        loaded.manifest.table_pins[0].producing_generator_version, None,
+        "generator version is bind-time provenance (FND-6), never fabricated at load"
+    );
+
+    // §6-1 fixed point extends to pins: the resolved form replays through
+    // the PURE entry point (no sidecar access) and reproduces itself.
+    let round = load_str(&loaded.resolved.to_toml(), &registry())
+        .expect("resolved config with pins replays without file access");
+    assert_eq!(round.resolved, loaded.resolved);
+}
+
+#[test]
+fn fnd4_s6_4b_sidecar_resolution_materializes_the_pair() {
+    let author = r#"
+        schema_version = 1
+        [tables.chem]
+        file = "tables/chem/lox_lh2_v0.1.0.h5"
+        group = "/chem/lox_lh2/equilibrium"
+        pins = "tables/chem/lox_lh2_v0.1.0.pins.toml"
+        [rng]
+        master_seed = 7
+    "#;
+    let sidecar = r#"
+        ["/chem/lox_lh2/equilibrium"]
+        data_version = "0.1.0"
+        content_digest = "sha256:8cc3f8b8d810"
+    "#;
+    let loaded = crucible_config::load_str_with_sidecars(author, &registry(), &|path| {
+        assert_eq!(path, "tables/chem/lox_lh2_v0.1.0.pins.toml");
+        Ok(sidecar.to_string())
+    })
+    .expect("sidecar-backed pin resolves");
+    let pin = &loaded.resolved.tables["chem"];
+    assert_eq!(pin.data_version, "0.1.0");
+    assert_eq!(pin.content_digest, "sha256:8cc3f8b8d810");
+    assert_eq!(
+        pin.pins.as_deref(),
+        Some("tables/chem/lox_lh2_v0.1.0.pins.toml"),
+        "sidecar provenance recorded"
+    );
+
+    // The resolved form carries the explicit pair, so replay needs no I/O.
+    let round = load_str(&loaded.resolved.to_toml(), &registry())
+        .expect("resolved sidecar pin replays purely");
+    assert_eq!(round.resolved, loaded.resolved);
+}
+
+#[test]
+fn fnd4_s6_4c_pin_refusals_are_diagnosed() {
+    // Sidecar-only entry through the pure entry point: refused, pointing at
+    // the sidecar-aware loader.
+    let author_pins = r#"
+        schema_version = 1
+        [tables.chem]
+        file = "t.h5"
+        group = "/g"
+        pins = "t.pins.toml"
+    "#;
+    let err = load_str(author_pins, &registry()).unwrap_err();
+    assert!(format!("{err}").contains("load_str_with_sidecars"), "{err}");
+
+    // Missing sidecar entry for the group.
+    let err = crucible_config::load_str_with_sidecars(author_pins, &registry(), &|_| {
+        Ok("[\"/other\"]\ndata_version = \"1\"\ncontent_digest = \"sha256:aa\"\n".to_string())
+    })
+    .unwrap_err();
+    assert!(format!("{err}").contains("no entry for group"), "{err}");
+
+    // Half a pin pair is a fault — the pair is atomic.
+    let err = load_str(
+        r#"
+            schema_version = 1
+            [tables.chem]
+            file = "t.h5"
+            group = "/g"
+            data_version = "1"
+        "#,
+        &registry(),
+    )
+    .unwrap_err();
+    assert!(format!("{err}").contains("atomic"), "{err}");
+
+    // A digest without the scheme prefix cannot be a content digest.
+    let err = load_str(
+        r#"
+            schema_version = 1
+            [tables.chem]
+            file = "t.h5"
+            group = "/g"
+            data_version = "1"
+            content_digest = "8cc3f8b8"
+        "#,
+        &registry(),
+    )
+    .unwrap_err();
+    assert!(format!("{err}").contains("sha256:"), "{err}");
+
+    // Group paths are absolute.
+    let err = load_str(
+        r#"
+            schema_version = 1
+            [tables.chem]
+            file = "t.h5"
+            group = "g"
+            data_version = "1"
+            content_digest = "sha256:aa"
+        "#,
+        &registry(),
+    )
+    .unwrap_err();
+    assert!(format!("{err}").contains("absolute"), "{err}");
+}
+
+#[test]
+fn fnd4_s6_4d_production_sidecar_resolves_through_fs() {
+    // The real machine-written sidecar (single pin owner): resolution through
+    // an actual filesystem read must reproduce its recorded pair verbatim.
+    let author = r#"
+        schema_version = 1
+        [tables.chem_eq]
+        file = "tables/chem/lox_lh2_v0.1.0.h5"
+        group = "/chem/lox_lh2/equilibrium"
+        pins = "tables/chem/lox_lh2_v0.1.0.pins.toml"
+        [tables.chem_perf]
+        file = "tables/chem/lox_lh2_v0.1.0.h5"
+        group = "/chem/lox_lh2/performance"
+        pins = "tables/chem/lox_lh2_v0.1.0.pins.toml"
+        [rng]
+        master_seed = 7
+    "#;
+    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
+    let loaded = crucible_config::load_str_with_sidecars(author, &registry(), &|path| {
+        std::fs::read_to_string(format!("{root}/{path}")).map_err(|e| e.to_string())
+    })
+    .expect("production sidecar resolves");
+    let eq = &loaded.resolved.tables["chem_eq"];
+    let perf = &loaded.resolved.tables["chem_perf"];
+    assert_eq!(eq.data_version, "0.1.0");
+    assert!(eq.content_digest.starts_with("sha256:8cc3f8b8d810"));
+    assert!(perf.content_digest.starts_with("sha256:aafc17e70238"));
+    assert_eq!(loaded.manifest.table_pins.len(), 2);
 }
 
 // --- §6-5: schema versioning ------------------------------------------------

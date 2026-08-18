@@ -19,12 +19,14 @@
 //! fixed-order arithmetic — no hash iteration, no stochastic interpolation,
 //! no wall-clock. Same query, same bits, any thread count.
 
+mod bound;
 mod digest;
 mod interp;
 mod model;
 mod reader;
 pub mod writer;
 
+pub use bound::{BoundColumn, MAX_BOUND_AXES};
 pub use model::{
     Axis, EnvelopeHit, EnvelopePolicy, Provenance, TABLE_SCHEMA_MAJOR, Table, TableError,
     TableValue,

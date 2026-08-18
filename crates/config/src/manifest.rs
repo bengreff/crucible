@@ -31,9 +31,9 @@ pub struct RunManifest {
     pub chaotic_class_in_force: Vec<ChaoticRecord>,
     pub master_seed: i64,
     pub rng_algorithm: String,
-    /// Table pins `{logical_name, resolved_version, content_hash, generator}`
-    /// — populated by FND-5 resolution (next session); until then the loader
-    /// refuses configs that pin tables, so this is structurally empty.
+    /// Table pins `{logical_name, resolved_version, content_hash}` (§3.6),
+    /// resolved through the FND-4 §6-4 `[tables]` grammar (explicit pair or
+    /// the machine-written pins sidecar).
     pub table_pins: Vec<TablePin>,
     /// The full resolved config — the actual replay input.
     pub resolved_config: ResolvedConfig,
@@ -44,7 +44,12 @@ pub struct TablePin {
     pub logical_name: String,
     pub resolved_version: String,
     pub content_hash: String,
-    pub producing_generator_version: String,
+    /// Provenance read from the table itself when the run binds it (FND-5
+    /// `Provenance.producer_version`) — `None` at load time; FND-6 records
+    /// the bound value into the results bundle. Never fabricated here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub producing_generator_version: Option<String>,
 }
 
 impl RunManifest {

@@ -23,9 +23,19 @@
 //! operator (Castro's SDC path uses exactly this MOL reconstruction, hence
 //! no characteristic tracing — that is the split scheme's predictor).
 //!
-//! EOS seam: `GammaLaw` is the first, degenerate occupant of the FND-7
-//! constitutive spine (γ is config data). The general convex EOS replaces
-//! this struct without touching wave algebra or sweeps.
+//! EOS seam (SOLV-1 §3.4, the FND-7 spine boundary): the operator is generic
+//! over [`EosLaw`] — monomorphized, no dynamic dispatch in hot loops (FND-2
+//! §3.9). Two occupants: [`GammaLaw`] (the degenerate spine occupant; γ is
+//! config data) and [`TableEos`] (shifting-equilibrium mode — the OFFL-3
+//! (p, h, Z) surface with the fixed-count per-cell equilibrium projection).
+//! The primitive vector carries two **auxiliary EOS slots** past the six
+//! physical ones — specific internal energy `e` and the effective adiabatic
+//! exponent `Γ₁ = ρa²/p` — reconstructed componentwise like every primitive
+//! and read only by the general-EOS closures at faces (the Castro/PeleC
+//! treatment of a general convex EOS in the Riemann solve: Batten wavespeeds
+//! from local/Roe-averaged Γ₁). `GammaLaw` never reads the aux slots, so the
+//! gamma-law path is arithmetically identical to the pre-seam operator
+//! (certificates byte-identical — asserted by gate 5).
 //!
 //! Deferred, loud (owners named): `r_min = 0` with `N_θ > 1` refuses (the
 //! cross-axis θ↔θ+π parity-pair gather, FND-2 §3.2, lands with the first
@@ -36,26 +46,86 @@
 mod exact;
 mod hllc;
 mod recon;
+mod table_eos;
 
 pub use exact::{RiemannSide, RiemannSolution, solve as solve_riemann};
 pub use hllc::{hllc_flux, physical_flux};
 use recon::{NGHOST, ppm_faces};
+pub use table_eos::{EPS_P_PROJECTION, N_P_ITER_MAX, TableEos};
 
 use crucible_grid::{BRICK, BRICK_CELLS, FieldId, Grid, GridError};
 
 /// Components of `U` (SOLV-1 §3.1) and of the primitive view
-/// `W = (ρ, u_r, u_θ, u_z, p, C)`. Slots 1–3 are the velocity/momentum
-/// directions, so a face's normal is named by its slot index.
+/// `W = (ρ, u_r, u_θ, u_z, p, C | e, Γ₁)`. Slots 1–3 are the velocity/
+/// momentum directions, so a face's normal is named by its slot index.
+/// `W` carries `NPRIM − NCOMP = 2` auxiliary EOS slots (specific internal
+/// energy, effective Γ₁) with no conserved counterpart — filled by
+/// `EosLaw::prim_checked`, reconstructed componentwise, read only by the
+/// general-EOS face closures (`GammaLaw` ignores them).
 pub const NCOMP: usize = 6;
+pub const NPRIM: usize = 8;
 pub const I_RHO: usize = 0;
 pub const I_MR: usize = 1;
 pub const I_MT: usize = 2;
 pub const I_MZ: usize = 3;
 pub const I_EN: usize = 4;
 pub const I_RC: usize = 5;
+/// Aux primitive slot: specific internal energy `e` (J/kg).
+pub const I_EI: usize = 6;
+/// Aux primitive slot: effective adiabatic exponent `Γ₁ = ρa²/p`.
+pub const I_G1: usize = 7;
 
 pub type Cons = [f64; NCOMP];
-pub type Prim = [f64; NCOMP];
+pub type Prim = [f64; NPRIM];
+
+/// Build a primitive state from the six physical slots, aux slots zero.
+/// Correct for `GammaLaw` (which never reads aux); a `TableEos` primitive
+/// must come from `TableEos::prim_checked` (which fills them).
+pub const fn prim6(rho: f64, u_r: f64, u_t: f64, u_z: f64, p: f64, c: f64) -> Prim {
+    [rho, u_r, u_t, u_z, p, c, 0.0, 0.0]
+}
+
+/// SOLV-1 §3.4 — the constitutive closure the operator is generic over (the
+/// FND-7 spine boundary). Implementations read only the state (`U`/`W`),
+/// never a material or regime label (Rule 12); which occupant runs is config
+/// data (Rule 13). Monomorphized into the sweeps — no hot-loop dispatch.
+pub trait EosLaw {
+    /// Conserved → primitive (+aux slots), with the META-1 P6 checks: a
+    /// non-physical or off-table state is a halt diagnosis (the caller
+    /// attaches the cell location), never a clamp.
+    fn prim_checked(&self, u: &Cons) -> Result<Prim, &'static str>;
+    /// Primitive → conserved.
+    fn prim_to_cons(&self, w: &Prim) -> Cons;
+    /// Total energy density ρE at a (possibly face-reconstructed) state.
+    fn total_energy(&self, w: &Prim) -> f64;
+    /// Sound speed at a (possibly face-reconstructed) state.
+    fn sound_speed_w(&self, w: &Prim) -> f64;
+    /// Roe-average sound speed for the Batten wavespeed bounds; receives the
+    /// already-formed Roe enthalpy/velocity ingredients so every occupant
+    /// shares one Roe algebra.
+    #[allow(clippy::too_many_arguments)]
+    fn roe_sound_speed(
+        &self,
+        wl: &Prim,
+        wr: &Prim,
+        h_roe: f64,
+        q2_roe: f64,
+        sql: f64,
+        sqr: f64,
+        inv: f64,
+    ) -> f64;
+    /// Reservoir-isentrope ghost for [`FlowBc::StagnationInflow`] — an
+    /// EOS-specific closed form. Occupants without one refuse loudly (the
+    /// COUP-7 injector object owns inflow for the table EOS).
+    fn stagnation_ghost(
+        &self,
+        p0: f64,
+        rho0: f64,
+        c_frac: f64,
+        u_n: f64,
+        normal: usize,
+    ) -> Result<Prim, FlowError>;
+}
 
 /// Grid field names for `U`, in component order (FND-2 §3.4).
 pub const EULER_FIELDS: &[&str] = &["rho", "mom_r", "mom_theta", "mom_z", "rho_e", "rho_c"];
@@ -113,7 +183,70 @@ impl GammaLaw {
         if !c.is_finite() {
             return Err("non-finite composition");
         }
-        Ok([rho, ur, ut, uz, p, c])
+        Ok([rho, ur, ut, uz, p, c, 0.0, 0.0])
+    }
+}
+
+impl EosLaw for GammaLaw {
+    #[inline]
+    fn prim_checked(&self, u: &Cons) -> Result<Prim, &'static str> {
+        GammaLaw::prim_checked(self, u)
+    }
+
+    #[inline]
+    fn prim_to_cons(&self, w: &Prim) -> Cons {
+        GammaLaw::prim_to_cons(self, w)
+    }
+
+    #[inline]
+    fn total_energy(&self, w: &Prim) -> f64 {
+        GammaLaw::total_energy(self, w)
+    }
+
+    #[inline]
+    fn sound_speed_w(&self, w: &Prim) -> f64 {
+        // Same arithmetic as `sound_speed(rho, p)` — γ from config, never
+        // from the (unread) aux slots.
+        (self.gamma * w[4] / w[I_RHO]).sqrt()
+    }
+
+    #[inline]
+    fn roe_sound_speed(
+        &self,
+        _wl: &Prim,
+        _wr: &Prim,
+        h_roe: f64,
+        q2_roe: f64,
+        _sql: f64,
+        _sqr: f64,
+        _inv: f64,
+    ) -> f64 {
+        ((self.gamma - 1.0) * (h_roe - 0.5 * q2_roe))
+            .max(0.0)
+            .sqrt()
+    }
+
+    /// Reservoir-isentrope ghost state from the interior-extrapolated
+    /// normal velocity (see [`FlowBc::StagnationInflow`]).
+    fn stagnation_ghost(
+        &self,
+        p0: f64,
+        rho0: f64,
+        c_frac: f64,
+        u_n: f64,
+        normal: usize,
+    ) -> Result<Prim, FlowError> {
+        let ga = self.gamma;
+        let c0sq = ga * p0 / rho0;
+        let csq = c0sq - 0.5 * (ga - 1.0) * u_n * u_n;
+        if csq <= 0.0 {
+            return Err(FlowError::InflowBeyondVacuumLimit);
+        }
+        let p = p0 * (csq / c0sq).powf(ga / (ga - 1.0));
+        let rho = ga * p / csq;
+        let mut m = prim6(rho, 0.0, 0.0, 0.0, p, c_frac);
+        m[normal] = u_n;
+        Ok(m)
     }
 }
 
@@ -163,6 +296,10 @@ pub enum FlowError {
     /// reservoir's vacuum limit `u² < 2c0²/(γ−1)` — the isentrope has no
     /// state there; halt, never clamp (META-1 P6).
     InflowBeyondVacuumLimit,
+    /// A configured BC has no closed form under the selected EOS occupant
+    /// (e.g. `StagnationInflow` under `TableEos` — the COUP-7 injector
+    /// object owns inflow there). Refuse at use, never approximate.
+    BcUnsupportedByEos { bc: &'static str },
 }
 
 impl std::fmt::Display for FlowError {
@@ -191,6 +328,11 @@ impl std::fmt::Display for FlowError {
                 f,
                 "stagnation-inflow face saw interior velocity beyond the reservoir's \
                  vacuum limit — no state on the isentrope; halt, never clamp"
+            ),
+            Self::BcUnsupportedByEos { bc } => write!(
+                f,
+                "{bc} has no closed form under the selected EOS occupant — refusing \
+                 rather than approximating (the COUP-7 boundary object owns this inflow)"
             ),
         }
     }
@@ -224,7 +366,7 @@ impl EulerFields {
 pub fn fill_from_prim(
     g: &mut Grid,
     f: &EulerFields,
-    eos: &GammaLaw,
+    eos: &impl EosLaw,
     func: impl Fn(f64, f64, f64) -> Prim,
 ) {
     for k in 0..NCOMP {
@@ -236,9 +378,10 @@ pub fn fill_from_prim(
 /// The operator (SOLV-1 §1.1): reconstruction + Riemann flux + geometric
 /// sources, writing `U` in place. `source` is the external per-component
 /// volumetric source intake (MMS verification now; the SOLV-4 reaction
-/// intake is this same slot).
-pub struct Euler<'a> {
-    pub eos: GammaLaw,
+/// intake is this same slot). Generic over the [`EosLaw`] occupant
+/// (monomorphized; `GammaLaw` default keeps existing fixtures unchanged).
+pub struct Euler<'a, E: EosLaw = GammaLaw> {
+    pub eos: E,
     pub source: &'a dyn Fn(f64, f64, f64, f64) -> Cons,
     pub bcs: FlowBcs<'a>,
     /// Outward unit wall normal `(n_r, n_z)` of the true (smooth) wall at
@@ -255,6 +398,7 @@ pub struct Euler<'a> {
 /// Per-brick scratch: primitives (AoS is fine for the CPU reference path;
 /// the grid state itself stays SoA per FND-2 §3.9) and the RK stage data.
 struct Scratch {
+    /// `NPRIM`-wide primitive (+aux) states per cell.
     prim: Vec<Vec<Prim>>,
     rate: Vec<Vec<Cons>>,
     u0: Vec<Vec<Cons>>,
@@ -269,7 +413,7 @@ struct Scratch {
     act: Vec<bool>,
 }
 
-impl Euler<'_> {
+impl<E: EosLaw> Euler<'_, E> {
     fn validate(&self, g: &Grid) -> Result<u32, FlowError> {
         let nt = g.brick(0).n_theta();
         if g.bricks().iter().any(|b| b.n_theta() != nt) {
@@ -303,7 +447,7 @@ impl Euler<'_> {
             }
         }
         Scratch {
-            prim: vec![vec![[0.0; NCOMP]; plane]; nb],
+            prim: vec![vec![[0.0; NPRIM]; plane]; nb],
             rate: vec![vec![[0.0; NCOMP]; plane]; nb],
             u0: vec![vec![[0.0; NCOMP]; plane]; nb],
             bmap,
@@ -394,7 +538,7 @@ impl Euler<'_> {
                     let (i_r, i_z) = b.global_rz(local);
                     match self.eos.prim_checked(&u) {
                         Ok(w) => {
-                            let c = self.eos.sound_speed(w[I_RHO], w[4]);
+                            let c = self.eos.sound_speed_w(&w);
                             let mut sig = (w[1].abs() + c) / dr + (w[3].abs() + c) / dz;
                             if nt > 1 {
                                 sig += (w[2].abs() + c) / (g.r_center(i_r) * dtheta);
@@ -538,29 +682,6 @@ impl Euler<'_> {
         }
     }
 
-    /// Reservoir-isentrope ghost state from the interior-extrapolated
-    /// normal velocity (see `FlowBc::StagnationInflow`).
-    fn stagnation_ghost(
-        &self,
-        p0: f64,
-        rho0: f64,
-        c_frac: f64,
-        u_n: f64,
-        normal: usize,
-    ) -> Result<Prim, FlowError> {
-        let ga = self.eos.gamma;
-        let c0sq = ga * p0 / rho0;
-        let csq = c0sq - 0.5 * (ga - 1.0) * u_n * u_n;
-        if csq <= 0.0 {
-            return Err(FlowError::InflowBeyondVacuumLimit);
-        }
-        let p = p0 * (csq / c0sq).powf(ga / (ga - 1.0));
-        let rho = ga * p / csq;
-        let mut m = [rho, 0.0, 0.0, 0.0, p, c_frac];
-        m[normal] = u_n;
-        Ok(m)
-    }
-
     /// Fill the low-side ghosts of a run from a domain BC. `normal` is the
     /// velocity slot to mirror; `pos(k)` gives the k-th ghost centroid.
     fn fill_ghosts_low(
@@ -585,7 +706,8 @@ impl Euler<'_> {
                     f(r, th, z, t)
                 }
                 FlowBc::StagnationInflow { p0, rho0, c_frac } => {
-                    self.stagnation_ghost(*p0, *rho0, *c_frac, w[NGHOST][normal], normal)?
+                    self.eos
+                        .stagnation_ghost(*p0, *rho0, *c_frac, w[NGHOST][normal], normal)?
                 }
             };
         }
@@ -613,9 +735,13 @@ impl Euler<'_> {
                     let (r, th, z) = pos(k);
                     f(r, th, z, t)
                 }
-                FlowBc::StagnationInflow { p0, rho0, c_frac } => {
-                    self.stagnation_ghost(*p0, *rho0, *c_frac, w[NGHOST + n - 1][normal], normal)?
-                }
+                FlowBc::StagnationInflow { p0, rho0, c_frac } => self.eos.stagnation_ghost(
+                    *p0,
+                    *rho0,
+                    *c_frac,
+                    w[NGHOST + n - 1][normal],
+                    normal,
+                )?,
             };
         }
         Ok(())
@@ -644,9 +770,9 @@ impl Euler<'_> {
             .collect();
         let vol: Vec<f64> = (0..n).map(|i| g.cell_volume(i, nt)).collect();
 
-        let mut w = vec![[0.0f64; NCOMP]; n + 2 * NGHOST];
-        let mut fl = vec![[0.0f64; NCOMP]; n + 1];
-        let mut fr = vec![[0.0f64; NCOMP]; n + 1];
+        let mut w = vec![[0.0f64; NPRIM]; n + 2 * NGHOST];
+        let mut fl = vec![[0.0f64; NPRIM]; n + 1];
+        let mut fr = vec![[0.0f64; NPRIM]; n + 1];
         let mut af = vec![[0.0f64; NCOMP]; n + 1];
 
         for i_z in 0..n_z {
@@ -731,9 +857,9 @@ impl Euler<'_> {
     fn sweep_theta(&self, g: &Grid, nt: u32, s: &mut Scratch) {
         let n = nt as usize;
         let a_th = g.face_area_theta();
-        let mut w = vec![[0.0f64; NCOMP]; n + 2 * NGHOST];
-        let mut fl = vec![[0.0f64; NCOMP]; n + 1];
-        let mut fr = vec![[0.0f64; NCOMP]; n + 1];
+        let mut w = vec![[0.0f64; NPRIM]; n + 2 * NGHOST];
+        let mut fl = vec![[0.0f64; NPRIM]; n + 1];
+        let mut fr = vec![[0.0f64; NPRIM]; n + 1];
         let mut af = vec![[0.0f64; NCOMP]; n + 1];
 
         for bi in 0..g.n_bricks() {
@@ -779,9 +905,9 @@ impl Euler<'_> {
         let (n, n_r) = (spec.n_z, spec.n_r);
         let (z0, dz) = (spec.z_min, spec.dz);
         let inv_dz = 1.0 / dz;
-        let mut w = vec![[0.0f64; NCOMP]; n + 2 * NGHOST];
-        let mut fl = vec![[0.0f64; NCOMP]; n + 1];
-        let mut fr = vec![[0.0f64; NCOMP]; n + 1];
+        let mut w = vec![[0.0f64; NPRIM]; n + 2 * NGHOST];
+        let mut fl = vec![[0.0f64; NPRIM]; n + 1];
+        let mut fr = vec![[0.0f64; NPRIM]; n + 1];
         let mut af = vec![[0.0f64; NCOMP]; n + 1];
 
         for i_r in 0..n_r {

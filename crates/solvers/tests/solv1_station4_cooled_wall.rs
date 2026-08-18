@@ -59,14 +59,14 @@ fn station4_uniform_rest_is_a_bitwise_fixed_point() {
     // Gas at rest at T_COOL, solid at T_COOL, coolant at T_COOL: every
     // exchange is exactly zero and the coupled step must not move one bit.
     let mut duct = build_duct();
-    let rest: crucible_solvers::euler::Prim = [
+    let rest: crucible_solvers::euler::Prim = crucible_solvers::euler::prim6(
         T_COOL * 0.0 + P_IN / (R_SPECIFIC * T_COOL),
         0.0,
         0.0,
         0.0,
         P_IN,
         0.0,
-    ];
+    );
     let eos = duct.eos;
     crucible_solvers::euler::fill_from_prim(&mut duct.grid, &duct.flow, &eos, |_, _, _| rest);
     fill_solid(&mut duct.grid, duct.t_solid, T_COOL);

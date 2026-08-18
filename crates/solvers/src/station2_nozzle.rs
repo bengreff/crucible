@@ -27,7 +27,7 @@
 
 use crate::euler::{
     Cons, Euler, EulerFields, FlowBc, FlowBcs, FlowError, GammaLaw, I_RHO, NCOMP, Prim,
-    fill_from_prim,
+    fill_from_prim, prim6,
 };
 use crate::station1_sod::{FIELDS, march_to};
 use crucible_grid::{Grid, GridSpec};
@@ -111,7 +111,7 @@ pub fn isentropic_prim(m: f64) -> Prim {
     let p = RESERVOIR_P0 * fac.powf(-ga / (ga - 1.0));
     let rho = RESERVOIR_RHO0 * fac.powf(-1.0 / (ga - 1.0));
     let c = (ga * p / rho).sqrt();
-    [rho, 0.0, 0.0, m * c, p, RESERVOIR_C]
+    prim6(rho, 0.0, 0.0, m * c, p, RESERVOIR_C)
 }
 
 /// Ideal choked mass flow through a throat of area `a_star` (sonic-state
@@ -403,7 +403,9 @@ pub fn masked_uniform_fixed_point(slip_wall: bool) -> bool {
     let eos = GammaLaw {
         gamma: NOZZLE_GAMMA,
     };
-    fill_from_prim(&mut g, &f, &eos, |_, _, _| [1.3, 0.0, 0.0, 0.0, 2.7, 0.5]);
+    fill_from_prim(&mut g, &f, &eos, |_, _, _| {
+        prim6(1.3, 0.0, 0.0, 0.0, 2.7, 0.5)
+    });
     let op = Euler {
         eos,
         source: &ZERO_SRC,

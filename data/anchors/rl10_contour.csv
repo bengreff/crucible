@@ -1,0 +1,51 @@
+# RL10A-3-3A chamber/nozzle contour — geometry-of-record (META-3 `rl10-geometry`, VAL-2 §3.2 N19)
+# Source: NASA TM-107318 (NTRS 19970010379), cached at
+#   data/anchors/TM-107318_ntrs_19970010379.pdf (sha256 2d25422c6b9d...)
+#   - Table E1 (App. E, doc p.139): hot-gas property-node axial locations
+#     (inches wrt throat) + expansion ratios wrt throat, transcribed verbatim.
+#   - Table 2.5.1 (doc p.6): chamber diameter 5.13 in, throat diameter
+#     2.47 in, nozzle area ratio 61.0 — the record scalars.
+#   - Figure E1 (App. E, doc p.141): injector plane at z ~= -13.0 in and
+#     nozzle-exit plane at z ~= +45.5 in (dashed lines, digitized +-0.5 in).
+#     NOTE: Fig. E1's y-axis says "Radius" but plots DIAMETER (exit reads
+#     ~19 in = the epsilon=61 exit diameter; throat reads ~2.5 in = Ø 2.47) —
+#     axis values are used only for the two dashed-line z locations.
+#
+# Derived-row rules (declared closures, not new data):
+#   - z = 0.000 / ratio 1.000: the throat, definitional.
+#   - z = -13.000 / ratio 4.3129: injector plane; ratio = (5.13/2.47)^2 from
+#     Table 2.5.1 diameters (the geometric contraction ratio); z from Fig. E1.
+#   - z = +45.300 / ratio 61.0: exit; ratio is the Table 2.5.1 record value;
+#     z closes the contour by linear taper of r(z) through the last two
+#     Table E1 stations (33.41, 45.0) and (41.84, 56.1) -> dr/dz = 0.11448
+#     in/in, r_exit = 1.235*sqrt(61) = 9.6455 in -> z_exit = 45.30 in
+#     (consistent with Fig. E1's ~45.5 in dashed line).
+#
+# Interpretation rule (the consumer contract, crates/engine geometry):
+#   r(z) = (2.47/2) * sqrt(area_ratio) inches; between stations r(z) is
+#   monotone piecewise-linear in r (the record gives no higher-order shape;
+#   a smoother reconstruction must not overshoot station radii).
+#
+# Columns: z_in (axial, inches wrt throat, + = downstream), area_ratio
+# (A/A* wrt throat), r_in = 1.235*sqrt(area_ratio) inches (the stated rule,
+# materialized so consumers parse no comments), source.
+z_in,area_ratio,r_in,source
+-13.000,4.3129,2.5648,table251+figE1
+-12.000,4.27,2.5520,tableE1
+-10.000,4.14,2.5129,tableE1
+-8.032,4.00,2.4700,tableE1
+-6.068,3.65,2.3595,tableE1
+-4.054,2.72,2.0368,tableE1
+-2.018,1.62,1.5719,tableE1
+-0.500,1.11,1.3012,tableE1
+0.000,1.000,1.2350,derived
+0.485,1.29,1.4027,tableE1
+2.035,2.35,1.8932,tableE1
+4.215,4.29,2.5580,tableE1
+6.588,6.93,3.2511,tableE1
+8.989,9.95,3.8956,tableE1
+16.540,20.7,5.6189,tableE1
+25.050,33.2,7.1160,tableE1
+33.410,45.0,8.2846,tableE1
+41.840,56.1,9.2501,tableE1
+45.300,61.0,9.6457,table251+derived

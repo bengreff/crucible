@@ -31,8 +31,8 @@ pub const MMS_GAMMA: f64 = 1.4;
 /// Base state and mode amplitude per primitive [ρ, u_r, u_θ, u_z, p, C]:
 /// everything positive and subsonic over the whole run; swirl and radial
 /// flow both active.
-pub const MMS_BASE: Prim = [1.0, 0.0, 0.0, 0.1, 1.0, 0.5];
-pub const MMS_AMP: Prim = [0.2, 0.15, 0.2, 0.15, 0.3, 0.3];
+pub const MMS_BASE: Prim = [1.0, 0.0, 0.0, 0.1, 1.0, 0.5, 0.0, 0.0];
+pub const MMS_AMP: Prim = [0.2, 0.15, 0.2, 0.15, 0.3, 0.3, 0.0, 0.0];
 /// Quarter-wave numbers over the unit r/z extents (monotone per pencil).
 pub const MMS_A: f64 = std::f64::consts::FRAC_PI_2;
 pub const MMS_B: f64 = std::f64::consts::FRAC_PI_2;
@@ -101,7 +101,7 @@ fn manufactured(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Manufactured {
 #[allow(clippy::similar_names)]
 fn mms_source(r: f64, theta: f64, z: f64, t: f64, eps: f64, eos: &GammaLaw) -> Cons {
     let mf = manufactured(r, theta, z, t, eps);
-    let [rho, ur, ut, uz, p, c] = mf.w;
+    let [rho, ur, ut, uz, p, c, _, _] = mf.w;
     let gm1 = eos.gamma - 1.0;
 
     // Per-direction primitive derivative bundles.

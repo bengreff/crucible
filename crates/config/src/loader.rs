@@ -45,7 +45,29 @@ pub struct Loaded {
 /// ambient default may influence the result (§2 invariant; the auto-drawn
 /// seed, when the author omits one, is OS entropy *recorded into the
 /// manifest*, never an input to any other resolution).
+///
+/// A `[tables]` entry that names only a `pins` sidecar cannot resolve here
+/// (this entry point performs no file access — resolved configs always carry
+/// the explicit pair, so replay stays pure); use
+/// [`load_str_with_sidecars`] for author configs that delegate to a sidecar.
 pub fn load_str(author_toml: &str, registry: &Registry) -> Result<Loaded, Diagnostics> {
+    load_str_with_sidecars(author_toml, registry, &|path| {
+        Err(format!(
+            "no sidecar access in this entry point (pure-string load); read {path:?} via \
+             load_str_with_sidecars, or state data_version + content_digest explicitly"
+        ))
+    })
+}
+
+/// [`load_str`] plus a **sidecar reader**: `read_sidecar(path)` returns the
+/// UTF-8 content of a `…pins.toml` pin sidecar (FND-5 §3.2's machine-written
+/// single pin owner). File access stays with the caller; resolution is a
+/// pure function of `{author TOML, registry, sidecar contents}` (§2).
+pub fn load_str_with_sidecars(
+    author_toml: &str,
+    registry: &Registry,
+    read_sidecar: &dyn Fn(&str) -> Result<String, String>,
+) -> Result<Loaded, Diagnostics> {
     let mut diags = Diagnostics::new();
 
     // 1. Parse.
@@ -156,11 +178,102 @@ pub fn load_str(author_toml: &str, registry: &Registry) -> Result<Loaded, Diagno
             );
         }
     }
-    if !author.tables.is_empty() {
-        diags.push(
-            "tables",
-            "table pin resolution lands with the FND-5 loader — until then `[tables]` must be empty",
-        );
+    // FND-4 §6-4 — [tables] pin resolution. Sidecar contents are cached per
+    // path (several logical tables typically share one sidecar file).
+    let mut sidecar_cache: BTreeMap<String, Result<toml::Table, String>> = BTreeMap::new();
+    let mut resolved_tables: BTreeMap<String, crate::schema::ResolvedTablePin> = BTreeMap::new();
+    for (name, tref) in &author.tables {
+        let path = format!("tables.{name}");
+        check_instance_name(&mut diags, &path, name);
+        if tref.file.is_empty() {
+            diags.push(format!("{path}.file"), "must be a non-empty artifact path");
+            continue;
+        }
+        if !tref.group.starts_with('/') {
+            diags.push(
+                format!("{path}.group"),
+                "must be an absolute HDF5 group path (leading '/')",
+            );
+            continue;
+        }
+        let pair = match (&tref.data_version, &tref.content_digest, &tref.pins) {
+            (Some(v), Some(d), _) => Some((v.clone(), d.clone())),
+            (None, None, Some(pins_path)) => {
+                let entry = sidecar_cache.entry(pins_path.clone()).or_insert_with(|| {
+                    read_sidecar(pins_path).and_then(|content| {
+                        content
+                            .parse::<toml::Table>()
+                            .map_err(|e| format!("sidecar {pins_path:?} is not TOML: {e}"))
+                    })
+                });
+                match entry {
+                    Err(e) => {
+                        diags.push(format!("{path}.pins"), e.clone());
+                        None
+                    }
+                    Ok(doc) => match doc.get(&tref.group).and_then(|v| v.as_table()) {
+                        None => {
+                            diags.push(
+                                format!("{path}.pins"),
+                                format!(
+                                    "sidecar {pins_path:?} has no entry for group {:?} — \
+                                     the sidecar is the single pin owner; a missing entry \
+                                     means the artifact never pinned this group",
+                                    tref.group
+                                ),
+                            );
+                            None
+                        }
+                        Some(t) => {
+                            match (
+                                t.get("data_version").and_then(|v| v.as_str()),
+                                t.get("content_digest").and_then(|v| v.as_str()),
+                            ) {
+                                (Some(v), Some(d)) => Some((v.to_string(), d.to_string())),
+                                _ => {
+                                    diags.push(
+                                        format!("{path}.pins"),
+                                        format!(
+                                            "sidecar entry for {:?} lacks data_version / \
+                                             content_digest strings",
+                                            tref.group
+                                        ),
+                                    );
+                                    None
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+            _ => {
+                diags.push(
+                    path.clone(),
+                    "pin underspecified: state BOTH data_version and content_digest, or \
+                     name a `pins` sidecar (mixing halves is a fault — the pair is atomic)",
+                );
+                None
+            }
+        };
+        if let Some((data_version, content_digest)) = pair {
+            if !content_digest.starts_with("sha256:") {
+                diags.push(
+                    format!("{path}.content_digest"),
+                    format!("{content_digest:?} does not carry the \"sha256:\" scheme prefix (FND-5 §3.2)"),
+                );
+                continue;
+            }
+            resolved_tables.insert(
+                name.clone(),
+                crate::schema::ResolvedTablePin {
+                    file: tref.file.clone(),
+                    group: tref.group.clone(),
+                    pins: tref.pins.clone(),
+                    data_version,
+                    content_digest,
+                },
+            );
+        }
     }
 
     // O21 — determinism mode + chaotic refusal.
@@ -358,6 +471,7 @@ pub fn load_str(author_toml: &str, registry: &Registry) -> Result<Loaded, Diagno
         determinism: ResolvedDeterminism {
             mode: mode.to_string(),
         },
+        tables: resolved_tables,
         rng: ResolvedRng {
             master_seed,
             algorithm: author
@@ -389,6 +503,16 @@ pub fn load_str(author_toml: &str, registry: &Registry) -> Result<Loaded, Diagno
                 .collect(),
         })
         .collect();
+    let table_pins = resolved
+        .tables
+        .iter()
+        .map(|(name, pin)| crate::manifest::TablePin {
+            logical_name: name.clone(),
+            resolved_version: pin.data_version.clone(),
+            content_hash: pin.content_digest.clone(),
+            producing_generator_version: None,
+        })
+        .collect();
     let manifest = RunManifest {
         manifest_schema_version: MANIFEST_SCHEMA_VERSION,
         config_content_hash: content_hash(&doc),
@@ -398,7 +522,7 @@ pub fn load_str(author_toml: &str, registry: &Registry) -> Result<Loaded, Diagno
         chaotic_class_in_force,
         master_seed,
         rng_algorithm: resolved.rng.algorithm.clone(),
-        table_pins: Vec::new(),
+        table_pins,
         resolved_config: resolved.clone(),
     };
 

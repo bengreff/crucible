@@ -19,7 +19,7 @@
 
 use crate::euler::{
     Cons, Euler, EulerFields, FlowBc, FlowBcs, FlowError, GammaLaw, I_RC, I_RHO, NCOMP, Prim,
-    RiemannSide, RiemannSolution, fill_from_prim, solve_riemann,
+    RiemannSide, RiemannSolution, fill_from_prim, prim6, solve_riemann,
 };
 use crucible_grid::{Grid, GridSpec};
 
@@ -184,9 +184,9 @@ pub fn sod_exact() -> RiemannSolution {
 
 fn sod_ic(z: f64) -> Prim {
     if z < SOD_DIAPHRAGM_Z {
-        [SOD_LEFT.rho, 0.0, 0.0, 0.0, SOD_LEFT.p, 0.0]
+        prim6(SOD_LEFT.rho, 0.0, 0.0, 0.0, SOD_LEFT.p, 0.0)
     } else {
-        [SOD_RIGHT.rho, 0.0, 0.0, 0.0, SOD_RIGHT.p, 1.0]
+        prim6(SOD_RIGHT.rho, 0.0, 0.0, 0.0, SOD_RIGHT.p, 1.0)
     }
 }
 
@@ -391,7 +391,7 @@ pub const ADV_RAMP_WIDTH: f64 = 0.1;
 
 fn adv_prim(z: f64, t: f64) -> Prim {
     let s = 0.5 * (1.0 + ((z - ADV_RAMP_Z0 - ADV_U * t) / ADV_RAMP_WIDTH).tanh());
-    [1.0 + 0.5 * s, 0.0, 0.0, ADV_U, ADV_P, s]
+    prim6(1.0 + 0.5 * s, 0.0, 0.0, ADV_U, ADV_P, s)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -512,7 +512,9 @@ pub fn uniform_state_is_bitwise_fixed_point(axis: bool) -> bool {
     let mut g = Grid::build(spec, FIELDS).expect("valid spec");
     let f = EulerFields::resolve(&g).expect("fields");
     let eos = GammaLaw { gamma: SOD_GAMMA };
-    fill_from_prim(&mut g, &f, &eos, |_, _, _| [1.3, 0.0, 0.0, 0.0, 2.7, 0.5]);
+    fill_from_prim(&mut g, &f, &eos, |_, _, _| {
+        prim6(1.3, 0.0, 0.0, 0.0, 2.7, 0.5)
+    });
     let before: Vec<Vec<u64>> = snapshot_bits(&g, &f);
     let op = closed_tube_op(eos);
     let dt = op.stable_dt(&g, &f, CFL_FLOW).expect("dt");

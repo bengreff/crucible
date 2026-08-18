@@ -32,7 +32,7 @@ use std::collections::BTreeMap;
 use crate::conduction::{Bcs, Conduction, Domain, FaceBc, InteriorFaces, SolverError};
 use crate::euler::{
     Cons, Euler, EulerFields, FlowBc, FlowBcs, FlowError, GammaLaw, I_EN, I_MZ, I_RHO, NCOMP, Prim,
-    fill_from_prim,
+    fill_from_prim, prim6,
 };
 use crate::station1_sod::FIELDS as EULER_FIELD_NAMES;
 use crate::wall_heat::{NearWallGas, WallHeatError, WallLaw};
@@ -257,7 +257,7 @@ pub struct ExchangeRecord {
 pub fn inflow_prim() -> Prim {
     let a = (GAMMA * R_SPECIFIC * T_IN).sqrt();
     let rho = P_IN / (R_SPECIFIC * T_IN);
-    [rho, 0.0, 0.0, MACH_IN * a, P_IN, 0.0]
+    prim6(rho, 0.0, 0.0, MACH_IN * a, P_IN, 0.0)
 }
 
 pub fn build_duct() -> Duct {
@@ -624,7 +624,7 @@ pub fn build_stepped_cavity() -> (Duct, Euler<'static>) {
     let eos = GammaLaw { gamma: GAMMA };
     let rho_hot = P_IN / (R_SPECIFIC * T_HOT_CAVITY);
     fill_from_prim(&mut g, &flow, &eos, |_, _, _| {
-        [rho_hot, 0.0, 0.0, 0.0, P_IN, 0.0]
+        prim6(rho_hot, 0.0, 0.0, 0.0, P_IN, 0.0)
     });
     fill_solid(&mut g, t_solid, T_SOLID_INIT);
     let faces = g.gas_solid_faces();

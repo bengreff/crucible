@@ -10,6 +10,12 @@ crucible-units = { path = "../units" }
 crucible-config = { path = "../config" }
 crucible-grid = { path = "../grid" }
 crucible-registry = { path = "../registry" }
+crucible-tables = { path = "../tables" }
+
+[dev-dependencies]
+# Station tests parse the pins.toml sidecar (single pin owner, session-10
+# convention shared with crucible-tables).
+toml = "0.8"
 
 [lints]
 workspace = true

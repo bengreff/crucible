@@ -11,7 +11,7 @@
 //! indices `f+2` and `f+3`; `faces_l[f]`/`faces_r[f]` are the states
 //! immediately left/right of that face.
 
-use super::{NCOMP, Prim};
+use super::{NPRIM, Prim};
 
 /// Ghost cells required on each end of a pencil (PPM edge values of the
 /// first ghost cell need two more neighbors beyond it).
@@ -38,26 +38,26 @@ pub fn ppm_faces(w: &[Prim], n: usize, faces_l: &mut [Prim], faces_r: &mut [Prim
     // Slopes for pencil indices 1..n+5, interface values at i+1/2 for
     // i in 1..n+4, edge pairs for cells 2..n+4 — everything face 0..=n needs.
     let m = w.len();
-    let mut slope = vec![[0.0f64; NCOMP]; m];
+    let mut slope = vec![[0.0f64; NPRIM]; m];
     for i in 1..m - 1 {
-        for k in 0..NCOMP {
+        for k in 0..NPRIM {
             slope[i][k] = mc_slope(w[i - 1][k], w[i][k], w[i + 1][k]);
         }
     }
     // iface[i] = value at interface i+1/2 (CW84 eq. 1.6).
-    let mut iface = vec![[0.0f64; NCOMP]; m - 1];
+    let mut iface = vec![[0.0f64; NPRIM]; m - 1];
     for i in 1..m - 2 {
-        for k in 0..NCOMP {
+        for k in 0..NPRIM {
             iface[i][k] = 0.5 * (w[i][k] + w[i + 1][k]) - (slope[i + 1][k] - slope[i][k]) / 6.0;
         }
     }
     // Monotonized left/right edge values per cell (CW84 eq. 1.10), then the
     // MOL face states: face f takes cell f+2's right edge and cell f+3's
     // left edge.
-    let edge = |i: usize| -> ([f64; NCOMP], [f64; NCOMP]) {
+    let edge = |i: usize| -> ([f64; NPRIM], [f64; NPRIM]) {
         let mut lo = iface[i - 1];
         let mut hi = iface[i];
-        for k in 0..NCOMP {
+        for k in 0..NPRIM {
             let c = w[i][k];
             if (hi[k] - c) * (c - lo[k]) <= 0.0 {
                 lo[k] = c;
@@ -88,15 +88,15 @@ mod tests {
     use super::*;
 
     fn pencil(vals: &[f64]) -> Vec<Prim> {
-        vals.iter().map(|&v| [v; NCOMP]).collect()
+        vals.iter().map(|&v| [v; NPRIM]).collect()
     }
 
     #[test]
     fn solv1_s32_ppm_preserves_a_constant_exactly() {
         let n = 6;
         let w = pencil(&[7.5; 12]);
-        let mut l = vec![[0.0; NCOMP]; n + 1];
-        let mut r = vec![[0.0; NCOMP]; n + 1];
+        let mut l = vec![[0.0; NPRIM]; n + 1];
+        let mut r = vec![[0.0; NPRIM]; n + 1];
         ppm_faces(&w, n, &mut l, &mut r);
         for f in 0..=n {
             assert_eq!(l[f][0], 7.5);
@@ -112,8 +112,8 @@ mod tests {
         let n = 6;
         let vals: Vec<f64> = (0..n + 6).map(|i| 2.0 + 0.5 * i as f64).collect();
         let w = pencil(&vals);
-        let mut l = vec![[0.0; NCOMP]; n + 1];
-        let mut r = vec![[0.0; NCOMP]; n + 1];
+        let mut l = vec![[0.0; NPRIM]; n + 1];
+        let mut r = vec![[0.0; NPRIM]; n + 1];
         ppm_faces(&w, n, &mut l, &mut r);
         for f in 0..=n {
             let exact = 2.0 + 0.5 * (f as f64 + 2.5);
@@ -131,8 +131,8 @@ mod tests {
         let w = pencil(&[
             1.0, 1.0, 1.0, 1.0, 1.0, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125,
         ]);
-        let mut l = vec![[0.0; NCOMP]; n + 1];
-        let mut r = vec![[0.0; NCOMP]; n + 1];
+        let mut l = vec![[0.0; NPRIM]; n + 1];
+        let mut r = vec![[0.0; NPRIM]; n + 1];
         ppm_faces(&w, n, &mut l, &mut r);
         for f in 0..=n {
             for v in [l[f][0], r[f][0]] {

@@ -4,10 +4,14 @@
 //! one TOML file; no environment variable, CLI overlay, or ambient default
 //! may change a result.
 //!
+//! `[tables]` (§6-4) is live: a pin entry states the explicit
+//! `data_version` + `content_digest` pair, or delegates to the
+//! machine-written `…pins.toml` sidecar (the single pin owner) via
+//! [`load_str_with_sidecars`]; resolved configs always carry the explicit
+//! pair, so replay is a pure string load. FND-5's open gate re-verifies the
+//! digest against the artifact bytes at bind.
+//!
 //! Session-scoped deferrals (each lands with its owner):
-//! - Table pin → version/content-hash resolution (§3.6): needs the FND-5
-//!   loader; until then a non-empty `[tables]` block **refuses to load**
-//!   (fail loud, never a silently unresolved pin). §6 test 4 lands then.
 //! - `[couplers]`/`[operating_profile]`/`[uq]` grammars (deferred in the doc
 //!   itself): non-empty blocks refuse to load.
 //! - Envelope-coverage check (COUP-8 §3.3-2): needs FND-5 table metadata.
@@ -23,10 +27,10 @@ mod schema;
 pub use diag::{Diagnostic, Diagnostics};
 pub use loader::{
     CURRENT_SCHEMA_VERSION, DEFAULT_DETERMINISM_MODE, DEFAULT_RNG_ALGORITHM, Loaded,
-    OLDEST_SUPPORTED_SCHEMA_VERSION, load_str,
+    OLDEST_SUPPORTED_SCHEMA_VERSION, load_str, load_str_with_sidecars,
 };
-pub use manifest::{ChaoticRecord, RunManifest};
-pub use schema::{ResolvedConfig, ResolvedExtents, ResolvedGeometry};
+pub use manifest::{ChaoticRecord, RunManifest, TablePin};
+pub use schema::{ResolvedConfig, ResolvedExtents, ResolvedGeometry, ResolvedTablePin};
 /// Resolved block bodies are `toml::Table`s; re-export the crate so
 /// downstream consumers name those types without a version-skew risk.
 pub use toml;

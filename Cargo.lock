@@ -110,7 +110,9 @@ dependencies = [
  "crucible-config",
  "crucible-grid",
  "crucible-registry",
+ "crucible-tables",
  "crucible-units",
+ "toml",
 ]
 
 [[package]]

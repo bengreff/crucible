@@ -3,19 +3,19 @@
 //! Roe-average bounds restore the contact and species-advection waves that
 //! HLLE smears — mandatory with the composition block in `U` (SOLV-1 §3.2).
 //!
-//! The flux is written against the gamma-law EOS seam (`GammaLaw`), the
-//! first, degenerate occupant of the FND-7 constitutive spine: the Riemann
-//! solve reads only (ρ, p, c) closures, never a material label, so the
-//! general-convex-EOS lift swaps the closure without touching the wave
-//! algebra.
+//! The flux is written against the [`EosLaw`] seam (FND-7 constitutive
+//! spine): the Riemann solve reads only (ρ, p, c, ρE) closures through the
+//! trait, never a material label — the general-convex-EOS occupant supplies
+//! its sound speeds (local and Roe-averaged, from the aux Γ₁ slot) without
+//! touching the wave algebra (SOLV-1 §3.2, Castro/PeleC treatment).
 
-use super::{GammaLaw, I_EN, I_RC, I_RHO, NCOMP, Prim};
+use super::{EosLaw, I_EN, I_RC, I_RHO, NCOMP, Prim};
 
 /// Physical (hyperbolic) flux of the conserved vector in direction `n`
 /// (component slot of the normal velocity: 1 = r, 2 = θ, 3 = z), from a
 /// primitive state. Components ordered as `U` (SOLV-1 §3.1).
 #[inline]
-pub fn physical_flux(w: &Prim, n: usize, eos: &GammaLaw) -> [f64; NCOMP] {
+pub fn physical_flux<E: EosLaw>(w: &Prim, n: usize, eos: &E) -> [f64; NCOMP] {
     let (rho, p, c_frac) = (w[I_RHO], w[4], w[I_RC]);
     let u_n = w[n];
     let m = rho * u_n;
@@ -34,12 +34,12 @@ pub fn physical_flux(w: &Prim, n: usize, eos: &GammaLaw) -> [f64; NCOMP] {
 /// HLLC-Batten flux across a face with normal in slot `n`, given the
 /// reconstructed left/right primitive states. Deterministic: the wave-branch
 /// selection is a fixed comparison ladder, no iteration.
-pub fn hllc_flux(wl: &Prim, wr: &Prim, n: usize, eos: &GammaLaw) -> [f64; NCOMP] {
+pub fn hllc_flux<E: EosLaw>(wl: &Prim, wr: &Prim, n: usize, eos: &E) -> [f64; NCOMP] {
     let (rho_l, p_l) = (wl[I_RHO], wl[4]);
     let (rho_r, p_r) = (wr[I_RHO], wr[4]);
     let (un_l, un_r) = (wl[n], wr[n]);
-    let c_l = eos.sound_speed(rho_l, p_l);
-    let c_r = eos.sound_speed(rho_r, p_r);
+    let c_l = eos.sound_speed_w(wl);
+    let c_r = eos.sound_speed_w(wr);
 
     // Batten wavespeeds: bound each family by both the one-sided and the
     // Roe-average estimate (Batten et al., SIAM JSC 18(6), 1997).
@@ -56,7 +56,7 @@ pub fn hllc_flux(wl: &Prim, wr: &Prim, n: usize, eos: &GammaLaw) -> [f64; NCOMP]
     let h_r = (eos.total_energy(wr) + p_r) / rho_r;
     let h_roe = (sql * h_l + sqr * h_r) * inv;
     let q2_roe = u_roe[1] * u_roe[1] + u_roe[2] * u_roe[2] + u_roe[3] * u_roe[3];
-    let c_roe = ((eos.gamma - 1.0) * (h_roe - 0.5 * q2_roe)).max(0.0).sqrt();
+    let c_roe = eos.roe_sound_speed(wl, wr, h_roe, q2_roe, sql, sqr, inv);
 
     let s_l = (un_l - c_l).min(u_roe[n] - c_roe);
     let s_r = (un_r + c_r).max(u_roe[n] + c_roe);
@@ -115,12 +115,13 @@ pub fn hllc_flux(wl: &Prim, wr: &Prim, n: usize, eos: &GammaLaw) -> [f64; NCOMP]
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::euler::{GammaLaw, prim6};
 
     const EOS: GammaLaw = GammaLaw { gamma: 1.4 };
 
     #[test]
     fn solv1_s32_identical_states_give_the_physical_flux() {
-        let w: Prim = [1.2, 0.3, -0.1, 0.7, 2.5, 0.4];
+        let w: Prim = prim6(1.2, 0.3, -0.1, 0.7, 2.5, 0.4);
         for n in 1..=3 {
             let f = hllc_flux(&w, &w, n, &EOS);
             let fp = physical_flux(&w, n, &EOS);
@@ -139,8 +140,8 @@ mod tests {
     fn solv1_s32_supersonic_states_upwind_exactly() {
         // Both states moving right far above their sound speed: the flux is
         // exactly the left physical flux (S_L > 0).
-        let wl: Prim = [1.0, 0.0, 0.0, 5.0, 1.0, 1.0];
-        let wr: Prim = [0.5, 0.0, 0.0, 5.0, 0.5, 0.0];
+        let wl: Prim = prim6(1.0, 0.0, 0.0, 5.0, 1.0, 1.0);
+        let wr: Prim = prim6(0.5, 0.0, 0.0, 5.0, 0.5, 0.0);
         let f = hllc_flux(&wl, &wr, 3, &EOS);
         let fl = physical_flux(&wl, 3, &EOS);
         assert_eq!(f, fl);
@@ -151,8 +152,8 @@ mod tests {
         // A stationary contact (equal p, zero normal u, different ρ and C):
         // HLLC must return zero mass/species flux — the property Batten
         // wavespeeds exist to protect (HLLE smears this).
-        let wl: Prim = [1.0, 0.0, 0.0, 0.0, 1.0, 1.0];
-        let wr: Prim = [0.125, 0.0, 0.0, 0.0, 1.0, 0.0];
+        let wl: Prim = prim6(1.0, 0.0, 0.0, 0.0, 1.0, 1.0);
+        let wr: Prim = prim6(0.125, 0.0, 0.0, 0.0, 1.0, 0.0);
         let f = hllc_flux(&wl, &wr, 3, &EOS);
         assert_eq!(f[I_RHO], 0.0, "mass flux through a stationary contact");
         assert_eq!(f[I_RC], 0.0, "species flux through a stationary contact");
@@ -164,8 +165,8 @@ mod tests {
     #[test]
     fn solv1_s32_species_ride_the_upwind_side_of_the_contact() {
         // A right-moving contact: species flux = mass flux × left C.
-        let wl: Prim = [1.0, 0.0, 0.0, 0.5, 1.0, 1.0];
-        let wr: Prim = [0.25, 0.0, 0.0, 0.5, 1.0, 0.0];
+        let wl: Prim = prim6(1.0, 0.0, 0.0, 0.5, 1.0, 1.0);
+        let wr: Prim = prim6(0.25, 0.0, 0.0, 0.5, 1.0, 0.0);
         let f = hllc_flux(&wl, &wr, 3, &EOS);
         assert!(f[I_RHO] > 0.0);
         assert!(
