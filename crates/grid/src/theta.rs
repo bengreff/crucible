@@ -270,6 +270,13 @@ impl Grid {
                 den += v * (nt as f64) * mean * mean;
                 v_brick += v * nt as f64;
             }
+            // A brick with no gas cells (a solid-only liner brick on a
+            // region grid) has no azimuthal flow content to measure —
+            // skipping it is correct, and the old 0/0 → NaN path here
+            // mis-diagnosed such bricks as corrupted data (review finding).
+            if v_brick == 0.0 {
+                continue;
+            }
             let a = num / (den + v_brick * floor * floor);
             if !a.is_finite() {
                 return Err(GridError::NonFinite {

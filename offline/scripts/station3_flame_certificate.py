@@ -30,7 +30,7 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 TABLE = REPO / "tables" / "chem" / "lox_lh2_v0.1.0.h5"
 OUT = REPO / "certificates" / "station3_flame_certificate.md"
 
-GOLDEN = "sha256:e76ad40b893659821d94c2ca8b6608b1c2bc7a2397d9c5afb2cd40cda546fc4d"
+GOLDEN = "sha256:a3b0bc5987ad11ba166d006ab7103c16ff1d3a8f17f64a248d4b11d8091023f2"
 
 # RP-1311 example 8 published output (NASA RP-1311, NTRS 19960044559; as
 # printed in the nasa.github.io/cea release docs) — chamber column + rocket.
@@ -112,13 +112,11 @@ def main() -> int:
         }
         generator_commit = eq.attrs["generator_commit"]
 
-    pins = TABLE.with_suffix(".pins.toml").read_text()
-    digests = {}
-    for line in pins.splitlines():
-        if line.startswith('["'):
-            group = line.strip('[]"')
-        if line.startswith("content_digest"):
-            digests[group] = line.split('"')[1]
+    import tomllib
+
+    with open(TABLE.with_suffix(".pins.toml"), "rb") as fh:
+        pins = tomllib.load(fh)
+    digests = {group: entry["content_digest"] for group, entry in pins.items()}
 
     # --- §6-6: coordinate consistency along the design line ---------------
     design = []

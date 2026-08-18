@@ -89,11 +89,55 @@ pub const ENTRANCE_BAND: usize = 8;
 pub const S4_FIELD_T_SOLID: &str = "T_solid";
 pub const S4_FIELD_RATE_SOLID: &str = "rate_solid";
 
+// --- Certificate criteria (named, shared by the test battery AND the
+// certificate binary — the session-6 convention; META-2 §4 no-magic-numbers).
+// Measured values on the committed fixture are recorded next to each gate.
+
+/// Steadiness: max relative change of gas ρ and solid T over the check
+/// window (measured 7.3e-4).
+pub const RESID_MAX: f64 = 2.0e-3;
+/// Energy-ledger closure between the three independent steady rates
+/// (measured 3.2e-3 gas-vs-wall — steadiness-limited; 1.4e-7 wall-vs-coolant).
+pub const LEDGER_REL_TOL: f64 = 0.02;
+/// Pointwise series-resistance-oracle agreement past the entrance band
+/// (measured 9.4e-4; margin ×5).
+pub const ORACLE_REL_TOL: f64 = 5.0e-3;
+/// Near-wall recovery-temperature ratio band: the wall-adjacent cell is
+/// itself cooled, reading T_aw below free-stream by O(Δr) — measured 0.94
+/// at 2.5 mm; the ±20–30% closure band owns this cell-size dependence.
+pub const T_AW_RATIO_BAND: (f64, f64) = (0.85, 1.0);
+/// The mid-duct flux must be rocket-scale (measured 1.06 MW/m²): guards a
+/// silently de-energized fixture.
+pub const Q_MID_MIN: f64 = 0.5e6;
+/// Stair-interface closed-ledger conservation (measured 4.2e-12 —
+/// accumulation round-off).
+pub const CAVITY_CONSERVATION_TOL: f64 = 1.0e-11;
+/// Robin-annulus analytic anchor, worst relative error at 32 radial cells
+/// (measured well inside; discretization-limited).
+pub const ANNULUS_ROBIN_TOL: f64 = 2.0e-3;
+/// Runaway-march backstop (a dt collapse is a config/physics problem the
+/// typed error reports — far above any legitimate fixture march).
+pub const MARCH_STEP_CAP: usize = 2_000_000;
+
 #[derive(Debug)]
 pub enum CoupledError {
     Flow(FlowError),
     Solid(SolverError),
     Wall(WallHeatError),
+    /// The explicit-coupling premise (gas CFL dt below every thermal
+    /// stability limit) failed — a structured refusal (META-2 §4 halt
+    /// condition), because running degraded would silently violate the
+    /// scaffolding's declared validity; the class-D implicit solve
+    /// (COUP-3) is the correct tool for such parameters.
+    ThermalLimitUnderCfl {
+        dt_gas: f64,
+        dt_solid: f64,
+        dt_exchange: f64,
+    },
+    /// Step-count backstop tripped (see [`MARCH_STEP_CAP`]).
+    RunawayMarch {
+        steps: usize,
+    },
 }
 
 impl std::fmt::Display for CoupledError {
@@ -102,6 +146,23 @@ impl std::fmt::Display for CoupledError {
             Self::Flow(e) => write!(f, "gas operator: {e}"),
             Self::Solid(e) => write!(f, "solid operator: {e}"),
             Self::Wall(e) => write!(f, "wall law: {e}"),
+            Self::ThermalLimitUnderCfl {
+                dt_gas,
+                dt_solid,
+                dt_exchange,
+            } => write!(
+                f,
+                "explicit-coupling premise violated: a thermal stability limit (solid \
+                 {dt_solid:.3e} s, exchange {dt_exchange:.3e} s) undercuts the gas CFL dt \
+                 ({dt_gas:.3e} s) — refusing to run degraded; COUP-3's class-D implicit \
+                 solve is required for these parameters"
+            ),
+            Self::RunawayMarch { steps } => {
+                write!(
+                    f,
+                    "coupled march exceeded MARCH_STEP_CAP ({steps} steps) — dt collapse"
+                )
+            }
         }
     }
 }
@@ -283,16 +344,17 @@ fn opposite(d: FaceDir) -> FaceDir {
 }
 
 /// Per-face wall-normal geometry: (u_t from the prim, wall distance y,
-/// solid center-to-face distance d_s).
-fn face_geometry(w: &Prim, dir: FaceDir) -> (f64, f64, f64) {
+/// solid center-to-face distance d_s), sized by the grid's own spacings —
+/// never fixture constants (review finding).
+fn face_geometry(w: &Prim, dir: FaceDir, dr: f64, dz: f64) -> (f64, f64, f64) {
     match dir {
         FaceDir::RMinus | FaceDir::RPlus => {
             let u_t = (w[2] * w[2] + w[3] * w[3]).sqrt();
-            (u_t, 0.5 * DR, 0.5 * DR)
+            (u_t, 0.5 * dr, 0.5 * dr)
         }
         FaceDir::ZMinus | FaceDir::ZPlus => {
             let u_t = (w[1] * w[1] + w[2] * w[2]).sqrt();
-            (u_t, 0.5 * DZ, 0.5 * DZ)
+            (u_t, 0.5 * dz, 0.5 * dz)
         }
     }
 }
@@ -331,7 +393,11 @@ pub fn coupled_step(
                 i_theta: 0,
                 what,
             })?;
-        let (u_t, y, d_s) = face_geometry(&w, face.dir);
+        // Wall-normal geometry from the grid's own spec (review finding:
+        // fixture constants here would silently mis-size Re_y and the
+        // series resistance on any differently-spaced grid).
+        let (dr, dz) = (duct.grid.spec().dr, duct.grid.spec().dz);
+        let (u_t, y, d_s) = face_geometry(&w, face.dir, dr, dz);
         let temperature = w[4] / (w[0] * R_SPECIFIC);
         let gas = NearWallGas {
             rho: w[0],
@@ -382,18 +448,33 @@ pub fn coupled_step(
     };
     let dt_gas = op.stable_dt(&duct.grid, &duct.flow, CFL_S4)?;
     let dt_solid = SOLID_DT_FRAC * solid_op.stable_dt(&duct.grid, 1.0);
+    let spec_dr = duct.grid.spec().dr;
     let dt_exchange = if u_series_max > 0.0 {
-        EXCHANGE_DT_FRAC * RHO_CP_S * DR.min(DZ) / u_series_max
+        EXCHANGE_DT_FRAC * RHO_CP_S * spec_dr.min(duct.grid.spec().dz) / u_series_max
     } else {
         f64::INFINITY
     };
     let dt = dt_gas.min(dt_solid).min(dt_exchange).min(dt_cap);
-    assert!(
-        dt == dt_gas.min(dt_cap),
-        "explicit coupling premise violated: a thermal limit ({dt_solid:.3e}, \
-         {dt_exchange:.3e}) undercuts the gas CFL dt ({dt_gas:.3e}) — the class-D \
-         implicit solve (COUP-3) is required here; refusing to run degraded"
-    );
+    if dt != dt_gas.min(dt_cap) {
+        return Err(CoupledError::ThermalLimitUnderCfl {
+            dt_gas,
+            dt_solid,
+            dt_exchange,
+        });
+    }
+
+    // --- Coolant ledger BEFORE the solid advance: the Robin faces inside
+    // the step extract heat from the PRE-step temperatures (rate-then-
+    // apply), so the ledger must read the same state (review finding: a
+    // post-step read biased the transient closure).
+    let mut coolant_watts = 0.0f64;
+    let outer = N_R_GAS + N_R_SOLID - 1;
+    let a_outer = duct.grid.face_area_r(outer, true, nt);
+    for i_z in 0..N_Z {
+        let t_s = cell_value(&duct.grid, duct.t_solid, outer, i_z, 0);
+        coolant_watts += a_outer * (t_s - T_COOL) / (1.0 / H_COOL + 0.5 * spec_dr / KAPPA_S);
+    }
+    rec.coolant_joules += coolant_watts * dt;
 
     // --- Solid advance (reads the exchanges through the interface seam) --
     solid_op.step(&mut duct.grid, duct.t_solid, duct.rate_solid, t, dt)?;
@@ -415,16 +496,6 @@ pub fn coupled_step(
     }
     rec.wall_joules += wall_watts * dt;
 
-    // --- Coolant ledger (same arithmetic as the Robin BC) ----------------
-    let mut coolant_watts = 0.0f64;
-    let outer = N_R_GAS + N_R_SOLID - 1;
-    let a_outer = duct.grid.face_area_r(outer, true, nt);
-    for i_z in 0..N_Z {
-        let t_s = cell_value(&duct.grid, duct.t_solid, outer, i_z, 0);
-        coolant_watts += a_outer * (t_s - T_COOL) / (1.0 / H_COOL + 0.5 * DR / KAPPA_S);
-    }
-    rec.coolant_joules += coolant_watts * dt;
-
     // --- Gas advance ------------------------------------------------------
     op.step(&mut duct.grid, &duct.flow, t, dt)?;
     Ok(dt)
@@ -444,7 +515,9 @@ pub fn march_coupled(
         let dt = coupled_step(duct, op, t, t_final - t, rec)?;
         t += dt;
         steps += 1;
-        assert!(steps < 2_000_000, "runaway coupled march");
+        if steps >= MARCH_STEP_CAP {
+            return Err(CoupledError::RunawayMarch { steps });
+        }
     }
     Ok((steps, t))
 }
@@ -462,11 +535,7 @@ pub fn run_duct_for(
     settle: f64,
     check: f64,
 ) -> Result<(Duct, ExchangeRecord, usize, f64), CoupledError> {
-    static INFLOW: fn(f64, f64, f64, f64) -> Prim = |_, _, _, _| {
-        let a = (GAMMA * R_SPECIFIC * T_IN).sqrt();
-        let rho = P_IN / (R_SPECIFIC * T_IN);
-        [rho, 0.0, 0.0, MACH_IN * a, P_IN, 0.0]
-    };
+    static INFLOW: fn(f64, f64, f64, f64) -> Prim = |_, _, _, _| inflow_prim();
     let mut duct = build_duct();
     let op = duct_flow_op(duct.eos, &INFLOW);
     let mut rec = ExchangeRecord::default();
@@ -618,7 +687,8 @@ pub fn stepped_cavity_step(
                 i_theta: 0,
                 what,
             })?;
-        let (u_t, y, d_s) = face_geometry(&w, face.dir);
+        let (dr, dz) = (duct.grid.spec().dr, duct.grid.spec().dz);
+        let (u_t, y, d_s) = face_geometry(&w, face.dir, dr, dz);
         let temperature = w[4] / (w[0] * R_SPECIFIC);
         let gas = NearWallGas {
             rho: w[0],
@@ -660,7 +730,7 @@ pub fn stepped_cavity_step(
     let dt_gas = op.stable_dt(&duct.grid, &duct.flow, CFL_S4)?;
     let dt_solid = SOLID_DT_FRAC * solid_op.stable_dt(&duct.grid, 1.0);
     let dt_exchange = if u_series_max > 0.0 {
-        EXCHANGE_DT_FRAC * RHO_CP_S * DR.min(DZ) / u_series_max
+        EXCHANGE_DT_FRAC * RHO_CP_S * duct.grid.spec().dr.min(duct.grid.spec().dz) / u_series_max
     } else {
         f64::INFINITY
     };
@@ -803,8 +873,9 @@ pub fn duct_report(duct: &Duct, rec: &ExchangeRecord, steps: usize, resid: f64) 
         oracle_worst = oracle_worst.max(((rec.q[k] - q_1d) / q_1d).abs());
     }
     let k_mid = N_Z / 2;
-    let t_aw_freestream =
-        T_IN * (1.0 + PR.powf(1.0 / 3.0) * 0.5 * (GAMMA - 1.0) * MACH_IN * MACH_IN);
+    let t_aw_freestream = T_IN
+        * (1.0
+            + PR.powf(crate::wall_heat::RECOVERY_PR_EXP) * 0.5 * (GAMMA - 1.0) * MACH_IN * MACH_IN);
     DuctReport {
         steps,
         resid,

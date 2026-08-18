@@ -106,7 +106,7 @@ fn main() {
         "**The oracle** (VAL-1 rung i): at steady state the coupled system must reproduce \
          the cylindrical film + ln-annulus + coolant-film series-resistance solution, built \
          from the simulated *gas* state and declared coolant data only — the simulated solid \
-         field never enters. Pointwise agreement to {:.2e} (gate 5e-3) past the {}-cell \
+         field never enters. Pointwise agreement to {:.2e} (gate {ORACLE_REL_TOL:.0e}) past the {}-cell \
          entrance band says the wall law, the Robin faces, the region-masked conduction, and \
          the explicit flux-matched exchange compose into exactly the textbook conjugate \
          solution.\n",
@@ -139,7 +139,7 @@ fn main() {
          - **Reruns are bit-identical** on every field (asserted on a real march).\n\
          - **Robin-face analytic anchor:** the annulus with Dirichlet inner / Robin outer \
          reproduces the exact steady `T(r) = T1 + (T∞−T1)·ln(r/r1)/(ln(r2/r1)+κ/(h·r2))` \
-         to < 2e-3 relative (32 radial cells).\n"
+         to < {ANNULUS_ROBIN_TOL:.0e} relative (32 radial cells).\n"
     )
     .unwrap();
 

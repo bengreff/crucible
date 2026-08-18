@@ -5,21 +5,8 @@
 use crucible_solvers::station4_cooled_wall::*;
 use crucible_solvers::{Bcs, Conduction, Domain, FaceBc, InteriorFaces, SolverError};
 
-// --- Acceptance gates (measured on the committed fixture, then pinned) ------
-
-/// Steadiness: max relative change of gas ρ and solid T over the check
-/// window.
-const RESID_MAX: f64 = 2.0e-3;
-/// Energy-ledger closure between the three independent steady rates.
-const LEDGER_REL_TOL: f64 = 0.02;
-/// Pointwise series-resistance agreement past the entrance band
-/// (measured 9e-4 on the committed fixture; margin ×5).
-const ORACLE_REL_TOL: f64 = 5.0e-3;
-/// Near-wall sampling band: the wall-adjacent cell is itself cooled, so
-/// its recovery temperature sits below the free-stream value by O(Δr) —
-/// measured 0.94 of free-stream at 2.5 mm; the declared ±20–30% closure
-/// band owns this cell-size dependence (reported in the certificate).
-const T_AW_RATIO_BAND: (f64, f64) = (0.85, 1.0);
+// Acceptance gates are the named shared constants in station4_cooled_wall.rs
+// (session-6 convention: one owner for test + certificate binary).
 
 #[test]
 fn station4_duct_steady_ledger_and_series_resistance_oracle() {
@@ -50,10 +37,21 @@ fn station4_duct_steady_ledger_and_series_resistance_oracle() {
         r.t_aw_ratio_mid
     );
     assert!(
-        r.q_mid > 0.5e6,
+        r.q_mid > Q_MID_MIN,
         "rocket-scale flux expected, got {}",
         r.q_mid
     );
+
+    // Review regression (session-10 review): the solid operator must never
+    // touch T_solid outside its own domain — those cells hold their exact
+    // initial value (0.0; `fill_solid` writes solid cells only) after the
+    // whole march. The old unmasked pass-2 integrated stale rates there.
+    for i_z in 0..N_Z {
+        for i_r in 0..N_R_GAS {
+            let v = cell_value(&duct.grid, duct.t_solid, i_r, i_z, 0);
+            assert_eq!(v, 0.0, "T_solid drifted on gas cell ({i_r}, {i_z})");
+        }
+    }
 }
 
 #[test]
@@ -167,7 +165,7 @@ fn station4_stepped_cavity_stair_interface_conserves_to_round_off() {
     );
     assert!(gained > 0.0, "the cold liner must heat up");
     assert!(
-        ((lost - gained) / gained).abs() < 1.0e-11,
+        ((lost - gained) / gained).abs() < CAVITY_CONSERVATION_TOL,
         "stair-interface exchange must conserve to round-off"
     );
 }
@@ -255,5 +253,5 @@ fn station4_robin_annulus_matches_the_exact_steady_profile() {
         worst = worst.max((got - exact).abs() / (t1 - t_inf).abs());
     }
     println!("robin annulus worst rel error = {worst:.2e} ({steps} steps)");
-    assert!(worst < 2.0e-3, "worst {worst:.3e}");
+    assert!(worst < ANNULUS_ROBIN_TOL, "worst {worst:.3e}");
 }

@@ -151,6 +151,40 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   surface (SOLV-1 frozen-advection wave), expansion oracles (station 5), B′ (SOLV-8), transport
   feed (OFFL-5, S23), config→tables pin wiring (FND-4 §6-4, sidecar TOML is the interim
   record), per-point sigma columns (COUP-5 wave). True test count: **89 Rust + 23 Python**.
+- Session 10 review wave (2026-08-17): **10-angle multi-agent review of sessions 7–10 + gap
+  sweep** (~40 verified candidates; every confirmed correctness bug fixed same-session, gates
+  green; certificates stayed byte-identical through the conduction fix — no certified number
+  stood on a bug). Headline fixes: (1) **conduction rate-buffer corruption** — pass 1 wrote
+  only domain cells but the reused buffer was copied whole per brick and the unmasked pass 2
+  integrated stale rates into out-of-domain cells' T (latent under full-box grids, activated
+  by Domain::Solid; found independently by three angles; regression test pins T_solid ≡ 0 on
+  gas cells). (2) **Digest v3** — v2 left `schema_version` (reader-gated!) and the
+  both-sigma-forms corner unpinned: exactly one sigma form is now refused by writer AND reader
+  in both languages, schema_version joined the hashed trailer, shape/σ-length validated before
+  any I/O (Python `assert`s → real exceptions, `-O`-proof); all pins re-stamped (golden
+  a3b0bc59…, fixture 5f91b7ab…, production via sidecar — the fresh-process regeneration also
+  reproduced bit-identical table data, exercising cold-start CEA determinism). (3)
+  **pins.toml = single owner**: Rust station-3 tests parse the sidecar (`toml` dev-dep), the
+  certificate script uses `tomllib` — hand-copied digest constants are gone. (4) **`cea==3.3.2`
+  was missing from pyproject pins** (venv-only install; the engine's version was unrecorded).
+  (5) all-Exterior worlds refuse at the build seam (was: Ok(0 bricks) then `brick(0)` panic).
+  (6) **release profile gains overflow-checks** — certificates had regenerated unguarded since
+  session 7 moved gate 5 to `--release` (the θ-wrap-underflow bug class). (7) smaller fixes:
+  coolant ledger reads pre-step T (transient closure was biased); `face_geometry` sized from
+  `grid.spec()` not fixture constants (station-5 landmine); station-2 plane diagnostics
+  eos-threaded (hardcoded γ=1.4 decode); station-4 criteria → named shared constants in src
+  (test + certificate bin, session-6 convention restored); `InteriorFaces::gas` under
+  `Domain::FlowActive` refused loudly (was silently dead); coupled-march panics → typed
+  `CoupledError`s; symmetry indicator skips solid-only bricks (0/0-NaN read as "corrupted
+  data"); `EquilibriumEngine` validates Propellant coherence (overlapping streams gave NaN
+  weights); station-1/2 doc-vs-measurement mismatches corrected in place (star-span includes
+  the contact deliberately — u,p continuous there; no THROAT_EXCLUSION exists); check.sh
+  refuses untracked certificates; VAL-2 §3.2 erratum c\* `in/s`→`ft/s` (changelog 0.2.1,
+  mirrored in META-3). **Perf items deliberately deferred INTO the station-5 waves that
+  rebuild those surfaces** (recorded in the NEXT block): tables `BoundColumn` handle
+  (`interpolate` re-parses rule strings + allocates per query — ~10⁸ calls/run at station 5),
+  Euler per-step scratch/allocation churn, coupler face-cache + one-stepper merge, shared
+  mask-aware plane-diagnostics module. True test count: **104 Rust + 25 Python**.
 - **Ben's post-checkpoint BIG goal (2026-08-17): data visualizations** of CRUCIBLE results once
   the station ladder yields meaningful data — its own wave after the stations; keep FND-6
   results-bundle design viz-friendly meanwhile (auto-memory `project-dataviz-goal`).
@@ -203,12 +237,35 @@ instrument; the research uses the instrument.** No engine-specific features, eve
   h5py mirrors `crates/tables/src/digest.rs` byte-for-byte. **✓ COMPLETE (session 9, 2026-08-17).**
   **(4) Cooled wall** — the one wall-function heat law (SOLV-1 §3.5/COUP-3 class-D) + certified
   conduction; declared ±20–30% band. **✓ COMPLETE (session 10, 2026-08-17).**
-  **← NEXT: (5) the BLIND RL10 assembly.** Big pieces before the blind run, each its own
-  wave: (p,h,Z) surface wired into the Euler operator as its EOS (SOLV-1 §3.4 shifting
-  mode — the FND-4 §6-4 config→tables pin grammar lands here); nozzle+liner assembly
-  (Bartz cross-check rides along); COUP-7 injector + cooling-jacket boundary objects;
-  the expander-cycle closure so p_c emerges; SOLV-7 thrust/Isp readout vs TM-107318
-  under the VAL-2 §9 blind rule.
+  **← NEXT: (5) the BLIND RL10 assembly** — likely 2–3 sessions; wave (a) is committable
+  alone. **Data is cached and ledgered:** `data/anchors/TM-107318_ntrs_19970010379.pdf`
+  (sha256 2d25422c…, META-3 `rl10-tm107318`): geometry Table 2.5.1 p.6 + App. E p.135;
+  jacket Table 2.4.1 + App. D; the 16-station cycle Table 6.1.1 p.37; pump/turbine maps
+  App. B/C are **calibrated-mode only** (blind uses coax-family η_c\* ±1–3% + pump-class
+  envelopes, N18/D-G). VAL-2 §3.2 erratum fixed (c\* 7824 **ft**/s).
+  **(a) EOS seam wave:** `BoundColumn` handle on crucible-tables FIRST (review: interpolate()
+  re-parses rule strings + allocates per query — SOLV-1 makes ~10⁸ calls/run); then SOLV-1
+  §3.4 shifting mode — Z advects in the existing ρC slot, per-cell equilibrium projection at
+  (p, h, Z) via a fixed-count p-iteration (h = e + p/ρ), gamma-law retired to table data;
+  FND-4 §6-4 `[tables]` pin grammar consuming the pins.toml sidecar (now the single owner
+  the Rust tests already read). Add the cross-process table-regeneration determinism test.
+  **(b) Assembly wave:** digitize the RL10 contour stations (Table 2.5.1/App. E → cached CSV
+  in data/anchors, cited); build_with_regions from the contour (gas+liner+exterior); rebuild
+  the coupler ONE stepper parameterized by BC/ledger config (absorbs the review's dedup
+  findings; precompute per-face brick/cell indices + areas — kills the per-step BTreeMap +
+  Morton searches); COUP-7 injector prior tier (premixed at MR with the η_c\* band applied
+  as SOLV-1 §3.4's SOURCE-level heat-release knockdown — output-side multiplication
+  forbidden) + cooling-jacket coolant side; Bartz nozzle-envelope oracle rides here.
+  **(c) Cycle + blind run wave:** COUP-3 §3.5 expander fixed point on ṁ (N_EXPANDER_SWEEPS,
+  Aitken, pump-class envelopes); p_c emerges; SOLV-7 reads thrust/Isp/c\*/C_F vs the
+  TM-107318 p-box (overlap metric d reported; every score labeled blind/calibrated).
+  Certificate = the blind headline.
+  **Review-deferred structural items to absorb in (a)/(b):** shared SOLV-7 plane-diagnostics
+  module (mask-aware, eos-threaded — station-4's copies retire); grid-owned random-access +
+  region fills (station-4's cell_value/fill_solid retire); FND-7-style material table when a
+  second solid material appears (sole_instance ceiling); mask-disjointness validation +
+  aperture-aware face classification land with FND-3; libm/powf platform note: certificates
+  regenerate on the pinned dev host only.
   **(5) Blind RL10** — 1966 design geometry + universal closures + technology-class data only
   (§9 blind rule: nothing measured on the engine under test); predict 73.4 kN / Isp ≈ 444 s ≤ 2%;
   thrust measured from exit momentum flux (SOLV-7), never assumed; uncertainty from declared

@@ -4,8 +4,9 @@
 //! `offline/scripts/make_station3_tables.py`), loaded here through the full
 //! FND-5 §3.2 pin gate and interpolated by the runtime path SOLV-1 will use.
 //!
-//! Pins must match `tables/chem/lox_lh2_v0.1.0.pins.toml` (the FND-4 §6-4
-//! config wiring consumes them when it lands). Reference interpolation
+//! Pins are READ from `tables/chem/lox_lh2_v0.1.0.pins.toml` (the same
+//! sidecar the FND-4 §6-4 config wiring consumes when it lands) — one
+//! machine-written owner, no hand-copied digests. Reference interpolation
 //! values come from the Python reference evaluator over the same file —
 //! asserted to 1e-6 abs so the two runtimes provably interpolate the same
 //! surface the same way; the physics anchors (CEA direct solves) sit
@@ -17,9 +18,30 @@ const FILE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../tables/chem/lox_lh2_v0.1.0.h5"
 );
-const DATA_VERSION: &str = "0.1.0";
-const EQ_DIGEST: &str = "sha256:b6793b344396d28355cc08799f9ba68434b50ddf87dee4655d6b25d6e7ce2c37";
-const PERF_DIGEST: &str = "sha256:9dfc705e250b0f91a538285d76dd2dfef479c14050bdf767a641b68a2441d8dc";
+/// Pins come from the machine-written sidecar — the single owner the FND-4
+/// §6-4 config wiring will also consume (review finding: hand-copied digest
+/// constants here went stale on every regeneration).
+const PINS_TOML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tables/chem/lox_lh2_v0.1.0.pins.toml"
+));
+
+fn sidecar_pin(group: &str) -> Pin {
+    let doc: toml::Table = PINS_TOML.parse().expect("pins sidecar parses as TOML");
+    let entry = doc
+        .get(group)
+        .and_then(|v| v.as_table())
+        .unwrap_or_else(|| panic!("pins sidecar has no entry for {group}"));
+    Pin {
+        data_version: entry["data_version"].as_str().expect("string").to_string(),
+        content_digest: Some(
+            entry["content_digest"]
+                .as_str()
+                .expect("string")
+                .to_string(),
+        ),
+    }
+}
 
 // The RL10-class chamber point: p_c = 32.75 bar, MR = 5 (Z = 1/6), h at
 // the liquid-injection enthalpy (H2(L) 20.27 K / O2(L) 90.17 K, CEA).
@@ -29,17 +51,14 @@ const Z: f64 = 1.0 / 6.0;
 // CEA direct HP solve at that point (the truth the surface tabulates).
 const T_CHAMBER_CEA: f64 = 3225.4141325483242;
 
-fn pin(digest: &str) -> Pin {
-    Pin {
-        data_version: DATA_VERSION.into(),
-        content_digest: Some(digest.into()),
-    }
-}
-
 #[test]
 fn equilibrium_surface_loads_and_reproduces_the_rl10_chamber() {
-    let t = Table::open(FILE, "/chem/lox_lh2/equilibrium", &pin(EQ_DIGEST))
-        .expect("production equilibrium surface must load under its pin");
+    let t = Table::open(
+        FILE,
+        "/chem/lox_lh2/equilibrium",
+        &sidecar_pin("/chem/lox_lh2/equilibrium"),
+    )
+    .expect("production equilibrium surface must load under its pin");
     assert_eq!(t.axes.len(), 3);
     assert_eq!(t.values.len(), 12);
 
@@ -71,8 +90,12 @@ fn equilibrium_surface_loads_and_reproduces_the_rl10_chamber() {
 
 #[test]
 fn performance_reference_loads_and_interpolates_c_star() {
-    let t = Table::open(FILE, "/chem/lox_lh2/performance", &pin(PERF_DIGEST))
-        .expect("production performance reference must load under its pin");
+    let t = Table::open(
+        FILE,
+        "/chem/lox_lh2/performance",
+        &sidecar_pin("/chem/lox_lh2/performance"),
+    )
+    .expect("production performance reference must load under its pin");
     let c_star = t
         .interpolate("c_star_ideal", &[P_C, 5.0])
         .expect("in-envelope");
@@ -86,7 +109,12 @@ fn performance_reference_loads_and_interpolates_c_star() {
 fn units_bind_gate_refuses_a_relabeled_column() {
     // META-2 §4 ★ at the seam: the consumer declares what units it expects
     // at bind time; a mismatch is a refusal, never a misread quantity.
-    let t = Table::open(FILE, "/chem/lox_lh2/equilibrium", &pin(EQ_DIGEST)).expect("load");
+    let t = Table::open(
+        FILE,
+        "/chem/lox_lh2/equilibrium",
+        &sidecar_pin("/chem/lox_lh2/equilibrium"),
+    )
+    .expect("load");
     t.expect_units("temperature", "K").expect("declared in K");
     t.expect_units("sound_speed", "m/s")
         .expect("declared in m/s");
@@ -103,7 +131,12 @@ fn units_bind_gate_refuses_a_relabeled_column() {
 
 #[test]
 fn out_of_envelope_refuses_never_extrapolates() {
-    let t = Table::open(FILE, "/chem/lox_lh2/equilibrium", &pin(EQ_DIGEST)).expect("load");
+    let t = Table::open(
+        FILE,
+        "/chem/lox_lh2/equilibrium",
+        &sidecar_pin("/chem/lox_lh2/equilibrium"),
+    )
+    .expect("load");
     // p below the declared envelope (but still above the grid floor).
     match t.interpolate("temperature", &[1.6e3, H_INJ, Z]) {
         Err(TableError::OutOfEnvelope { axis, .. }) => assert_eq!(axis, "p"),

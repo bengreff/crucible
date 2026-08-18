@@ -69,6 +69,27 @@ pub fn write_table(
                     .into(),
             });
         }
+        // Exactly one sigma form: the digest covers one marker (per-point
+        // OR scalar), so writing both would put unpinned bytes in the file
+        // — same-label/different-bytes through the back door (review
+        // finding; the reader refuses such files symmetrically).
+        if v.sigma.is_some() && v.sigma_scalar.is_some() {
+            return Err(TableError::UnexpectedMember {
+                path: format!("{group_path}/values/{}", v.name),
+                reason: "both per-point sigma and scalar sigma set — the digest covers \
+                         exactly one form; supply one"
+                    .into(),
+            });
+        }
+        if let Some(s) = &v.sigma
+            && s.len() != v.data.len()
+        {
+            return Err(TableError::ShapeMismatch {
+                value: format!("sigma_{}", v.name),
+                expected: v.data.len(),
+                found: s.len(),
+            });
+        }
     }
     for a in &spec.axes {
         if a.name.contains('\n') || a.name.is_empty() {
@@ -165,6 +186,7 @@ pub fn write_table(
 
     Ok(content_digest(
         &spec.kind,
+        &spec.schema_version,
         &spec.data_version,
         &spec.interp_method,
         &spec.provenance,

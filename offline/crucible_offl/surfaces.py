@@ -113,18 +113,24 @@ def _eq_columns(state: EqState) -> dict[str, float]:
     return cols
 
 
-#: interp_rule per equilibrium column: axes (p, h, Z) then the value.
-#: p is a log axis everywhere; density is log-valued (near-linear in
-#: log p – log rho); everything else linear (mole fractions can be 0).
-_EQ_RULES = {
-    "temperature": "log-lin-lin-lin",
-    "density": "log-lin-lin-log",
-    "gamma_eff": "log-lin-lin-lin",
-    "sound_speed": "log-lin-lin-lin",
-    "mbar": "log-lin-lin-lin",
-    "condensed_fraction": "log-lin-lin-lin",
-    **{f"X_{sp}": "log-lin-lin-lin" for sp in GAS_SPECIES},
+#: (interp_rule, units) per equilibrium column — ONE table, so a new
+#: column cannot silently ship with a fallback unit (review finding: a
+#: parallel units dict with .get(name, "1") was the silent-default hazard
+#: the Rust expect_units bind gate would then bake in). Axes (p, h, Z)
+#: then the value; p is a log axis everywhere; density is log-valued
+#: (near-linear in log p – log rho); everything else linear (mole
+#: fractions can be 0).
+_EQ_COLUMNS = {
+    "temperature": ("log-lin-lin-lin", "K"),
+    "density": ("log-lin-lin-log", "kg/m^3"),
+    "gamma_eff": ("log-lin-lin-lin", "1"),
+    "sound_speed": ("log-lin-lin-lin", "m/s"),
+    "mbar": ("log-lin-lin-lin", "kg/kmol"),
+    "condensed_fraction": ("log-lin-lin-lin", "1"),
+    **{f"X_{sp}": ("log-lin-lin-lin", "1") for sp in GAS_SPECIES},
 }
+#: Rule-only view (the certificate + tests key interpolation on it).
+_EQ_RULES = {name: rule for name, (rule, _units) in _EQ_COLUMNS.items()}
 
 
 def _multilinear(rule: str, axes: list[np.ndarray], grids: dict[str, np.ndarray], q: tuple[float, ...], name: str) -> float:
@@ -240,18 +246,11 @@ def build_equilibrium_surface(
             TableValue(
                 name,
                 tuple(grids[name].reshape(-1)),
-                units={
-                    "temperature": "K",
-                    "density": "kg/m^3",
-                    "gamma_eff": "1",
-                    "sound_speed": "m/s",
-                    "mbar": "kg/kmol",
-                    "condensed_fraction": "1",
-                }.get(name, "1"),
-                interp_rule=_EQ_RULES[name],
+                units=_EQ_COLUMNS[name][1],
+                interp_rule=_EQ_COLUMNS[name][0],
                 interp_error_bound=bounds[name],
             )
-            for name in sorted(_EQ_RULES)
+            for name in sorted(_EQ_COLUMNS)
         ),
     )
     return spec, bounds

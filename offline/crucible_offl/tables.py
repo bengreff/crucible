@@ -9,16 +9,22 @@ that round-trip is CI-enforced by the committed seam fixture
 
 Digest = ``"sha256:" + hex(SHA-256(stream))`` where ``stream`` is:
 
-1. the ASCII tag ``crucible-table-digest-v2\\n``;
+1. the ASCII tag ``crucible-table-digest-v3\\n``;
 2. for each **axis in table order**: the tag ``axis\\n``, then STR(name),
    point count as u64 LE, points as f64 LE, envelope min then max as f64 LE;
 3. for each **value dataset sorted by name** (byte-wise on UTF-8): the tag
    ``value\\n``, then STR(name), STR(units), STR(interp_rule),
    interp_error_bound as f64 LE, element count as u64 LE, data as f64 LE,
    then the sigma marker: ``0u8`` (none), or ``1u8`` + per-point sigma as
-   f64 LE, or ``2u8`` + scalar sigma as f64 LE (per-point wins if both);
-4. the trailer ``meta\\n``, then STR(kind), STR(data_version),
-   STR(interp_method), STR(producer), STR(producer_version),
+   f64 LE, or ``2u8`` + scalar sigma as f64 LE — **exactly one form per
+   value** (both set is refused: the stream hashes one marker, so the
+   second form would be unpinned bytes), with the per-point count defined
+   equal to the prefixed data count (enforced, keeping the stream
+   unambiguous without a second length field);
+4. the trailer ``meta\\n``, then STR(kind), STR(schema_version) — v3:
+   the reader gates on it, so the pin must cover it (v2 left it unpinned;
+   review finding) — STR(data_version), STR(interp_method), STR(producer),
+   STR(producer_version),
    STR(input_deck_hash), STR(source_library), STR(generator_commit), and
    the rng-seed marker: ``0u8``, or ``1u8`` + seed as i64 LE.
 
@@ -92,8 +98,37 @@ def _put_f64(h, x: float) -> None:
     h.update(struct.pack("<d", x))
 
 
+def _validate(axes: tuple[Axis, ...], values: tuple[TableValue, ...]) -> None:
+    """Fail-loud spec validation shared by digest and writer (META-1 P6):
+    a digest must never be stamped over a stream the Rust reader would
+    refuse, and every byte the file carries must be pinned. Real
+    exceptions, not `assert` — validation must survive `python -O`."""
+    expected = 1
+    for a in axes:
+        expected *= len(a.points)
+    for v in values:
+        if len(v.data) != expected:
+            raise ValueError(
+                f"value {v.name!r}: {len(v.data)} elements, axes imply {expected} — "
+                "refusing to digest/write a shape the reader would reject"
+            )
+        if v.sigma is not None and v.sigma_scalar is not None:
+            raise ValueError(
+                f"value {v.name!r}: both per-point sigma and sigma_scalar set — the digest "
+                "covers exactly one sigma form, so the other would be unpinned bytes "
+                "(same-label/different-bytes); supply one"
+            )
+        if v.sigma is not None and len(v.sigma) != len(v.data):
+            raise ValueError(
+                f"value {v.name!r}: sigma has {len(v.sigma)} elements, data has "
+                f"{len(v.data)} — the sigma stream carries no count prefix, so its length "
+                "MUST equal the (prefixed) data length for the digest to be unambiguous"
+            )
+
+
 def content_digest(
     kind: str,
+    schema_version: str,
     data_version: str,
     interp_method: str,
     provenance: Provenance,
@@ -101,11 +136,13 @@ def content_digest(
     values_sorted_by_name: tuple[TableValue, ...],
 ) -> str:
     """The canonical content digest a pin verifies (digest.rs mirror)."""
+    _validate(axes, values_sorted_by_name)
     names = [v.name.encode("utf-8") for v in values_sorted_by_name]
-    assert names == sorted(names), "digest requires values sorted by name"
+    if names != sorted(names):
+        raise ValueError("digest requires values sorted by name (byte-wise)")
 
     h = hashlib.sha256()
-    h.update(b"crucible-table-digest-v2\n")
+    h.update(b"crucible-table-digest-v3\n")
     for a in axes:
         h.update(b"axis\n")
         _put_str(h, a.name)
@@ -135,6 +172,7 @@ def content_digest(
     h.update(b"meta\n")
     for s in (
         kind,
+        schema_version,
         data_version,
         interp_method,
         provenance.producer,
@@ -160,6 +198,7 @@ def spec_digest(spec: WriteSpec) -> str:
     """Digest of a spec without writing it (values sorted here)."""
     return content_digest(
         spec.kind,
+        spec.schema_version,
         spec.data_version,
         spec.interp_method,
         spec.provenance,
@@ -191,6 +230,9 @@ def write_table(file_path: str, group_path: str, spec: WriteSpec) -> str:
                 f"{group_path}/axes/{a.name!r}: axis names must be non-empty "
                 "and newline-free (the `axis_order` attribute is \\n-joined)"
             )
+    # Validate shapes + compute the digest BEFORE any file I/O: a spec the
+    # reader would refuse must not leave a half-written file behind.
+    digest = spec_digest(spec)
     values = _sorted_values(spec)
 
     utf8 = h5py.string_dtype(encoding="utf-8")
@@ -232,11 +274,4 @@ def write_table(file_path: str, group_path: str, spec: WriteSpec) -> str:
             if v.sigma_scalar is not None:
                 ds.attrs.create("sigma", np.float64(v.sigma_scalar))
 
-    return content_digest(
-        spec.kind,
-        spec.data_version,
-        spec.interp_method,
-        spec.provenance,
-        spec.axes,
-        values,
-    )
+    return digest

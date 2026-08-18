@@ -26,6 +26,14 @@ unsafe_code = "deny"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
+# Certificates regenerate under --release (gate 5): keep overflow checks ON
+# there too — the session-7 θ-wrap underflow was caught only by checked
+# arithmetic, and a silent wrap in a certificate binary would bless wrong
+# numbers (review finding). f64 results are unaffected; the integer-check
+# cost is noise next to the marches.
+[profile.release]
+overflow-checks = true
+
 # The certificate studies (Goal A conduction, Station 1 Sod ladder) are real
 # solver marches; unoptimized they multiply the fast-gate wall time ~20×.
 # Optimization level does not change f64 results in Rust (no fast-math, no

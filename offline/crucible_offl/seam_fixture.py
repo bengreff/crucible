@@ -22,7 +22,7 @@ GROUP_PATH = "/chem/seam_probe"
 DATA_VERSION = "0.1.0"
 # Pinned on first generation (2026-08-17); any change to the writer or the
 # digest that moves this is a seam break and must bump both sides together.
-PIN_DIGEST = "sha256:221f4c4014b78664d844f74859dcd38980dbc624d89c94f4428ad7340b3bbb3c"
+PIN_DIGEST = "sha256:5f91b7ab6cbd34c836fa214175553de5f18cee3c6842837443e0f4ace49a78b4"
 
 
 def fixture_spec() -> WriteSpec:

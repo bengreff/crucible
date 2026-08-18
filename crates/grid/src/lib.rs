@@ -376,6 +376,17 @@ impl Grid {
                 });
             }
         }
+        // An all-Exterior classifier is a config/geometry mistake (a
+        // contour that misses every cell center), not a world — refuse at
+        // the build seam rather than letting the first operator panic on
+        // `brick(0)` (META-1 P6; review finding).
+        if bricks.is_empty() {
+            return Err(GridError::BadSpec(
+                "region classifier marked every cell Exterior — an empty world cannot build \
+                 (check contour/extents units)"
+                    .into(),
+            ));
+        }
         bricks.sort_by_key(|b| b.morton);
         Ok(Grid {
             spec,
@@ -593,8 +604,13 @@ impl Grid {
 
     /// Interface face area per θ-plane slice (the θ-uniform region shape
     /// makes one area serve all `n_theta` planes): the r-face ring area or
-    /// the z-face annular sector, evaluated on the SOLID side's ring index
-    /// so both sides of the exchange integrate over the identical face.
+    /// the z-face annular sector, evaluated on the GAS side's ring index.
+    /// Both sides of the exchange integrate the identical area because the
+    /// shared face is one face: for r-faces the gas ring's outer radius IS
+    /// the solid ring's inner radius (`face_radius` single owner, session
+    /// 7), and z-face partners share a ring. When FND-3 partial apertures
+    /// make per-side areas genuinely differ, this function is the one
+    /// place the shared-face definition changes.
     pub fn interface_area_per_theta(&self, face: &InterfaceFace, n_theta: u32) -> f64 {
         match face.dir {
             // Gas at (i_r, i_z), solid at (i_r∓1, i_z): the shared face is

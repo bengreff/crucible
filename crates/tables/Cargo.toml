@@ -13,6 +13,7 @@ hdf5 = { package = "hdf5-metno", version = "0.14", features = ["static"] }
 sha2 = "0.10"
 
 [dev-dependencies]
+toml = "0.8"
 # Integration tests manipulate fixture files directly (attribute stripping
 # for the §6-5b missing-metadata gate).
 hdf5 = { package = "hdf5-metno", version = "0.14", features = ["static"] }

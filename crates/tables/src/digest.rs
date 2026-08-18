@@ -6,7 +6,7 @@
 //!
 //! Digest = `"sha256:" + hex(SHA-256(stream))` where `stream` is:
 //!
-//! 1. the ASCII tag `crucible-table-digest-v2\n`;
+//! 1. the ASCII tag `crucible-table-digest-v3\n`;
 //! 2. for each **axis in table order**: the tag `axis\n`, then STR(name),
 //!    point count as u64 LE, points as f64 LE, envelope min then max as
 //!    f64 LE;
@@ -14,8 +14,15 @@
 //!    STR(name), STR(units), STR(interp_rule), interp_error_bound as
 //!    f64 LE, element count as u64 LE, data as f64 LE, then the sigma
 //!    marker: `0u8` (none), or `1u8` + per-point sigma as f64 LE, or
-//!    `2u8` + scalar sigma as f64 LE;
-//! 4. the trailer `meta\n`, then STR(kind), STR(data_version),
+//!    `2u8` + scalar sigma as f64 LE — **exactly one form per value**
+//!    (writer and reader both refuse a value carrying both: the stream
+//!    hashes one marker, so a second form would be unpinned bytes), and
+//!    the per-point sigma count is defined equal to the (prefixed) data
+//!    count — enforced at every stamping site, keeping the stream
+//!    prefix-unambiguous without a second length field;
+//! 4. the trailer `meta\n`, then STR(kind), STR(schema_version) — v3:
+//!    the reader gates on it, so it is reader-consequential bytes the pin
+//!    must cover (review finding; v2 left it unpinned) — STR(data_version),
 //!    STR(interp_method), STR(producer), STR(producer_version),
 //!    STR(input_deck_hash), STR(source_library), STR(generator_commit),
 //!    and the rng-seed marker: `0u8`, or `1u8` + seed as i64 LE.
@@ -39,6 +46,7 @@ fn put_str(h: &mut Sha256, s: &str) {
 
 pub(crate) fn content_digest(
     kind: &str,
+    schema_version: &str,
     data_version: &str,
     interp_method: &str,
     provenance: &Provenance,
@@ -46,7 +54,7 @@ pub(crate) fn content_digest(
     values_sorted_by_name: &[TableValue],
 ) -> String {
     let mut h = Sha256::new();
-    h.update(b"crucible-table-digest-v2\n");
+    h.update(b"crucible-table-digest-v3\n");
     for a in axes {
         h.update(b"axis\n");
         put_str(&mut h, &a.name);
@@ -90,6 +98,7 @@ pub(crate) fn content_digest(
     h.update(b"meta\n");
     for s in [
         kind,
+        schema_version,
         data_version,
         interp_method,
         provenance.producer.as_str(),

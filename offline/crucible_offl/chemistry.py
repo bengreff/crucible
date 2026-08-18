@@ -117,6 +117,25 @@ class EquilibriumEngine:
     def __init__(self, propellant: Propellant = LOX_LH2):
         self.propellant = propellant
         species = list(propellant.fuel_species) + list(propellant.oxidizer_species)
+        # Fail loud at the boundary where the mistake is made (META-1 P6):
+        # incoherent propellants otherwise surface as NaN weights deep in
+        # the first solve (review finding).
+        if len(propellant.injection_temps) != len(species):
+            raise ValueError(
+                f"propellant {propellant.name!r}: {len(propellant.injection_temps)} "
+                f"injection temperatures for {len(species)} species"
+            )
+        overlap = set(propellant.fuel_species) & set(propellant.oxidizer_species)
+        if overlap:
+            raise ValueError(
+                f"propellant {propellant.name!r}: species {sorted(overlap)} appear in both "
+                "streams — stream weights would be degenerate (NaN); split streams must be "
+                "disjoint"
+            )
+        if not propellant.fuel_species or not propellant.oxidizer_species:
+            raise ValueError(
+                f"propellant {propellant.name!r}: both streams must be non-empty"
+            )
         self._reac = cea.Mixture(species)
         self._prod = cea.Mixture(species, products_from_reactants=True)
         self._fuel_w = np.array(
@@ -167,12 +186,20 @@ class EquilibriumEngine:
         z = mr_to_z(mr)
         return self.state_php(p_c, self.injection_enthalpy(z), z)
 
-    def _rocket(self, p_c: float, mr: float, n_frz: int | None) -> cea.RocketSolution:
+    def _rocket(
+        self,
+        p_c: float,
+        mr: float,
+        n_frz: int | None,
+        supar: list[float] | None = None,
+    ) -> cea.RocketSolution:
         z = mr_to_z(mr)
         w = self._weights(z)
         hc = self.injection_enthalpy(z) / R_CEA
         sol = cea.RocketSolution(self._rocket_solver)
-        self._rocket_solver.solve(sol, w, p_c / BAR, hc=hc, iac=True, n_frz=n_frz)
+        self._rocket_solver.solve(
+            sol, w, p_c / BAR, supar=supar, hc=hc, iac=True, n_frz=n_frz
+        )
         if not sol.converged:
             raise ConvergenceError(
                 f"CEA rocket solve failed at p_c={p_c} Pa, MR={mr}, n_frz={n_frz}"
@@ -198,18 +225,8 @@ class EquilibriumEngine:
         The pair brackets delivered performance; the gap is the JANNAF
         kinetic-efficiency band (META-3 `jannaf-eff`), an epistemic UQ
         dimension — never averaged away."""
-        z = mr_to_z(mr)
-        w = self._weights(z)
-        hc = self.injection_enthalpy(z) / R_CEA
         isp = []
         for n_frz in (None, 1):
-            sol = cea.RocketSolution(self._rocket_solver)
-            self._rocket_solver.solve(
-                sol, w, p_c / BAR, supar=[supar], hc=hc, iac=True, n_frz=n_frz
-            )
-            if not sol.converged:
-                raise ConvergenceError(
-                    f"CEA rocket solve failed at p_c={p_c} Pa, MR={mr}, n_frz={n_frz}"
-                )
+            sol = self._rocket(p_c, mr, n_frz, supar=[supar])
             isp.append(float(sol.Isp_vacuum[-1]))
         return isp[0], isp[1]

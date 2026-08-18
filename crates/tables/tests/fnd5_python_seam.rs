@@ -13,7 +13,7 @@ const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/pytho
 const GROUP: &str = "/chem/seam_probe";
 // Must equal crucible_offl.seam_fixture.{DATA_VERSION, PIN_DIGEST}.
 const DATA_VERSION: &str = "0.1.0";
-const PIN_DIGEST: &str = "sha256:221f4c4014b78664d844f74859dcd38980dbc624d89c94f4428ad7340b3bbb3c";
+const PIN_DIGEST: &str = "sha256:5f91b7ab6cbd34c836fa214175553de5f18cee3c6842837443e0f4ace49a78b4";
 
 fn pin() -> Pin {
     Pin {

@@ -6,12 +6,12 @@ Criteria are CI-enforced in `offline/tests/` (pytest: digest golden vector, RP-1
 
 ## The seam itself (digest v2, byte-for-byte)
 
-- Golden vector (both languages assert the same constant): `sha256:e76ad40b893659821d94c2ca8b6608b1c2bc7a2397d9c5afb2cd40cda546fc4d`
-- Cross-language fixture pin (Python stamps, Rust verifies): `sha256:221f4c4014b78664d844f74859dcd38980dbc624d89c94f4428ad7340b3bbb3c`
+- Golden vector (both languages assert the same constant): `sha256:a3b0bc5987ad11ba166d006ab7103c16ff1d3a8f17f64a248d4b11d8091023f2`
+- Cross-language fixture pin (Python stamps, Rust verifies): `sha256:5f91b7ab6cbd34c836fa214175553de5f18cee3c6842837443e0f4ace49a78b4`
 - Production table pins (`tables/chem/lox_lh2_v0.1.0.pins.toml`):
-  - `/chem/lox_lh2/equilibrium`: `sha256:b6793b344396d28355cc08799f9ba68434b50ddf87dee4655d6b25d6e7ce2c37`
-  - `/chem/lox_lh2/performance`: `sha256:9dfc705e250b0f91a538285d76dd2dfef479c14050bdf767a641b68a2441d8dc`
-- Toolchain pins: Python 3.13.7, cea 3.3.2 (libcea 3.3.2), cantera 3.2.0, h5py 3.16.0, numpy 2.5.2, crucible-offl 0.1.0; generator commit `73c7cd4d42d6`.
+  - `/chem/lox_lh2/equilibrium`: `sha256:8cc3f8b8d810745d9f6ef39671b0dd4acccac974c06a4a99d873e5221093d6b3`
+  - `/chem/lox_lh2/performance`: `sha256:aafc17e702383b8c4a96189358d0f525cbb209fbec80340de9fc8b3afe2a1d7d`
+- Toolchain pins: Python 3.13.7, cea 3.3.2 (libcea 3.3.2), cantera 3.2.0, h5py 3.16.0, numpy 2.5.2, crucible-offl 0.1.0; generator commit `0847979f4d31`.
 
 ## OFFL-3 §6-1 — RP-1311 example 8 reproduced through the pipeline
 

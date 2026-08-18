@@ -161,7 +161,7 @@ pub enum SetupError {
 impl std::fmt::Display for SetupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Missing(m) => write!(f, "config incomplete for a conduction run: {m}"),
+            Self::Missing(m) => write!(f, "config incomplete for this mechanism: {m}"),
             Self::Ambiguous { type_id, instances } => write!(
                 f,
                 "{} instances of type {type_id:?} ({}) — this runner drives exactly one; \

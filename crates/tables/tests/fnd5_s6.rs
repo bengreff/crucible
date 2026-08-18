@@ -419,7 +419,7 @@ fn fnd5_s32_digest_golden_vector_guards_the_python_contract() {
     let digest = write_table(&path, "/g", &s).expect("write");
     assert_eq!(
         digest,
-        "sha256:e76ad40b893659821d94c2ca8b6608b1c2bc7a2397d9c5afb2cd40cda546fc4d"
+        "sha256:a3b0bc5987ad11ba166d006ab7103c16ff1d3a8f17f64a248d4b11d8091023f2"
     );
 }
 
@@ -525,4 +525,38 @@ fn review_unaccounted_datasets_refuse_instead_of_evading_the_digest() {
         Table::open(&path, "/u", &pin(&d2)),
         Err(TableError::UnexpectedMember { .. })
     ));
+}
+
+#[test]
+fn review_both_sigma_forms_refuse_at_the_writer() {
+    // The digest hashes exactly one sigma marker (digest.rs doc); a value
+    // carrying both would put unpinned bytes in the file. The reader holds
+    // the mirror check for foreign files.
+    let path = scratch("both_sigma.h5");
+    let mut v = value("t", vec![1.0, 2.0], "lin-lin", 1e-9);
+    v.sigma = Some(vec![0.1, 0.2]);
+    v.sigma_scalar = Some(0.1);
+    let s = spec(vec![axis("x", vec![0.0, 1.0])], vec![v]);
+    match write_table(&path, "/b", &s) {
+        Err(TableError::UnexpectedMember { reason, .. }) => {
+            assert!(reason.contains("exactly one form"), "{reason}")
+        }
+        other => panic!("expected refusal, got {other:?}"),
+    }
+}
+
+#[test]
+fn review_sigma_length_mismatch_refuses_at_the_writer() {
+    let path = scratch("short_sigma.h5");
+    let mut v = value("t", vec![1.0, 2.0], "lin-lin", 1e-9);
+    v.sigma = Some(vec![0.1]);
+    let s = spec(vec![axis("x", vec![0.0, 1.0])], vec![v]);
+    match write_table(&path, "/b", &s) {
+        Err(TableError::ShapeMismatch {
+            expected, found, ..
+        }) => {
+            assert_eq!((expected, found), (2, 1));
+        }
+        other => panic!("expected ShapeMismatch, got {other:?}"),
+    }
 }

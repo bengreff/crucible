@@ -1,4 +1,4 @@
-"""Digest v2 mirror tests. The golden vector is the cross-language contract:
+"""Digest v3 mirror tests. The golden vector is the cross-language contract:
 it must equal the one asserted in
 ``crates/tables/tests/fnd5_s6.rs::fnd5_s32_digest_golden_vector_guards_the_python_contract``.
 If either side changes, both must change together (and the tag string bumps).
@@ -12,7 +12,7 @@ from crucible_offl.tables import (
     spec_digest,
 )
 
-GOLDEN = "sha256:e76ad40b893659821d94c2ca8b6608b1c2bc7a2397d9c5afb2cd40cda546fc4d"
+GOLDEN = "sha256:a3b0bc5987ad11ba166d006ab7103c16ff1d3a8f17f64a248d4b11d8091023f2"
 
 
 def provenance(**overrides) -> Provenance:
@@ -104,3 +104,27 @@ def test_float_bit_pattern_negative_zero_is_distinct():
     a = spec([axis("x", [0.0, 1.0])], [value("t", [0.0, 1.0])])
     b = spec([axis("x", [0.0, 1.0])], [value("t", [-0.0, 1.0])])
     assert spec_digest(a) != spec_digest(b)
+
+
+def test_both_sigma_forms_are_refused():
+    # The digest hashes exactly one sigma marker; both set would leave
+    # unpinned bytes in the file (review finding).
+    import pytest
+
+    s = spec(
+        [axis("x", [0.0, 1.0])],
+        [value("t", [1.0, 2.0], sigma=(0.1, 0.2), sigma_scalar=0.1)],
+    )
+    with pytest.raises(ValueError, match="both per-point sigma"):
+        spec_digest(s)
+
+
+def test_shape_mismatches_are_refused_at_digest_time():
+    import pytest
+
+    wrong_len = spec([axis("x", [0.0, 1.0])], [value("t", [1.0, 2.0, 3.0])])
+    with pytest.raises(ValueError, match="axes imply"):
+        spec_digest(wrong_len)
+    short_sigma = spec([axis("x", [0.0, 1.0])], [value("t", [1.0, 2.0], sigma=(0.1,))])
+    with pytest.raises(ValueError, match="sigma has 1 elements"):
+        spec_digest(short_sigma)

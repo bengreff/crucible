@@ -58,7 +58,7 @@ Report **blind** and **calibrated** per the mode definitions in §3.2. [META-3: 
 
 ### 3.2 RL10A-3-3A — system anchor
 Data-of-record (NASA TM-107318 / NTRS 19970010379; cached): expander cycle, LOX/LH₂; **Pc 475 psia, O/F 5.0,
-thrust 16,500 lbf (73.4 kN), Isp 440.3 s (chamber sub-model) / 445.6 s (cycle), c\* 7824 in/s (η_c\* 0.989),
+thrust 16,500 lbf (73.4 kN), Isp 440.3 s (chamber sub-model) / 445.6 s (cycle), c\* 7824 ft/s (η_c\* 0.989),
 ε 61, throat Ø 2.47 in**, 216-element coaxial injector; fuel pump 6.05 lb/s→~1100 psia @31,537 rpm η≈0.58,
 LOX pump 30.8 lb/s→600 psia @12,615 rpm η≈0.64; jacket heat 7994 Btu/s, ΔP 242 psid; full 16-station cycle
 table (Table 6.1.1). **Target:** predicted p-box (thrust, Isp, c\*, C_F, emergent Pc) overlaps the reference
@@ -153,5 +153,6 @@ META-3 keys: `rl10-cycle-data`, `rl10-tm107318`, `rl10-geometry` *(new)*, `cstar
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-17 | 0.2.1 | Transcription erratum: §3.2 data-of-record c\* unit corrected `in/s` → `ft/s` (TM-107318 reports 7824 ft/s ≈ 2385 m/s; the in/s value would be 12× low). No criterion or method change. Same fix in META-3 `rl10-cycle-data`. |
 | 2026-08-14 | 0.2 | Review fixes (N16, N17, N18/D-G, N19, D-C). **N17:** S1 criterion made computable — reference p-box = reference interval convolved with TM-107318's published prediction-vs-measurement error distribution (Isp 440.3 chamber sub-model vs 445.6 cycle); overlap metric `d = ∫max(0, F̲_pred−F̄_ref, F̲_ref−F̄_pred)dq`; pass = overlap (d=0), d reported as the score (§3.1). **N18/D-G:** blind = coax-injector-class prior band + design spec + geometry-of-record, nothing measured on RL10; fitted η_c\* = 0.9892 + measured pump maps = calibrated mode only, labeled (§3.2). **N19:** RL10 geometry-of-record retrieval added (1966 design-report contours / TM-107318 stations, cached). **D-C:** Bartz recorded as nozzle-envelope validation oracle only (runtime = SOLV-1 §3.5 wall-function law). **N16:** nuclear anchor specs written — KRUSTY (HEU-MET-FAST-101 config, MOOSE-VTB retrieval, ≤300 pcm + warm criticals + coupled-transient shape) and NERVA Pewee/NRX-A6/XE-Prime (state-point tuples from NASA-CR-184270, LA-4217-MS, WANL-TNR-223/224, RN-S-510; per-quantity ≤10% + map shape); S2 thresholds stated as reported targets over a p-box, mirroring S1 (§3.4). |
 | 2026-07-21 | 0.1 | Initial draft (W2 anchors). RL10A-3-3A system anchor with full sourced cycle data (TM-107318); overlap-band pass criterion + Ferson area metric, blind (open-mode) and calibrated (closed-mode), no hard cutoff (Ben 2026-07-21; S1 "≤2%" flagged as a reported target, not a gate); c\*/C_F separate validation; unit-physics anchors (Sod, Su-Olson, Hugoniot, PSTAR/ASTAR, RP-1311). Nuclear/plasma/pulsed anchors deferred to later waves. |

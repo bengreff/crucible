@@ -285,6 +285,18 @@ impl Table {
                     None
                 }
             };
+            // Exactly one sigma form: the digest hashes one marker, so a
+            // file carrying both holds bytes the pin does not cover —
+            // refuse it (same-label/different-bytes, §3.2; review finding).
+            if sigma.is_some() && sigma_scalar.is_some() {
+                return Err(TableError::UnexpectedMember {
+                    path: path.clone(),
+                    reason: "both per-point sigma_ dataset and scalar sigma attribute \
+                             present — the digest covers exactly one sigma form, so the \
+                             other is unpinned content"
+                        .into(),
+                });
+            }
 
             // Interp-rule + log-positivity validation (§3.3) at load, not
             // first query — a bad table never loads.
@@ -318,6 +330,7 @@ impl Table {
         // Content digest + pin verification (§3.2, S6).
         let digest = content_digest(
             &kind,
+            &schema_version,
             &data_version,
             &interp_method,
             &provenance,

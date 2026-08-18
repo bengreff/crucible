@@ -143,9 +143,14 @@ pub struct SodWaves {
     pub rho_star_l_err: f64,
     /// max |ρ − ρ*R| over the star-right window.
     pub rho_star_r_err: f64,
-    /// max |u_z − u*| over both star windows.
+    /// max |u_z − u*| over the FULL star span [STAR_L_WINDOW.0,
+    /// STAR_R_WINDOW.1] — deliberately including the smeared contact:
+    /// u and p are continuous across a contact discontinuity, so flatness
+    /// through it is part of what HLLC must deliver (ρ, which jumps there,
+    /// is measured per-window). Review clarification: the certified
+    /// 7.3e-5 plateau number has always included the contact span.
     pub u_star_err: f64,
-    /// max |p − p*| over both star windows.
+    /// max |p − p*| over the full star span (see `u_star_err`).
     pub p_star_err: f64,
     /// Composition bounds over the whole tube (must stay in [0, 1] up to
     /// round-off — HLLC-Batten's contact treatment is what protects this).

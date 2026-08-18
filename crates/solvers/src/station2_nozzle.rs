@@ -227,21 +227,21 @@ pub fn run_nozzle(n_r: usize, n_z: usize) -> Result<(Grid, EulerFields, usize, f
 /// Mass flow through z-plane `i_z`: `ṁ = Σ ρu_z·A_z` over active cells
 /// (canonical order, fixed-shape reduction not needed at these sizes —
 /// serial accumulation in Morton-consistent i_r order).
-pub fn plane_mdot(g: &Grid, f: &EulerFields, i_z: usize) -> f64 {
-    plane_sum(g, f, i_z, |w, _| w[I_RHO] * w[3])
+pub fn plane_mdot(g: &Grid, f: &EulerFields, eos: &GammaLaw, i_z: usize) -> f64 {
+    plane_sum(g, f, eos, i_z, |w, _| w[I_RHO] * w[3])
 }
 
 /// Momentum-plus-pressure flux through z-plane `i_z` with p_a = 0
 /// (SOLV-7.1): `F = Σ (ρu_z² + p)·A_z`.
-pub fn plane_thrust(g: &Grid, f: &EulerFields, i_z: usize) -> f64 {
-    plane_sum(g, f, i_z, |w, _| w[I_RHO] * w[3] * w[3] + w[4])
+pub fn plane_thrust(g: &Grid, f: &EulerFields, eos: &GammaLaw, i_z: usize) -> f64 {
+    plane_sum(g, f, eos, i_z, |w, _| w[I_RHO] * w[3] * w[3] + w[4])
 }
 
 /// Area-averaged **stagnation** pressure at z-plane `i_z` — the SOLV-7
 /// §3.2 (N11) emergent-p_c convention.
 pub fn plane_stagnation_p(g: &Grid, f: &EulerFields, eos: &GammaLaw, i_z: usize) -> f64 {
     let ga = eos.gamma;
-    let num = plane_sum(g, f, i_z, |w, _| {
+    let num = plane_sum(g, f, eos, i_z, |w, _| {
         let csq = ga * w[4] / w[I_RHO];
         let msq = (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]) / csq;
         w[4] * (1.0 + 0.5 * (ga - 1.0) * msq).powf(ga / (ga - 1.0))
@@ -260,10 +260,16 @@ pub fn plane_area(g: &Grid, i_z: usize) -> f64 {
     a
 }
 
-fn plane_sum(g: &Grid, f: &EulerFields, i_z: usize, integrand: impl Fn(&Prim, f64) -> f64) -> f64 {
-    let eos = GammaLaw {
-        gamma: NOZZLE_GAMMA,
-    };
+fn plane_sum(
+    g: &Grid,
+    f: &EulerFields,
+    eos: &GammaLaw,
+    i_z: usize,
+    integrand: impl Fn(&Prim, f64) -> f64,
+) -> f64 {
+    // The caller's EOS decodes the conserved state (review finding: a
+    // hardcoded fixture γ here would silently mix two gammas the moment a
+    // non-1.4 gas reuses these SOLV-7 diagnostics).
     let ids = f.ids();
     let mut acc = 0.0f64;
     for i_r in 0..g.spec().n_r {
@@ -331,8 +337,12 @@ pub struct NozzleLevel {
     pub p_c_over_p0: f64,
     /// Area-averaged... exit-plane diagnostics:
     pub exit_mach_centerline: f64,
-    /// max |M_centerline(z) − M_1D(z)|/M_1D(z) excluding the throat-adjacent
-    /// band (±THROAT_EXCLUSION around the throat).
+    /// max |M_centerline(z) − M_1D(z)|/M_1D(z) excluding only the inlet
+    /// band (z < INLET_EXCLUSION). The throat-adjacent band IS measured —
+    /// the committed certificate's 6% gate absorbs the sonic-transition
+    /// deviation (review fix: an earlier doc claimed a THROAT_EXCLUSION
+    /// that never existed in code; the measurement, not the doc, is the
+    /// certified behavior).
     pub mach_dev_max: f64,
     /// Thrust coefficient F/(p_c·A*_discrete) vs the ideal vacuum C_F at
     /// the discrete exit conditions.
@@ -437,10 +447,10 @@ pub fn nozzle_study() -> Result<Vec<NozzleLevel>, FlowError> {
         let (a_star_disc, _) = discrete_throat(&g);
         let a_star_analytic = std::f64::consts::PI * THROAT_RADIUS * THROAT_RADIUS;
 
-        let mdot_exit = plane_mdot(&g, &f, exit);
+        let mdot_exit = plane_mdot(&g, &f, &eos, exit);
         let mut mdot_spread = 0.0f64;
         for i_z in 0..n_zc {
-            let m = plane_mdot(&g, &f, i_z);
+            let m = plane_mdot(&g, &f, &eos, i_z);
             mdot_spread = mdot_spread.max(((m - mdot_exit) / mdot_exit).abs());
         }
 
@@ -457,7 +467,7 @@ pub fn nozzle_study() -> Result<Vec<NozzleLevel>, FlowError> {
             mach_dev_max = mach_dev_max.max(((m_num - m_1d) / m_1d).abs());
         }
 
-        let thrust = plane_thrust(&g, &f, exit);
+        let thrust = plane_thrust(&g, &f, &eos, exit);
         let eps_disc = plane_area(&g, exit) / a_star_disc;
         let m_e_1d = mach_from_area_ratio(eps_disc, true);
 

@@ -188,7 +188,11 @@ impl Conduction<'_> {
         let r0 = g.spec().r_min;
 
         // Reused rate buffer: rates are staged per brick, then written once
-        // (keeps reads of neighbor bricks and the write disjoint).
+        // (keeps reads of neighbor bricks and the write disjoint). It is
+        // re-zeroed per brick — without that, cells outside this domain's
+        // mask would inherit the PREVIOUS brick's rates through the whole-
+        // buffer copy below (review finding: latent while pass 1's mask was
+        // "all addressable cells", activated by the Domain split).
         let mut buf = vec![0.0f64; nt as usize * BRICK_CELLS];
 
         // Pass 1: rates, brick by brick in Morton order.
@@ -201,6 +205,7 @@ impl Conduction<'_> {
                 };
                 (b.br(), b.bz(), dm, b.mask())
             };
+            buf.fill(0.0);
             // Adjacent bricks, resolved once per brick (≤4 Morton lookups).
             let nb_rm = (br > 0)
                 .then(|| g.brick_index_by_coords(br - 1, bz))
@@ -447,11 +452,27 @@ impl Conduction<'_> {
             g.brick_field_mut(bi, rate)[..len].copy_from_slice(&buf[..len]);
         }
 
-        // Pass 2: apply.
+        // Pass 2: apply — gated by the domain mask so the operator never
+        // mutates T outside its own domain (the rate field is zero there
+        // by the per-brick buffer reset, but T must stay untouched, not
+        // merely un-drifted).
         for bi in 0..g.n_bricks() {
+            let (dmask, bnt) = {
+                let b = g.brick(bi);
+                let dm = match self.domain {
+                    Domain::FlowActive => b.mask(),
+                    Domain::Solid => b.solid_mask(),
+                };
+                (dm, b.n_theta())
+            };
             let (t_slice, r_slice) = g.brick_fields_mut2(bi, t_field, rate);
-            for (tv, rv) in t_slice.iter_mut().zip(r_slice.iter()) {
-                *tv += dt * rv;
+            for j in 0..bnt as usize {
+                for local in 0..BRICK_CELLS {
+                    if dmask & (1u64 << local) != 0 {
+                        let idx = j * BRICK_CELLS + local;
+                        t_slice[idx] += dt * r_slice[idx];
+                    }
+                }
             }
         }
         Ok(())
@@ -542,6 +563,17 @@ impl Conduction<'_> {
         {
             return Err(SolverError::BadCoefficient(
                 "Robin (h, T∞) on an exterior face",
+            ));
+        }
+        // The gas-exchange path only exists for the Solid domain (a
+        // FlowActive sweep's out-of-domain neighbors all take the exterior
+        // BC); a supplied-but-unreachable closure is a caller bug that
+        // would silently substitute physics — refuse it loudly (review
+        // finding: the trap was silent).
+        if self.domain == Domain::FlowActive && self.interior.gas.is_some() {
+            return Err(SolverError::BadCoefficient(
+                "InteriorFaces::gas is Solid-domain-only; a FlowActive domain would silently \
+                 ignore it — gas-side conjugate coupling arrives with COUP-2/COUP-3",
             ));
         }
         Ok(())

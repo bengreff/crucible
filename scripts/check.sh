@@ -56,5 +56,12 @@ cargo run -q --release --bin station2_nozzle_certificate >/dev/null
 offline/.venv/bin/python offline/scripts/station3_flame_certificate.py >/dev/null
 cargo run -q --release --bin station4_cooled_wall_certificate >/dev/null
 git diff --exit-code certificates/
+# A brand-new (untracked) certificate is invisible to git diff — refuse it
+# too, or a first regeneration ships uncommitted (review finding).
+if [ -n "$(git ls-files --others --exclude-standard certificates/)" ]; then
+  echo "untracked certificate artifact(s) present — commit them:" >&2
+  git ls-files --others --exclude-standard certificates/ >&2
+  exit 1
+fi
 
 echo "== all gates green"

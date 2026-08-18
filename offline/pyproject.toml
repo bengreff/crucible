@@ -15,6 +15,7 @@ dependencies = [
     "numpy==2.5.2",
     "h5py==3.16.0",
     "cantera==3.2.0",
+    "cea==3.3.2",
 ]
 
 [project.optional-dependencies]
