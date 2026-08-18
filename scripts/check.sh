@@ -2,27 +2,13 @@
 # VAL-3 §3.2 per-commit gate battery (fast tier), run in fixed order.
 # Any red gate breaks the build; every session ends with this green (VISION_SCOPE §12).
 #
-# Armed inside gate 3 (test names cite their doc §): MMS order-of-accuracy
-# (cert_mms_*, solv1_s62_mms_*), envelope/fail-loud (fnd5_s6_4,
-# station1_gamma_*, review_* regressions), analytic anchors (cert_annulus_*,
-# cert_bessel_*, the station1_* Sod battery vs the exact Riemann oracle, the
-# station2_* choked-nozzle battery vs isentropic theory), closed-sweep
-# conservation (cert_closed_sweep_*, station1_closed_tube_*),
-# determinism/rerun byte-identity (cert_config_drives_*, station1_sod_rerun_*,
-# station2_rerun_*, station4_rerun_*, fnd2_s6_3, fnd5_s6_6), cross-language
-# seam (fnd5_python_seam, station3_tables vs the Python-stamped pins),
-# conjugate-wall battery (station4_*: series-resistance oracle, stair-
-# interface round-off ledger, Robin annulus anchor, coupled fixed point).
-# Armed inside gate 4 (offline pytest): digest v2 golden vector + fixture
-# pin, RP-1311 example-8 reproduction, CEA↔Cantera cross-check,
-# frozen/shifting bracket, production-table fresh-holdout bounds,
-# regeneration digest-identity, (p,h,Z)↔(p_c,MR) coordinate consistency.
-# Not yet armed (arrive with their subject): full COUP-2 port-accounting
-# audit; 1-vs-N-thread byte identity (first parallel sweep); Su-Olson
-# anchor (SOLV-2).
-# Battery budget note: the station-2 ladder and the station-4 coupled duct
-# are the heavy items (~1 min each in gate 3; station-2 ~1 min + station-4
-# ~15 s in gate 5); next growth splits to the VAL-3 §3.2 milestone tier.
+# What's armed lives in the test files themselves (names cite their doc §);
+# certificates/ carries the certified claims. Not yet armed (arrive with
+# their subject): full COUP-2 port-accounting audit; 1-vs-N-thread byte
+# identity (first parallel sweep); Su-Olson anchor (SOLV-2).
+# Battery budget: the station-2 ladder and station-4 coupled duct are the
+# heavy items (~1 min each in gate 3; ~1 min + ~15 s in gate 5); next
+# growth splits to the VAL-3 §3.2 milestone tier.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

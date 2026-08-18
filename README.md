@@ -6,12 +6,11 @@ thermal / radiation / structural / uncertainty framework so regimes are cross-co
 is a distribution with a pedigree.
 
 A 12-month inquiry project (Jul 2026 – Jun 2027). This repository holds the **design docs**
-(Layer 1 + Layer 2) and the **Rust runtime workspace**: the FND-4 config loader + run manifest,
-the FND-5 HDF5 table seam (statically pinned libhdf5), the FND-2 cylindrical world-state grid,
-and the first two SOLV-1 operators — conduction (the Goal-A convergence certificate) and the
-compressible-Euler flux operator (PPM + HLLC-Batten; the Goal-B Station-1 Sod and Station-2
-choked-nozzle certificates), each certified by a committed, regenerable record in
-`certificates/`. Current goal: **Goal B, the blind RL10** (see CLAUDE.md for station status).
+(Layer 1 + Layer 2), the **Rust runtime workspace**, and the **Python offline pipelines**.
+Certified so far (each by a committed, regenerable record in `certificates/`): the Goal-A
+conduction convergence certificate and Goal-B stations 1–4 — Sod shock tube, choked De Laval
+nozzle, the CEA→HDF5 flame seam, and the conjugate cooled wall. Current goal: **Goal B
+station 5, the blind RL10** (CLAUDE.md carries current state; SESSION_LOG.md the history).
 
 ## Build & test
 
@@ -52,7 +51,9 @@ uncertainty, not accept it.
 | `offline/` | The Python OFFL pipelines (VISION_SCOPE §6 two-language rule; `crucible_offl`, venv-pinned) — offline only, never at simulation time |
 | `tables/` | Committed production HDF5 tables (FND-5 schema, digest-pinned; the one cross-language seam) |
 | `certificates/` | Goal-A/Goal-B station certificates — regenerated and diffed by the gate battery |
+| `data/anchors/` | Cached validation-anchor sources (archival rule, META-1 P7; sha256 in META-3) |
 | `scripts/check.sh` | The VAL-3 per-commit gate battery (5 gates: fmt, clippy, cargo test, offline pytest, certificate diff) |
+| `SESSION_LOG.md` | Per-session history: measured data, findings, review waves |
 
 The 29 critical-path Layer-2 docs are **Reviewed (2026-08-14)** — the coding gate is open
 (`REVIEW_FINDINGS.md` is the record). Still unreviewed: SOLV-5, OFFL-4 (deferred set — do not
