@@ -79,6 +79,12 @@ this the blind config cannot be authored at all. [META-3: `rl10-geometry`]
   and every reported score is **labeled** blind or calibrated — the blind headline never silently consumes
   the anchor's own measurements (the prior circularity this ruling retires).
 
+**Developer-observation declaration (VISION_SCOPE §9 v1.4.1, Ben 2026-08-17):** blind is a **mechanical
+input property** (registry-envelope enforced), not a process claim. Every reported score additionally
+carries `development-observed: yes | no` — whether anchor comparisons were watched while the config was
+being developed. The RL10 station-5 campaign is declared **open development** (`development-observed: yes`):
+iteration proceeded with full visibility of anchor deltas; the input split above still binds exactly.
+
 **Bartz's role (D-C):** Bartz is **not** a runtime closure anywhere — the runtime wall flux is SOLV-1 §3.5's
 one local wall-function law. Here Bartz serves as the **nozzle-envelope validation oracle**: the predicted
 integrated nozzle heat load is cross-checked against the Bartz correlation ± its published band as an anchor
@@ -153,6 +159,7 @@ META-3 keys: `rl10-cycle-data`, `rl10-tm107318`, `rl10-geometry` *(new)*, `cstar
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-17 | 0.2.2 | **Developer-observation declaration (VISION_SCOPE §9 v1.4.1, Ben ruling).** §3.2: every reported score carries `development-observed: yes/no` next to its blind/calibrated label; blind = mechanical input property (envelope-enforced); RL10 station-5 campaign declared open development. No change to the input split or criterion. |
 | 2026-08-17 | 0.2.1 | Transcription erratum: §3.2 data-of-record c\* unit corrected `in/s` → `ft/s` (TM-107318 reports 7824 ft/s ≈ 2385 m/s; the in/s value would be 12× low). No criterion or method change. Same fix in META-3 `rl10-cycle-data`. |
 | 2026-08-14 | 0.2 | Review fixes (N16, N17, N18/D-G, N19, D-C). **N17:** S1 criterion made computable — reference p-box = reference interval convolved with TM-107318's published prediction-vs-measurement error distribution (Isp 440.3 chamber sub-model vs 445.6 cycle); overlap metric `d = ∫max(0, F̲_pred−F̄_ref, F̲_ref−F̄_pred)dq`; pass = overlap (d=0), d reported as the score (§3.1). **N18/D-G:** blind = coax-injector-class prior band + design spec + geometry-of-record, nothing measured on RL10; fitted η_c\* = 0.9892 + measured pump maps = calibrated mode only, labeled (§3.2). **N19:** RL10 geometry-of-record retrieval added (1966 design-report contours / TM-107318 stations, cached). **D-C:** Bartz recorded as nozzle-envelope validation oracle only (runtime = SOLV-1 §3.5 wall-function law). **N16:** nuclear anchor specs written — KRUSTY (HEU-MET-FAST-101 config, MOOSE-VTB retrieval, ≤300 pcm + warm criticals + coupled-transient shape) and NERVA Pewee/NRX-A6/XE-Prime (state-point tuples from NASA-CR-184270, LA-4217-MS, WANL-TNR-223/224, RN-S-510; per-quantity ≤10% + map shape); S2 thresholds stated as reported targets over a p-box, mirroring S1 (§3.4). |
 | 2026-07-21 | 0.1 | Initial draft (W2 anchors). RL10A-3-3A system anchor with full sourced cycle data (TM-107318); overlap-band pass criterion + Ferson area metric, blind (open-mode) and calibrated (closed-mode), no hard cutoff (Ben 2026-07-21; S1 "≤2%" flagged as a reported target, not a gate); c\*/C_F separate validation; unit-physics anchors (Sod, Su-Olson, Hugoniot, PSTAR/ASTAR, RP-1311). Nuclear/plasma/pulsed anchors deferred to later waves. |
