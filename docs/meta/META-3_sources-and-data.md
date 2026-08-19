@@ -6,7 +6,7 @@
 | **Family** | META |
 | **Status** | Draft — living document (grows for the whole project) |
 | **Depends on** | META-1, META-2 |
-| **Version** | 0.6 (2026-08-14 coding-wave session 1: §2 `rust` pinned 1.93.1; §4 stamped CODATA 2022 + values filled, `crucible-constants` built; prior: §6.8 v1.4 fix-wave keys) |
+| **Version** | 0.7 (2026-08-19: §6.9 v1.5 burn-progress keys added; `pseudo-transient` retired. Prior: 0.6 coding-wave session 1 — §2 `rust` pinned 1.93.1; §4 stamped CODATA 2022; §6.8 v1.4 fix-wave keys) |
 
 ---
 
@@ -510,7 +510,7 @@ Two-phase pass (best-practice web research → first-principles design/consisten
 | `rl10-geometry` | RL10 chamber/nozzle contour tables + station geometry (**throat RADIUS 2.47 in** — TM Table 2.5.1's "Diameter" labels are a transcription error, established by the c\* identity (A_t = π(2.47 in)² ⇒ c\* 2381 m/s vs record 2385; Ø-reading ⇒ 600 m/s, 4× off), the ε=61 exit ⇒ Ø 38.6 in ≈ the known ~40 in bell, and Fig. E1's radius axis — erratum in the CSV header; ε 61, contraction ratio 4.3129, injector plane z ≈ −13 in, exit z ≈ +45.3 in) — the blind-config geometry-of-record. **Digitized 2026-08-18: `data/anchors/rl10_contour.csv` (sha256 49fd4f124f2d3cfe…)** from TM-107318 Table E1 (16 property nodes, verbatim) + Table 2.5.1 scalars + Fig. E1 dashed-line planes (±0.5 in, declared); derived-row closures (throat, injector ratio, exit taper) stated in the CSV header. Fig. E1's y-axis is mislabeled (plots diameter, says radius) — noted; its values are unused except the two z-planes | TM-107318 Table E1 p.139 / Table 2.5.1 p.6 / Fig. E1 p.141 (cached PDF); 1966 RL10 design report (uncached; not consumed) | VAL-2, crates/engine |
 | `geometric-multigrid` | Fixed-cycle geometric multigrid (fixed V-cycles, fixed smoother order — deterministic) for the spatially-coupled implicit diffusion class | Trottenberg et al. *Multigrid*; Briggs et al. *A Multigrid Tutorial* | COUP-3 |
 | `rsla` | Reduced-speed-of-light approximation for M1 radiation transport (declared per-regime ĉ + ĉ-insensitivity check; PIRT-recorded band) | Skinner & Ostriker, *ApJS* 206:21 (2013); Quokka (Wibking & Krumholz 2022) | COUP-3 |
-| `pseudo-transient` | Pseudo-transient continuation: deterministic local-Δt + SER (switched-evolution-relaxation) schedule for steady-state marches | Kelley & Keyes, *SIAM J. Numer. Anal.* 35:508 (1998) | COUP-3, SOLV-1 |
+| `pseudo-transient` | ~~Pseudo-transient continuation~~ **RETIRED 2026-08-19** (VISION_SCOPE v1.5: physical march only; COUP-3 §3.6 tombstone). Entry stays for the historical record | Kelley & Keyes, *SIAM J. Numer. Anal.* 35:508 (1998) | *(none)* |
 | `higham-rounding` | Rounding-error accumulation bounds for summation (√N stochastic scaling) — the TOL_AUDIT derivation | Higham, *Accuracy and Stability of Numerical Algorithms*, 2nd ed. | COUP-2 |
 | `binomial-ci` | Wilson score interval for a binomial proportion — the P(WORKS) Monte-Carlo error bound | Wilson (1927); Brown, Cai & DasGupta, *Stat. Sci.* 16:101 (2001) | COUP-5 |
 | `direct-optimizer` | DIRECT deterministic bound-constrained global optimization (fixed division/iteration structure — manifest-freezable) for the epistemic-box enclosure | Jones, Perttunen & Stuckman, *JOTA* 79:157 (1993) | COUP-5 |
@@ -518,6 +518,20 @@ Two-phase pass (best-practice web research → first-principles design/consisten
 | `bessel-j0-zeros` | First five positive zeros of J₀ (2.404825557695773 … 14.930917708487786) — the transient-cylinder analytic anchor's mode eigenvalues | DLMF §10.21 / Abramowitz & Stegun, Table 9.5 | VAL (Goal-A certificate, `crates/solvers/src/certificate.rs`) |
 
 *(`spectral-azimuthal` is retired with the v1.4 ring-FV realization — FND-2 v0.5 no longer cites it; the entry stays for the historical record.)*
+
+### 6.9 v1.5 burn-progress keys (2026-08-19 — ignition physics, SOLV-4 §3.6 / OFFL-3 / VAL-2)
+
+Sources named at plan level; exact editions/datasets pinned + cached when the S6 build wave consumes them
+(the standard `[RP]` discipline — a datum is pinned before the code that reads it lands).
+
+| key | Content | Source | Consumers |
+|---|---|---|---|
+| `progress-variable` | Progress-variable/tabulated-chemistry combustion architecture: cell-averaged burnt fraction c with flamelet-class closure — the standard sub-grid representation of a front the grid cannot resolve | Peters, *Turbulent Combustion* (2000); flamelet/progress-variable (FPV) literature (Pierce & Moin 2004) | SOLV-4 §3.6, SOLV-1 §3.4 |
+| `h2-kinetics-mech` | The cited detailed H₂/O₂ mechanism used **offline** (Cantera) to generate S_L/τ_ign surfaces | `[RP: Burke, Chaos, Ju, Dryer & Klippenstein 2012 (high-pressure H₂/O₂) or Ó Conaire et al. 2004 — pin at S6]` | OFFL-3 |
+| `h2-flame-speed` | Measured H₂/O₂(/diluent) laminar flame speeds incl. elevated pressure — the S_L surface's unit anchor | `[RP: Tse, Zhu & Law 2000 (spherical bomb, to ~60 atm); Kwon & Faeth 2001 — pin + cache at S6]` | VAL-2 §3.3, OFFL-3 |
+| `h2-ignition-delay` | Measured H₂/O₂ shock-tube ignition delays over (p, T, φ) — the τ_ign surface's unit anchor | `[RP: Petersen et al. / Pang, Davidson & Hanson 2009 — pin + cache at S6]` | VAL-2 §3.3, OFFL-3 |
+| `turbulent-flame-speed` | Turbulent flame-speed wrinkling closure S_T/S_L as a function of turbulence intensity/scale (banded; consistent with the one SGS closure D-D) | `[RP: Zimont 2000 / Peters 2000 regime-diagram correlations — pin at S6]` | SOLV-4 §3.6 |
+| `spark-igniter-class` | Spark/torch igniter energy-deposit class data (energies, kernel sizes, durations) for the COUP-7 igniter object's envelope + band | `[RP: spark-ignition energy literature (Lewis & von Elbe lineage) + RL10 igniter description, TM-107318 — pin at S6/S17]` | COUP-7 §3.3 |
 
 ## 7. Compute-budget data (seed from VISION_SCOPE §8)
 

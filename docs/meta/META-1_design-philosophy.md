@@ -6,7 +6,7 @@
 | **Family** | META |
 | **Status** | Draft |
 | **Depends on** | VISION_SCOPE.md |
-| **Version** | 0.3 (v1.3 pivot; 2026-08-13 determinism regime→guarantee mapping reconciled to S6 — Principle 3, §2.1, §2.4) |
+| **Version** | 0.4 (2026-08-19: §2.5 GPU determinism policy — per-device bit-exactness confirmed by Ben, gather kernels/fixed-topology reductions/no physics atomics, cross-device = tolerance/ECT, >30%-cost escape hatch. Prior: 0.3 v1.3 pivot; 2026-08-13 S6 reconciliation — Principle 3, §2.1, §2.4) |
 
 ---
 
@@ -180,6 +180,20 @@ comparison may ever show verdict divergence**. Cross-platform jobs compare stati
 ensemble) for chaotic regimes. A determinism regression — bitwise where required, a failed
 tolerance / non-spiraling / consistency check elsewhere — is a build-breaking failure, ranked with
 correctness.
+
+### 2.5 GPU policy *(2026-08-19, Ben — plan-of-record confirmation)*
+
+Bit-exact-per-build applies **per device**: the CPU fixed-order build and the GPU build are each internally
+bit-exact (same binary + config + tables + seed ⇒ identical bytes at any thread/block count), including in
+chaotic regimes — the §2.1 chaotic-regime mandate binds the GPU too. Implementation consequences, stated
+here so kernels are designed to them rather than retrofitted: **gather-formulated kernels** (one writer per
+cell — scatter-style accumulation via atomics is forbidden in physics paths), **fixed-topology tree
+reductions** for all grid/ensemble statistics, no vendor library calls with nondeterministic internals.
+**Cross-device (CPU↔GPU) bit-identity is not promised** (different FMA/libm) — cross-device verification is
+tolerance-based on non-chaotic fixtures and ensemble-statistical in chaotic regimes (§2.4, ECT).
+Golden-byte artifact diffs remain pinned to the dev host; GPU regression = same-build rerun identity.
+**Escape hatch:** a specific kernel where determinism is measured to cost > ~30% goes to Ben for an explicit
+ruling (non-chaotic paths only, per §2.1); it is never relaxed silently.
 
 ---
 

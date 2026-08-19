@@ -6,7 +6,7 @@
 | **Family** | SOLV (Runtime unified-grid operators) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, FND-7 (EOS/transport), COUP-3 (time integration), COUP-2 (audit); FND-1, COUP-7 |
-| **Version** | 0.3 |
+| **Version** | 0.4 (2026-08-19: burn-progress field in U; §5 anchor budget = full-3-D physical march on GPU — VISION_SCOPE v1.5) |
 | **Skeleton/complete split** | **Fixed now:** the conserved system, the reacting-flow update, the N_θ=1 axisymmetric-with-swirl corner, EOS/transport from the spine, wall-heat coupling (the one local wall-function law, §3.5), halts, oracles. **Deferred (W4):** the two-phase (drift-flux) and two-fluid/MHD (HLLD + constrained-transport) extensions of the *same* operator; the **resolved-mixing rung** (R2, §3.4) — unmixed multi-stream injection with grid-computed mixing (a resolution/N_θ lift, riding the two-phase extension for liquid injection) under the **one universal LES-class subgrid mixing closure** (D-D, §3.4). |
 
 ---
@@ -102,6 +102,17 @@ is exact because only elements are advected. **Frozen** mode advects the full sp
 source. The frozen↔shifting gap is a **discrete epistemic model-form dimension** sampled by COUP-5 (the
 JANNAF kinetic-efficiency deviation becomes an error bar, not a hidden choice).
 
+**Burn progress (v0.4, VISION_SCOPE v1.5).** `U` additionally carries the **burn-progress field c ∈ [0,1]**
+(cell burnt mass fraction): the cell's thermochemistry is the SOLV-4 §3.6 blend of the **unburnt**
+(frozen-reactant) and **burnt** (equilibrium) branches, and c's source — flame propagation + auto-ignition,
+via universal banded closures, with the igniter as a COUP-7 energy-deposit object — is **owned by SOLV-4
+§3.6** (a reaction source, exactly the §1.3 deferral); SOLV-1 only advects c and evaluates the blended EOS.
+**With c active, the per-step equilibrium projection above applies to the burnt fraction only** — the cell
+state is the c-blend of the unburnt-branch state and the projected equilibrium state (partition rule owned
+by SOLV-4 §3.6); `c = 1` recovers this section's shifting mode identically, so pure-shifting configs (the
+stations, the session-12 certificate) are the c ≡ 1 corner, bit-unchanged. Ignition, failure-to-ignite,
+and flameout thereby become computed field behavior (COUP-4 halts).
+
 **Injector tiers (R2, COUP-7 §3.2.1).** Injector-scale mixing/vaporization enters at the config-selected tier:
 - **Prior tier** (W2/milestone-1): premixed inflow at the declared MR with the cited η_c\* prior applied as an
   **in-solver combustion-completeness knockdown at the source-term level** (S18): the effective heat release
@@ -161,9 +172,9 @@ stability is handled by **State Redistribution** (FND-3/FND-2). [META-3: `state-
 ## 4. Coupling relationships
 - **COUP-3** wraps the update in the SDC-IMEX step (explicit hyperbolic here; conduction/viscous fluxes in
   the **spatially-coupled implicit diffusion class**, COUP-3 §3.1 — never a cell-local conduction solve;
-  cell-local implicit reserved for reactions/M1 source coupling); its **pseudo-transient continuation mode**
-  is the steady-state accelerator
-  for anchor runs (§5, S21 — COUP-3 owns it); **COUP-2** audits the flux-form conservation and enforces
+  cell-local implicit reserved for reactions/M1 source coupling); anchor runs are **physical marches**
+  (VISION_SCOPE v1.5 — the former pseudo-transient accelerator is deleted, COUP-3 §3.6 tombstone);
+  **COUP-2** audits the flux-form conservation and enforces
   operator-coupling (incl. the wall-exchange sweep placement, §3.5).
 - **FND-7** supplies EOS/transport over `M`; **OFFL-3** supplies the equilibrium/frozen composition tables;
   **SOLV-2** (radiation) is dormant in the chemical slice (SOLV-2 §3.4).
@@ -177,13 +188,16 @@ resolution-limited (a feature thinner than the finest cell is flagged, FND-2 §5
 valid for single-phase combustion flow — the two-phase/MHD corners are dormant, not silently approximated.
 Ladder rungs: analytic (Sod, nozzle), reference code (Castro/PeleC), hardware (RL10 via SOLV-7/VAL-2).
 
-**Anchor-run budget (S21).** RL10 anchor at N_θ=1: grid class **~1–3×10⁵ active (r,z) cells** (chamber +
-nozzle + liner, refined at the wall). Steady state is reached by **COUP-3's pseudo-transient continuation
-mode** (local-Δt; COUP-3 owns the scheme) in **~3×10⁴–1×10⁵ pseudo-steps** — never an acoustic-CFL physical
-march (~10⁷–10⁸ steps). Throughput target: **≥5×10⁷ cell-updates/s** on the 32-core fixed-order CPU
-reference (≥10⁹ on the later GPU relaxed path, D-H) ⇒ ~10¹⁰ cell-updates ≈ **minutes per ensemble member**.
-Ensemble size **100–300 LHC members per mode** (open + closed) ⇒ under a desktop-day for the full
-blind+calibrated anchor ensembles — comfortably inside the VISION_SCOPE §8 budget.
+**Anchor-run budget (S21, rewritten 2026-08-19 — VISION_SCOPE v1.5).** The certifying RL10 anchor is a
+**full-3-D physical march** from declared fill state through ignition to settled steady state: grid class
+**~5×10⁶ cells** (static-refined (r,z) × adaptive N_θ ≤ 64), Δt ~3×10⁻⁷ s (acoustic CFL), a **declared
+compressed start window of 100–200 ms** (COUP-7 §3.2.2 — external schedules only) ⇒ **~10⁶ steps ≈ 10¹³
+cell-updates**. Throughput: the CPU fixed-order build is the bit-exact reference and the mini-sim tier
+(~10⁷–5×10⁷ cell-updates/s); certification runs live on the **GPU port at ~1–5×10⁸ f64 cell-updates/s
+(RTX 4080 class, bandwidth-bound; measured, not assumed — plan S12)** ⇒ **8–30 h, inside the declared 24-h
+cap** with checkpoint/restart (FND-6). Ensembles are **multi-fidelity** (COUP-5 §3.2: pinned-N_θ-ceiling
+ladder — the bulk of members at coarse-3-D/axisymmetric rungs, few at full resolution), never
+N × full-resolution. Budget details + laptop/desktop tiers: `PLAN_CHEMICAL_SANDBOX.md` §3.
 
 ## 6. Validation plan
 1. **Sod / Sedov:** exact-Riemann shock/contact/rarefaction reproduced; L1 error → 0 at formal order.
@@ -194,8 +208,8 @@ blind+calibrated anchor ensembles — comfortably inside the VISION_SCOPE §8 bu
 5. **Differential oracle:** matches Castro (hydro + reaction coupling) and Athena++ (flux/geometry) to their
    truncation error on shared cases; PeleC for a real H₂/O₂ case. [META-3: `castro-source`]
 6. **Determinism:** bit-identical at 1 vs N threads and across runs.
-7. **Anchor budget held (S21):** the RL10 anchor meets the §5 budget (pseudo-steps to steady state via
-   COUP-3's pseudo-transient mode; throughput target) — measured and recorded in the results bundle.
+7. **Anchor budget held (S21):** the RL10 anchor meets the §5 budget (physical-march step count under the
+   declared compressed schedule; measured GPU throughput) — recorded in the results bundle.
 
 ## 7. References
 META-3 keys: `hllc`, `castro-source`, `maccormack-nozzle`, `state-redistribution`, `jannaf-eff`,
@@ -210,6 +224,7 @@ emergent-`p_c` design resolved with COUP-7/SOLV-7, Ben 2026-07-21; injector mixi
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 (Ben).** §3.4: `U` gains the **burn-progress field c** (blended unburnt↔equilibrium thermochemistry; rate laws owned by SOLV-4 §3.6; igniter = COUP-7 object). §4: pseudo-transient reference removed (COUP-3 §3.6 tombstone). §5 (S21): anchor budget rewritten — full-3-D **physical march** under a declared compressed start window, GPU-ported, ≤ 24 h; multi-fidelity ensembles; plan pointer. §6.7 updated to match. |
 | 2026-08-14 | 0.3 | **Post-review fix wave (S16, S17, S18, S19, S20, S21; rulings D-A, D-C, D-D).** §3.5 rewritten to the **one local wall-function heat-flux law** for all engines (local near-wall operands, ±20–30% band; Bartz demoted to VAL-2 nozzle-envelope oracle) with the S16 ownership delineation (SOLV-1 evaluates at config-time-identified wall faces, `F_visc` suppressed there; COUP-2 owns sweep placement; COUP-7 owns coolant side only). §3.4: η_c\* prior applied as **in-solver source-term combustion-completeness knockdown** (output-side multiplication forbidden, S18); **shifting mode advects elemental fractions with per-step equilibrium projection / frozen mode advects full species** (frozen↔shifting = discrete epistemic dimension, S19; §3.1 updated); resolved tier gains the **one universal LES-class dynamic-coefficient subgrid mixing closure**, offline-calibrated on canonical turbulence data, per-quantity band (D-D/S20 — laminar-resolved mixing at Re~10⁷ under-mixes by orders of magnitude). §5/§6: **anchor-run budget** stated (grid class, pseudo-step count, cell-updates/s target, ensemble size) with steady-state acceleration = COUP-3's pseudo-transient mode (S21). D-A wording: "m=0 corner" → "N_θ=1 axisymmetric-with-swirl corner"; N_θ>1 is a finite-volume capability lift, no spectral modes (§0, §3.3, §3.4). Reaction lookups re-keyed to local (p, h, Z) state (S22 cross-ref). |
 | 2026-08-13 | 0.2 | **R2 applied — resolved-mixing rung architected.** §3.4 mixing entry re-specified as the config-selected COUP-7 tier: prior tier (premixed + envelope-bounded η_c\* prior, milestone-1) vs resolved tier (unmixed streams on the existing `ρX_k` state; mixing via mode-ceiling/refinement lift; η_c\* emergent; per-quantity closure model-form; liquid injection rides the W4 two-phase extension). Added to the deferred split. OFFL-3 local-mixture-fraction table-envelope dependency noted. |
 | 2026-07-21 | 0.1 | Initial draft (reacting-flow m=0 corner). Conserved system + PPM/HLLC-Batten Godunov FV; 2.5-D axisymmetric-with-swirl as the m=0 truncation of the adaptive solver; tabulated shifting/frozen equilibrium chemistry with the frozen↔shifting gap as a UQ band (finite-rate CFD out; injector c\*-efficiency boundary); Bartz wall-heat coupling as the expander drive; emergent chamber pressure; State-Redistribution cut-cell stability; oracles Castro/PeleC/Athena++. Two-phase/MHD extensions of the same operator deferred to W4. |

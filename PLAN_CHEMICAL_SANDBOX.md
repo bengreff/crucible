@@ -1,0 +1,140 @@
+# PLAN_CHEMICAL_SANDBOX.md — Finishing the Sandbox in the Chemical Regime
+
+| Field | Value |
+|---|---|
+| **Status** | Plan of record (Ben, 2026-08-19). Subordinate to VISION_SCOPE.md and the Reviewed Layer-2 docs; where this plan requires a doc change, **the amendment lands first (S1), then code**. |
+| **Mission** | The chemical-regime sandbox, finished: any liquid/gas chemical engine as pure config (geometry file + propellants + cycle objects) → a full-3-D, full-physics, **spark-to-steady startup simulation** → verdict + performance distributions + certificate. |
+| **The certifying artifact** | **THE RUN (S19):** full-3-D RL10, ~5M cells, physical march from spark through ignition, light-off, chilldown, expander bootstrap, to settled steady state; ≤ 24 h on the desktop GPU; ensemble-banded; scored against TM-107318. Then SSME + F-1 blind versatility proofs (S20). |
+| **Cadence** | Laptop = per-session mini-sims (seconds–minutes, the test battery). Desktop = overnight checkpoint runs (◆) at phase boundaries, ≤ 24 h each. Every session ends gates-green and committed (VISION_SCOPE §12). |
+| **Improvisation rule** | Sessions may split/merge as the physics demands; findings go to SESSION_LOG.md; plan changes get a dated entry in §8. The plan is a route, not a contract — but a change contradicting a Reviewed doc still amends the doc first. |
+
+---
+
+## 1. Rulings of record (Ben, 2026-08-19) — the constraints this plan implements
+
+1. **Accelerated convergence is DELETED.** No pseudo-transient continuation, no local-Δt steady-state iteration, ever. Every certified result is a physical march. (Amends VISION_SCOPE §7.6, COUP-3 §3.6, COUP-4 §3.1, SOLV-1 §5 — S1.)
+2. **Startup is part of verification.** The instrument must simulate engine start as physics: spark → ignition → flame propagation → pressure rise → cycle bootstrap → steady. "DOESN'T START" is a first-class computed verdict.
+3. **Compressed external schedules are legal and declared.** External-system dynamics (valve travel, pump rotor spin-up, tank-head timelines) are boundary-object schedules and may be time-compressed in config; everything *inside* the engine (gas dynamics, flames, thermal fronts) is fully physical. Never compress anything that feeds back into engine function.
+4. **The liner thermal mass is physical** (real ρc_p, real chilldown) — it feeds the expander cycle, so it may not be faked. ~2–3× run length accepted.
+5. **Full 3-D is the product.** 2-D axisymmetric survives only as an iteration/testing tool and as low rungs of the UQ fidelity ladder (N_θ ceilings, COUP-5 §3.2). No 2-D deliverables.
+6. **Ignition/combustion events:** the burn-progress-variable architecture (§2.2) — cell-averaged statistics with causal event propagation between cells. New design content; doc lands at S1 (SOLV-4 chemical section + OFFL-3 products + COUP-7 igniter object).
+7. **Adaptive cell size:** static declared refinement zones first (walls, injector face, throat); dynamic front-tracking refinement is a measured go/no-go decision (S10), not an assumption.
+8. **Geometry:** full CSG shape tree + STL import ("input a 3-D file, engine can represent it"). No solids (solid-propellant motors out of scope; liquids/gas only).
+9. **GPU is critical path.** Target hardware: RTX 4080 (16 GB VRAM; f64 at 1/64 FP32 rate — code must be bandwidth-bound; measured throughput governs run envelopes). Hard cap: 24 h per run (checkpoint/restart mandatory). CPU remains the bit-exact reference implementation (D-H stands).
+10. **Injector:** element-class injection at cell scale (each element ≈ declared mass/momentum/energy/composition injection into ~one cell); the subgrid mixing closure's band carries sub-cell structure. No sub-millimeter injector heroics.
+11. **Anchors:** RL10 (certifying), then SSME (staged-combustion hydrolox) + F-1 (gas-generator kerolox) blind.
+12. **No visualization work** until THE RUN exists. Fields/crash CSVs keep flowing as the future feed.
+13. **Determinism (CONFIRMED by Ben, 2026-08-19 — META-1 §2.5):** bit-exact per-build everywhere, CPU *and* GPU (gather-formulated kernels, fixed-topology reductions, no atomics in physics paths). Golden-byte certificate diffs stay pinned to the dev host; GPU regression = same-build rerun identity + CPU↔GPU tolerance cross-check (cross-device bit-identity is impossible and not promised). Escape hatch: a specific kernel measured >30% determinism cost goes to Ben for a ruling; never silently relaxed.
+
+## 2. The fidelity contract (what we resolve, model, and refuse)
+
+### 2.1 Resolved on the grid
+Bulk compressible flow everywhere (chamber/throat/bell/plume; shocks, expansions, swirl, recirculation, separation); gas-phase viscous shear, heat conduction, species diffusion (resolved-scale); species/element transport; burn-progress evolution (ignition fronts as propagating waves); averaged two-phase (liquid/vapor fractions, evaporation/condensation with latent heat); conjugate heat conduction in arbitrarily shaped solids; full start transients; structural-margin fields.
+
+### 2.2 The burn-progress architecture (the S1 design doc, summarized)
+- `U` gains **c ∈ [0,1]** — the burnt mass fraction of the cell (sub-cell state represented statistically). Thermochemistry = blend of two branches from the same offline pipeline: **unburnt** (frozen propellant mixture, valid to cryo temperatures) and **burnt** (the existing equilibrium surface).
+- c evolves by advection + **one continuous rate law** (Rule 12 — no if-branches), in the standard TFC form: a **flame-propagation term** ρ_u·S_T·|∇c| (S_T = laminar flame speed surface S_L(p, T_u, Z) from offline chemistry × a turbulent wrinkling factor) **paired with a matched front-thickening diffusion of c** — the pairing is what makes the front speed closure-set instead of grid-set — plus an **auto-ignition term** (induction-time surface τ_ign, Arrhenius-class fits, offline). Sub-cell partition: common p, mass-weighted enthalpy, unburnt state on its injection isentrope (T_u recoverable without a second energy field). Both closures carry {citation, envelope, band} and go to VAL-2 as unit anchors (shock-tube ignition-delay data; measured H₂/O₂ flame speeds). Full spec: SOLV-4 §3.6.
+- **The igniter is a boundary object**: a declared localized energy deposit (position, radius, duration, energy). It is not special-cased — it just makes a kernel hot enough that the induction law fires.
+- **Grid-independence invariant (THE acceptance test):** the front's propagation speed is closure-set, not grid-set; `flame_1d` must reproduce the same front speed on coarse and fine grids. Refinement sharpens *where*, never changes *what*.
+- Failure physics comes free: flame speed → 0 outside flammability/quench limits (continuous), so no-light and flameout are computed outcomes → new COUP-4 halts `NEVER_IGNITED`, `FLAMEOUT`.
+- Frozen↔shifting remains the declared kinetics band; c is orthogonal (it selects *whether* burnt, the branch pair selects *how* products behave).
+
+### 2.3 Modeled with one universal banded closure each
+Near-wall turbulence (the one wall-function law — boundary layers never grid-resolved); subgrid turbulent mixing (one dynamic-coefficient LES-class closure, offline-calibrated on canonical turbulence data — D-D); reaction rates (the S_L/τ_ign closures + the frozen↔shifting bracket — no runtime reaction networks); atomization/droplet spectra (universal closures); coolant-channel internals, turbomachinery, valves, igniters (boundary objects with maps/schedules); radiation (declared-magnitude band for the chemical regime; the one radiation operator arrives with the nuclear leg).
+
+### 2.4 Never (out of scope by doctrine)
+Turbulence-resolving simulation (DNS/wall-resolved LES); combustion-instability certification (acoustics appear in transients as physics but are not a deliverable — Ben-endorsed performance-prediction framing); injector internal hydraulics; FEM structures; solid motors; cross-device bit-identity.
+
+## 3. Compute strategy and budgets
+
+- **Tiers:** laptop mini-sims (≤ minutes, every session, the CI battery) → laptop/desktop CPU integration runs (coarse 3-D ~10⁵ cells: 10⁵ steps ≈ tens of minutes) → desktop GPU overnights (◆, ≤ 24 h, checkpoint/restart).
+- **THE RUN envelope (to be re-sized by S12 measurement):** ~5M cells (static-refined (r,z) × adaptive N_θ ≤ 64), Δt ~3×10⁻⁷ s, declared compressed start window **100–300 ms** ⇒ 0.3–1×10⁶ steps × ~2–3 SDC stage-evaluations/step ⇒ **~3×10¹²–1.5×10¹³ cell-updates**. At 1–5×10⁸ f64 cell-updates/s on the 4080 (bandwidth-bound estimate): **~2 h–40 h** — nominally inside the 24-h cap; if a member runs long, **multi-night checkpointed continuation is legal** (§7: one physical trajectory regardless of wall-clock segmentation). If the measured rate lands low: trim window/cells first; mixed precision only via a META-1 §3 amendment with a bounded error argument (Ben ruling required).
+- **Why 100–300 ms is physically sufficient (review finding, resolved):** the *slow* parts of a real ~2 s RL10 bootstrap are external — rotor inertia, valve travel, tank-head flow buildup — and those are the declared-compressible schedules (ruling #3). The *internal* clocks are fast at physical liner thickness: the real tube wall is ~0.33 mm (thermal time ~tens of ms), chamber fill/acoustics are ~ms — so THE RUN models the liner at (near-)physical thickness, which the cut-cell geometry permits (the 2 cm grid-thickened ring was a coarse-tier device, retired with refinement). The expander loop then equilibrates on the wall-thermal clock, inside the window. If S17 rehearsals show otherwise, the window grows and the multi-night rule absorbs it — never a physics shortcut.
+- **θ-CFL at inner rings (review finding, resolved):** at N_θ = 64 the azimuthal arc 2πr/N_θ shrinks below the radial cell for small r, which would crush the single global Δt. The cure is the machinery we already have: the **geometry/CFL-driven N_θ(r) profile** (FND-2 adaptive coarsening + N_θ^guard) holds the arc length ≳ the radial cell — coarse rings near the axis, fine rings outboard. That is physically lossless for THE RUN's spark: a **centered igniter kernel is near-axisymmetric by construction**, so near-axis coarseness represents it faithfully, while the genuinely 3-D content (216-element pattern, asymmetric separation) lives at radii where N_θ is fine. S8 gates this with an explicit Δt-vs-N_θ-profile test.
+- **VRAM:** ~5M cells × ~20 f64 fields ≈ 0.8 GB/copy; SDC nodes + multigrid hierarchy + solver work vectors ⇒ ~8–10 effective copies ≈ **6–8 GB** — fits 16 GB with headroom.
+- **Ensembles (S18–S19):** never N × 24 h. COUP-5 multi-fidelity as designed: fidelity levels = pinned N_θ ceilings + coarser dials; the bulk of members run at cheap tiers, few at full resolution; P(WORKS) at the survey tier.
+- **Backend decision (engineering, mine):** CUDA via a thin Rust binding (f64 support is the binding constraint; wgpu/WebGPU f64 is not viable). Kernels isolated behind the same fixed-order contract as the CPU path; CPU stays the reference.
+
+## 4. Architecture deltas (today → finished)
+
+| Area | Today | Finished |
+|---|---|---|
+| Integrator | explicit SSP-RK2 + split coupled step (declared scaffolding) | COUP-3 SDC-IMEX: explicit hyperbolic + implicit diffusion (fixed-cycle multigrid/CG) + cell-local stiff sources; Robin-Robin wall coupling |
+| Gas physics | inviscid Euler | + viscous stress, Fourier conduction, species diffusion (F_visc), wall-law suppression at wall faces (S16 ownership) |
+| Chemistry | equilibrium surface only | + frozen/unburnt branch, burn-progress field c, S_L/τ_ign closures, igniter object |
+| Transport props | 3 config constants | spine v1: μ/k/c_p over (T, p, Z) tables (OFFL-3 feed → FND-7 seam) |
+| Grid | N_θ=1 only; single-valued r(z) contour; uniform cells | N_θ>1 with axis crossing + refluxing; CSG tree + STL + PLIC cut cells; static refinement tiles (dynamic = S10 gate) |
+| Two-phase | none | drift-flux extension: liquid injection, evaporation/condensation, latent heat |
+| Injector | premixed prior tier | + resolved tier: element-class jets + subgrid mixing closure; η_c* an output |
+| Execution | march + readout | COUP-4 verdicts (WORKS/DOESN'T-WORK + mechanism/location/time), SOLV-6 margin checks (melt/burst halt inputs), Stage-2 clocks (B′ ablation), COUP-2 every-step port audit |
+| UQ | hand-run corner brackets | COUP-5: LHS + Philox, epistemic outer loop, P(WORKS), Sobol, MFMC ladder |
+| Hardware | CPU (rayon, bit-exact) | + full-residency GPU backend, bit-exact per build; checkpoint/restart (FND-6) |
+
+## 5. Session-by-session plan
+
+Sub-agent patterns per session: parallel doc drafting/review (S1), finder/verifier review waves (S11, S20), offline table generation concurrent with runtime coding, mechanical test-writing fan-outs. Mini-sim names below become test files.
+
+### Phase 0 — rulings become law
+- **S1 — Amendments + the ignition doc (docs only).**
+  VISION_SCOPE §15 entries + §7.6 edit (physical march only); COUP-3 §3.6 tombstoned; COUP-4 §3.1/§3.2 (dwell on physical march; `NEVER_IGNITED`/`FLAMEOUT` halts); SOLV-1 §5 anchor budget rewritten (GPU, physical march); SOLV-4 gains the chemical burn-progress section (§2.2 above, full spec); OFFL-3 gains unburnt-branch + S_L + τ_ign products; COUP-7 gains igniter + valve/tank-head schedule objects + the compressed-schedule principle; VAL-2 gains flame-speed + ignition-delay unit anchors; META-1 §2 determinism note (ruling #13, Ben confirms); FND-2 note on refinement staging. Fix the stale `rl10_full.toml` comment. Wire this plan into CLAUDE.md. Multi-agent draft + adversarial review; all promoted Reviewed.
+
+### Phase 1 — the real physics core
+- **S2 — The real integrator.** SDC-IMEX step (fixed sweeps); implicit diffusion class (deterministic fixed-cycle multigrid or CG); solid conduction + gas–wall Robin-Robin moved inside; COUP-2 port/conservation audit every step; retire the explicit coupled stepper. Stations 1–5 rerun on the new spine (expect certified numbers to move slightly — regenerate certificates, note in log). *Mini-sims:* manufactured diffusion orders; cooled-duct fixture; audit-closure test.
+- **S3 — The missing forces.** Compressible viscous stress + heat conduction + species diffusion on the cylindrical metric (swirl terms included), aperture-aware on cut cells; F_visc suppressed at wall-law faces (no double count). *Mini-sims:* `visc_channel` (Couette/Poiseuille analytics), `thermal_bl` (conduction layer growth), recovery-temperature flat plate.
+- **S4 — Real properties + ◆C1.** Transport tables μ/k/c_p(T, p, Z) through the FND-7 seam (OFFL-3 Cantera feed; ~10–20% declared bands); liner gets physical ρc_p (continuation device retired). **◆C1: 2-D RL10 with full diffusion physics re-settles with NO schedule tuning** — the "was it the missing physics?" checkpoint. Fine-dial 2-D establishment attempted; failures diagnosed via crash artifacts (expected to be curable now, fully cured by S6's cold branch).
+
+### Phase 2 — chemistry with events
+- **S5 — The cold/unburnt branch.** Species-vector state widening; frozen-composition surface + unburnt-propellant-mixture surface (valid to cryo T) from the pipeline; frozen↔shifting bracket armed as the declared kinetics band. Retires the envelope refusals and the overshoot-sized table ceiling.
+- **S6 — Ignition.** c field + blended thermochemistry; S_L(p,T,Z) and τ_ign(p,T,Z) surfaces generated + validated against the new VAL-2 unit anchors; flame-propagation + auto-ignition rate law; igniter boundary object. *Mini-sims:* `flame_1d` (front speed grid-independent — THE test), `spark_box` (lights), `lean_no_light` (refuses), `quench_box` (extinguishes), ignition-delay reproduction.
+- **S7 — First startup verification + ◆C2.** 2-D RL10: compressed valve schedule (the existing operating-profile ramp/pump-down grammar promoted to COUP-7 §3.2.2 schedule objects — the minimal form; the full tank-head sequence stays at S17) + spark ring (2-D limitation, declared) → ignition → light-off → choke → settle. COUP-4 verdict machinery v1 (EPS_WORKS/T_DWELL/T_S1_HORIZON, halt set wired) **including the SOLV-6 v1 subset** (Roark-class hoop/thermal margin checks — the melt/burst halt inputs; small analytic module, built here because the halts need it). **◆C2: 2-D spark-to-steady with a verdict object.**
+
+### Phase 3 — full 3-D
+- **S8 — Azimuthal capability.** r=0 crossing at N_θ>1 (parity-pair gather); mixed-N_θ brick refluxing (conservative ring-interface exchange, COUP-2/3); θ-CFL with the adaptive controller live; swirl in 3-D. *Mini-sims:* `axis_pulse_3d` (pulse crosses axis cleanly), `theta_reflux` (conservation at N_θ interfaces), bit-determinism at any thread count.
+- **S9 — Full geometry.** CSG shape-tree evaluation + voxelization (jittered-stratified fractions with the derived error bound, FND-3 §3.1); STL import via generalized winding number; PLIC interface reconstruction (retires the single-valued-wall restriction — slots/centerbodies legal); 3-D apertures incl. θ-faces. *Mini-sims:* analytic sphere/cone/revolved fractions; `stl_toy_chamber` cold-flow.
+- **S10 — Refinement + the AMR gate.** Static (r,z,θ) refinement tiles with conservative level interfaces (declared zones: walls, injector face, throat); 2-D smeared-vs-sharp front study → **go/no-go on dynamic front-tracking refinement** (if go: insert S10b/S10c; requires an FND-2 static-topology amendment).
+- **S11 — ◆C3 + review wave A.** Coarse full-3-D RL10 (N_θ ≤ 32, ~10⁵ cells): true point spark, asymmetric light-off, start-to-settle on CPU (laptop-scale mini, desktop confirm). Multi-agent review of phases 1–3; confirmed findings fixed in-session.
+
+### Phase 4 — GPU
+- **S12 — GPU spike.** CUDA backend skeleton; port the two hot kernels (hyperbolic sweep, EOS projection); **measure real f64 throughput on the 4080** → re-size §3 envelopes with data; deterministic-reduction strategy validated (fixed-topology trees, gather-only scatter).
+- **S13 — Full residency.** Entire step on-device (flow, diffusion cycles, projection, progress, conduction, closures); CPU orchestrates; same-build rerun bit-identity; CPU↔GPU tolerance cross-check on fixtures; FND-6 checkpoint/restart (the 24-h cap instrument + crash safety).
+- **S14 — Hardening + ◆C4.** Profile to the measured target; overnight-job harness (auto-checkpoint, resume, halt-artifact capture). **◆C4: coarse-to-mid 3-D spark-to-steady on GPU in hours.**
+
+### Phase 5 — two-phase and real injection
+*(Standing rule from Phase 4 on: new physics lands with its GPU kernels in the same session — the S13 residency pattern. No CPU-only physics may accumulate behind the port, or ◆C5/◆C6 silently fall back to CPU speeds.)*
+- **S15 — Liquid/vapor physics.** Drift-flux extension of the same operator: phase fractions, evaporation/condensation with latent heat (universal closures, banded), cryogenic liquid injection states (offline liquid-branch tables). *Mini-sims:* `phase_change_tube` (analytic evaporation/condensation), two-phase shock fixture, condensing-plume corner.
+- **S16 — The resolved injector.** Element-class discrete jets (ruling #10); the one LES-class dynamic subgrid mixing closure (offline-calibrated per D-D); η_c* becomes an output (SOLV-7 reads c*_delivered/c*_ideal); tier-consistency test vs the coax-family band (COUP-7 §6.7).
+- **S17 — The real start + ◆C5.** Tank-head/valve/igniter schedule objects; physical chilldown (liner + injected cryo liquid); spark-to-bootstrap end-to-end: 2-D rehearsal then 3-D. **◆C5: the full start sequence — the startability verification Ben ruled into scope.**
+
+### Phase 6 — uncertainty and certification
+- **S18 — The ensemble engine.** COUP-5: LHS + Philox keys (manifest already records the RNG), Iman–Conover correlation, epistemic outer loop (vertex enclosure + checked monotonicity), P(WORKS) + conditional-on-WORKS labeling, Sobol attribution, MFMC over N_θ-ceiling fidelity levels; certificate rescoring machinery moves from hand-brackets to ensembles.
+- **S19 — ◆C6: THE RUN.** Full-3-D, full-physics, spark-to-steady RL10 on the 4080, ≤ 24 h (checkpointed); blind + calibrated ensembles (multi-fidelity); station-5 certificate v2 scored against TM-107318 with true p-boxes. **Ben's viz gate opens here.**
+- **S20 — Versatility proof + review wave B.** SSME (staged-combustion hydrolox) + F-1 (gas-generator kerolox): public-record contours digitized, propellant tables regenerated (RP-1 via CEA), cycle boundary objects (preburner/gas-generator as declared upstream-condition objects — their internals are cycle machinery per the Reaction Razor; note: simulating a preburner as a second chamber is a legitimate future config, not required for blind scoring). Blind certificates for both; final review wave; plan retrospective → next-regime (NTP) kickoff notes (incl. the slow-phase implicit-acoustics capability flagged for the nuclear wave).
+
+## 6. Checkpoints
+
+| ◆ | Session | Run | Tier |
+|---|---|---|---|
+| C1 | S4 | 2-D RL10 re-settles under full diffusion physics, zero schedule tuning | laptop/desktop CPU |
+| C2 | S7 | 2-D spark-to-steady with a verdict object | desktop CPU |
+| C3 | S11 | coarse 3-D point-spark start-to-settle | desktop CPU |
+| C4 | S14 | 3-D spark-to-steady on GPU in hours | desktop GPU |
+| C5 | S17 | full start sequence (chilldown, tank-head, two-phase) | desktop GPU overnight |
+| C6 | S19 | THE RUN: certifying full-3-D RL10 + ensemble certificate | desktop GPU ≤ 24 h |
+
+## 7. Risks and fallbacks
+
+- **GPU f64 throughput short of estimate** → trim start window/cell count (still ≥ certification-honest resolution); mixed precision only via META-1 §3 amendment + bounded-error argument + Ben ruling.
+- **Dynamic AMR complexity spiral** → gated at S10 by measurement; static refinement + closure-set front speed is the honest fallback (blurry front, correct timeline — declared).
+- **Closure validity at SSME pressures (~200 bar)** → S_L/τ_ign surfaces regenerated over wider envelopes; bands widen honestly where data thin; envelope refusals stand.
+- **Two-phase stiffness** → phase-change sources are cell-local class-R terms (implicit, COUP-3); never explicit sub-stepping.
+- **24-h overrun** → checkpoint/restart makes multi-night legal (declared in the manifest); the run is one physical trajectory regardless of wall-clock segmentation.
+- **Axis + N_θ>1 corner cases** (the historically buggiest class) → S8 mini-sims are gate tests, not demos; review wave A targets this area explicitly.
+- **Ensemble cost** → MFMC ladder; P(WORKS) at survey tier; full-res members counted in nights, budgeted at S18.
+
+## 8. Plan change log
+
+| Date | Change |
+|---|---|
+| 2026-08-19 | v1.0 — plan of record created from Ben's rulings (this doc). |
+| 2026-08-19 | v1.2 (S1 adversarial review, wave A applied) — SOLV-4.4 restated in TFC form with matched front-thickening diffusion (grid-independence mechanism explicit); sub-cell partition/T_u closure stated; SOLV-1 §3.4 projection gated on c; §3 budget arithmetic corrected (window 100–300 ms, 3×10¹²–1.5×10¹³ updates, 2–40 h, multi-night legal) + the liner-timescale and θ-CFL/N_θ(r) resolutions recorded; VRAM ~6–8 GB; S7 gains schedule-object minimal form + the SOLV-6 margin subset; Phase-5 standing rule: physics lands with its GPU kernels. |
+| 2026-08-19 | v1.1 (S1 executed) — determinism confirmed by Ben (§1.13; META-1 §2.5); doc amendments landed (VISION_SCOPE v1.5; COUP-3 0.4 §3.6 tombstone; COUP-4 0.3 halts; SOLV-1 0.4; SOLV-4 0.4 §3.6 burn-progress; OFFL-3 0.4; COUP-7 0.4 §3.2.2 + igniter/schedules; VAL-2 0.2.4; META-1 0.4; META-3 0.7 §6.9; META-0 row; FND-2 0.5.1 note); `rl10_full.toml` stale comment corrected; station-5 certificate cure text regenerated; REVIEW_FINDINGS.md + REVIEW_PREP.md (closed register + prep checklist) deleted — findings live in doc change logs + git history; README updated. Consistency-review fixes: 8 doc version headers bumped, 3 §7 reference lists completed, VISION_SCOPE §15 date order restored. |

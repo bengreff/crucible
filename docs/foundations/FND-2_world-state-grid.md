@@ -6,7 +6,7 @@
 | **Family** | FND (Foundations / spine) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-1, COUP-3 (time integration), SOLV-1 (field operator) |
-| **Version** | 0.5 (v1.4 review fix wave) |
+| **Version** | 0.5.1 (2026-08-19 plan-of-record note; prior: 0.5 v1.4 review fix wave) |
 
 ---
 
@@ -465,6 +465,7 @@ SOLV-1 (field operator), FND-7 (constitutive spine).
 ## 9. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-19 | 0.5.1 | **Plan-of-record note (VISION_SCOPE v1.5, `PLAN_CHEMICAL_SANDBOX.md`).** Refinement is staged: **static declared (r,z,θ) refinement zones** (the §3.5 tile machinery — walls, injector face, throat; build wave S10) land first, inside the frozen-finest-topology contract (§3.2); **dynamic front-tracking refinement** is a measured go/no-go at S10 and, if taken, requires amending the static-topology ruling here first. GPU execution note: §3.9's "GPU as a declared relaxed-reduction path" is superseded by META-1 §2.5 — the GPU build is **bit-exact per device** (Ben 2026-08-19). No other contract change. |
 | 2026-07-14 | 0.1 | Initial draft. Backbone/one-matter-representation principle (Rules 12/13); full segregated multi-material cells at reacting interfaces (no magic interfaces — only reaction-decoupled components abstracted); f64 coordinates & state; uniform grouping into variable-size tiles; explicit grid-cells-vs-reduced-solver-meshes resolution distinction; static-topology sparse brick tree; deterministic Morton traversal. |
 | 2026-07-14 | 0.2 | Added §3.4.1 (sub-cell reaction scales: scale separation & homogenization — reactions carried as continuum rate densities, fine physics done offline and homogenized, cell size set by continuum gradients, deposition by range). Fixed a stale §3.9 recession reference. |
 | 2026-07-14 | 0.3 | Expanded §3.3 into a complete categorized cell-data enumeration (geometry, segregated matter sub-states incl. composition/ionization/burnup/char, reconciled state, `M`, field-physics state, degradation clocks; conserved-authoritative/derived split; explicit "not held per cell": xyz, uncertainty, provenance, binding map). |

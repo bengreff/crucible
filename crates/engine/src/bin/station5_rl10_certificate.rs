@@ -507,9 +507,13 @@ fn render(w: &mut String) {
          different envelope edge) manufactures mixture states genuinely outside the \
          equilibrium surface's representable set. The pre-review dial-8 'success' rode \
          on the vacuous absolute acceptance bound the session-12 review retired. The \
-         designated cure is **COUP-3 §3.6 pseudo-transient continuation** (the doc's \
-         own default route to steady points — no physical transient at all); \
-         grid-sequenced restart (FND-6) is the alternative. The indicative dial-8 \
+         designated cure (VISION_SCOPE v1.5, session 13 — accelerated convergence is \
+         DELETED; establishment stays a physical march) is the \
+         **PLAN_CHEMICAL_SANDBOX Phase 1–2 physics** (gas diffusion + the implicit \
+         integrator + the cold/unburnt chemistry branch), which makes these transient \
+         states representable and conductively coupled instead of refused; \
+         grid-sequenced restart from settled physical states (FND-6) is the legal \
+         warm-start. The indicative dial-8 \
          deltas quoted above are direction-of-refinement evidence only.\n\
          - **Discretization band is therefore declared, not swept:** the scored boxes \
          carry closure bands + the numeric band; the coarse-tier truncation error is \
@@ -583,7 +587,8 @@ fn render(w: &mut String) {
         w,
         "\nThe residual blind miss under refinement is the wall-law + η-prior model \
          form the bands already carry — the certified sweep that would promote this \
-         from indication to score awaits the pseudo-transient wave.\n"
+         from indication to score awaits the PLAN_CHEMICAL_SANDBOX Phase 1–2 wave \
+         (physical-march establishment with the full diffusion + cold-branch physics).\n"
     )
     .unwrap();
 

@@ -6,7 +6,7 @@
 | **Family** | COUP (Coupling & orchestration) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-1, COUP-8; FND-4 (config blocks), COUP-2 (ports), SOLV-1 (§3.4–3.5) |
-| **Version** | 0.3 |
+| **Version** | 0.4 (2026-08-19: §3.2.2 compressed external schedules; igniter + valve/start-sequence objects — VISION_SCOPE v1.5) |
 
 ---
 
@@ -152,6 +152,18 @@ config-selected tiers** — data, never a code branch (Rule 13):
 anchored injector (RL10 coax), must reproduce that family's measured η_c\* within the declared closure
 bands — the same blind→calibrated laddering as open/closed turbopump modes (§6 item 7).
 
+### 3.2.2 Compressed external schedules *(VISION_SCOPE §7.6 v1.5, Ben 2026-08-19)*
+
+A boundary object whose stated condition is a **timeline** (valve travel, pump-rotor spin-up, tank-head
+sequence, igniter firing window) may declare that timeline **time-compressed** relative to the hardware it
+cites — the cost lever that keeps physical-march start-ups affordable now that accelerated convergence is
+deleted. Rules: (a) the compression is **config data, recorded in the manifest** (schedule + the cited
+physical timeline it compresses); (b) only *externally imposed* timelines qualify — **nothing that feeds
+back through the reaction may be compressed** (the expander's jacket pickup, the liner's thermal mass, any
+flame/acoustic/thermal timescale the grid evolves — those are physics); (c) a certificate states the
+compression next to its labels. The declared-schedule class (valve/tank-head/igniter objects, §3.3) all
+carry it.
+
 ### 3.3 The v1 boundary-object set (chemical slice)
 
 | Object | Ports (role) | Stated quantity + map | Citation | Envelope | Band |
@@ -161,6 +173,8 @@ bands — the same blind→calibrated laddering as open/closed turbopump modes (
 | **Cooling-jacket / regen interface** | wall-heat (Bidirectional), coolant-return (Provide) | **coolant side ONLY (D-C):** channel correlation + coolant state → jacket ΔH uptake. Gas-side h is **SOLV-1 §3.5's one wall-function law** (`wall-function-heat`; Bartz demoted to a VAL-2 nozzle oracle) — never stated here | `huzel-huang` (coolant channels) | coolant channel design range | coolant-side correlation band (declared per source); the gas-side ±20–30% band is the wall function's (SOLV-1 §3.5, epistemic) |
 | **Radiator interface** | heat-sink (Require) | capacity + coolant-return T; heat crossing it **exits the sim** (VISION_SCOPE §4.2) | *(per-config)* | stated capacity | stated |
 | **Pressurization / tank feed** | inlet (Provide) | inlet pressure/temperature/composition | *(per-config)* | tank state range | stated |
+| **Igniter** *(v0.4)* | ignition-energy (Provide) | a **scheduled, localized energy deposit**: position, radius, duration, energy, firing window (§3.2.2 schedule class). Not special-cased physics — it creates a state whose SOLV-4 §3.6 induction term fires; ignition/no-light is the field's outcome, never this object's claim | `spark-igniter-class` | deposit within grid + table envelopes; energy in the cited igniter class | stated per source |
+| **Valve / start-sequence schedules** *(v0.4)* | commanded-profile (Provide) | declared timelines for valve open fractions, tank-head/pump spin-up ṁ availability — the compressed-schedule class (§3.2.2): compression declared + manifest-recorded | `rl10-cycle-data` (start sequence), *(per-config)* | within the cited hardware's sequence class | stated |
 
 *(Nuclear/plasma/pulsed boundary objects — pulsed-power drivers, beam/laser sources, coil sets, reactivity-
 control schedules, antiproton delivery, EP performance tables, fusion-confinement source — are added to this
@@ -223,7 +237,7 @@ their source anchor is (e.g. the RL10 pump/jacket data, VAL-2).
 META-3 keys: `expander-cycle`, `rl10-cycle-data`, `huzel-huang`, `injector-cstar-eff` (also the
 other-hardware family band for blind mode), `wall-function-heat` (SOLV-1's law, referenced), `bartz` (VAL-2
 oracle only),
-`modelica-connector` (port balance). Depends on FND-1 (`UncertainInput`, `ValidityEnvelope`), COUP-8
+`modelica-connector` (port balance), `spark-igniter-class` (igniter object, §3.3). Depends on FND-1 (`UncertainInput`, `ValidityEnvelope`), COUP-8
 (`ports[]`, registration), COUP-2 (port audit), SOLV-1 §3.4–3.5 (knockdown mechanism, wall function),
 FND-4 (config block).
 
@@ -234,6 +248,7 @@ now / built later.)*
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 (Ben).** New §3.2.2 **compressed external schedules** (declared, manifest-recorded, external-timelines-only — the physical-march cost lever; certificates state compression). §3.3 gains the **igniter** (scheduled localized energy deposit — outcome belongs to the field, SOLV-4 §3.6) and **valve/start-sequence schedule** objects. |
 | 2026-08-14 | 0.3 | **Review fix wave (O19, D-C, D-G).** §3.2.1 prior tier: the η_c\* application operator stated — SOLV-1 §3.4's **in-solver combustion-completeness knockdown** (delivered c\* = η_c\*·c\*_ideal at the anchor state; output-side multiplication forbidden; this doc is the boundary-object mirror) (O19); **blind vs calibrated split** — blind runs use the injector-class band measured on *other* hardware (±1–3%); the RL10-fitted η_c\* = 0.9892 binds in calibrated mode only (D-G, VISION_SCOPE §9 v1.4). §3.3 cooling-jacket row + §3.2 wording: the jacket object owns **only the coolant side**; gas-side h is SOLV-1 §3.5's one wall-function law (Bartz → VAL-2 nozzle oracle); "simulated in full" softened to name the wall-function ±20–30% closure band honestly (D-C). §3.4: epistemic-vs-aleatory assignment follows the FND-1 family (interval ⇒ outer loop) — COUP-5 §3.3's O15 disambiguation mirrored; §5/§6.5 Bartz references re-pointed to the wall function. |
 | 2026-08-13 | 0.2 | **R2 applied — tiered injector.** Injector re-specified as one object with two config-selected tiers (§3.2.1): envelope-bounded η_c\* **prior** tier (milestone-1) vs **resolved** tier (actual unmixed stream conditions; mixing computed on the grid; η_c\* an output; per-quantity closure model-form). Emergent-quantity rule sharpened to its R2+R3 form (never supply a computable efficiency/partition; priors only inside their measurement envelope, enforced mechanically). v1 set table updated; tier-consistency validation item added (deferred with build). |
 | 2026-07-21 | 0.1 | Initial draft. Three-field registration contract (citation+envelope+band, enforced at registration); the **emergent-quantity rule** and the turbopump-as-flow-source model with a config-selected open/closed `drive_power` port (chamber pressure emergent, no imposed `p_c`, no new coupler type — Ben 2026-07-21); the v1 chemical-slice boundary set (turbopump, injector c\*-efficiency, cooling-jacket/Bartz, radiator, pressurization) with per-object bands; uncertainty exposure via `UncertainInput`; determinism via fixed-sweep closed-mode solve. |

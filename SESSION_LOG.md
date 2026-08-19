@@ -338,3 +338,38 @@ the committed artifacts in `certificates/` are the living record.
   pre-review dial-8 "success" rode the vacuous bound. Cure = **COUP-3 §3.6 pseudo-transient
   continuation** (the doc's own default route to steady points); grid-sequenced restart
   (FND-6) alternative. True counts: **136 Rust + 28 Python**; all gates green.
+- Session 13 (2026-08-19): **PLAN S1 — the v1.5 amendment wave (docs only; no solver code).**
+  Context: Ben's post-session-12 design review (full-conversation, this session's chat) produced
+  the rulings now in `PLAN_CHEMICAL_SANDBOX.md` §1 — the plan of record for finishing the
+  chemical-regime sandbox (S1–S20, six phases, THE RUN at S19 = full-3-D spark-to-steady RL10 on
+  the RTX 4080 ≤ 24 h). Landed this session: **VISION_SCOPE v1.5** (§7.6 physical-march-only —
+  accelerated convergence DELETED; compressed external schedules; ignition-as-physics; full-3-D
+  product tier; §15 entry with rationale); **COUP-3 0.4** (§3.6 tombstoned, `pseudo-transient`
+  key retired, forward note on all-speed acoustics for the nuclear wave); **COUP-4 0.3** (physical
+  march wording; new `NEVER_IGNITED`/`FLAMEOUT` halts); **SOLV-1 0.4** (c field in `U`; §5 anchor
+  budget rewritten to the full-3-D physical march + GPU envelope); **SOLV-4 0.4 §3.6** — THE new
+  design: the chemical burn-progress source (c ∈ [0,1] burnt fraction; SOLV-4.4 rate law = S_L ×
+  wrinkling flame propagation + τ_ign auto-ignition; unburnt↔equilibrium blended thermochemistry;
+  igniter = energy-deposit object; grid-independent front speed = the acceptance gate; reacting
+  measure → the halt thresholds; runtime finite-rate networks stay out — closures are offline
+  surfaces); **OFFL-3 0.4** (unburnt-reactant surface + S_L/τ_ign closure products — offline
+  Cantera finite-rate is in scope for table generation only); **COUP-7 0.4** (§3.2.2 compressed
+  external schedules; igniter + valve/start-sequence objects); **VAL-2 0.2.4** (H₂/O₂ flame-speed
+  + shock-tube ignition-delay unit anchors); **META-1 0.4 §2.5** (GPU determinism policy,
+  Ben-confirmed: bit-exact per device, gather kernels, no physics atomics, fixed-topology
+  reductions, >30% escape hatch); **META-3 0.7 §6.9** (burn-progress keys, `[RP]` pins due at
+  S6); **META-0** COUP-3 row; **FND-2 0.5.1** (refinement staging note; §3.9 GPU-relaxed wording
+  superseded by META-1 §2.5). Cleanup: `rl10_full.toml` stale comment corrected (the certified
+  tier is dial 5 ONLY — the comment predated the review's retirement of the vacuous bound);
+  station-5 certificate cure text regenerated (2-line diff, scores untouched);
+  **REVIEW_FINDINGS.md + REVIEW_PREP.md deleted** (closed 68/68-discharged register + its
+  prep checklist; findings live in doc change logs + git history; README updated); CLAUDE.md
+  restructured around the plan. Adversarial review wave: two
+  independent reviewers — consistency (14 findings: 8 unbumped version headers, 3 incomplete §7
+  key lists, §15 date order, 2 stale register references → REVIEW_PREP.md also deleted) and
+  plan-coherence (12 findings; the load-bearing four: SOLV-4.4 needed the TFC |∇c| form + matched
+  front-thickening diffusion or the front speed is grid-set; the equilibrium projection had to be
+  gated on c or every flammable cell burns regardless of ignition; the θ-CFL at inner rings is
+  handled by the N_θ(r) profile with a centered-spark-is-near-axisymmetric argument; the 100–300 ms
+  window is physically sufficient because the slow bootstrap clocks are external/compressible while
+  the physical 0.33 mm liner's thermal time is ~tens of ms) — all 26 fixed in-session. Test counts unchanged (**136 Rust + 28 Python**); all gates green.

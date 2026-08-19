@@ -66,17 +66,22 @@ t_coolant_k = 120.0    # jacket-average coolant temperature (inlet 32 K + ~191 K
 
 [operating_profile]
 mode = "steady_march"
-# KNOWN LIMIT (session 12): dials ≥ 12 cannot ESTABLISH by physical march —
-# the startup transient (drain/shear at the bell wall, injector piston, or
-# overexpanded-bell backflow, depending on the schedule; five schedules
-# probed, each halting at a different envelope edge) manufactures mixture
-# states genuinely outside the equilibrium surface's representable set, and
-# the operator rightly refuses (never clamps). Dials 5 and 8 establish and
-# settle. The designated cure is COUP-3 §3.6 pseudo-transient continuation
-# ("the default Stage-1 route to steady points") — local-Δt SER needs no
-# physical transient at all; grid-sequenced restart (FND-6) is the
-# alternative. Until one lands, the certified tiers are 5 (iteration) and
-# 8 (headline); this preset is the waiting full tier.
+# KNOWN LIMIT (session 12; comment corrected session 13): dials ≥ 8 cannot
+# ESTABLISH by physical march under the honest rule-space projection
+# acceptance — the startup transient (drain/shear at the bell wall, injector
+# piston, or overexpanded-bell backflow, depending on the schedule; five
+# schedules probed, each halting at a different envelope edge) manufactures
+# mixture states genuinely outside the equilibrium surface's representable
+# set, and the operator rightly refuses (never clamps). The pre-review
+# dial-8 "success" rode the vacuous absolute acceptance bound the session-12
+# review retired: the certified tier is dial 5 ONLY (the certificate is the
+# record). Cure (VISION_SCOPE v1.5 — accelerated convergence is DELETED;
+# establishment stays a physical march): the PLAN_CHEMICAL_SANDBOX Phase 1-2
+# physics (gas diffusion + implicit integrator + the cold/unburnt chemistry
+# branch) makes these transient states representable and conductively
+# coupled instead of refused; grid-sequenced restart from settled physical
+# states (FND-6) remains the legal warm-start. This preset is the waiting
+# full tier until that wave lands.
 flowthroughs = 12.0 # settle budget in fill-state acoustic span times
 fill_p_pa = 3.0e6   # quiescent startup fill near the expected operating class (steady result is fill-independent)
 pumpdown_flowthroughs = 4.0 # altitude-cell ambient pump-down window (quasi-static nozzle establishment)

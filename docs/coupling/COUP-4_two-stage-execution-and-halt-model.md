@@ -6,7 +6,7 @@
 | **Family** | COUP (Coupling & orchestration) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | COUP-3, COUP-2, SOLV-6, SOLV-8; COUP-8 (`halts[]`), COUP-5 (§3.2.1 P(WORKS)) |
-| **Version** | 0.2 |
+| **Version** | 0.3 (2026-08-19: physical-march-only Stage 1; NEVER_IGNITED/FLAMEOUT halts — VISION_SCOPE v1.5) |
 
 ---
 
@@ -44,19 +44,21 @@ run.
 ## 3. Method
 
 ### 3.1 Two stages
-- **Stage 1 — FUNCTION.** Transient (or pseudo-transient to steady state) march to the commanded operating
-  profile. For the chemical slice this is the march to the RL10 operating point (COUP-7 flow in → emergent
-  `p_c`/thrust out). Reaches and holds ⇒ `WORKS` + performance report; otherwise a halt (§3.2).
+- **Stage 1 — FUNCTION.** A **physical transient march** to the commanded operating profile — always
+  (VISION_SCOPE §7.6 v1.5: accelerated convergence deleted; start-up is part of what Stage 1 verifies).
+  External-system timelines may be compressed as declared boundary-object schedules (COUP-7 §3.2.2). For
+  the chemical slice this is the march from declared fill state through ignition to the RL10 operating
+  point (COUP-7 flow in → emergent `p_c`/thrust out). Reaches and holds ⇒ `WORKS` + performance report;
+  otherwise a halt (§3.2).
 
   **The WORKS criterion is three named constants (O12), recorded in the verdict object (§3.3):**
   - `EPS_WORKS[q]` — per-quantity **relative tolerance on the commanded profile** (default 0.02 — the S1
     reported-target scale; per-quantity config override). "Reaches" = every commanded quantity within
     `EPS_WORKS[q]` of its commanded value.
   - `T_DWELL` — the **dwell window**: WORKS requires *holding* every commanded quantity inside `EPS_WORKS[q]`
-    for a contiguous physical span `T_DWELL` (default 20 chamber flow-through times; config-overridable).
-    After pseudo-transient convergence the dwell runs as the short physical march of COUP-3 §3.6.
-  - `T_S1_HORIZON` — the **Stage-1 horizon** (config-required for transient marches; the pseudo-transient
-    route converges or fails within its fixed pseudo-step budget, COUP-3 §3.6). Horizon expiry without a
+    for a contiguous physical span `T_DWELL` (default 20 chamber flow-through times; config-overridable),
+    as the tail of the one physical march.
+  - `T_S1_HORIZON` — the **Stage-1 horizon** (config-required). Horizon expiry without a
     completed dwell ⇒ the **distinct `FAILED_TO_REACH` halt** (§3.2) — never a silent timeout, never
     conflated with a physical mechanism halt.
 - **Stage 2 — LIFETIME.** Runs **only after Stage 1 passes**; freezes the operating point and marches the slow
@@ -72,10 +74,17 @@ members:
 - **Choking / starvation at a port** (mass flow cannot be sustained; e.g. the expander cycle cannot close —
   divergent iterates or an envelope-refused fixed point, COUP-3 §3.5 — no consistent operating point →
   **won't-bootstrap → `DOESN'T WORK`**; diagnosis = **physical**).
+- **`NEVER_IGNITED`** *(v0.3, VISION_SCOPE v1.5)*: the commanded ignition sequence completed (igniter
+  schedule exhausted, COUP-7 §3.3) and no self-sustaining burn front exists — the burn-progress field's
+  reacting measure never exceeds its named threshold (SOLV-4 §3.6). Diagnosis = **physical**
+  (`DOESN'T WORK (never ignited)`).
+- **`FLAMEOUT`** *(v0.3)*: a previously established burn extinguishes before the dwell completes (the
+  reacting measure collapses — quench/flammability physics, SOLV-4 §3.6). Diagnosis = **physical**, with
+  location + time of the extinction front.
 - **`COUPLING_RESIDUAL`** (O4): a fixed-sweep coupling solve failed its named residual-acceptance test —
   defined in **COUP-3 §3.5** (`EPS_EXPANDER_RESID` et al.). Diagnosis = **numerical** (a solver defect, never
   an engine verdict); **never conflated** with the physical won't-bootstrap above.
-- **`FAILED_TO_REACH`** (O12): `T_S1_HORIZON` expired (or the pseudo-transient budget exhausted) without a
+- **`FAILED_TO_REACH`** (O12): `T_S1_HORIZON` expired without a
   completed dwell — diagnosis names the quantities still outside `EPS_WORKS[q]` and by how much.
 - **Conservation-audit failure** (COUP-2 beyond `TOL_AUDIT` — a bug, not a physical result).
 - **Non-finite field** (NaN/Inf — FND-1 §3.8).
@@ -139,5 +148,6 @@ META-3 keys: `modelica-connector` (port starvation). Depends on COUP-3 (step), C
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-19 | 0.3 | **VISION_SCOPE v1.5 (Ben).** §3.1: Stage 1 = **physical march only** (pseudo-transient references removed; dwell = the tail of the one march; compressed external schedules per COUP-7 §3.2.2). §3.2: chemical halt set gains **`NEVER_IGNITED`** and **`FLAMEOUT`** (physical diagnoses, thresholds owned by SOLV-4 §3.6). |
 | 2026-08-14 | 0.2 | **Review fix wave (O12, O4, O13, D-F).** §3.1: the WORKS criterion made concrete — named constants `EPS_WORKS[q]` (per-quantity relative tolerance on the commanded profile, default 0.02), `T_DWELL` (dwell window, default 20 flow-through times), `T_S1_HORIZON`; horizon expiry = the distinct `FAILED_TO_REACH` halt; constants recorded in the verdict (O12). §3.2: **`COUPLING_RESIDUAL`** halt variant added (diagnosis = numerical; acceptance test defined in COUP-3 §3.5) — never conflated with physical won't-bootstrap (O4); nuclear deferral upgraded to a **tracked obligation** — PKE-excursion halt spec + commanded-envelope source due before the nuclear coding wave, COUP-8 `halts[]` extension noted (O13). §3.3/§5: verdict object records **per-member verdicts** + criterion + physical/numerical diagnosis; **P(WORKS) is a first-class result** with estimator/bounds owned by COUP-5 §3.2.1; performance conditional-on-WORKS, labeled (D-F). §6 items 2, 5, 7 updated/added. |
 | 2026-07-21 | 0.1 | Initial draft. Stage-1 FUNCTION / Stage-2 LIFETIME control flow; the closed chemical-slice halt set (melt/vaporization, burst<1, choking/starvation incl. failed expander closure, conservation-audit failure, non-finite); halt = immediate structured verdict (mechanism/location/time), no cascading failure; ensemble verdict as a WORKS-fraction + dominant mechanism; deterministic control flow. |

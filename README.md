@@ -8,9 +8,11 @@ is a distribution with a pedigree.
 A 12-month inquiry project (Jul 2026 – Jun 2027). This repository holds the **design docs**
 (Layer 1 + Layer 2), the **Rust runtime workspace**, and the **Python offline pipelines**.
 Certified so far (each by a committed, regenerable record in `certificates/`): the Goal-A
-conduction convergence certificate and Goal-B stations 1–4 — Sod shock tube, choked De Laval
-nozzle, the CEA→HDF5 flame seam, and the conjugate cooled wall. Current goal: **Goal B
-station 5, the blind RL10** (CLAUDE.md carries current state; SESSION_LOG.md the history).
+conduction convergence certificate and Goal-B stations 1–5 — Sod shock tube, choked De Laval
+nozzle, the CEA→HDF5 flame seam, the conjugate cooled wall, and the RL10 assembly vs the
+TM-107318 reference p-box (coarse tier). Current goal: **finish the chemical-regime sandbox**
+per `PLAN_CHEMICAL_SANDBOX.md` — the plan of record (full-3-D spark-to-steady certification;
+CLAUDE.md carries current state; SESSION_LOG.md the history).
 
 ## Build & test
 
@@ -44,6 +46,7 @@ uncertainty, not accept it.
 | Path | Contents |
 |---|---|
 | `VISION_SCOPE.md` | Layer-1 vision & scope (source of truth) |
+| `PLAN_CHEMICAL_SANDBOX.md` | The plan of record: session-by-session build plan to the finished chemical-regime sandbox |
 | `docs/meta/` | Catalog, design philosophy, conventions, sources ledger |
 | `docs/foundations/` | Spine: data/UQ model, grid+solver, geometry, config, tables, results, constitutive spine |
 | `docs/coupling/` | Coupling & orchestration (time integration, audit, registry) |
@@ -56,5 +59,6 @@ uncertainty, not accept it.
 | `SESSION_LOG.md` | Per-session history: measured data, findings, review waves |
 
 The 29 critical-path Layer-2 docs are **Reviewed (2026-08-14)** — the coding gate is open
-(`REVIEW_FINDINGS.md` is the record). Still unreviewed: SOLV-5, OFFL-4 (deferred set — do not
+(the review register was closed 68/68-discharged and removed 2026-08-19; findings live in the
+docs' change logs + git history). Still unreviewed: SOLV-5, OFFL-4 (deferred set — do not
 implement); COUP-1 is a retired tombstone.

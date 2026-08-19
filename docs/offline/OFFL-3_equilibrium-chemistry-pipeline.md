@@ -6,7 +6,7 @@
 | **Family** | OFFL (Offline pipeline) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-5 (table schema), FND-1 (uncertainty); consumed by SOLV-1/7/8, OFFL-5 (transport feed) |
-| **Version** | 0.3 |
+| **Version** | 0.4 (2026-08-19: unburnt-reactant surface + S_L/τ_ign closure products — VISION_SCOPE v1.5) |
 
 ---
 
@@ -38,6 +38,8 @@ standard tabulate-offline / interpolate-online method (FND-2 §3.4.1).
 |---|---|---|
 | **Equilibrium surface** *(S22)* | SOLV-1 | equilibrium composition + thermo `(T, ρ, {X_k}^eq, γ_eff, a, heat release)` vs **(p, h, Z)** — pressure, specific enthalpy, elemental composition/mixture fraction; the shifting-mode per-step projection lookup (SOLV-1 §3.4, S19) |
 | **Frozen-path surface** *(S22)* | SOLV-1 | frozen-composition thermo `(T, ρ, γ, a)` vs `(p, h, {X_k})` for the frozen advection mode |
+| **Unburnt-reactant surface** *(v0.4)* | SOLV-1/SOLV-4 §3.6 | frozen **reactant-mixture** thermo vs (p, h, Z), valid to cryogenic T — the burn-progress blend's c = 0 branch |
+| **Ignition/flame closures** *(v0.4)* | SOLV-4 §3.6 | laminar flame speed `S_L(p, T_u, Z)` + induction time `τ_ign(p, T_u, Z)` surfaces, computed **offline** (Cantera 1-D freely-propagating flames + 0-D constant-pressure reactors on the cited `h2-kinetics-mech`); measured-data holdout bounds; envelopes = flammability/quench limits (outside: S_L → 0, τ_ign → ∞ smoothly — the closure carries its own extinction) |
 | **Performance reference** | SOLV-7, SOLV-1 (§3.4 anchor knockdown) | `c*_ideal, T_c, γ, M̄` vs `(p_c, MR)` — a chamber-stagnation performance functional, not a field lookup |
 | **Expansion oracles** *(quasi-1-D, demoted S22)* | SOLV-7, VAL-2 | shifting **and** frozen state `(T,p,ρ,h,s,γ_eff,a)` + species vs area/pressure ratio — **oracle cross-checks only, never interpolated by the field solver**; labeled `oracle` in FND-5 metadata |
 | **Transport feed** *(S23)* | OFFL-5 | Cantera mixture `μ, k` vs `(T, p, Z)` — **input to the spine assembly**; the spine (FND-7) is the **sole runtime provider** of transport |
@@ -119,7 +121,7 @@ via RL10 (VAL-2).
    nozzle run (the two parameterizations agree where both are defined).
 
 ## 7. References
-META-3 keys: `nasa-cea`, `cantera`, `nist-janaf`, `jannaf-eff`, `bprime`, `cstar-cf-defs`. Depends on FND-5
+META-3 keys: `nasa-cea`, `cantera`, `nist-janaf`, `jannaf-eff`, `bprime`, `cstar-cf-defs`, `h2-kinetics-mech`, `h2-flame-speed`, `h2-ignition-delay` (§2 ignition/flame closures). Depends on FND-5
 (schema/interp), FND-1 (uncertainty); consumed by SOLV-1/7/8, OFFL-5 (transport feed), COUP-7 (injector
 separate), VAL-2 (oracles).
 
@@ -129,6 +131,7 @@ Apache-2.0 + Cantera cross-check) resolved 2026-07-21.)*
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 / SOLV-4 §3.6 products.** §2 gains the **unburnt-reactant surface** (the burn-progress c = 0 branch, cryo-valid) and the **ignition/flame closure surfaces** `S_L(p,T_u,Z)` + `τ_ign(p,T_u,Z)` — offline finite-rate chemistry (Cantera flames/reactors on the cited `h2-kinetics-mech`) is in scope *for table generation only*; runtime stays interpolation. Closure envelopes carry the flammability/quench limits so extinction is the closure's own smooth behavior. Unit-anchored per VAL-2 §3.3 (`h2-flame-speed`, `h2-ignition-delay`). |
 | 2026-08-14 | 0.3 | **Post-review fix wave (S22, S23).** Runtime tables **re-parameterized to local state**: equilibrium + frozen-path composition/thermo surfaces vs **(p, h, Z)** (consistent with SOLV-1's S19 advected-element mode); the (p_c, MR) chamber product survives as the **performance reference** (a stagnation functional for SOLV-7 and the §3.4 anchor knockdown); **area-ratio expansion tables demoted to SOLV-7/VAL-2 quasi-1-D oracles** (`oracle`-labeled, never interpolated by the field solver). **OFFL-3→SOLV-1 transport interface deleted** — two providers of μ,k was a seam: Cantera transport becomes an **input feed to OFFL-5's spine assembly**; the spine (FND-7) is the sole runtime provider; the transport axis uses the same local (T, p, Z) coordinate. §2/§3.3/§4/§5 reworded to match; coordinate-consistency validation item added. |
 | 2026-08-13 | 0.2 | **R2 applied — local-composition envelope.** §3.3 gains the resolved-mixing-tier requirement: property surfaces generatable over the full local mixture-fraction range as a table-envelope setting (dense design core, coarse wings; FND-5 refusal guards a resolved-tier run against design-window-only tables). Defer/coupling wording updated to the tiered injector (COUP-7 §3.2.1). |
 | 2026-07-21 | 0.1 | Initial draft. `nasa/cea` (Apache-2.0) + Cantera cross-check pipeline; chamber/expansion/transport/B′ tables to FND-5; **both frozen and shifting-equilibrium** emitted with the frozen↔shifting gap + JANNAF kinetic efficiency as an explicit UQ band; offline-tabulate/online-interpolate (no runtime equilibrium solve); provenance + envelope per FND-5; validated vs RP-1311 and RL10. |

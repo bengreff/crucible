@@ -6,7 +6,7 @@
 | **Family** | COUP (Coupling & orchestration) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, SOLV-1, COUP-2; COUP-8, COUP-4 |
-| **Version** | 0.3 |
+| **Version** | 0.4 (2026-08-19: §3.6 pseudo-transient DELETED — VISION_SCOPE v1.5) |
 
 ---
 
@@ -18,8 +18,8 @@ implicit stiff sources** (reactions, M1 source coupling) are advanced **together
 conservation error that operator splitting incurs for energetic stiff reactions. The method is **SDC-coupled
 IMEX** (spectral deferred corrections): explicit hydro/MHD + implicit stiff solves, iterated a fixed number of
 sweeps to 2nd order. It also owns the Δt rule (single global Δt, v1), radiation (RSLA) sub-stepping, the
-**closed-mode expander consistency solve** (§3.5), the **pseudo-transient steady-state mode** (§3.6), and
-pulsed-event sequencing.
+**closed-mode expander consistency solve** (§3.5), and pulsed-event sequencing. *(The former §3.6
+pseudo-transient steady-state mode is **DELETED** — VISION_SCOPE v1.5: physical march only.)*
 
 Read after SOLV-1 (the explicit update it drives), COUP-2 (the audit it triggers each step), and META-1 §2
 (the determinism mandate it must satisfy).
@@ -27,8 +27,8 @@ Read after SOLV-1 (the explicit update it drives), COUP-2 (the audit it triggers
 ## 1. Scope & razor ruling
 **Owns:** the time-integration scheme (SDC-IMEX), the three operator classes and their solvers (§3.1), the
 operator-split *schedule* (call order of the SOLV operators inside a step), Δt/CFL control incl. the RSLA
-radiation sub-step rule (§3.4), the closed-mode expander consistency solve (§3.5), the pseudo-transient mode
-(§3.6), pulsed-event sequencing (SOLV-5 hook), and the per-step→audit handoff. **Defers:** which fields each operator reads/writes and the conservation audit →
+radiation sub-step rule (§3.4), the closed-mode expander consistency solve (§3.5), pulsed-event sequencing
+(SOLV-5 hook), and the per-step→audit handoff. **Defers:** which fields each operator reads/writes and the conservation audit →
 **COUP-2**; the operators themselves → **SOLV-1…8**; the two-stage (function/lifetime) control flow and halt
 handling → **COUP-4**; the mechanism registry → **COUP-8**.
 
@@ -146,27 +146,22 @@ iteration on the delivered ṁ** with **Aitken Δ² acceleration** and a **fixed
   expected factor ~0.5–0.8/sweep at the RL10 point, which sizes `N_EXPANDER_SWEEPS` to reach
   `EPS_EXPANDER_RESID` with margin. Clamp bounds and constants are manifest-recorded.
 
-### 3.6 Pseudo-transient mode *(steady-state continuation — owned here, O6)*
-Stage-1 configs whose commanded profile is a steady operating point may run **pseudo-transient continuation**
-instead of the physical march: a **deterministic local-Δt** iteration — per-cell Δt from the local CFL at a
-pseudo-CFL grown by a **fixed SER (switched evolution relaxation) schedule** (fixed growth factor, caps, and
-pseudo-step budget); dual-time stepping is the same machinery applied per physical step. Convergence =
-steady-state residual `≤ EPS_PTC_RESID` (named constant) within the fixed budget; failure flags/halts, never a
-silent under-converge. [META-3: `pseudo-transient`]
-- **Audit semantics:** pseudo-steps are **not physical evolution** (local Δt breaks the flux-telescoping
-  identity), so the every-step COUP-2 audit is **suspended during continuation** and applies to the
-  **converged state** as a steady balance: `Σ(port fluxes) + Σ(sources) ≈ 0` to the COUP-2 tolerance. The
-  WORKS dwell check (COUP-4 §3.1) then runs as a short **physical** march from the converged state, during
-  which the standard every-step audit applies. Verdicts, margins, and Stage 2 read only the converged state.
-- **Cost (vs VISION_SCOPE §8):** an acoustic-CFL physical march to thermal steady state is ~10⁷–10⁸ steps;
-  local-Δt continuation reaches the same state in ~10³–10⁴ pseudo-steps (3–4 orders cheaper), which is what
-  makes the RL10 steady anchor plus its UQ ensemble affordable inside the ~5000 GPU-hour budget.
-  Pseudo-transient is the **default Stage-1 route to steady points**; the transient march remains for
-  genuinely transient profiles.
+### 3.6 ~~Pseudo-transient mode~~ — DELETED (VISION_SCOPE v1.5, Ben 2026-08-19)
+**Tombstone.** The pseudo-transient/local-Δt steady-state continuation mode (and dual-time stepping, its
+per-step form) is **deleted, not deferred**: local Δt is not physical evolution, and reaching the operating
+point — start-up included — is itself part of what Stage 1 verifies (S5). **Every Stage-1 run is a physical
+transient march at the global Δt of §3.4.** The declared cost levers are: **compressed external schedules**
+(boundary-object timelines only — COUP-7 §3.2.2), adaptive resolution (FND-2 §3.4/§3.5), and GPU throughput
+(`PLAN_CHEMICAL_SANDBOX.md` §3). Grid-sequenced restart (a finer grid initialized from a coarser grid's
+settled *physical* state, FND-6) remains legal — every step of every march is still physical. The section
+number is retained to keep §3.7 stable; the `pseudo-transient` META-3 key is retired from §7. *(Forward
+note: stepping far over the acoustic CFL during genuinely slow phases — e.g. an NTR heat-up over minutes —
+would require an implicit/all-speed treatment of the hyperbolic class, a possible amendment for the nuclear
+wave; it is not licensed by this section.)*
 
 ### 3.7 Determinism
 Fixed sweep count, fixed diffusion cycle count (§3.1), fixed sub-step structure (§3.4), fixed CFL rule, fixed
-Aitken relaxation clamp (§3.5), fixed SER schedule (§3.6), fixed-order reductions (FND-2 §3.7). Convergence
+Aitken relaxation clamp (§3.5), fixed-order reductions (FND-2 §3.7). Convergence
 criteria are **absolute + deterministic** (fixed tolerance, fixed max-iters) — never "converged by wall-clock
 budget" (META-1 §2.2). The schedule is a `match` over the COUP-8 operator enum in fixed source order (no
 `HashMap`, no distributed-registration order — COUP-8 §3.2).
@@ -198,12 +193,12 @@ under-resolves. CI-gated (VAL-3).
    `COUPLING_RESIDUAL` (numerical) while a no-fixed-point/envelope-refused case trips won't-bootstrap
    (physical) — the two diagnoses never conflate (§3.5).
 8. **RSLA:** result insensitive to ĉ above the declared per-regime value; `n_rad` deterministic (§3.4).
-9. **Pseudo-transient:** converged state matches a long physical march within tolerance on a nozzle fixture;
-   the steady-balance audit + dwell march pass (§3.6).
+9. ~~Pseudo-transient~~ — deleted with §3.6 (VISION_SCOPE v1.5).
 
 ## 7. References
 META-3 keys: `sdc-imex`, `castro-source`, `stiff-reactions`, `mms`, `gamer2-determinism`,
-`geometric-multigrid`, `rsla`, `radiation-m1`, `aitken-iqnils`, `pseudo-transient`, `berger-amr`. Depends on
+`geometric-multigrid`, `rsla`, `radiation-m1`, `aitken-iqnils`, `berger-amr` (`pseudo-transient` retired
+2026-08-19). Depends on
 FND-2 (grid/traversal), SOLV-1 (explicit update), COUP-2 (audit/coupling/wall-exchange), COUP-7 (the expander
 boundary object whose consistency §3.5 solves), COUP-8 (operator order), COUP-4 (halts).
 
@@ -213,6 +208,7 @@ boundary object whose consistency §3.5 solves), COUP-8 (operator order), COUP-4
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 (Ben): §3.6 pseudo-transient mode DELETED** (tombstoned in place; §3.7 numbering kept). Stage 1 = physical march only; cost levers = compressed external schedules (COUP-7 §3.2.2) + adaptive resolution + GPU; grid-sequenced restart from settled physical states stays legal (FND-6). `pseudo-transient` key retired; §3.7/§6.9 references cleaned; forward note on implicit/all-speed acoustics for slow-phase (nuclear-wave) profiles. |
 | 2026-08-14 | 0.3 | **Verification pass (V2/N6).** Class-`G` declared global-stiff-ODE slot added to §3.1 (integral-functional systems — reaction kinetics first occupant; evaluated once per SDC sweep in fixed order; Manifest-declared) + the class-`G` Δt-limiter interface in §3.4 — the slot SOLV-4 §3.2 binds to. |
 | 2026-08-14 | 0.2 | **Review fix wave (O1, O3, O4, O5, O6, E-3).** §3.1: third operator class — **spatially-coupled implicit diffusion** via deterministic fixed-cycle multigrid/CG; "cell-local implicit" reserved for genuinely local stiff sources (reactions, M1 source coupling); stability/order consequence stated. §3.4: region **sub-cycling cut from v1** (single global Δt; rationale + amendment door); **RSLA** radiation with per-regime declared ĉ, PIRT-recorded band, fixed integer sub-stepping (per-band Δt rule). New §3.5: COUP-3 **owns the closed-mode expander solve** — fixed-point on ṁ, Aitken, `N_EXPANDER_SWEEPS`, once per step after wall-exchange, frozen-field ordering + SDC interaction; `EPS_EXPANDER_RESID` acceptance → `COUPLING_RESIDUAL` (numerical) vs won't-bootstrap divergence/envelope-refusal (physical); contraction expectation + clamped Aitken. New §3.6: **pseudo-transient mode** defined (local-Δt/SER, deterministic; audit applies to the converged state; cost vs §8 budget). Determinism renumbered §3.7. |
 | 2026-07-21 | 0.1 | Initial draft. SDC-coupled IMEX (explicit hyperbolic + cell-local implicit stiff sources, 2–3 sweeps to 2nd order); rationale vs Strang/Lie-Trotter for stiff energetic reactions; deterministic BDF/VODE-class inner integrator; CFL/sub-cycling/pulsed-event sequencing; fixed-sweep determinism and fixed-order operator schedule; Castro SDC differential oracle. |

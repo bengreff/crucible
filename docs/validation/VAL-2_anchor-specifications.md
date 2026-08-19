@@ -6,7 +6,7 @@
 | **Family** | VAL (Validation & test) |
 | **Status** | Reviewed (2026-08-14) — grows as anchors are added per wave |
 | **Depends on** | VAL-1, META-3 (anchor data), FND-1 |
-| **Version** | 0.2 (2026-08-14 review fixes: N16, N17, N18/D-G, N19, D-C) |
+| **Version** | 0.2.4 (2026-08-19: H2/O2 flame-speed + ignition-delay unit anchors; prior: 0.2 review fixes N16, N17, N18/D-G, N19, D-C) |
 
 ---
 
@@ -98,6 +98,8 @@ diagnostic. [META-3: `bartz` (oracle)]
 | **Principal Hugoniot** | EOS (FND-7/OFFL-5) | Al 0.3–12 Mbar laser-shock; within experimental bars | `hugoniot-anchor` |
 | **NIST PSTAR/ASTAR** | stopping (FND-7/SOLV-3) | proton/alpha dE/dx + range; within ~1–5% (Bethe regime) | `stopping-astar` |
 | **RP-1311 / CEA cases** | equilibrium chemistry (OFFL-3) | CEA example cases within manual tolerances | `nasa-cea` |
+| **H₂/O₂ laminar flame speed** *(0.2.4)* | ignition/flame closures (SOLV-4 §3.6, OFFL-3) | measured S_L over pressure/mixture (spherical-bomb + burner data); the offline S_L surface within its declared band | `h2-flame-speed` |
+| **H₂/O₂ shock-tube ignition delay** *(0.2.4)* | ignition/flame closures (SOLV-4 §3.6, OFFL-3) | measured τ_ign over (p, T, φ); the offline τ_ign surface within its declared band | `h2-ignition-delay` |
 
 ### 3.4 Nuclear anchors *(N16 — written now; milestone-1 scope per R1)*
 
@@ -150,7 +152,7 @@ the RL10 system anchor at milestones (blind then calibrated), each reported as a
 ## 7. References
 META-3 keys: `rl10-cycle-data`, `rl10-tm107318`, `rl10-geometry` *(new)*, `cstar-cf-defs`, `sod-shock`,
 `su-olson`, `hugoniot-anchor`, `stopping-astar`, `nasa-cea`, `area-metric`, `pbox`, `krusty`, `nerva-pewee`,
-`nrx-a6`, `xe-prime`, `bartz` (oracle). Depends on VAL-1 (framework + §3.6 blind rule), FND-1 (p-box).
+`nrx-a6`, `xe-prime`, `bartz` (oracle), `h2-flame-speed`, `h2-ignition-delay` (§3.3 ignition-closure anchors). Depends on VAL-1 (framework + §3.6 blind rule), FND-1 (p-box).
 
 *(No open questions — pass criterion (overlap band, no hard cutoff; blind + calibrated) resolved by Ben,
 2026-07-21; S1 reworded in VISION_SCOPE per the 2026-07-21 amendment; blind-mode definition ruled D-G,
@@ -159,6 +161,7 @@ META-3 keys: `rl10-cycle-data`, `rl10-tm107318`, `rl10-geometry` *(new)*, `cstar
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-19 | 0.2.4 | **VISION_SCOPE v1.5 / SOLV-4 §3.6:** §3.3 gains the two ignition-closure unit anchors — measured H₂/O₂ laminar flame speeds (`h2-flame-speed`) and shock-tube ignition delays (`h2-ignition-delay`); the offline S_L/τ_ign surfaces must reproduce them within declared bands before any startup run scores. Sources pinned in META-3 §6.9 (data cached per the archival rule at S6 build time). |
 | 2026-08-18 | 0.2.3 | Geometry erratum (station-5 digitization): TM-107318 Table 2.5.1's "Chamber/Throat **Diameter**" labels are **radii** — established by three independent cross-checks (the c\* identity closes only with A_t = π(2.47 in)²: 2381 m/s vs record 2385, where a Ø-reading gives 600 m/s, 4× off; ε = 61 then puts the exit at Ø 38.6 in ≈ the RL10's known ~40 in bell; Fig. E1's radius axis reads ~2.5/~19 in at throat/exit). §3.2's "throat Ø 2.47 in" is to be read as **throat radius 2.47 in**. Full derivation in `data/anchors/rl10_contour.csv` header + META-3 `rl10-geometry`. |
 | 2026-08-17 | 0.2.2 | **Developer-observation declaration (VISION_SCOPE §9 v1.4.1, Ben ruling).** §3.2: every reported score carries `development-observed: yes/no` next to its blind/calibrated label; blind = mechanical input property (envelope-enforced); RL10 station-5 campaign declared open development. No change to the input split or criterion. |
 | 2026-08-17 | 0.2.1 | Transcription erratum: §3.2 data-of-record c\* unit corrected `in/s` → `ft/s` (TM-107318 reports 7824 ft/s ≈ 2385 m/s; the in/s value would be 12× low). No criterion or method change. Same fix in META-3 `rl10-cycle-data`. |
