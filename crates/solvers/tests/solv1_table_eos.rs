@@ -15,6 +15,7 @@ use crucible_solvers::euler::{
     Cons, EosLaw, Euler, EulerFields, FlowBc, FlowBcs, FlowError, I_EN, I_G1, I_RC, I_RHO, NCOMP,
     TableEos,
 };
+use crucible_solvers::sdc::{FlowClass, Sdc};
 use crucible_tables::{Pin, Table};
 
 const FILE: &str = concat!(
@@ -203,8 +204,17 @@ fn solv1_s34_uniform_equilibrium_rest_is_a_bitwise_fixed_point() {
     };
     let before = snapshot(&g);
     let op = closed_tube_op(eos);
-    let dt = op.stable_dt(&g, &f, 0.4).expect("dt");
-    op.advance(&mut g, &f, 0.0, dt, 5).expect("march");
+    let mut sdc = Sdc::new();
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let dt = sdc.stable_dt(&g, &flow, 0.4).expect("dt");
+    let mut t_now = 0.0;
+    for _ in 0..5 {
+        sdc.step_flow(&mut g, &flow, t_now, dt).expect("march");
+        t_now += dt;
+    }
     assert_eq!(
         snapshot(&g),
         before,
@@ -245,10 +255,15 @@ fn solv1_s34_closed_hot_cold_tube_conserves_through_real_dynamics() {
     };
     let before = totals(&g);
     let op = closed_tube_op(eos);
+    let mut sdc = Sdc::new();
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
     let mut t_now = 0.0;
     for _ in 0..40 {
-        let dt = op.stable_dt(&g, &f, 0.4).expect("dt");
-        op.step(&mut g, &f, t_now, dt).expect("step");
+        let dt = sdc.stable_dt(&g, &flow, 0.4).expect("dt");
+        sdc.step_flow(&mut g, &flow, t_now, dt).expect("step");
         t_now += dt;
     }
     let after = totals(&g);

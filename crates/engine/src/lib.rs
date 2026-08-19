@@ -5,26 +5,27 @@
 //! only as `data/anchors/rl10_contour.csv` + `configs/rl10_*.toml`; nothing
 //! in this crate names an engine.
 //!
-//! What runs: the SOLV-1 unified operator in shifting-equilibrium mode
-//! (combustion in the EOS), the one wall-function law at the config-time
-//! gas↔solid faces, liner conduction with the coolant-side Robin film, all
-//! advanced by the flux-matched explicit coupled step — **honest
-//! scaffolding** (station-4 pattern), superseded by COUP-3's SDC-IMEX
-//! class-D Robin-Robin when it lands. Chamber pressure, thrust, Isp, c\*,
-//! C_F are **read out** of the field (SOLV-7; emergent-quantity rule,
-//! COUP-7 §3.2) — nothing about the operating point is imposed.
+//! What runs (S2): the SOLV-1 unified operator in shifting-equilibrium
+//! mode (combustion in the EOS) and the one wall-function law at the
+//! config-time gas↔solid faces, advanced by **the ONE deterministic
+//! SDC-IMEX step** (COUP-3 §3.1, `crucible_solvers::sdc`): liner
+//! conduction + the coolant Robin film live inside each sweep's class-`D`
+//! implicit solve with the Robin-Robin wall exchange (COUP-2 §3.5), Δt is
+//! the gas CFL alone, and the COUP-2 conservation audit is armed every
+//! step. The session-11/12 explicit coupled scaffolding is retired.
+//! Chamber pressure, thrust, Isp, c\*, C_F are **read out** of the field
+//! (SOLV-7; emergent-quantity rule, COUP-7 §3.2) — nothing about the
+//! operating point is imposed.
 //!
-//! Boundary objects this wave (COUP-7 v1 subset, each a registry row whose
-//! params carry validity envelopes as refusal ranges): the **prior-tier
-//! injector** (premixed inflow at declared ṁ/MR/h_inj — the mass-flow BC;
-//! η_c\* knockdown calibration is the cycle wave) and the **cooling-jacket
-//! coolant side** (declared film + coolant state). Deferred, loud:
-//! the turbopump object + COUP-3 §3.5 expander fixed point (closed mode),
-//! Bartz nozzle-envelope oracle scoring, the COUP-5 band brackets — the
-//! station-5 cycle wave; per-quantity three-field registration metadata
-//! (citation keys ride these doc comments until COUP-7's registration
-//! machinery lands); station-4's fixture stepper retires onto this one
-//! when its certificate is rewired (recorded NEXT item).
+//! Boundary objects (COUP-7 v1 subset, each a registry row whose params
+//! carry validity envelopes as refusal ranges): the **prior-tier
+//! injector** (premixed inflow at declared ṁ/MR/h_inj + the S18 η_c\*
+//! knockdown), the **cooling-jacket coolant side** (declared film +
+//! coolant state), and the **closed-mode turbopump** (COUP-3 §3.5 fixed
+//! point on the jacket pickup). Deferred, loud: Bartz nozzle-envelope
+//! oracle scoring + the COUP-5 band brackets (plan phases); per-quantity
+//! three-field registration metadata (citation keys ride these doc
+//! comments until COUP-7's registration machinery lands).
 
 pub mod assembly;
 pub mod geometry;

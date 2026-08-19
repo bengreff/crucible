@@ -6,7 +6,7 @@
 | **Family** | COUP (Coupling & orchestration) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, SOLV-1, COUP-2; COUP-8, COUP-4 |
-| **Version** | 0.4 (2026-08-19: §3.6 pseudo-transient DELETED — VISION_SCOPE v1.5) |
+| **Version** | 0.4.1 (2026-08-19: §3.1 class-`D` CG wording — "fixed iteration structure" bound to the §3.7 rule) |
 
 ---
 
@@ -55,7 +55,9 @@ demands (O1):
 - **`D` — spatially-coupled implicit diffusion** (conduction `∇·(k∇T)`, viscous fluxes): neighbor-coupled, so
   a *cell-local* implicit solve **does not exist** for it. Solved per SDC node by a **deterministic
   fixed-cycle solver**: geometric multigrid (fixed V-cycle count, fixed smoother type and sweep order) or
-  preconditioned CG with a **fixed iteration structure** (fixed count, fixed-order reductions). Implicit
+  preconditioned CG with a **fixed iteration structure** — the §3.7 convergence rule (a fixed absolute
+  tolerance + a fixed iteration cap, fixed-order reductions; the stop is a pure function of the data,
+  never a wall-clock or schedule artifact). Implicit
   treatment removes the diffusion CFL `Δt ∝ Δx²`, which binds exactly where conduction is stiff (fine wall
   cells — the RL10 closed-mode path); a Jacobi/cell-local fallback loses unconditional stability there and is
   forbidden. [META-3: `geometric-multigrid`]
@@ -208,6 +210,7 @@ boundary object whose consistency §3.5 solves), COUP-8 (operator order), COUP-4
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-19 | 0.4.1 | **S2 implementation clarification (plan S2, landed with the code).** §3.1 class-`D` parenthetical: the CG occupant's "fixed iteration structure" is the §3.7 convergence rule (fixed absolute tolerance `EPS_CG_RESID` + fixed cap `N_CG_ITERS_MAX`, fixed-order reductions — a deterministic pure function of the data), superseding the looser "(fixed count)" phrasing. First occupant of the class-`D` seam = Jacobi-preconditioned CG (`crucible-solvers::sdc`); a geometric-multigrid occupant may supersede it behind the same seam (GPU wave). |
 | 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 (Ben): §3.6 pseudo-transient mode DELETED** (tombstoned in place; §3.7 numbering kept). Stage 1 = physical march only; cost levers = compressed external schedules (COUP-7 §3.2.2) + adaptive resolution + GPU; grid-sequenced restart from settled physical states stays legal (FND-6). `pseudo-transient` key retired; §3.7/§6.9 references cleaned; forward note on implicit/all-speed acoustics for slow-phase (nuclear-wave) profiles. |
 | 2026-08-14 | 0.3 | **Verification pass (V2/N6).** Class-`G` declared global-stiff-ODE slot added to §3.1 (integral-functional systems — reaction kinetics first occupant; evaluated once per SDC sweep in fixed order; Manifest-declared) + the class-`G` Δt-limiter interface in §3.4 — the slot SOLV-4 §3.2 binds to. |
 | 2026-08-14 | 0.2 | **Review fix wave (O1, O3, O4, O5, O6, E-3).** §3.1: third operator class — **spatially-coupled implicit diffusion** via deterministic fixed-cycle multigrid/CG; "cell-local implicit" reserved for genuinely local stiff sources (reactions, M1 source coupling); stability/order consequence stated. §3.4: region **sub-cycling cut from v1** (single global Δt; rationale + amendment door); **RSLA** radiation with per-regime declared ĉ, PIRT-recorded band, fixed integer sub-stepping (per-band Δt rule). New §3.5: COUP-3 **owns the closed-mode expander solve** — fixed-point on ṁ, Aitken, `N_EXPANDER_SWEEPS`, once per step after wall-exchange, frozen-field ordering + SDC interaction; `EPS_EXPANDER_RESID` acceptance → `COUPLING_RESIDUAL` (numerical) vs won't-bootstrap divergence/envelope-refusal (physical); contraction expectation + clamped Aitken. New §3.6: **pseudo-transient mode** defined (local-Δt/SER, deterministic; audit applies to the converged state; cost vs §8 budget). Determinism renumbered §3.7. |

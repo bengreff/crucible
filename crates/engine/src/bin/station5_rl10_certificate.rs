@@ -16,9 +16,12 @@
 use std::fmt::Write as _;
 
 // --- Recorded run readouts (SOLV-7 performance objects) --------------------
-// Session 12 (2026-08-18), table lox_lh2_v0.3.2 (pins sidecar), dial 5
-// (cells_across_throat), 12 flow-throughs, the committed engine tree.
-// Bracket variants = the named base preset + the stated overrides only.
+// Session 14 (2026-08-19, plan S2 — re-run on the SDC-IMEX spine: implicit
+// class-D liner + Robin-Robin exchange + the COUP-2 audit armed every step;
+// readouts moved < 0.1% from the session-12 records), table lox_lh2_v0.3.2
+// (pins sidecar), dial 5 (cells_across_throat), 12 flow-throughs, the
+// committed engine tree. Bracket variants = the named base preset + the
+// stated overrides only.
 
 #[derive(Clone, Copy)]
 #[allow(dead_code)] // full recorded readout of record; the scoring consumes a subset
@@ -36,107 +39,107 @@ struct Readout {
 /// configs/rl10_coarse.toml as committed (η = 1 full equilibrium — the
 /// sweep/calibration baseline, NOT a scored member).
 const R_COARSE_ETA1: Readout = Readout {
-    f: 74165.6,
-    isp: 446.22,
-    c_star: 2255.8,
-    c_f: 1.9399,
-    p_c: 3.0918e6,
+    f: 74162.9,
+    isp: 446.25,
+    c_star: 2257.0,
+    c_f: 1.9389,
+    p_c: 3.0933e6,
     mdot_inj: 16.947,
-    jacket: 9.748e6,
-    resid: 1.59e-2,
+    jacket: 9.737e6,
+    resid: 6.16e-3,
 };
 
 /// BLIND nominal: coarse preset + eta_cstar 0.98 / h_offset −7.16e5
-/// (the coax-family prior band mid; realized η_c* = 2208.0/2255.8 = 0.9788).
+/// (the coax-family prior band mid; realized η_c* = 2208.8/2257.0 = 0.9786).
 const R_BLIND_NOM: Readout = Readout {
-    f: 72169.2,
-    isp: 434.19,
-    c_star: 2208.0,
-    c_f: 1.9284,
-    p_c: 3.0265e6,
+    f: 72179.0,
+    isp: 434.21,
+    c_star: 2208.8,
+    c_f: 1.9277,
+    p_c: 3.0280e6,
     mdot_inj: 16.947,
-    jacket: 9.259e6,
-    resid: 1.42e-2,
+    jacket: 9.246e6,
+    resid: 9.50e-3,
 };
 
 /// BLIND corners: η edge (offset −1.079e6 → realized 0.966..0.969, or
 /// −3.56e5 → realized 0.988..0.991) × wall-law band edge (cp 3750/6250 =
 /// h × 0.75/1.25 at fixed Pr, μ).
 const R_B_E97_WLO: Readout = Readout {
-    f: 71325.1,
-    isp: 429.09,
-    c_star: 2185.5,
-    c_f: 1.9254,
-    p_c: 2.9958e6,
+    f: 71317.0,
+    isp: 429.12,
+    c_star: 2186.9,
+    c_f: 1.9243,
+    p_c: 2.9972e6,
     mdot_inj: 16.947,
-    jacket: 7.744e6,
-    resid: 1.86e-2,
+    jacket: 7.741e6,
+    resid: 2.31e-2,
 };
 const R_B_E97_WHI: Readout = Readout {
-    f: 70940.8,
-    isp: 426.82,
-    c_star: 2179.5,
-    c_f: 1.9205,
-    p_c: 2.9872e6,
+    f: 70943.4,
+    isp: 426.88,
+    c_star: 2180.7,
+    c_f: 1.9197,
+    p_c: 2.9886e6,
     mdot_inj: 16.947,
-    jacket: 10.174e6,
-    resid: 8.28e-3,
+    jacket: 10.158e6,
+    resid: 1.27e-2,
 };
 const R_B_E99_WLO: Readout = Readout {
-    f: 73400.4,
-    isp: 441.48,
-    c_star: 2234.9,
-    c_f: 1.9372,
-    p_c: 3.0641e6,
+    f: 73383.6,
+    isp: 441.52,
+    c_star: 2236.5,
+    c_f: 1.9360,
+    p_c: 3.0654e6,
     mdot_inj: 16.947,
-    jacket: 8.166e6,
-    resid: 1.21e-2,
+    jacket: 8.162e6,
+    resid: 4.30e-2,
 };
 const R_B_E99_WHI: Readout = Readout {
-    f: 72999.6,
-    isp: 439.22,
-    c_star: 2229.8,
-    c_f: 1.9317,
-    p_c: 3.0561e6,
+    f: 73020.9,
+    isp: 439.26,
+    c_star: 2230.4,
+    c_f: 1.9314,
+    p_c: 3.0575e6,
     mdot_inj: 16.947,
-    jacket: 10.745e6,
-    resid: 1.31e-2,
+    jacket: 10.726e6,
+    resid: 6.81e-3,
 };
 
 /// CALIBRATED nominal: configs/rl10_calibrated.toml as committed (closed
 /// expander, TM component data, fitted η_c* = 0.9892 via offset −3.85e5).
 const R_CAL_NOM: Readout = Readout {
-    f: 76458.3,
-    isp: 439.97,
-    c_star: 2231.3,
-    c_f: 1.9336,
-    p_c: 3.1977e6,
-    mdot_inj: 17.720,
-    jacket: 9.772e6,
-    resid: 8.08e-3,
+    f: 76382.3,
+    isp: 439.91,
+    c_star: 2233.4,
+    c_f: 1.9316,
+    p_c: 3.1978e6,
+    mdot_inj: 17.713,
+    jacket: 9.759e6,
+    resid: 2.49e-2,
 };
 
 /// CALIBRATED wall-band corners (cp 3750/6250): the wall law drives the
 /// cycle, so the ±25% h band sweeps delivered ṁ 16.74 → 18.56 kg/s.
 const R_C_WLO: Readout = Readout {
-    f: 72383.2,
-    isp: 440.96,
-    c_star: 2234.0,
-    c_f: 1.9357,
-    p_c: 3.0241e6,
-    mdot_inj: 16.740,
-    jacket: 8.083e6,
-    resid: 1.11e-2,
+    f: 72338.1,
+    isp: 440.98,
+    c_star: 2236.0,
+    c_f: 1.9341,
+    p_c: 3.0247e6,
+    mdot_inj: 16.737,
+    jacket: 8.077e6,
+    resid: 3.99e-2,
 };
 const R_C_WHI: Readout = Readout {
-    f: 79905.6,
-    isp: 439.04,
-    c_star: 2229.2,
-    c_f: 1.9315,
-    p_c: 3.3457e6,
-    mdot_inj: 18.558,
-    jacket: 11.380e6,
-    resid: 1.32e-2,
+    f: 79854.1,
+    isp: 439.07,
+    c_star: 2230.3,
+    c_f: 1.9306,
+    p_c: 3.3450e6,
+    mdot_inj: 18.546,
+    jacket: 11.357e6,
+    resid: 6.12e-3,
 };
 
 /// Declared numeric half-band applied to every predicted box edge:
@@ -342,7 +345,10 @@ fn render(w: &mut String) {
          contour CSV, the preset TOMLs, and the pinned `lox_lh2_v0.3.2` equilibrium \
          surface — assembled by the one config-driven engine path and marched to a \
          settled state at the coarse tier (`cells_across_throat = 5`, 41×119, 2667 gas \
-         cells, 12 flow-throughs, ~63 s laptop wall clock per member). Every reported \
+         cells, 12 flow-throughs, ~155 s laptop wall clock per member on the S2 \
+         SDC-IMEX spine — implicit class-D liner conduction + Robin-Robin wall \
+         exchange inside the step, the COUP-2 conservation audit armed on every one \
+         of the ~15,800 steps of every member, zero violations). Every reported \
          number is a plane integral of the conserved field (SOLV-7); chamber pressure \
          and thrust are **emergent, never imposed**.\n"
     )
@@ -390,8 +396,8 @@ fn render(w: &mut String) {
     .unwrap();
     writeln!(
         w,
-        "Members: the band-mid nominal (η_c\\* target 0.98, realized 0.9788 = \
-         2208.0/2255.8 against the full-equilibrium baseline) and the four declared-band \
+        "Members: the band-mid nominal (η_c\\* target 0.98, realized 0.9786 = \
+         2208.8/2257.0 against the full-equilibrium baseline) and the four declared-band \
          corners — coax-family η_c\\* edge (realized 0.966–0.969 and 0.988–0.991; \
          S18 source-level knockdown, coarse-calibrated slope −0.847% c\\* per \
          −3×10⁵ J/kg) × wall-law band edge (the SOLV-1 §3.5 ±20–30% Colburn band, \
@@ -424,10 +430,10 @@ fn render(w: &mut String) {
         "The COUP-3 §3.5 fixed point closes the cycle each step (jacket pickup → \
          turbine power → pump map → delivered ṁ; Aitken-relaxed, residual ≤ 1e-8, \
          engaged after the establishment window): the engine finds its OWN operating \
-         point. Nominal: delivered ṁ = 17.72 kg/s (+4.6% over design — the wall law's \
+         point. Nominal: delivered ṁ = 17.71 kg/s (+4.5% over design — the wall law's \
          +16% jacket pickup driven through the declared ṁ³ impedance line), turbine \
-         672.5 kW, T_turbine_in 235.4 K. Members: nominal + the wall-band corners \
-         (h × 0.75 ⇒ ṁ 16.74; h × 1.25 ⇒ ṁ 18.56 kg/s — the wall-function band IS \
+         671.7 kW, T_turbine_in 235.2 K. Members: nominal + the wall-band corners \
+         (h × 0.75 ⇒ ṁ 16.74; h × 1.25 ⇒ ṁ 18.55 kg/s — the wall-function band IS \
          the dominant p_c spread, exactly as COUP-7 §3.4 predicted).\n"
     )
     .unwrap();
@@ -437,7 +443,7 @@ fn render(w: &mut String) {
         "**F, Isp, and the emergent p_c all OVERLAP the record** (p_c box \
          [3.01, 3.36] MPa spans the published 3.27–3.32; the nominal alone reads \
          463.8 psia vs the 475–482 record). Isp is nearly flat across the whole \
-         wall band (439.0–441.0 s vs record 440.3–445.6): the closed cycle trades \
+         wall band (439.1–441.0 s vs record 440.3–445.6): the closed cycle trades \
          ṁ against p_c at almost constant specific impulse — real expander-cycle \
          self-regulation, reproduced by the coupled instrument, not imposed. c\\*/C_F \
          carry the same coarse-tier discretization signature as the blind score.\n"
@@ -462,18 +468,19 @@ fn render(w: &mut String) {
          declared/solved value on every member (sonic startup cap inactive at \
          readout — the session-12 honesty signal).\n\
          - Steadiness: every member's residual is a stationary limit cycle \
-         (max |Δρ|/ρ 0.8–1.9×10⁻² over the probe window, F oscillation ≤ ±0.15%), \
-         inside the declared numeric band.\n",
+         (max |Δρ|/ρ 0.6–4.3×10⁻² over the probe window — a plume-fringe cell-wise \
+         max; the integral readouts' F oscillation is ≤ ±0.15% on every member, \
+         measured ±0.08% on the noisiest), inside the declared numeric band.\n",
         id_worst
     )
     .unwrap();
 
-    writeln!(w, "## Declared bands, model form, and honest scaffolding\n").unwrap();
+    writeln!(w, "## Declared bands, model form, and declared devices\n").unwrap();
     writeln!(
         w,
         "- **Wall function (SOLV-1 §3.5):** the one Colburn-class law, ±20–30% declared \
          band — realized as the bracket corners; in closed mode it dominates the p_c \
-         spread (as designed). Jacket pickup at the calibrated nominal: 9.77 MW vs the \
+         spread (as designed). Jacket pickup at the calibrated nominal: 9.76 MW vs the \
          record 8.43 MW (+16%, inside the band). Bartz nozzle-envelope oracle scoring: \
          deferred (recorded), rides the next wave.\n\
          - **η_c\\* prior (COUP-7 §3.2.1):** blind = the coax-family band applied as the \
@@ -488,9 +495,13 @@ fn render(w: &mut String) {
          error) with State Redistribution (κ < 0.5, Berger–Giuliani) — the session-11 \
          stair-transpiration/starvation class is retired; wall heat runs on the \
          closure-vector (smooth) interface area, not the stair overcount.\n\
-         - **Integrator:** explicit flux-matched coupled stepping remains honest \
-         scaffolding until COUP-3's SDC-IMEX class-D; the liner ρc_p is the declared \
-         steady-state continuation device.\n\
+         - **Integrator (S2):** the ONE deterministic SDC-IMEX step (COUP-3 §3.1) — \
+         explicit hyperbolic class + implicit class-D liner conduction (fixed-cycle \
+         CG) with the Robin-Robin wall exchange inside each sweep (COUP-2 §3.5) and \
+         the COUP-2 conservation audit armed every step; Δt is the gas CFL alone. \
+         The liner ρc_p remains the declared steady-state continuation device until \
+         the plan's S4 gives it the physical value (now legal under the implicit \
+         class).\n\
          - **UQ:** these boxes are declared-band corner brackets (epistemic intervals), \
          NOT the full COUP-5 ensemble p-box — that machinery is a later wave; the \
          boxes are never collapsed to points.\n"
@@ -509,19 +520,20 @@ fn render(w: &mut String) {
          on the vacuous absolute acceptance bound the session-12 review retired. The \
          designated cure (VISION_SCOPE v1.5, session 13 — accelerated convergence is \
          DELETED; establishment stays a physical march) is the \
-         **PLAN_CHEMICAL_SANDBOX Phase 1–2 physics** (gas diffusion + the implicit \
-         integrator + the cold/unburnt chemistry branch), which makes these transient \
-         states representable and conductively coupled instead of refused; \
-         grid-sequenced restart from settled physical states (FND-6) is the legal \
-         warm-start. The indicative dial-8 \
-         deltas quoted above are direction-of-refinement evidence only.\n\
+         **PLAN_CHEMICAL_SANDBOX Phase 1–2 physics**: gas diffusion (plan S3) + the \
+         implicit integrator (**LANDED — this S2 rerun**) + the cold/unburnt \
+         chemistry branch (plan S5–S6), which together make these transient states \
+         representable and conductively coupled instead of refused; grid-sequenced \
+         restart from settled physical states (FND-6) is the legal warm-start. The \
+         indicative dial-8 deltas quoted above are direction-of-refinement evidence \
+         only.\n\
          - **Discretization band is therefore declared, not swept:** the scored boxes \
          carry closure bands + the numeric band; the coarse-tier truncation error is \
          visibly ~5–6% on p_c/c\\*/C_F (the coherent signature above) and is NOT \
          hidden inside the boxes.\n\
-         - The station-4 fixture rewire onto the engine stepper remains deferred \
-         (recorded); `interp_error_bound_log` rides outside digest v3 (recorded \
-         digest-v4 deferral).\n"
+         - `interp_error_bound_log` rides outside digest v3 (recorded digest-v4 \
+         deferral). The station-4-fixture rewire deferral is DISCHARGED (S2): the \
+         fixture and the engine now march the same one integrator.\n"
     )
     .unwrap();
 

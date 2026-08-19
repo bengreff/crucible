@@ -16,6 +16,7 @@ use crucible_grid::{CellGeom, Grid, GridSpec, Region};
 use crucible_solvers::euler::{
     Cons, Euler, EulerFields, FlowBc, FlowBcs, GammaLaw, NCOMP, fill_from_prim, prim6,
 };
+use crucible_solvers::sdc::{FlowClass, Sdc};
 
 const GAMMA: f64 = 1.4;
 
@@ -145,8 +146,17 @@ fn uniform_state_at_rest_is_preserved_in_the_cut_cone() {
     fill_from_prim(&mut g, &f, &eos, |_, _, _| {
         prim6(1.3, 0.0, 0.0, 0.0, 2.7e5, 0.4)
     });
-    let dt = op.stable_dt(&g, &f, 0.4).expect("dt");
-    op.advance(&mut g, &f, 0.0, dt, 25).expect("marches");
+    let mut sdc = Sdc::new();
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let dt = sdc.stable_dt(&g, &flow, 0.4).expect("dt");
+    let mut t = 0.0;
+    for _ in 0..25 {
+        sdc.step_flow(&mut g, &flow, t, dt).expect("marches");
+        t += dt;
+    }
     let ids = f.ids();
     let mut worst = 0.0f64;
     g.for_each_active_cell(|cell| {
@@ -181,9 +191,14 @@ fn closed_cut_domain_conserves_through_a_shock_transient() {
         prim6(1.0, 0.0, 0.0, 0.0, p, 0.3)
     });
     let (m0, e0, c0) = gas_mass_energy(&g, &f);
+    let mut sdc = Sdc::new();
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
     for _ in 0..60 {
-        let dt = op.stable_dt(&g, &f, 0.4).expect("dt");
-        op.step(&mut g, &f, 0.0, dt).expect("steps");
+        let dt = sdc.stable_dt(&g, &flow, 0.4).expect("dt");
+        sdc.step_flow(&mut g, &flow, 0.0, dt).expect("steps");
     }
     let (m1, e1, c1) = gas_mass_energy(&g, &f);
     assert!(
@@ -230,14 +245,19 @@ fn sliver_cells_march_at_the_uncut_cfl_without_runaway() {
         // An axial pressure gradient drives flow along (and into) the wall.
         prim6(1.0, 0.0, 0.0, 0.0, 1.0e5 * (1.0 + 0.5 * (1.6 - z)), 0.3)
     });
-    let dt0 = op.stable_dt(&g, &f, 0.4).expect("dt");
+    let mut sdc = Sdc::new();
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let dt0 = sdc.stable_dt(&g, &flow, 0.4).expect("dt");
     for _ in 0..80 {
-        let dt = op.stable_dt(&g, &f, 0.4).expect("dt stays evaluable");
+        let dt = sdc.stable_dt(&g, &flow, 0.4).expect("dt stays evaluable");
         assert!(
             dt > 0.25 * dt0,
             "CFL collapsed: dt {dt:.3e} vs initial {dt0:.3e} — small-cell runaway"
         );
-        op.step(&mut g, &f, 0.0, dt).expect("marches");
+        sdc.step_flow(&mut g, &flow, 0.0, dt).expect("marches");
     }
     // Densities stay physical everywhere, slivers included.
     let ids = f.ids();
@@ -291,7 +311,13 @@ fn an_enclosed_sliver_refuses_loudly() {
     });
     let zero: fn(f64, f64, f64, f64) -> Cons = |_, _, _, _| [0.0; NCOMP];
     let op = closed_cone_op(&zero);
-    let err = op.step(&mut g, &f, 0.0, 1e-6).expect_err("must refuse");
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let err = Sdc::new()
+        .step_flow(&mut g, &flow, 0.0, 1e-6)
+        .expect_err("must refuse");
     assert!(
         format!("{err}").contains("no ") || format!("{err}").contains("neighborhood"),
         "wrong refusal: {err}"
@@ -327,10 +353,14 @@ fn parallel_march_is_bit_identical_at_any_thread_count() {
             });
             let zero: fn(f64, f64, f64, f64) -> Cons = |_, _, _, _| [0.0; NCOMP];
             let op = closed_cone_op(&zero);
-            let mut ws = op.workspace(&g).expect("workspace");
+            let mut sdc = Sdc::new();
+            let flow = FlowClass {
+                op: &op,
+                fields: &f,
+            };
             for _ in 0..25 {
-                let dt = op.stable_dt_ws(&g, &f, &ws, 0.4).expect("dt");
-                op.step_ws(&mut g, &f, &mut ws, 0.0, dt).expect("steps");
+                let dt = sdc.stable_dt(&g, &flow, 0.4).expect("dt");
+                sdc.step_flow(&mut g, &flow, 0.0, dt).expect("steps");
             }
             let ids = f.ids();
             let mut bits = Vec::new();

@@ -3,9 +3,10 @@
 # Any red gate breaks the build; every session ends with this green (VISION_SCOPE §12).
 #
 # What's armed lives in the test files themselves (names cite their doc §);
-# certificates/ carries the certified claims. Not yet armed (arrive with
-# their subject): full COUP-2 port-accounting audit; 1-vs-N-thread byte
-# identity (first parallel sweep); Su-Olson anchor (SOLV-2).
+# certificates/ carries the certified claims. S2: the COUP-2 port-accounting
+# audit is armed on EVERY step of every march in this battery, and
+# 1-vs-N-thread byte identity covers the full coupled SDC step (coup3_sdc).
+# Not yet armed (arrives with its subject): Su-Olson anchor (SOLV-2).
 # Battery budget: the station-2 ladder and station-4 coupled duct are the
 # heavy items (~1 min each in gate 3; ~1 min + ~15 s in gate 5); next
 # growth splits to the VAL-3 §3.2 milestone tier.

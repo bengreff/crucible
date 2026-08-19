@@ -25,9 +25,10 @@
 //! reference plane, the N11 convention) — promoted to the full SOLV-7
 //! performance object in its own wave.
 
+use crate::sdc::{FlowClass, Sdc, SdcError};
+
 use crate::euler::{
-    Cons, Euler, EulerFields, FlowBc, FlowBcs, FlowError, GammaLaw, I_RHO, NCOMP, Prim,
-    fill_from_prim, prim6,
+    Cons, Euler, EulerFields, FlowBc, FlowBcs, GammaLaw, I_RHO, NCOMP, Prim, fill_from_prim, prim6,
 };
 use crate::station1_sod::{FIELDS, march_to};
 use crucible_grid::{Grid, GridSpec};
@@ -188,7 +189,7 @@ pub fn build_nozzle(n_r: usize, n_z: usize) -> (Grid, EulerFields) {
 /// before the throat, supersonic after) and march to `SETTLE_TIME`, then a
 /// further `STEADY_CHECK_TIME` to measure the steadiness residual.
 /// Returns (grid, fields, total steps, steadiness residual).
-pub fn run_nozzle(n_r: usize, n_z: usize) -> Result<(Grid, EulerFields, usize, f64), FlowError> {
+pub fn run_nozzle(n_r: usize, n_z: usize) -> Result<(Grid, EulerFields, usize, f64), SdcError> {
     let (mut g, f) = build_nozzle(n_r, n_z);
     let eos = GammaLaw {
         gamma: NOZZLE_GAMMA,
@@ -434,12 +435,21 @@ pub fn masked_uniform_fixed_point(slip_wall: bool) -> bool {
             .collect()
     };
     let before = bits(&g);
-    let dt = op.stable_dt(&g, &f, 0.4).expect("dt");
-    op.advance(&mut g, &f, 0.0, dt, 50).expect("advance");
+    let mut sdc = Sdc::new();
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let dt = sdc.stable_dt(&g, &flow, 0.4).expect("dt");
+    let mut t = 0.0;
+    for _ in 0..50 {
+        sdc.step_flow(&mut g, &flow, t, dt).expect("step");
+        t += dt;
+    }
     bits(&g) == before
 }
 
-pub fn nozzle_study() -> Result<Vec<NozzleLevel>, FlowError> {
+pub fn nozzle_study() -> Result<Vec<NozzleLevel>, SdcError> {
     let eos = GammaLaw {
         gamma: NOZZLE_GAMMA,
     };

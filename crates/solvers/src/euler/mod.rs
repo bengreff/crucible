@@ -16,12 +16,14 @@
 //! §3.1 at its smallest (source-free advection; the OFFL-3 equilibrium
 //! projection arrives with station 3).
 //!
-//! Time integration note (honest scaffolding, the session-5 pattern): the
-//! explicit MOL SSP-RK2 here is the fixed-order reference integrator that
-//! drives the Station-1 certificate; it is superseded — not extended — by
-//! COUP-3's SDC-IMEX schedule, which consumes the same flux-form spatial
-//! operator (Castro's SDC path uses exactly this MOL reconstruction, hence
-//! no characteristic tracing — that is the split scheme's predictor).
+//! Time integration (S2): this operator is COUP-3 §3.1's **explicit
+//! hyperbolic class `A`** — it evaluates `L(U)` ([`Euler::eval_rhs`]) with
+//! a per-evaluation COUP-2 port/source ledger; the one production advance
+//! is the SDC-IMEX step (`crate::sdc`), which owns node weights, state
+//! composition, the stagewise SRD passes, and the Δt rule. The session-7
+//! MOL SSP-RK2 scaffolding is retired (superseded, not extended — Castro's
+//! SDC path uses exactly this MOL reconstruction, hence no characteristic
+//! tracing).
 //!
 //! EOS seam (SOLV-1 §3.4, the FND-7 spine boundary): the operator is generic
 //! over [`EosLaw`] — monomorphized, no dynamic dispatch in hot loops (FND-2
@@ -38,10 +40,10 @@
 //! (certificates byte-identical — asserted by gate 5).
 //!
 //! Deferred, loud (owners named): `r_min = 0` with `N_θ > 1` refuses (the
-//! cross-axis θ↔θ+π parity-pair gather, FND-2 §3.2, lands with the first
-//! 3-D-across-the-axis wave); mixed per-brick N_θ refuses (refluxing =
-//! COUP-2/COUP-3); apertures/cut cells (FND-3) not yet consumed — worlds
-//! are full boxes.
+//! cross-axis θ↔θ+π parity-pair gather, FND-2 §3.2 — plan S8); mixed
+//! per-brick N_θ refuses (conservative refluxing — plan S8). FND-3 cut
+//! geometry (κ + apertures + State Redistribution) is consumed since
+//! session 12; full-box worlds ride the arithmetic-identity defaults.
 
 mod exact;
 mod hllc;
@@ -545,13 +547,29 @@ pub struct Euler<'a, E: EosLaw = GammaLaw> {
     pub slip_wall_z_faces: bool,
 }
 
+/// COUP-2 §3.1 per-evaluation ledger of one rhs evaluation, in conserved
+/// units per second (κV-weighted): net and gross boundary-**port** fluxes
+/// (run-boundary faces — domain BCs, wall faces incl. the declared stair
+/// transpiration; interior faces telescope and are never ledgered) and
+/// net/gross applied volumetric **sources** (geometric, wall-closure,
+/// external intake). The SDC step composes these with its node weights;
+/// gross magnitudes feed the §3.1.1 `S[q]` tolerance scale.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FlowLedger {
+    pub port_net: [f64; NCOMP],
+    pub port_abs: [f64; NCOMP],
+    pub src_net: [f64; NCOMP],
+    pub src_abs: [f64; NCOMP],
+}
+
 /// Per-brick scratch: primitives (AoS is fine for the CPU reference path;
-/// the grid state itself stays SoA per FND-2 §3.9) and the RK stage data.
-struct Scratch {
+/// the grid state itself stays SoA per FND-2 §3.9) and the rate-evaluation
+/// data the SDC step composes.
+pub(crate) struct Scratch {
     /// `NPRIM`-wide primitive (+aux) states per cell.
     prim: Vec<Vec<Prim>>,
-    rate: Vec<Vec<Cons>>,
-    u0: Vec<Vec<Cons>>,
+    pub(crate) rate: Vec<Vec<Cons>>,
+    pub(crate) u0: Vec<Vec<Cons>>,
     /// Brick index by (br·nbz + bz) — resolved once, not per cell; `None`
     /// where a fully-inactive brick was never allocated (masked worlds).
     bmap: Vec<Option<usize>>,
@@ -566,13 +584,25 @@ struct Scratch {
     cut: Option<CutScratch>,
     /// Whether `prim` holds a previous fill (⇒ usable warm-start hints).
     primed: bool,
+    /// COUP-2 ledger of the most recent [`Euler::eval_rhs`].
+    pub(crate) ledger: FlowLedger,
 }
 
 /// Cells addressed as (brick index, local index) — the sweeps' native form.
 type BrickLocalCells = Vec<(usize, usize)>;
 
+/// One sweep's (net, gross) port-flux partial (COUP-2 ledger).
+type SweepPorts = ([f64; NCOMP], [f64; NCOMP]);
+
 /// Opaque persistent stepping workspace (see [`Euler::workspace`]).
-pub struct EulerWorkspace(Scratch);
+pub struct EulerWorkspace(pub(crate) Scratch);
+
+impl EulerWorkspace {
+    /// The COUP-2 ledger of the most recent [`Euler::eval_rhs`].
+    pub fn ledger(&self) -> &FlowLedger {
+        &self.0.ledger
+    }
+}
 
 /// SRD bookkeeping (Berger & Giuliani 2020): the small-cell neighborhoods
 /// in fixed lexicographic owner order and the overlap counts n_j.
@@ -656,6 +686,7 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
             act,
             cut,
             primed: false,
+            ledger: FlowLedger::default(),
         })
     }
 
@@ -669,68 +700,31 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
         Ok(EulerWorkspace(self.scratch(g, nt)?))
     }
 
-    /// One SSP-RK2 (Heun) step of size `dt` at time `t` (one-shot form —
-    /// fresh workspace; see [`Euler::step_ws`]).
-    pub fn step(&self, g: &mut Grid, f: &EulerFields, t: f64, dt: f64) -> Result<(), FlowError> {
-        let mut ws = self.workspace(g)?;
-        self.step_ws(g, f, &mut ws, t, dt)
-    }
-
-    /// One SSP-RK2 (Heun) step of size `dt` at time `t`. Fixed traversal and
-    /// accumulation order (r-sweep, θ-sweep, z-sweep, geometric, external);
-    /// bit-reproducible at any thread count (single-threaded reference).
-    /// On cut-geometry worlds every stage ends with a State-Redistribution
-    /// pass (Berger & Giuliani apply SRD stagewise inside SSP-RK): the
-    /// provisional divide-by-κV update on a small cell is merged into its
-    /// neighborhood — conservative by construction, and the reason Δt keeps
-    /// the UNCUT CFL.
-    pub fn step_ws(
+    /// Evaluate `L(U)` — the flux-divergence + source contribution (SOLV-1
+    /// §2 contract) — into the workspace's rate buffer at time `t`, with
+    /// the COUP-2 per-evaluation port/source ledger. The caller (COUP-3's
+    /// SDC step, `crate::sdc`) owns node weights, state composition, the
+    /// stagewise SRD passes, and the Δt rule.
+    pub fn eval_rhs(
         &self,
-        g: &mut Grid,
+        g: &Grid,
         f: &EulerFields,
         ws: &mut EulerWorkspace,
         t: f64,
-        dt: f64,
     ) -> Result<(), FlowError> {
         let nt = self.validate(g)?;
-        let s = &mut ws.0;
-        let ids = f.ids();
+        self.rhs(g, f, nt, &mut ws.0, t)
+    }
 
-        // Snapshot U⁰.
-        for (bi, u0) in s.u0.iter_mut().enumerate() {
-            let b = g.brick(bi);
-            for k in 0..NCOMP {
-                let src = b.field(ids[k]);
-                for (cell, u) in u0.iter_mut().enumerate() {
-                    u[k] = src[cell];
-                }
-            }
-        }
-
-        // Stage 1: U¹ = SRD(U⁰ + dt·L(U⁰, t)).
-        self.rhs(g, f, nt, s, t)?;
-        for bi in 0..g.n_bricks() {
-            for (k, &id) in ids.iter().enumerate() {
-                let dst = g.brick_field_mut(bi, id);
-                for (cell, v) in dst.iter_mut().enumerate() {
-                    *v = s.u0[bi][cell][k] + dt * s.rate[bi][cell][k];
-                }
-            }
-        }
-        Self::srd(g, f, nt, s);
-
-        // Stage 2: Uⁿ⁺¹ = SRD(½(U⁰ + U¹ + dt·L(U¹, t+dt))).
-        self.rhs(g, f, nt, s, t + dt)?;
-        for bi in 0..g.n_bricks() {
-            for (k, &id) in ids.iter().enumerate() {
-                let dst = g.brick_field_mut(bi, id);
-                for (cell, v) in dst.iter_mut().enumerate() {
-                    *v = 0.5 * (s.u0[bi][cell][k] + *v + dt * s.rate[bi][cell][k]);
-                }
-            }
-        }
-        Self::srd(g, f, nt, s);
-        Ok(())
+    /// Apply the State-Redistribution pass to the CURRENT field state —
+    /// the SDC step calls this after each node-state composition (Berger &
+    /// Giuliani apply SRD stagewise): the provisional divide-by-κV update
+    /// on a small cell is merged into its neighborhood — conservative by
+    /// construction, and the reason Δt keeps the UNCUT CFL. A no-op on
+    /// worlds without cut geometry (bit-identity preserved).
+    pub fn apply_srd(&self, g: &mut Grid, f: &EulerFields, ws: &EulerWorkspace) {
+        let nt = g.brick(0).n_theta();
+        Self::srd(g, f, nt, &ws.0);
     }
 
     /// The State-Redistribution pass (META-3 `state-redistribution`),
@@ -809,23 +803,6 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                 }
             }
         }
-    }
-
-    /// March `n_steps` of size `dt` from `t0`; returns the final time.
-    pub fn advance(
-        &self,
-        g: &mut Grid,
-        f: &EulerFields,
-        t0: f64,
-        dt: f64,
-        n_steps: usize,
-    ) -> Result<f64, FlowError> {
-        let mut t = t0;
-        for _ in 0..n_steps {
-            self.step(g, f, t, dt)?;
-            t += dt;
-        }
-        Ok(t)
     }
 
     /// CFL timestep `cfl / max Σ_d (|u_d|+c)/Δ_d` over active cells — a
@@ -908,7 +885,10 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     }
 
     /// L(U): the flux-divergence + source contribution (SOLV-1 §2 contract),
-    /// into `s.rate`.
+    /// into `s.rate`, with the per-evaluation COUP-2 ledger (ports from the
+    /// r/z sweeps' run boundaries; the θ sweep is periodic — its ring
+    /// fluxes telescope exactly; sources from the geometric/closure/
+    /// external pass).
     fn rhs(
         &self,
         g: &Grid,
@@ -923,6 +903,7 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                 *cell = [0.0; NCOMP];
             }
         }
+        s.ledger = FlowLedger::default();
         self.sweep_r(g, nt, s, t)?;
         self.sweep_theta(g, nt, s);
         self.sweep_z(g, nt, s, t)?;
@@ -1191,7 +1172,7 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
             rows[g.brick(bi).bz() as usize].push((bi, rv));
         }
         let (prim, act, bmap) = (&s.prim, &s.act, &s.bmap);
-        let results: Vec<Result<(), FlowError>> = rows
+        let results: Vec<Result<SweepPorts, FlowError>> = rows
             .into_par_iter()
             .enumerate()
             .map(|(bz, mut row)| {
@@ -1205,6 +1186,8 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                 let mut af = vec![[0.0f64; NCOMP]; n + 1];
                 let mut ap = vec![1.0f64; n + 1];
                 let mut kap = vec![1.0f64; n];
+                let mut port_net = [0.0f64; NCOMP];
+                let mut port_abs = [0.0f64; NCOMP];
                 for i_z in bz * BRICK..((bz + 1) * BRICK).min(n_z) {
                     let lz = i_z % BRICK;
                     let z = g.z_center(i_z);
@@ -1292,14 +1275,27 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                                     rate[k] += (af[q][k] - af[q + 1][k]) / (kap[q] * vol[ii]);
                                 }
                             }
+                            // COUP-2 ledger: the run's two boundary faces
+                            // are the only non-telescoping terms — domain
+                            // BCs and wall faces (incl. any declared stair
+                            // transpiration) alike. Σ κV·rate over the run
+                            // = af[0] − af[len] (+rounding, in TOL_AUDIT).
+                            for k in 0..NCOMP {
+                                port_net[k] += af[0][k] - af[len][k];
+                                port_abs[k] += af[0][k].abs() + af[len][k].abs();
+                            }
                         }
                     }
                 }
-                Ok(())
+                Ok((port_net, port_abs))
             })
             .collect();
         for r in results {
-            r?;
+            let (net, abs) = r?;
+            for k in 0..NCOMP {
+                s.ledger.port_net[k] += net[k];
+                s.ledger.port_abs[k] += abs[k];
+            }
         }
         Ok(())
     }
@@ -1367,7 +1363,7 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
             cols[g.brick(bi).br() as usize].push((bi, rv));
         }
         let (prim, act, bmap) = (&s.prim, &s.act, &s.bmap);
-        let results: Vec<Result<(), FlowError>> = cols
+        let results: Vec<Result<SweepPorts, FlowError>> = cols
             .into_par_iter()
             .enumerate()
             .map(|(br, mut col)| {
@@ -1381,9 +1377,12 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                 let mut af = vec![[0.0f64; NCOMP]; n + 1];
                 let mut ap = vec![1.0f64; n + 1];
                 let mut kap = vec![1.0f64; n];
+                let mut port_net = [0.0f64; NCOMP];
+                let mut port_abs = [0.0f64; NCOMP];
                 for i_r in br * BRICK..((br + 1) * BRICK).min(n_r) {
                     let lr = i_r % BRICK;
                     let r = g.r_center(i_r);
+                    let a_z = g.face_area_z(i_r, nt);
                     for j in 0..nt {
                         let theta = Grid::theta_center(j, nt);
                         let mut i = 0usize;
@@ -1456,14 +1455,26 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                                     rate[k] += (af[q][k] - af[q + 1][k]) * inv_dz / kap[q];
                                 }
                             }
+                            // COUP-2 ledger (see sweep_r): this sweep's af
+                            // carries no area (metric-ratio form), so the
+                            // pencil's ring z-face area restores conserved
+                            // units — V·(1/dz) = A_z on this exact metric.
+                            for k in 0..NCOMP {
+                                port_net[k] += a_z * (af[0][k] - af[len][k]);
+                                port_abs[k] += a_z * (af[0][k].abs() + af[len][k].abs());
+                            }
                         }
                     }
                 }
-                Ok(())
+                Ok((port_net, port_abs))
             })
             .collect();
         for r in results {
-            r?;
+            let (net, abs) = r?;
+            for k in 0..NCOMP {
+                s.ledger.port_net[k] += net[k];
+                s.ledger.port_abs[k] += abs[k];
+            }
         }
         Ok(())
     }
@@ -1477,45 +1488,75 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     /// metric-consistent `1/r̄ = (A_out−A_in)/V`.
     fn add_sources(&self, g: &Grid, nt: u32, s: &mut Scratch, t: f64) {
         let prim = &s.prim;
-        s.rate.par_iter_mut().enumerate().for_each(|(bi, rate_v)| {
-            let mask = g.brick(bi).mask();
-            for local in 0..BRICK_CELLS {
-                if mask & (1u64 << local) == 0 {
-                    continue;
-                }
-                let (i_r, i_z) = g.brick(bi).global_rz(local);
-                let a_in = g.face_area_r(i_r, false, nt);
-                let a_out = g.face_area_r(i_r, true, nt);
-                let vol = g.cell_volume(i_r, nt);
-                let geo = (a_out - a_in) / vol;
-                let (r, z) = (g.r_center(i_r), g.z_center(i_z));
-                // Embedded-interface pressure closure (cut cells only —
-                // gated on geometry presence so full-box worlds stay
-                // bit-identical; `+0.0` could flip a −0.0 rate bit).
-                let wall = if g.brick(bi).has_geom() {
-                    let (w_r, w_z) = g.wall_closure(i_r, i_z, nt);
-                    let inv_kv = 1.0 / (g.brick(bi).kappa_rz(local) * vol);
-                    Some((w_r * inv_kv, w_z * inv_kv))
-                } else {
-                    None
-                };
-                for j in 0..nt {
-                    let idx = j as usize * BRICK_CELLS + local;
-                    let wc = prim[bi][idx];
-                    let (rho, ur, ut, p) = (wc[I_RHO], wc[1], wc[2], wc[4]);
-                    let rate = &mut rate_v[idx];
-                    rate[I_MR] += (a_out * p - a_in * p) / vol + rho * ut * ut * geo;
-                    rate[I_MT] -= rho * ur * ut * geo;
-                    if let Some((wr_kv, wz_kv)) = wall {
-                        rate[I_MR] += p * wr_kv;
-                        rate[I_MZ] += p * wz_kv;
+        let partials: Vec<([f64; NCOMP], [f64; NCOMP])> = s
+            .rate
+            .par_iter_mut()
+            .enumerate()
+            .map(|(bi, rate_v)| {
+                let mask = g.brick(bi).mask();
+                // COUP-2 ledger partials: the exact κV-weighted increments
+                // applied here (geometric + wall-closure + external), net
+                // and gross — per brick, combined in fixed brick order.
+                let mut net = [0.0f64; NCOMP];
+                let mut abs = [0.0f64; NCOMP];
+                for local in 0..BRICK_CELLS {
+                    if mask & (1u64 << local) == 0 {
+                        continue;
                     }
-                    let src = (self.source)(r, Grid::theta_center(j, nt), z, t);
-                    for k in 0..NCOMP {
-                        rate[k] += src[k];
+                    let (i_r, i_z) = g.brick(bi).global_rz(local);
+                    let a_in = g.face_area_r(i_r, false, nt);
+                    let a_out = g.face_area_r(i_r, true, nt);
+                    let vol = g.cell_volume(i_r, nt);
+                    let geo = (a_out - a_in) / vol;
+                    let (r, z) = (g.r_center(i_r), g.z_center(i_z));
+                    let kv = g.brick(bi).kappa_rz(local) * vol;
+                    // Embedded-interface pressure closure (cut cells only —
+                    // gated on geometry presence so full-box worlds stay
+                    // bit-identical; `+0.0` could flip a −0.0 rate bit).
+                    let wall = if g.brick(bi).has_geom() {
+                        let (w_r, w_z) = g.wall_closure(i_r, i_z, nt);
+                        let inv_kv = 1.0 / (g.brick(bi).kappa_rz(local) * vol);
+                        Some((w_r * inv_kv, w_z * inv_kv))
+                    } else {
+                        None
+                    };
+                    for j in 0..nt {
+                        let idx = j as usize * BRICK_CELLS + local;
+                        let wc = prim[bi][idx];
+                        let (rho, ur, ut, p) = (wc[I_RHO], wc[1], wc[2], wc[4]);
+                        let rate = &mut rate_v[idx];
+                        let s_mr = (a_out * p - a_in * p) / vol + rho * ut * ut * geo;
+                        let s_mt = rho * ur * ut * geo;
+                        rate[I_MR] += s_mr;
+                        rate[I_MT] -= s_mt;
+                        net[I_MR] += kv * s_mr;
+                        abs[I_MR] += (kv * s_mr).abs();
+                        net[I_MT] -= kv * s_mt;
+                        abs[I_MT] += (kv * s_mt).abs();
+                        if let Some((wr_kv, wz_kv)) = wall {
+                            rate[I_MR] += p * wr_kv;
+                            rate[I_MZ] += p * wz_kv;
+                            net[I_MR] += kv * (p * wr_kv);
+                            abs[I_MR] += (kv * (p * wr_kv)).abs();
+                            net[I_MZ] += kv * (p * wz_kv);
+                            abs[I_MZ] += (kv * (p * wz_kv)).abs();
+                        }
+                        let src = (self.source)(r, Grid::theta_center(j, nt), z, t);
+                        for k in 0..NCOMP {
+                            rate[k] += src[k];
+                            net[k] += kv * src[k];
+                            abs[k] += (kv * src[k]).abs();
+                        }
                     }
                 }
+                (net, abs)
+            })
+            .collect();
+        for (net, abs) in partials {
+            for k in 0..NCOMP {
+                s.ledger.src_net[k] += net[k];
+                s.ledger.src_abs[k] += abs[k];
             }
-        });
+        }
     }
 }

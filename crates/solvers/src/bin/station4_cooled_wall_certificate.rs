@@ -3,6 +3,7 @@
 //! `crates/solvers/tests/solv1_station4_cooled_wall.rs`; check.sh diffs the
 //! committed artifact against this regeneration.
 
+use crucible_solvers::sdc::Sdc;
 use crucible_solvers::station4_cooled_wall::*;
 use std::fmt::Write as _;
 
@@ -15,9 +16,11 @@ fn main() {
         cav.faces.iter().map(|f| format!("{:?}", f.dir)).collect();
     let (e_gas0, e_solid0) = cavity_energies(&cav);
     let mut cav_rec = ExchangeRecord::default();
+    let mut sdc = Sdc::new();
     let mut t = 0.0;
     for _ in 0..500 {
-        t += stepped_cavity_step(&mut cav, &cav_op, t, &mut cav_rec).expect("cavity step");
+        t +=
+            stepped_cavity_step(&mut cav, &cav_op, &mut sdc, t, &mut cav_rec).expect("cavity step");
     }
     let (e_gas1, e_solid1) = cavity_energies(&cav);
     let lost = e_gas0 - e_gas1;
@@ -36,7 +39,9 @@ fn main() {
          (κ = {KAPPA_S} W/m·K) is regeneratively cooled outside \
          (h_cool = {H_COOL:.0} W/m²·K film at {T_COOL:.0} K). The gas-side flux comes from \
          the **one local wall-function law** — Colburn-class, near-wall state only, \
-         **±20–30% declared band** — evaluated once per face per step and applied with \
+         **±20–30% declared band** — entering each SDC sweep's class-D implicit solve \
+         as Robin interface data (COUP-2 §3.5) with the gas debited exactly what the \
+         solid received, i.e. applied with \
          opposite signs to both sides (interface conservation by construction). The liner \
          conducts on the `Solid` region of the same world grid through the Goal-A-certified \
          operator; regions (gas/solid/exterior) are config-time data through the widened \
@@ -108,7 +113,7 @@ fn main() {
          from the simulated *gas* state and declared coolant data only — the simulated solid \
          field never enters. Pointwise agreement to {:.2e} (gate {ORACLE_REL_TOL:.0e}) past the {}-cell \
          entrance band says the wall law, the Robin faces, the region-masked conduction, and \
-         the explicit flux-matched exchange compose into exactly the textbook conjugate \
+         the Robin-Robin exchange inside the class-D solve compose into exactly the textbook conjugate \
          solution.\n",
         r.oracle_worst, ENTRANCE_BAND
     )
@@ -143,7 +148,7 @@ fn main() {
     )
     .unwrap();
 
-    writeln!(w, "## Declared bands & honest scaffolding\n").unwrap();
+    writeln!(w, "## Declared bands & deferrals\n").unwrap();
     writeln!(
         w,
         "- The wall law carries its **±20–30% declared closure band** (SOLV-1 §3.5) — the \
@@ -153,12 +158,13 @@ fn main() {
          temperature reads {:.1}% below free-stream at Δr = {DR} m. This cell-size \
          dependence of the un-resolved-boundary-layer closure is inside the declared band \
          and shrinks when FND-3 geometry + finer wall cells arrive.\n\
-         - **Explicit flux-matched splitting** at the gas CFL dt is honest scaffolding \
-         (guarded each step against both thermal stability limits, fail-loud): COUP-3's \
-         class-`D` implicit solve with Robin-Robin Picard/Aitken sweeps supersedes it. \
-         The liner ρc_p = {RHO_CP_S} J/m³·K is a **declared steady-state continuation \
-         device** (steady solution independent of ρc_p; physical value ~3.6e6 only slows \
-         settling).\n\
+         - **Integrator (S2):** the ONE SDC-IMEX step — Δt is the gas CFL alone; the \
+         solid + exchange are inside the class-`D` implicit solve (fixed-cycle CG, \
+         Robin-Robin Picard/Aitken fixed sweeps, COUP-2 audit every step). The old \
+         explicit-splitting thermal stability guards are gone by construction. The \
+         liner ρc_p = {RHO_CP_S} J/m³·K remains a **declared steady-state continuation \
+         device** (steady solution independent of ρc_p; the physical value ~3.6e6 — \
+         now legal under the implicit class — lands with the plan's S4 wave).\n\
          - **Coolant side** is a configured Robin film — COUP-7's cooling-jacket boundary \
          object (channel correlation, coolant return state) supersedes it.\n\
          - **Bartz nozzle-envelope cross-check** (VAL-2, `bartz` oracle) rides with \

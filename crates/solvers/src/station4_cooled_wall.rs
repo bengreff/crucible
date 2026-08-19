@@ -11,14 +11,15 @@
 //! opposite signs to both sides — interface conservation by construction
 //! (COUP-2's ledger discipline).
 //!
-//! Honest scaffolding (the session-5/7 pattern, superseded by COUP-3):
-//! the coupling is explicit flux-matched operator splitting at the gas CFL
-//! dt, not the Robin-Robin Picard sweeps inside a class-`D` implicit solve
-//! — valid here because the gas dt is far below every thermal stability
-//! limit (guarded each step, fail-loud). The liner's ρc_p is set small as
-//! a **steady-state continuation device** (declared): the steady conjugate
-//! solution is independent of ρc_p, and the certificate's claims are
-//! steady-state claims; transient wall fidelity arrives with class-`D`.
+//! S2: the fixture marches on the ONE production integrator — the SDC-IMEX
+//! step with the Robin-Robin exchange inside each sweep's class-`D` solve
+//! (COUP-2 §3.5; the explicit flux-matched splitting is retired). Δt is
+//! the gas CFL alone — the solid/exchange stability limits are gone by
+//! construction (implicit), which is what frees S4 to give the liner its
+//! physical ρc_p. Here ρc_p stays the declared steady-state continuation
+//! value (the steady conjugate solution is independent of it; the physical
+//! value changes only how fast the same state is reached — retired at S4
+//! per the plan). The COUP-2 audit is armed every step of every march.
 //!
 //! The oracle: at steady state the coupled system must reproduce the
 //! cylindrical series-resistance solution — the same film + ln-annulus +
@@ -27,16 +28,17 @@
 //! coolant data, never the simulated solid temperatures. Axial conduction
 //! and discreteness set the tolerance, measured and pinned below.
 
-use std::collections::BTreeMap;
-
-use crate::conduction::{Bcs, Conduction, Domain, FaceBc, InteriorFaces, SolverError};
+use crate::conduction::{Bcs, Conduction, Domain, FaceBc, InteriorFaces};
 use crate::euler::{
-    Cons, Euler, EulerFields, FlowBc, FlowBcs, FlowError, GammaLaw, I_EN, I_MZ, I_RHO, NCOMP, Prim,
+    Cons, Euler, EulerFields, FlowBc, FlowBcs, GammaLaw, I_EN, I_MZ, I_RHO, NCOMP, Prim,
     fill_from_prim, prim6,
 };
+use crate::sdc::{
+    DiffusionClass, ExchangeClass, FlowClass, Sdc, SdcError, WallPatch, build_wall_patches,
+};
 use crate::station1_sod::FIELDS as EULER_FIELD_NAMES;
-use crate::wall_heat::{NearWallGas, WallHeatError, WallLaw};
-use crucible_grid::{BRICK, FaceDir, FieldId, Grid, GridSpec, InterfaceFace, Region};
+use crate::wall_heat::WallLaw;
+use crucible_grid::{BRICK, FieldId, Grid, GridSpec, InterfaceFace, Region};
 use crucible_units::{dynamic_viscosity_pa_s, specific_heat_capacity_j_per_kg_k};
 
 // --- Fixture geometry (SI) ---------------------------------------------------
@@ -76,9 +78,6 @@ pub const T_SOLID_INIT: f64 = 400.0; // K
 // --- March control -----------------------------------------------------------
 
 pub const CFL_S4: f64 = 0.4;
-/// Fractions of the two thermal stability limits dt may use (guarded).
-pub const SOLID_DT_FRAC: f64 = 0.5;
-pub const EXCHANGE_DT_FRAC: f64 = 0.2;
 pub const SETTLE_TIME_S4: f64 = 5.0e-3; // s (≈ 14 transits + liner settling)
 pub const STEADY_CHECK_TIME_S4: f64 = 5.0e-4;
 
@@ -121,42 +120,16 @@ pub const MARCH_STEP_CAP: usize = 2_000_000;
 
 #[derive(Debug)]
 pub enum CoupledError {
-    Flow(FlowError),
-    Solid(SolverError),
-    Wall(WallHeatError),
-    /// The explicit-coupling premise (gas CFL dt below every thermal
-    /// stability limit) failed — a structured refusal (META-2 §4 halt
-    /// condition), because running degraded would silently violate the
-    /// scaffolding's declared validity; the class-D implicit solve
-    /// (COUP-3) is the correct tool for such parameters.
-    ThermalLimitUnderCfl {
-        dt_gas: f64,
-        dt_solid: f64,
-        dt_exchange: f64,
-    },
+    /// Any SDC-step failure (flow, class-D, exchange residual, audit).
+    Step(SdcError),
     /// Step-count backstop tripped (see [`MARCH_STEP_CAP`]).
-    RunawayMarch {
-        steps: usize,
-    },
+    RunawayMarch { steps: usize },
 }
 
 impl std::fmt::Display for CoupledError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Flow(e) => write!(f, "gas operator: {e}"),
-            Self::Solid(e) => write!(f, "solid operator: {e}"),
-            Self::Wall(e) => write!(f, "wall law: {e}"),
-            Self::ThermalLimitUnderCfl {
-                dt_gas,
-                dt_solid,
-                dt_exchange,
-            } => write!(
-                f,
-                "explicit-coupling premise violated: a thermal stability limit (solid \
-                 {dt_solid:.3e} s, exchange {dt_exchange:.3e} s) undercuts the gas CFL dt \
-                 ({dt_gas:.3e} s) — refusing to run degraded; COUP-3's class-D implicit \
-                 solve is required for these parameters"
-            ),
+            Self::Step(e) => write!(f, "coupled step: {e}"),
             Self::RunawayMarch { steps } => {
                 write!(
                     f,
@@ -169,19 +142,9 @@ impl std::fmt::Display for CoupledError {
 
 impl std::error::Error for CoupledError {}
 
-impl From<FlowError> for CoupledError {
-    fn from(e: FlowError) -> Self {
-        Self::Flow(e)
-    }
-}
-impl From<SolverError> for CoupledError {
-    fn from(e: SolverError) -> Self {
-        Self::Solid(e)
-    }
-}
-impl From<WallHeatError> for CoupledError {
-    fn from(e: WallHeatError) -> Self {
-        Self::Wall(e)
+impl From<SdcError> for CoupledError {
+    fn from(e: SdcError) -> Self {
+        Self::Step(e)
     }
 }
 
@@ -193,17 +156,6 @@ pub fn cell_value(g: &Grid, f: FieldId, i_r: usize, i_z: usize, j: u32) -> f64 {
         .expect("cell in an allocated brick");
     let b = g.brick(bi);
     b.field(f)[b.cell_index(j, (i_r % BRICK) * BRICK + i_z % BRICK)]
-}
-
-fn cell_add(g: &mut Grid, f: FieldId, i_r: usize, i_z: usize, j: u32, dv: f64) {
-    let bi = g
-        .brick_index_by_coords((i_r / BRICK) as u32, (i_z / BRICK) as u32)
-        .expect("cell in an allocated brick");
-    let idx = {
-        let b = g.brick(bi);
-        b.cell_index(j, (i_r % BRICK) * BRICK + i_z % BRICK)
-    };
-    g.brick_field_mut(bi, f)[idx] += dv;
 }
 
 /// Fill a field over SOLID cells (the gas-mask `fill_field` twin).
@@ -228,29 +180,42 @@ pub fn fill_solid(g: &mut Grid, f: FieldId, value: f64) {
     }
 }
 
-/// The assembled fixture: grid + fields + the config-time wall-face list.
+/// The assembled fixture: grid + fields + the config-time wall-face list
+/// and its SOLV-1 §3.5 patch form (box world ⇒ one patch per face, same
+/// order — `patches[k]` IS `faces[k]`).
 pub struct Duct {
     pub grid: Grid,
     pub flow: EulerFields,
     pub t_solid: FieldId,
     pub rate_solid: FieldId,
     pub faces: Vec<InterfaceFace>,
+    pub patches: Vec<WallPatch>,
     pub law: WallLaw,
     pub eos: GammaLaw,
 }
 
-/// Ledger + last-step exchange record for diagnostics and audits.
+/// The FND-7 spine temperature query of this fixture's degenerate
+/// constant-transport gas: T = p/(ρ·R_specific).
+pub fn gas_temperature(w: &Prim) -> Result<f64, &'static str> {
+    Ok(w[4] / (w[0] * R_SPECIFIC))
+}
+
+/// Ledger + last-step exchange record for diagnostics and audits. The
+/// joules lines are the SDC step's OWN applied-increment records (COUP-2
+/// §3.1 ledger discipline — exactly what was integrated, never rate×Δt).
 #[derive(Debug, Clone, Default)]
 pub struct ExchangeRecord {
-    /// Per-face flux q [W/m²] of the LAST step, face order = `Duct::faces`.
+    /// Per-face flux q [W/m²] at the LAST step's accepted solve, face
+    /// order = `Duct::faces`.
     pub q: Vec<f64>,
     /// Per-face film h and recovery T_aw of the last step.
     pub h: Vec<f64>,
     pub t_aw: Vec<f64>,
-    /// ∫ Σ q·A dt — total heat leaving the gas through the wall [J].
+    /// Σ applied exchange energy — total heat leaving the gas through the
+    /// wall [J].
     pub wall_joules: f64,
-    /// ∫ coolant extraction dt [J] (negative of heat into coolant would be
-    /// symmetric; recorded positive out of the solid).
+    /// Σ applied coolant extraction [J] (recorded positive out of the
+    /// solid).
     pub coolant_joules: f64,
 }
 
@@ -290,6 +255,7 @@ pub fn build_duct() -> Duct {
     fill_from_prim(&mut g, &flow, &eos, |_, _, _| w_in);
     fill_solid(&mut g, t_solid, T_SOLID_INIT);
     let faces = g.gas_solid_faces();
+    let patches = build_wall_patches(&g).expect("box-world patches");
     let law = WallLaw::new(
         specific_heat_capacity_j_per_kg_k(CP),
         dynamic_viscosity_pa_s(MU),
@@ -302,6 +268,7 @@ pub fn build_duct() -> Duct {
         t_solid,
         rate_solid,
         faces,
+        patches,
         law,
         eos,
     }
@@ -326,112 +293,31 @@ fn duct_flow_op(
     }
 }
 
-fn dir_code(d: FaceDir) -> u8 {
-    match d {
-        FaceDir::RMinus => 0,
-        FaceDir::RPlus => 1,
-        FaceDir::ZMinus => 2,
-        FaceDir::ZPlus => 3,
-    }
-}
-
-fn opposite(d: FaceDir) -> FaceDir {
-    match d {
-        FaceDir::RMinus => FaceDir::RPlus,
-        FaceDir::RPlus => FaceDir::RMinus,
-        FaceDir::ZMinus => FaceDir::ZPlus,
-        FaceDir::ZPlus => FaceDir::ZMinus,
-    }
-}
-
-/// Per-face wall-normal geometry: (u_t from the prim, wall distance y,
-/// solid center-to-face distance d_s), sized by the grid's own spacings —
-/// never fixture constants (review finding).
-fn face_geometry(w: &Prim, dir: FaceDir, dr: f64, dz: f64) -> (f64, f64, f64) {
-    match dir {
-        FaceDir::RMinus | FaceDir::RPlus => {
-            let u_t = (w[2] * w[2] + w[3] * w[3]).sqrt();
-            (u_t, 0.5 * dr, 0.5 * dr)
-        }
-        FaceDir::ZMinus | FaceDir::ZPlus => {
-            let u_t = (w[1] * w[1] + w[2] * w[2]).sqrt();
-            (u_t, 0.5 * dz, 0.5 * dz)
-        }
-    }
-}
-
 /// One coupled step at the current state: evaluate every wall exchange
 /// once, advance the solid (with the exchanges as gas-face fluxes and the
 /// coolant Robin at the outer edge), debit the gas energy, advance the gas.
 /// Returns the dt taken.
+/// One coupled SDC-IMEX step (COUP-3 §3.1) at the current state: class A =
+/// the gas operator, class D = the liner conduction with the coolant Robin
+/// on its exterior faces, and the Robin-Robin wall exchange inside the
+/// class-D solve (COUP-2 §3.5). Δt = the gas CFL alone (dt_cap-clipped);
+/// the audit is armed. Returns the dt taken and updates the record from
+/// the step's own applied-increment ledger.
 pub fn coupled_step(
     duct: &mut Duct,
     op: &Euler<'_>,
+    sdc: &mut Sdc,
     t: f64,
     dt_cap: f64,
     rec: &mut ExchangeRecord,
 ) -> Result<f64, CoupledError> {
-    let nt = 1u32; // axisymmetric fixture (asserted by the grid build)
-
-    // --- Wall exchanges from the pre-step state (single evaluation) ------
-    let ids = duct.flow.ids();
-    let mut q_map: BTreeMap<(usize, usize, u8), f64> = BTreeMap::new();
-    rec.q.clear();
-    rec.h.clear();
-    rec.t_aw.clear();
-    let mut u_series_max = 0.0f64;
-    for face in &duct.faces {
-        let mut u = [0.0f64; NCOMP];
-        for (k, id) in ids.iter().enumerate() {
-            u[k] = cell_value(&duct.grid, *id, face.gas.0, face.gas.1, 0);
-        }
-        let w = duct
-            .eos
-            .prim_checked(&u)
-            .map_err(|what| FlowError::NonPhysicalState {
-                i_r: face.gas.0,
-                i_z: face.gas.1,
-                i_theta: 0,
-                what,
-            })?;
-        // Wall-normal geometry from the grid's own spec (review finding:
-        // fixture constants here would silently mis-size Re_y and the
-        // series resistance on any differently-spaced grid).
-        let (dr, dz) = (duct.grid.spec().dr, duct.grid.spec().dz);
-        let (u_t, y, d_s) = face_geometry(&w, face.dir, dr, dz);
-        let temperature = w[4] / (w[0] * R_SPECIFIC);
-        let gas = NearWallGas {
-            rho: w[0],
-            u_t,
-            temperature,
-            y,
-        };
-        let t_s = cell_value(&duct.grid, duct.t_solid, face.solid.0, face.solid.1, 0);
-        let ex = duct.law.wall_exchange(&gas, t_s, d_s, KAPPA_S)?;
-        rec.q.push(ex.q);
-        rec.h.push(ex.h);
-        rec.t_aw.push(ex.t_aw);
-        u_series_max = u_series_max.max(ex.u_series);
-        q_map.insert(
-            (face.solid.0, face.solid.1, dir_code(opposite(face.dir))),
-            ex.q,
-        );
-    }
-
-    // --- dt: gas CFL, capped by both thermal stability limits ------------
     let zero_src = |_: f64, _: f64, _: f64, _: f64| 0.0;
-    let gas_face_q = |i_r: usize, i_z: usize, _j: u32, dir: FaceDir| -> f64 {
-        *q_map
-            .get(&(i_r, i_z, dir_code(dir)))
-            .expect("every gas-facing solid face has an exchange")
-    };
     let solid_op = Conduction {
         kappa: KAPPA_S,
         rho_cp: RHO_CP_S,
         source: &zero_src,
         domain: Domain::Solid,
         interior: InteriorFaces {
-            gas: Some(&gas_face_q),
             exterior: Some(FaceBc::Robin {
                 h: H_COOL,
                 t_inf: T_COOL,
@@ -447,58 +333,40 @@ pub fn coupled_step(
             z_hi: FaceBc::HeatFlux(0.0),
         },
     };
-    let dt_gas = op.stable_dt(&duct.grid, &duct.flow, CFL_S4)?;
-    let dt_solid = SOLID_DT_FRAC * solid_op.stable_dt(&duct.grid, 1.0);
-    let spec_dr = duct.grid.spec().dr;
-    let dt_exchange = if u_series_max > 0.0 {
-        EXCHANGE_DT_FRAC * RHO_CP_S * spec_dr.min(duct.grid.spec().dz) / u_series_max
-    } else {
-        f64::INFINITY
+    let flow = FlowClass {
+        op,
+        fields: &duct.flow,
     };
-    let dt = dt_gas.min(dt_solid).min(dt_exchange).min(dt_cap);
-    if dt != dt_gas.min(dt_cap) {
-        return Err(CoupledError::ThermalLimitUnderCfl {
-            dt_gas,
-            dt_solid,
-            dt_exchange,
-        });
-    }
-
-    // --- Coolant ledger BEFORE the solid advance: the Robin faces inside
-    // the step extract heat from the PRE-step temperatures (rate-then-
-    // apply), so the ledger must read the same state (review finding: a
-    // post-step read biased the transient closure).
-    let mut coolant_watts = 0.0f64;
-    let outer = N_R_GAS + N_R_SOLID - 1;
-    let a_outer = duct.grid.face_area_r(outer, true, nt);
-    for i_z in 0..N_Z {
-        let t_s = cell_value(&duct.grid, duct.t_solid, outer, i_z, 0);
-        coolant_watts += a_outer * (t_s - T_COOL) / (1.0 / H_COOL + 0.5 * spec_dr / KAPPA_S);
-    }
-    rec.coolant_joules += coolant_watts * dt;
-
-    // --- Solid advance (reads the exchanges through the interface seam) --
-    solid_op.step(&mut duct.grid, duct.t_solid, duct.rate_solid, t, dt)?;
-
-    // --- Gas energy debit: the SAME q, opposite sign, per face -----------
-    let mut wall_watts = 0.0f64;
-    for (face, q) in duct.faces.iter().zip(&rec.q) {
-        let area = duct.grid.interface_area_per_theta(face, nt);
-        let vol = duct.grid.cell_volume(face.gas.0, nt);
-        cell_add(
-            &mut duct.grid,
-            ids[I_EN],
-            face.gas.0,
-            face.gas.1,
-            0,
-            -q * area * dt / vol,
-        );
-        wall_watts += q * area;
-    }
-    rec.wall_joules += wall_watts * dt;
-
-    // --- Gas advance ------------------------------------------------------
-    op.step(&mut duct.grid, &duct.flow, t, dt)?;
+    let diffusion = DiffusionClass {
+        op: &solid_op,
+        t_field: duct.t_solid,
+        scratch_field: duct.rate_solid,
+    };
+    let exchange = ExchangeClass {
+        patches: &duct.patches,
+        law: &duct.law,
+        temperature: &gas_temperature,
+    };
+    let dt = sdc.stable_dt(&duct.grid, &flow, CFL_S4)?.min(dt_cap);
+    let report = sdc.step(
+        &mut duct.grid,
+        Some(&flow),
+        Some(&diffusion),
+        Some(&exchange),
+        t,
+        dt,
+    )?;
+    let ex = report.exchange.expect("exchange scheduled");
+    rec.q = duct
+        .patches
+        .iter()
+        .zip(&ex.q_w)
+        .map(|(p, q)| q / p.area)
+        .collect();
+    rec.h = ex.h;
+    rec.t_aw = ex.t_aw;
+    rec.wall_joules += ex.applied_exchange_j;
+    rec.coolant_joules += -ex.applied_exterior_j;
     Ok(dt)
 }
 
@@ -510,10 +378,11 @@ pub fn march_coupled(
     t_final: f64,
     rec: &mut ExchangeRecord,
 ) -> Result<(usize, f64), CoupledError> {
+    let mut sdc = Sdc::new();
     let mut t = t0;
     let mut steps = 0usize;
     while t_final - t > 1e-12 * t_final {
-        let dt = coupled_step(duct, op, t, t_final - t, rec)?;
+        let dt = coupled_step(duct, op, &mut sdc, t, t_final - t, rec)?;
         t += dt;
         steps += 1;
         if steps >= MARCH_STEP_CAP {
@@ -648,6 +517,7 @@ pub fn build_stepped_cavity() -> (Duct, Euler<'static>) {
         wall_normal: None,       // grid-aligned stair mirror (exact for this test)
         slip_wall_z_faces: true, // certified station behavior (slip everywhere)
     };
+    let patches = build_wall_patches(&g).expect("box-world patches");
     (
         Duct {
             grid: g,
@@ -655,6 +525,7 @@ pub fn build_stepped_cavity() -> (Duct, Euler<'static>) {
             t_solid,
             rate_solid,
             faces,
+            patches,
             law,
             eos,
         },
@@ -662,64 +533,26 @@ pub fn build_stepped_cavity() -> (Duct, Euler<'static>) {
     )
 }
 
-/// One coupled step of the stepped cavity with INSULATED exterior/edges
-/// (the closed-ledger variant of `coupled_step` — same exchange, same
-/// order, HeatFlux(0) instead of the coolant Robin).
+/// One coupled SDC step of the stepped cavity with INSULATED exterior/
+/// edges (the closed-ledger variant of [`coupled_step`] — same exchange,
+/// same schedule, `HeatFlux(0)` instead of the coolant Robin). The COUP-2
+/// energy audit inside the step IS the closed-ledger claim, asserted at
+/// `TOL_AUDIT` every step; the fixture's own two-domain ledger re-checks
+/// it independently over the whole march.
 pub fn stepped_cavity_step(
     duct: &mut Duct,
     op: &Euler<'_>,
+    sdc: &mut Sdc,
     t: f64,
     rec: &mut ExchangeRecord,
 ) -> Result<f64, CoupledError> {
-    let ids = duct.flow.ids();
-    let mut q_map: BTreeMap<(usize, usize, u8), f64> = BTreeMap::new();
-    rec.q.clear();
-    let mut u_series_max = 0.0f64;
-    for face in &duct.faces {
-        let mut u = [0.0f64; NCOMP];
-        for (k, id) in ids.iter().enumerate() {
-            u[k] = cell_value(&duct.grid, *id, face.gas.0, face.gas.1, 0);
-        }
-        let w = duct
-            .eos
-            .prim_checked(&u)
-            .map_err(|what| FlowError::NonPhysicalState {
-                i_r: face.gas.0,
-                i_z: face.gas.1,
-                i_theta: 0,
-                what,
-            })?;
-        let (dr, dz) = (duct.grid.spec().dr, duct.grid.spec().dz);
-        let (u_t, y, d_s) = face_geometry(&w, face.dir, dr, dz);
-        let temperature = w[4] / (w[0] * R_SPECIFIC);
-        let gas = NearWallGas {
-            rho: w[0],
-            u_t,
-            temperature,
-            y,
-        };
-        let t_s = cell_value(&duct.grid, duct.t_solid, face.solid.0, face.solid.1, 0);
-        let ex = duct.law.wall_exchange(&gas, t_s, d_s, KAPPA_S)?;
-        rec.q.push(ex.q);
-        u_series_max = u_series_max.max(ex.u_series);
-        q_map.insert(
-            (face.solid.0, face.solid.1, dir_code(opposite(face.dir))),
-            ex.q,
-        );
-    }
     let zero_src = |_: f64, _: f64, _: f64, _: f64| 0.0;
-    let gas_face_q = |i_r: usize, i_z: usize, _j: u32, dir: FaceDir| -> f64 {
-        *q_map
-            .get(&(i_r, i_z, dir_code(dir)))
-            .expect("every gas-facing solid face has an exchange")
-    };
     let solid_op = Conduction {
         kappa: KAPPA_S,
         rho_cp: RHO_CP_S,
         source: &zero_src,
         domain: Domain::Solid,
         interior: InteriorFaces {
-            gas: Some(&gas_face_q),
             exterior: Some(FaceBc::HeatFlux(0.0)), // closed ledger
         },
         bcs: Bcs {
@@ -729,31 +562,37 @@ pub fn stepped_cavity_step(
             z_hi: FaceBc::HeatFlux(0.0),
         },
     };
-    let dt_gas = op.stable_dt(&duct.grid, &duct.flow, CFL_S4)?;
-    let dt_solid = SOLID_DT_FRAC * solid_op.stable_dt(&duct.grid, 1.0);
-    let dt_exchange = if u_series_max > 0.0 {
-        EXCHANGE_DT_FRAC * RHO_CP_S * duct.grid.spec().dr.min(duct.grid.spec().dz) / u_series_max
-    } else {
-        f64::INFINITY
+    let flow = FlowClass {
+        op,
+        fields: &duct.flow,
     };
-    let dt = dt_gas.min(dt_solid).min(dt_exchange);
-    solid_op.step(&mut duct.grid, duct.t_solid, duct.rate_solid, t, dt)?;
-    let mut wall_watts = 0.0f64;
-    for (face, q) in duct.faces.iter().zip(&rec.q) {
-        let area = duct.grid.interface_area_per_theta(face, 1);
-        let vol = duct.grid.cell_volume(face.gas.0, 1);
-        cell_add(
-            &mut duct.grid,
-            ids[I_EN],
-            face.gas.0,
-            face.gas.1,
-            0,
-            -q * area * dt / vol,
-        );
-        wall_watts += q * area;
-    }
-    rec.wall_joules += wall_watts * dt;
-    op.step(&mut duct.grid, &duct.flow, t, dt)?;
+    let diffusion = DiffusionClass {
+        op: &solid_op,
+        t_field: duct.t_solid,
+        scratch_field: duct.rate_solid,
+    };
+    let exchange = ExchangeClass {
+        patches: &duct.patches,
+        law: &duct.law,
+        temperature: &gas_temperature,
+    };
+    let dt = sdc.stable_dt(&duct.grid, &flow, CFL_S4)?;
+    let report = sdc.step(
+        &mut duct.grid,
+        Some(&flow),
+        Some(&diffusion),
+        Some(&exchange),
+        t,
+        dt,
+    )?;
+    let ex = report.exchange.expect("exchange scheduled");
+    rec.q = duct
+        .patches
+        .iter()
+        .zip(&ex.q_w)
+        .map(|(p, q)| q / p.area)
+        .collect();
+    rec.wall_joules += ex.applied_exchange_j;
     Ok(dt)
 }
 

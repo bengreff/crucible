@@ -5,10 +5,20 @@
 //! below, so the artifact can never assert criteria the tests don't
 //! enforce. Everything here is deterministic: fixed grids, fixed step
 //! counts, no RNG, no wall-clock.
+//!
+//! S2: the studies march on the ONE production integrator — the SDC-IMEX
+//! step's class-`D` implicit path (COUP-3 §3.1; the session-5 explicit
+//! scaffolding is retired). The anchors deliberately step **beyond the
+//! explicit stability bound** (the named `*_DT_OVER_EXPLICIT` factors):
+//! stability there is exactly what the implicit class exists to provide
+//! (COUP-3 §6-6), certified here alongside the accuracy claims.
 
 use crate::conduction::{Bcs, Conduction, Domain, FaceBc, InteriorFaces};
+use crate::sdc::{DiffusionClass, Sdc};
 use crucible_grid::{Grid, GridSpec};
 
+/// "rate" survives as the class-`D` CG direction scratch (the retired
+/// explicit-rate slot — same registered field set, new occupant).
 pub const FIELDS: &[&str] = &["T", "rate"];
 
 // --- Named certificate constants (META-2 §4: no magic numbers) --------------
@@ -19,17 +29,24 @@ pub const MMS_ORDER_MIN: f64 = 1.8;
 pub const MMS_ORDER_MAX: f64 = 2.2;
 
 /// MMS refinement ladder and step base: level ℓ runs `MMS_BASE_STEPS·4^ℓ`
-/// steps to `MMS_T_FINAL`, so dt ∝ h² and the O(dt) Euler error refines at
-/// the same 2nd-order rate as space. At every level dt sits at ≈0.57× the
-/// spectral stability limit (asserted at run time against `stable_dt`).
+/// steps to `MMS_T_FINAL`, so dt ∝ h² and the (2nd-order trapezoidal)
+/// temporal error refines faster than space — the measured orders are the
+/// spatial ones. The schedule is kept from the explicit era so the
+/// certified numbers move only by the integrator change itself.
 pub const MMS_LEVELS: [usize; 3] = [8, 16, 32];
 pub const MMS_BASE_STEPS: usize = 25;
 pub const MMS_T_FINAL: f64 = 0.05;
 
-/// March safety factor for anchor runs: 0.4× the spectral limit also sits
-/// below the ~0.66× discrete-maximum-principle threshold, so anchor data is
-/// free of bounded transient overshoot, not just divergence.
-pub const CFL_SAFETY: f64 = 0.4;
+/// Anchor step sizes as multiples of the EXPLICIT stability bound
+/// (`Conduction::stable_dt(g, 1.0)`) — deliberately past it (module doc).
+/// Steady annulus: accuracy is steady-state (dt-independent), so a large
+/// factor both accelerates and certifies stiff stability. Transient
+/// Bessel cylinder: dt enters the answer at 2nd order; 4× keeps the
+/// temporal error inside the anchor tolerance (measured). Conservation
+/// drift: closure is dt-independent (flux telescoping + CG acceptance).
+pub const ANNULUS_DT_OVER_EXPLICIT: f64 = 32.0;
+pub const BESSEL_DT_OVER_EXPLICIT: f64 = 4.0;
+pub const DRIFT_DT_OVER_EXPLICIT: f64 = 8.0;
 
 /// Steady annulus anchor tolerance, relative to ΔT: the measured 2nd-order
 /// discretization error at 32 radial cells is ≈4.3e-4 (see the committed
@@ -171,13 +188,13 @@ fn mms_run(label: &'static str, ns: &[usize], n_theta_fixed: u32, m: u32) -> Mms
         };
         let n_steps = MMS_BASE_STEPS * 4usize.pow(lvl as u32);
         let dt = MMS_T_FINAL / n_steps as f64;
-        // Guard against the true spectral limit (factor 1.0 — the bound
-        // itself, review-verified sharp), not a safety-scaled one.
-        assert!(
-            dt < op.stable_dt(&g, 1.0),
-            "certificate step must be stable"
-        );
-        op.advance(&mut g, t_id, rate_id, 0.0, dt, n_steps)
+        let dc = DiffusionClass {
+            op: &op,
+            t_field: t_id,
+            scratch_field: rate_id,
+        };
+        Sdc::new()
+            .advance_diffusion(&mut g, &dc, 0.0, dt, n_steps)
             .expect("advance");
 
         levels.push(MmsLevel {
@@ -226,13 +243,22 @@ pub fn annulus_anchor() -> (f64, Grid) {
             z_hi: FaceBc::HeatFlux(0.0),
         },
     };
-    let dt = op.stable_dt(&g, CFL_SAFETY);
+    // Deliberately BEYOND the explicit bound (module doc): the steady
+    // answer is dt-independent, so the large step is pure certification of
+    // the class-D stiff stability plus a ~30× march acceleration.
+    let dt = ANNULUS_DT_OVER_EXPLICIT * op.stable_dt(&g, 1.0);
     // ~8 diffusion times across the gap: transients decay like e^{-t/τ}, so
     // 8τ leaves relative transient content ~e⁻⁸ ≈ 3e-4 of the initial
     // offset — an order below the anchor tolerance.
     let tau = (r2 - r1) * (r2 - r1) * op.rho_cp / op.kappa;
     let n_steps = (8.0 * tau / dt).ceil() as usize;
-    op.advance(&mut g, t_id, rate_id, 0.0, dt, n_steps)
+    let dc = DiffusionClass {
+        op: &op,
+        t_field: t_id,
+        scratch_field: rate_id,
+    };
+    Sdc::new()
+        .advance_diffusion(&mut g, &dc, 0.0, dt, n_steps)
         .expect("advance");
 
     let exact = move |r: f64| (t1 * (r2 / r).ln() + t2 * (r / r1).ln()) / (r2 / r1).ln();
@@ -287,10 +313,16 @@ pub fn bessel_cylinder_anchor() -> f64 {
     };
     let t_tilde = 0.1f64;
     let t_final = t_tilde * radius * radius; // κ̃ = 1
-    let dt = op.stable_dt(&g, CFL_SAFETY);
+    let dt = BESSEL_DT_OVER_EXPLICIT * op.stable_dt(&g, 1.0);
     let n_steps = (t_final / dt).ceil() as usize;
     let dt = t_final / n_steps as f64;
-    op.advance(&mut g, t_id, rate_id, 0.0, dt, n_steps)
+    let dc = DiffusionClass {
+        op: &op,
+        t_field: t_id,
+        scratch_field: rate_id,
+    };
+    Sdc::new()
+        .advance_diffusion(&mut g, &dc, 0.0, dt, n_steps)
         .expect("advance");
 
     // First five positive zeros of J₀ [META-3: `bessel-j0-zeros` — DLMF
@@ -384,8 +416,14 @@ pub fn conservation_drift(n_steps: usize) -> f64 {
         },
     };
     let before = g.reduce_volume_weighted(t_id);
-    let dt = op.stable_dt(&g, CFL_SAFETY);
-    op.advance(&mut g, t_id, rate_id, 0.0, dt, n_steps)
+    let dt = DRIFT_DT_OVER_EXPLICIT * op.stable_dt(&g, 1.0);
+    let dc = DiffusionClass {
+        op: &op,
+        t_field: t_id,
+        scratch_field: rate_id,
+    };
+    Sdc::new()
+        .advance_diffusion(&mut g, &dc, 0.0, dt, n_steps)
         .expect("advance");
     let after = g.reduce_volume_weighted(t_id);
     ((after - before) / before).abs()

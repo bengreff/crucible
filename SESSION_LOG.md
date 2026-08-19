@@ -373,3 +373,66 @@ the committed artifacts in `certificates/` are the living record.
   handled by the N_θ(r) profile with a centered-spark-is-near-axisymmetric argument; the 100–300 ms
   window is physically sufficient because the slow bootstrap clocks are external/compressible while
   the physical 0.33 mm liner's thermal time is ~tens of ms) — all 26 fixed in-session. Test counts unchanged (**136 Rust + 28 Python**); all gates green.
+- Session 14 (2026-08-19): **PLAN S2 — THE REAL INTEGRATOR: the one deterministic SDC-IMEX
+  step; every scaffolding integrator retired; the COUP-2 audit armed every step; all
+  certificates re-earned on the new spine.**
+  **The step (`crucible-solvers::sdc`, COUP-3 §3.1):** 2 Lobatto nodes, IMEX-Euler predictor +
+  N_SDC_CORRECTIONS = 2 fixed trapezoid correction sweeps (fixed point = trapezoid, 2nd order
+  both classes; explicit-part stability polynomial 1 + z + z²/2 + z³/4 — imaginary-axis stable
+  to |z| ≤ 2, upwind-stable at CFL 1; stiff-part sweeps damp from the L-stable BE predictor,
+  |R(−∞)| = 7/8). Class A = `Euler::eval_rhs` (the session-7 spatial operator unchanged; SRD
+  applied stagewise after every node-state composition). Class D = the conduction operator
+  refactored into ONE affine heat assembly (`assemble_heat`: Affine/Linear modes, diagonal
+  extraction, COUP-2 ledger lines, per-face exchange-heat records) solved matrix-free by
+  Jacobi-preconditioned CG in δ-form (warm start = the field itself: a settled state costs zero
+  iterations; EPS_CG_RESID = 1e-12 rel, N_CG_ITERS_MAX = 512, NaN-safe acceptance →
+  COUPLING_RESIDUAL). COUP-3 0.4.1 amendment landed with the code: §3.1's CG "fixed iteration
+  structure" bound to the §3.7 fixed-tolerance/fixed-cap rule.
+  **Robin-Robin exchange (COUP-2 §3.5), placed inside each sweep's class-D solve:** the
+  wall-function h is the Robin coefficient (linear in T_solid — stable at Biot > 1);
+  N_ROBIN_SWEEPS = 3 Picard sweeps with clamped Aitken (ω ∈ [0.1, 2]); the gas debits exactly
+  the per-face heats of the accepted assembly (one owner — conservation by construction);
+  `WallPatch`/`build_wall_patches` moved into the solvers crate, generalized to both world
+  classes (cut: |W|-closure patches + SRD debit sets; box: one patch per face — station 4 and
+  the engine share ONE exchange law). EPS_ROBIN_RESID = 1e-6, sized on the §3.5 principle
+  (orders below the ±20–30% wall band; the residual measures only operand staleness — measured
+  1.1e-8/sweep spikes during the RL10 establishment transient at the old 1e-8 gate).
+  **The audit (COUP-2 §3.1), armed on EVERY step of every march:** port ledger accumulated at
+  the sweeps' run boundaries (domain BCs, wall faces incl. declared stair transpiration — Σ κV
+  telescoping), applied-increment source ledger (geometric/closure/external, exact κV-weighted
+  increments), solid heats via the assembly's ledger lines, exchange pair cancelling;
+  Δ(stored) = Σ(weighted ports + sources) checked against TOL_AUDIT[q] = K_AUDIT·ε·√N·S[q]
+  (§3.1.1; S = |stored| + gross throughput; declared floors optional) — violation = halt with
+  diagnosis. Closed at round-off everywhere, including 15.8k-step RL10 members. Deferrals
+  (recorded): TOL constants' manifest recording rides FND-6 (build fingerprint pins them);
+  the §3.1.2 mount-reaction vs SOLV-7 thrust cross-check (§6-7) arrives with the verdict wave;
+  the class-D assembly is serial (perf — GPU wave brings multigrid/parallelism).
+  **Retired:** `Euler::step/step_ws/advance` (SSP-RK2), `Conduction::step/advance` (explicit),
+  station-4's fixture stepper and the engine's `coupled_step` + BOTH thermal-stability dt
+  guards (Δt = the gas CFL alone — the point of class D; `stable_dt` survives as the explicit
+  BOUND the stiffness tests measure against). InteriorFaces lost its frozen-flux gas closure
+  (exchange data now flows per-sweep through the assembly).
+  **S2 mini-sims (`coup3_sdc.rs`, 6 tests):** flow temporal order 2.0 by dt-Richardson (smooth
+  acoustic tube); class-D temporal order ~3.0 measured (linear fixture superconverges — the
+  2-sweep composition matches trapezoid through z³; gate [1.7, 3.5], the flow test is the
+  strict one); class-D stable + steady-accurate at 512× the explicit bound; audit rows close
+  on a live transient (θ-momentum tol legitimately 0 on a no-swirl fixture: 0 = 0); planted
+  K_AUDIT = 1e-6 trips AuditViolation (the halt path); 1-vs-4-thread bit identity through the
+  FULL coupled step (Euler rayon sweeps + CG + exchange + audit reductions).
+  **Certified numbers, re-earned (the expected drift class — spatial operators untouched):**
+  Goal-A MMS orders 1.99–2.00 (errors shift in the 3rd digit); Bessel 6.3e-3 → 9.5e-3 K — now
+  marched at 4× the explicit bound (annulus at 32×, drift fixture at 8×; the anchors CERTIFY
+  stiff stability now); closed-sweep drift 2.3e-16 → 7.9e-16 (CG conserves to round-off).
+  Station 1: global L1 ladder and smooth orders unchanged (adv ρ mean order 2.09 → 2.57);
+  shock position 0.155 → 0.845 cells (criterion ≤ 1); star-plateau u* 7.3e-5 → 8.8e-4 — the
+  less-dissipative stage structure rings more behind the captured shock (STAR_PLATEAU_TOL
+  re-pinned 5e-4 → 2.5e-3 with the shift recorded); closed-tube conservation at round-off.
+  Station 2: Cd 1.0060/1.0022/1.0020 → 1.0050/1.0023/1.0020; steadiness residuals shift in
+  kind. Station 4 (now marching the production coupled step): oracle agreement 9.4e-4 class
+  held, ledger closure 3.4e-3/1.1e-6, stepped-cavity mismatch 4.2e-12 → 3.4e-12; the
+  ThermalLimitUnderCfl refusal class deleted (premise gone). Station 5: all 9 members re-run
+  (~155 s each on the new spine vs ~60 s — 3 rhs evals + implicit solid + audit); readouts
+  within ~0.1% of the session-12 records (blind: F/Isp still OVERLAP, p_c/c*/C_F same coherent
+  coarse-tier signature; calibrated: F, Isp, AND p_c still OVERLAP; expander self-regulation
+  reproduced); certificate prose updated (the honest-scaffolding integrator paragraph RETIRED;
+  audit line added). True test count: **142 Rust + 28 Python**; all gates green.

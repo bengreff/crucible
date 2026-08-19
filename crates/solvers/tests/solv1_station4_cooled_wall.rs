@@ -2,8 +2,9 @@
 //! Criteria are the named constants in `station4_cooled_wall.rs`; the
 //! certificate binary prints the same numbers this battery asserts.
 
+use crucible_solvers::sdc::{DiffusionClass, Sdc, SdcError};
 use crucible_solvers::station4_cooled_wall::*;
-use crucible_solvers::{Bcs, Conduction, Domain, FaceBc, InteriorFaces, SolverError};
+use crucible_solvers::{Bcs, Conduction, Domain, FaceBc, InteriorFaces};
 
 // Acceptance gates are the named shared constants in station4_cooled_wall.rs
 // (session-6 convention: one owner for test + certificate binary).
@@ -105,9 +106,10 @@ fn station4_uniform_rest_is_a_bitwise_fixed_point() {
         })
         .collect();
     let mut rec = ExchangeRecord::default();
+    let mut sdc = Sdc::new();
     let mut t = 0.0;
     for _ in 0..200 {
-        t += coupled_step(&mut duct, &op, t, f64::INFINITY, &mut rec).expect("step");
+        t += coupled_step(&mut duct, &op, &mut sdc, t, f64::INFINITY, &mut rec).expect("step");
     }
     for (bi, b) in duct.grid.bricks().iter().enumerate() {
         for (k, id) in duct.flow.ids().iter().enumerate() {
@@ -152,9 +154,10 @@ fn station4_stepped_cavity_stair_interface_conserves_to_round_off() {
     );
     let (e_gas0, e_solid0) = cavity_energies(&duct);
     let mut rec = ExchangeRecord::default();
+    let mut sdc = Sdc::new();
     let mut t = 0.0;
     for _ in 0..500 {
-        t += stepped_cavity_step(&mut duct, &op, t, &mut rec).expect("step");
+        t += stepped_cavity_step(&mut duct, &op, &mut sdc, t, &mut rec).expect("step");
     }
     let (e_gas1, e_solid1) = cavity_energies(&duct);
     let lost = e_gas0 - e_gas1;
@@ -173,6 +176,9 @@ fn station4_stepped_cavity_stair_interface_conserves_to_round_off() {
 
 #[test]
 fn station4_solid_step_without_gas_closure_refuses() {
+    // A solid class-D solve on a grid WITH gas-facing faces but WITHOUT
+    // exchange data must refuse loudly (COUP-2 §3.5 delineation: no frozen
+    // guess, no silent adiabatic wall).
     let mut duct = build_duct();
     let zero = |_: f64, _: f64, _: f64, _: f64| 0.0;
     let hold = |_: f64, _: f64, _: f64, _: f64| T_SOLID_INIT;
@@ -182,7 +188,6 @@ fn station4_solid_step_without_gas_closure_refuses() {
         source: &zero,
         domain: Domain::Solid,
         interior: InteriorFaces {
-            gas: None, // the refusal under test
             exterior: Some(FaceBc::HeatFlux(0.0)),
         },
         bcs: Bcs {
@@ -192,9 +197,13 @@ fn station4_solid_step_without_gas_closure_refuses() {
             z_hi: FaceBc::HeatFlux(0.0),
         },
     };
-    let (tf, rf) = (duct.t_solid, duct.rate_solid);
-    match op.step(&mut duct.grid, tf, rf, 0.0, 1e-9) {
-        Err(SolverError::UnhandledInteriorFace { .. }) => {}
+    let dc = DiffusionClass {
+        op: &op,
+        t_field: duct.t_solid,
+        scratch_field: duct.rate_solid,
+    };
+    match Sdc::new().step_diffusion(&mut duct.grid, &dc, 0.0, 1e-9) {
+        Err(SdcError::Solid(crucible_solvers::SolverError::UnhandledInteriorFace { .. })) => {}
         other => panic!("expected UnhandledInteriorFace, got {other:?}"),
     }
 }
@@ -238,11 +247,19 @@ fn station4_robin_annulus_matches_the_exact_steady_profile() {
             z_hi: FaceBc::HeatFlux(0.0),
         },
     };
-    let dt = op.stable_dt(&g, 0.9);
+    // The class-D implicit march, deliberately 16× past the explicit
+    // stability bound (steady answer is dt-independent).
+    let dt = 16.0 * op.stable_dt(&g, 1.0);
     // Diffusive settling: a few τ = (r2−r1)²/α.
     let tau = (r2 - r1) * (r2 - r1) * 1000.0 / kappa;
     let steps = (6.0 * tau / dt).ceil() as usize;
-    op.advance(&mut g, t_id, rate_id, 0.0, dt, steps)
+    let dc = DiffusionClass {
+        op: &op,
+        t_field: t_id,
+        scratch_field: rate_id,
+    };
+    Sdc::new()
+        .advance_diffusion(&mut g, &dc, 0.0, dt, steps)
         .expect("march");
 
     let denom = (r2 / r1).ln() + kappa / (h * r2);

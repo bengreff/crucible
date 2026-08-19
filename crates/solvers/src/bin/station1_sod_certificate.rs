@@ -37,9 +37,10 @@ fn main() {
          on the unified cylindrical grid at N_θ = 1 — PPM reconstruction, HLLC flux \
          with Batten wavespeeds, well-balanced geometric sources, one passive \
          advected composition riding the contact. The tube is a full cylinder \
-         (r = 0 axis inside the domain), radially uniform, marched by the explicit \
-         MOL SSP-RK2 reference integrator (superseded by COUP-3's SDC-IMEX when it \
-         lands; the flux-form spatial operator carries over unchanged). Oracle: the \
+         (r = 0 axis inside the domain), radially uniform, marched by the ONE \
+         production integrator — COUP-3's SDC-IMEX step (S2; explicit hyperbolic \
+         class, fixed sweeps, the COUP-2 conservation audit armed every step; the \
+         session-7 SSP-RK2 scaffolding is retired). Oracle: the \
          exact Riemann solution (Toro exact solver; star state verified against \
          Toro Table 4.2 in the unit tests). Criteria are the named constants in \
          `crates/solvers/src/station1_sod.rs`, asserted by \

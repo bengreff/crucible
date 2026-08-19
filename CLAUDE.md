@@ -17,15 +17,38 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-19 — session 13 = plan S1 complete)
+## State (2026-08-19 — session 14 = plan S2 complete)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
 closed 68/68-discharged and deleted 2026-08-19; findings live in doc change logs + git history).
-Thirteen sessions, every one gates-green and committed; three multi-agent code reviews
+Fourteen sessions, every one gates-green and committed; three multi-agent code reviews
 (sessions 6, 10, 12) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
-(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **136 Rust + 28 Python
+(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **142 Rust + 28 Python
 tests.** **Blind rule v1.4.1**: blind = mechanical input-blindness; every certificate declares
 `development-observed: yes/no`; the RL10 campaign is declared **open development**.
+
+**Session 14 = plan S2: THE REAL INTEGRATOR.** `crucible-solvers::sdc` = the ONE deterministic
+SDC-IMEX step (COUP-3 §3.1: IMEX-Euler predictor + 2 fixed trapezoid correction sweeps; explicit
+hyperbolic class A = `Euler::eval_rhs`; class D = spatially-coupled implicit diffusion via a
+deterministic fixed-structure Jacobi-CG solve — matrix-free on the conduction assembly, δ-form
+warm start, `EPS_CG_RESID`/`N_CG_ITERS_MAX` acceptance → `COUPLING_RESIDUAL`); **Robin-Robin
+gas–wall exchange inside each sweep's class-D solve** (COUP-2 §3.5: wall-function h as the Robin
+coefficient — linear in T_solid, unconditionally stable at Biot > 1; fixed Picard sweeps +
+clamped Aitken; the gas debits exactly the per-face heats the accepted solid solve received);
+**the COUP-2 §3.1 conservation audit armed EVERY step** (flux-telescoping port ledger in the
+sweeps + applied-increment source ledger, `TOL_AUDIT[q] = K_AUDIT·ε·√N·S[q]` per §3.1.1,
+violation = halt with diagnosis — closed at ≤ round-off through every certificate march incl.
+15.8k-step RL10 members). Every scaffolding integrator retired (session-5 explicit conduction,
+session-7 SSP-RK2, session-10/11 flux-matched coupled splitting); Δt = the gas CFL alone — the
+solid/exchange stability guards are gone by construction (the S4 physical-ρc_p prerequisite).
+Goal-A anchors now march 4–32× past the explicit bound (a new test holds at 512×); temporal
+order 2 verified by dt-Richardson (flow 2.0; linear diffusion superconverges ~3). Certified
+numbers moved as expected and were regenerated (headline: Sod star-plateau u* 7.3e-5 → 8.8e-4 —
+a dissipation-profile shift at the captured shock, global L1/orders unchanged; station-5 boxes
+shifted < 0.1%, conclusions identical). COUP-3 0.4.1 clarification amendment (CG = the §3.7
+fixed-tolerance/fixed-cap rule). Deferrals: TOL_AUDIT constants manifest-recording rides FND-6;
+mount-reaction vs SOLV-7 thrust cross-check (COUP-2 §6-7) with the verdict wave; class-D
+assembly is serial (perf; GPU wave brings multigrid/parallel).
 
 **VISION_SCOPE v1.5 (Ben, 2026-08-19) — the session-13 rulings, all doc-amended:** accelerated
 convergence (pseudo-transient/local-Δt) is **DELETED** — every certified result is a **physical
@@ -101,15 +124,17 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   is cured by the plan's Phase 1–2 physics (pseudo-transient DELETED, v1.5).
 - **`crates/engine` — the sandbox seam**: config → assembly (content-verified contour →
   FND-3 cut-geometry grid; refusals: cooling-with-zero-liner, closed-mode-never-engages,
-  adiabatic liner holes) → the ONE coupled stepper (wall law on closure-vector patches with the
-  SRD-neighborhood debit + liner conduction + coolant Robin + **the COUP-3 §3.5 closed-mode
-  expander fixed point** — session 12: `turbopump_expander` boundary object, drive_power ←
-  jacket heat_pickup, Aitken ≤ 1e-8, engages post-establishment) → SOLV-7 readout (+ measured
-  inflow-plane ṁ honesty signal) + fields-CSV viz feed + **fault-tolerant crash artifact on
-  halt** (`runs/<name>/crash_fields.csv`). Presets: `rl10_coarse.toml` (dial 5, ~60 s laptop,
-  the certified tier), `rl10_calibrated.toml` (closed mode), `rl10_full.toml` (dial 16 —
-  KNOWN LIMIT: awaits the plan's Phase 1–2 physics). Certificate regen:
-  `station5_rl10_certificate` bin (recorded readouts + Ferson rescoring, gate 5).
+  adiabatic liner holes) → **the ONE SDC-IMEX step (S2)** — wall law on closure-vector patches
+  with the SRD-neighborhood debit, liner conduction + coolant Robin inside the class-D implicit
+  solve, audit armed, Δt = gas CFL alone — plus **the COUP-3 §3.5 closed-mode expander fixed
+  point** (session 12: `turbopump_expander` boundary object, drive_power ← jacket heat_pickup,
+  Aitken ≤ 1e-8, engages post-establishment; consumes the post-sweep converged wall-heat
+  integral) → SOLV-7 readout (+ measured inflow-plane ṁ honesty signal) + fields-CSV viz feed +
+  **fault-tolerant crash artifact on halt** (`runs/<name>/crash_fields.csv`). Presets:
+  `rl10_coarse.toml` (dial 5, ~155 s laptop on the S2 spine, the certified tier),
+  `rl10_calibrated.toml` (closed mode), `rl10_full.toml` (dial 16 — KNOWN LIMIT: awaits the
+  plan's Phase 1–2 physics). Certificate regen: `station5_rl10_certificate` bin (recorded
+  readouts + Ferson rescoring, gate 5).
 - `offline/` — `crucible_offl` (Python 3.13, exact pins incl. `cea==3.3.2`): digest-v3 mirror +
   h5py writer, NASA-CEA engine behind SI boundaries (**`gas_only` metastable mode**, deck-stamped,
   condensed-suffix filter), Cantera cross-check, surface generators with measured interp-error
@@ -130,10 +155,12 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
 
 - All five ladder stations earned (session 12); the station-5 certificate scores blind +
   calibrated boxes vs the TM-107318 reference p-box (details: certificate + SESSION_LOG).
-- **Session 13 = plan S1 DONE** (the v1.5 amendment wave — rulings, burn-progress design,
-  igniter/schedule objects, determinism §2.5, cleanup). **NEXT = plan S2**: the real integrator
-  (SDC-IMEX + implicit diffusion + Robin-Robin + every-step COUP-2 audit) — read the plan's §5
-  S2 entry + COUP-3 §3 before coding.
+- **Session 13 = plan S1 DONE** (the v1.5 amendment wave); **session 14 = plan S2 DONE** (the
+  real integrator: SDC-IMEX + implicit class-D diffusion + Robin-Robin + every-step COUP-2
+  audit; scaffolding retired; all certificates re-earned on the new spine). **NEXT = plan S3**:
+  the missing forces (compressible viscous stress + heat conduction + species diffusion on the
+  cylindrical metric, aperture-aware, F_visc suppressed at wall-law faces) — read the plan's §5
+  S3 entry + SOLV-1 §3 before coding.
 - The old per-item deferral list (station-4 fixture rewire; Bartz oracle scoring; digest v4;
   COUP-5 ensembles; FND-3 PLIC/slot class) is absorbed into the plan's phases: §4 maps each to
   its session.

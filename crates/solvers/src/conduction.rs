@@ -11,25 +11,36 @@
 //! vanishes identically (the neighbor is the cell itself) — the same
 //! operator is the axisymmetric operator, no special case.
 //!
+//! **Time integration (S2, COUP-3 §3.1): this operator is class `D` —
+//! spatially-coupled implicit diffusion.** The explicit `step`/`advance`
+//! scaffolding of sessions 5–12 is retired; the one production advance is
+//! the SDC-IMEX step (`crate::sdc`), whose fixed-cycle CG solve applies
+//! this module's [`Conduction::assemble_heat`] — the single owner of the
+//! spatial discretization (affine in T at frozen operands). Gas↔solid wall
+//! exchange enters as Robin interface data ([`GasFaceRobin`], linear in the
+//! solid cell's T — COUP-2 §3.5's Robin-Robin placement); the coolant side
+//! stays a [`FaceBc::Robin`] on exterior faces (COUP-7 owns that closure).
+//! [`Conduction::stable_dt`] survives as the *explicit stability bound* —
+//! a reference quantity the stiffness tests measure against, no longer a
+//! step controller.
+//!
 //! Sweep structure (post-review): neighbor bricks are resolved ONCE per
 //! brick (≤4 Morton lookups), and every in-brick access — the center, both
 //! θ-neighbors, and all (r,z) neighbors of the 36/64 interior cells — is
-//! direct index arithmetic. The v1 sweep did up to 8 binary searches per
-//! cell per step, exactly the pointer-chasing FND-2 §3.9 forbids; this
-//! sweep is the template the flow solver copies, so the pattern matters
-//! more than this operator's own cost.
+//! direct index arithmetic.
 //!
 //! Determinism (§3.7): fixed Morton-brick / θ-plane / cell sweep order,
-//! two-pass rate-then-update (Jacobi form), plain f64, and the per-cell
-//! accumulation order (r−, r+, θ−, θ+, z−, z+, source) is part of the
-//! certified bit-identical behavior.
+//! plain f64, and the per-cell accumulation order (r−, r+, θ−, θ+, z−, z+,
+//! source) is part of the certified bit-identical behavior.
+
+use std::collections::BTreeMap;
 
 use crucible_grid::{BRICK, BRICK_CELLS, FaceDir, FieldId, Grid};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SolverError {
-    /// This session's sweep requires one uniform N_θ across bricks; the
-    /// N_θ-jump refluxing lands with COUP-2/COUP-3 (fail loud, no guess).
+    /// This sweep requires one uniform N_θ across bricks; the N_θ-jump
+    /// refluxing lands with the plan's 3-D wave (fail loud, no guess).
     MixedThetaResolution,
     NonFiniteState {
         i_r: usize,
@@ -53,7 +64,7 @@ impl std::fmt::Display for SolverError {
             Self::MixedThetaResolution => write!(
                 f,
                 "mixed per-brick N_θ in one conduction sweep — flux aggregation across an \
-                 N_θ jump arrives with COUP-2/COUP-3; refusing rather than guessing"
+                 N_θ jump arrives with the 3-D refluxing wave; refusing rather than guessing"
             ),
             Self::NonFiniteState { i_r, i_z } => {
                 write!(
@@ -97,16 +108,31 @@ pub enum FaceBc<'a> {
     Robin { h: f64, t_inf: f64 },
 }
 
+/// COUP-2 §3.5 — one gas-facing solid face's Robin interface data, as the
+/// class-`D` implicit solve consumes it: heat INTO the solid cell is
+/// `area_scale · A_face · (t_aw − T_cell) / (1/h_film + half_d/κ_solid)` —
+/// **linear in the solid cell's T** (the wall-function `h` is the Robin
+/// coefficient), with the gas-side operands (h_film, T_aw) frozen per
+/// Picard sweep by the SDC orchestrator. `area_scale` maps stair-face area
+/// onto the embedded-interface area |W| on cut worlds (1.0 on box worlds).
+#[derive(Debug, Clone, Copy)]
+pub struct GasFaceRobin {
+    pub h_film: f64,
+    pub t_aw: f64,
+    pub area_scale: f64,
+}
+
+/// Key of a gas-facing solid face in the exchange map: the SOLID cell's
+/// (i_r, i_z) and the face direction *as seen from the solid cell*
+/// (`FaceDir::index()`).
+pub type ExchangeKey = (usize, usize, u8);
+
 /// What a face against a cell *outside the operator's domain* does — the
-/// interior counterpart of `Bcs` (domain edges), COUP-2 §3.5's interface
-/// delineation. Both fields are explicit at every construction site (no
-/// hidden defaults, FND-4 §3.5).
+/// interior counterpart of `Bcs` (domain edges). Gas-exchange faces are no
+/// longer configured here: they arrive per-solve as [`GasFaceRobin`] data
+/// through [`Conduction::assemble_heat`] (COUP-2 §3.5 sweep placement,
+/// owned by the SDC orchestrator).
 pub struct InteriorFaces<'a> {
-    /// Face against a flow-active (gas) cell: heat INTO this domain cell
-    /// [W/m²], from the coupler's single per-face evaluation (conservation
-    /// by construction — the gas side applies the same number negated).
-    /// `None` ⇒ such a face is a hard error.
-    pub gas: Option<&'a dyn Fn(usize, usize, u32, FaceDir) -> f64>,
     /// Face against an exterior cell: `None` ⇒ hard error; `Some` ⇒ the BC
     /// (insulated `HeatFlux(0.0)`, coolant `Robin`, …). Position-dependent
     /// `Dirichlet` closures see the face centroid as usual.
@@ -117,10 +143,7 @@ impl InteriorFaces<'_> {
     /// The full-box declaration: any interior face is a loud error (the
     /// Goal-A fixtures — their domain has no interior boundary at all).
     pub fn refuse() -> Self {
-        InteriorFaces {
-            gas: None,
-            exterior: None,
-        }
+        InteriorFaces { exterior: None }
     }
 }
 
@@ -154,6 +177,40 @@ pub struct Conduction<'a> {
     pub interior: InteriorFaces<'a>,
 }
 
+/// Assembly mode of [`Conduction::assemble_heat`]. The operator is affine
+/// in T at frozen operands: `heat(T) = Ã·T + b̃`. `Affine` evaluates the
+/// full form (physics); `Linear` evaluates `Ã·T` exactly — every constant
+/// term (Dirichlet values, imposed fluxes, Robin ambients, exchange T_aw,
+/// the source) is dropped, so the CG matrix apply carries no cancellation
+/// error against b̃.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssembleMode {
+    Affine,
+    Linear,
+}
+
+/// COUP-2 ledger lines of one assembly: the port subset (everything that
+/// does NOT telescope — domain-edge BC heats, exterior-face heats, the
+/// gas-exchange heats) plus the volumetric source, and the gross magnitude
+/// scale (Σ|every term summed|, the §3.1.1 S[q] throughput ingredient).
+/// All in W at the assembled state.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HeatLedger {
+    pub bc_w: f64,
+    pub exterior_w: f64,
+    pub exchange_w: f64,
+    pub source_w: f64,
+    pub gross_w: f64,
+}
+
+impl HeatLedger {
+    /// Total non-telescoping (port + source) heat rate [W] — what the
+    /// COUP-2 identity charges against the solid's stored-energy change.
+    pub fn applied_w(&self) -> f64 {
+        self.bc_w + self.exterior_w + self.exchange_w + self.source_w
+    }
+}
+
 /// Where a face's neighbor value comes from: same brick (index offset), a
 /// specific adjacent brick (resolved once per brick), an in-bounds position
 /// whose brick is not allocated (exterior), or the grid edge.
@@ -166,15 +223,33 @@ enum Nbr {
 }
 
 impl Conduction<'_> {
-    /// One explicit step: fills `rate` with dT/dt at time `t`, then applies
-    /// `T += dt·rate`. Fixed traversal order; bit-reproducible.
-    pub fn step(
+    /// The one spatial discretization, as heat into each domain cell [W]
+    /// (module doc): `out[bi][idx] = Σ_faces heat + S·V`, affine in the
+    /// `t_field` values at frozen operands. Consumers: the class-`D`
+    /// fixed-cycle CG solve (`crate::sdc`) applies it in `Linear` mode per
+    /// iteration and `Affine` mode for right-hand sides and ledgers.
+    ///
+    /// - `exchange`: gas-facing solid faces' Robin data (Solid domain only;
+    ///   a gas face with no entry / no map refuses loudly).
+    /// - `diag`: when present, receives `∂heat_i/∂T_i` (≤ 0) per cell — the
+    ///   Jacobi preconditioner ingredient (operand-frozen, T-independent).
+    /// - `ledger`: when present, accumulates the COUP-2 lines (fixed
+    ///   accumulation order — part of the deterministic contract).
+    /// - `exchange_heats`: when present, records each gas-face heat term
+    ///   [W] in visit order keyed by [`ExchangeKey`] — the numbers the gas
+    ///   side must debit exactly (conservation by construction).
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn assemble_heat(
         &self,
-        g: &mut Grid,
+        g: &Grid,
         t_field: FieldId,
-        rate: FieldId,
-        t: f64,
-        dt: f64,
+        time: f64,
+        mode: AssembleMode,
+        exchange: Option<&BTreeMap<ExchangeKey, GasFaceRobin>>,
+        out: &mut [Vec<f64>],
+        mut diag: Option<&mut [Vec<f64>]>,
+        mut ledger: Option<&mut HeatLedger>,
+        mut exchange_heats: Option<&mut Vec<(ExchangeKey, f64)>>,
     ) -> Result<(), SolverError> {
         self.validate()?;
         let nt = g.brick(0).n_theta();
@@ -186,16 +261,8 @@ impl Conduction<'_> {
         let (n_r, n_z) = (g.spec().n_r, g.spec().n_z);
         let z0 = g.spec().z_min;
         let r0 = g.spec().r_min;
+        let linear = mode == AssembleMode::Linear;
 
-        // Reused rate buffer: rates are staged per brick, then written once
-        // (keeps reads of neighbor bricks and the write disjoint). It is
-        // re-zeroed per brick — without that, cells outside this domain's
-        // mask would inherit the PREVIOUS brick's rates through the whole-
-        // buffer copy below (review finding: latent while pass 1's mask was
-        // "all addressable cells", activated by the Domain split).
-        let mut buf = vec![0.0f64; nt as usize * BRICK_CELLS];
-
-        // Pass 1: rates, brick by brick in Morton order.
         for bi in 0..g.n_bricks() {
             let (br, bz, dmask, gmask) = {
                 let b = g.brick(bi);
@@ -205,7 +272,13 @@ impl Conduction<'_> {
                 };
                 (b.br(), b.bz(), dm, b.mask())
             };
-            buf.fill(0.0);
+            out[bi].fill(0.0);
+            if let Some(d) = diag.as_deref_mut() {
+                d[bi].fill(0.0);
+            }
+            if dmask == 0 {
+                continue;
+            }
             // Adjacent bricks, resolved once per brick (≤4 Morton lookups).
             let nb_rm = (br > 0)
                 .then(|| g.brick_index_by_coords(br - 1, bz))
@@ -289,188 +362,214 @@ impl Conduction<'_> {
                         }
                     };
 
+                    let mut heat_in = 0.0f64; // W
+                    let mut diag_c = 0.0f64; // ∂heat_in/∂t_c [W/K]
+                    let mut gross = 0.0f64;
+
                     // Per non-edge face: in-domain neighbor ⇒ two-point
                     // conductive flux; out-of-domain ⇒ the interior-face
-                    // treatment (gas exchange or exterior BC), classified
-                    // from the neighbor's masks — data, not `if(material)`.
-                    let face = |n: Nbr,
-                                area: f64,
-                                dist: f64,
-                                dir: FaceDir,
-                                pos: (f64, f64, f64, f64)|
-                     -> Result<f64, SolverError> {
-                        let (nbr_t, in_domain, is_gas) = match n {
-                            Nbr::InBrick(off) => {
-                                let nl = (local as isize + off) as usize;
-                                (
-                                    t_here[(idx as isize + off) as usize],
-                                    dmask & (1u64 << nl) != 0,
-                                    gmask & (1u64 << nl) != 0,
-                                )
-                            }
-                            Nbr::Cross { bi: nbi, local: nl } => {
-                                let nb = g.brick(nbi);
-                                let ndm = match self.domain {
-                                    Domain::FlowActive => nb.mask(),
-                                    Domain::Solid => nb.solid_mask(),
+                    // treatment (gas-exchange Robin or exterior BC),
+                    // classified from the neighbor's masks — data, not
+                    // `if(material)`.
+                    macro_rules! interior_face {
+                        ($n:expr, $area:expr, $dist:expr, $dir:expr, $pos:expr) => {{
+                            let (nbr_t, in_domain, is_gas) = match $n {
+                                Nbr::InBrick(off) => {
+                                    let nl = (local as isize + off) as usize;
+                                    (
+                                        t_here[(idx as isize + off) as usize],
+                                        dmask & (1u64 << nl) != 0,
+                                        gmask & (1u64 << nl) != 0,
+                                    )
+                                }
+                                Nbr::Cross { bi: nbi, local: nl } => {
+                                    let nb = g.brick(nbi);
+                                    let ndm = match self.domain {
+                                        Domain::FlowActive => nb.mask(),
+                                        Domain::Solid => nb.solid_mask(),
+                                    };
+                                    (
+                                        nb.field(t_field)[nb.cell_index(j, nl)],
+                                        ndm & (1u64 << nl) != 0,
+                                        nb.mask() & (1u64 << nl) != 0,
+                                    )
+                                }
+                                Nbr::Missing => (f64::NAN, false, false),
+                                Nbr::Edge => unreachable!("edge faces take the BC path"),
+                            };
+                            if in_domain {
+                                let term = self.kappa * $area * (nbr_t - t_c) / $dist;
+                                heat_in += term;
+                                diag_c -= self.kappa * $area / $dist;
+                                gross += term.abs();
+                            } else if is_gas && self.domain == Domain::Solid {
+                                // Gas-exchange Robin face (COUP-2 §3.5):
+                                // linear in t_c at frozen gas operands.
+                                let Some(map) = exchange else {
+                                    return Err(SolverError::UnhandledInteriorFace { i_r, i_z });
                                 };
-                                (
-                                    nb.field(t_field)[nb.cell_index(j, nl)],
-                                    ndm & (1u64 << nl) != 0,
-                                    nb.mask() & (1u64 << nl) != 0,
-                                )
+                                let key: ExchangeKey = (i_r, i_z, $dir.index() as u8);
+                                let Some(gr) = map.get(&key) else {
+                                    return Err(SolverError::UnhandledInteriorFace { i_r, i_z });
+                                };
+                                let resist = 1.0 / gr.h_film + 0.5 * $dist / self.kappa;
+                                let t_drive = if linear { 0.0 } else { gr.t_aw };
+                                let term = gr.area_scale * $area * (t_drive - t_c) / resist;
+                                heat_in += term;
+                                diag_c -= gr.area_scale * $area / resist;
+                                gross += term.abs();
+                                if let Some(rec) = exchange_heats.as_deref_mut() {
+                                    rec.push((key, term));
+                                }
+                                if let Some(l) = ledger.as_deref_mut() {
+                                    l.exchange_w += term;
+                                }
+                            } else {
+                                match &self.interior.exterior {
+                                    Some(bc) => {
+                                        let (term, d) = self.face_bc_heat(
+                                            bc,
+                                            $area,
+                                            t_c,
+                                            0.5 * $dist,
+                                            $pos,
+                                            linear,
+                                        );
+                                        heat_in += term;
+                                        diag_c += d;
+                                        gross += term.abs();
+                                        if let Some(l) = ledger.as_deref_mut() {
+                                            l.exterior_w += term;
+                                        }
+                                    }
+                                    None => {
+                                        return Err(SolverError::UnhandledInteriorFace {
+                                            i_r,
+                                            i_z,
+                                        });
+                                    }
+                                }
                             }
-                            Nbr::Missing => (f64::NAN, false, false),
-                            Nbr::Edge => unreachable!("edge faces take the BC path"),
-                        };
-                        if in_domain {
-                            return Ok(self.kappa * area * (nbr_t - t_c) / dist);
-                        }
-                        // Interior boundary. Gas side ⇒ coupler flux; the
-                        // domain being FlowActive makes a solid/exterior
-                        // neighbor exterior-like by the same rule.
-                        if is_gas && self.domain == Domain::Solid {
-                            match self.interior.gas {
-                                Some(q_in) => Ok(q_in(i_r, i_z, j, dir) * area),
-                                None => Err(SolverError::UnhandledInteriorFace { i_r, i_z }),
+                        }};
+                    }
+                    macro_rules! edge_face {
+                        ($bc:expr, $area:expr, $half_d:expr, $pos:expr) => {{
+                            let (term, d) =
+                                self.face_bc_heat($bc, $area, t_c, $half_d, $pos, linear);
+                            heat_in += term;
+                            diag_c += d;
+                            gross += term.abs();
+                            if let Some(l) = ledger.as_deref_mut() {
+                                l.bc_w += term;
                             }
-                        } else {
-                            match &self.interior.exterior {
-                                Some(bc) => Ok(self.face_bc_heat(bc, area, t_c, 0.5 * dist, pos)),
-                                None => Err(SolverError::UnhandledInteriorFace { i_r, i_z }),
-                            }
-                        }
-                    };
-
-                    let mut heat_in = 0.0f64; // W
+                        }};
+                    }
 
                     // r− face. a_in == 0.0 at the r = 0 axis: drops out.
                     let a_in = g.face_area_r(i_r, false, nt);
                     match n_rm {
                         Nbr::Edge => {
                             if a_in > 0.0 {
-                                heat_in += self.face_bc_heat(
+                                edge_face!(
                                     &self.bcs.r_inner,
                                     a_in,
-                                    t_c,
                                     0.5 * dr,
-                                    (r0, theta, zbar, t),
+                                    (r0, theta, zbar, time)
                                 );
                             }
                         }
-                        n => {
-                            heat_in += face(
-                                n,
-                                a_in,
-                                dr,
-                                FaceDir::RMinus,
-                                (r0 + i_r as f64 * dr, theta, zbar, t),
-                            )?;
-                        }
+                        n => interior_face!(
+                            n,
+                            a_in,
+                            dr,
+                            FaceDir::RMinus,
+                            (r0 + i_r as f64 * dr, theta, zbar, time)
+                        ),
                     }
 
                     // r+ face.
                     let a_out = g.face_area_r(i_r, true, nt);
                     match n_rp {
                         Nbr::Edge => {
-                            heat_in += self.face_bc_heat(
+                            edge_face!(
                                 &self.bcs.r_outer,
                                 a_out,
-                                t_c,
                                 0.5 * dr,
-                                (r0 + n_r as f64 * dr, theta, zbar, t),
+                                (r0 + n_r as f64 * dr, theta, zbar, time)
                             );
                         }
-                        n => {
-                            heat_in += face(
-                                n,
-                                a_out,
-                                dr,
-                                FaceDir::RPlus,
-                                (r0 + (i_r + 1) as f64 * dr, theta, zbar, t),
-                            )?;
-                        }
+                        n => interior_face!(
+                            n,
+                            a_out,
+                            dr,
+                            FaceDir::RPlus,
+                            (r0 + (i_r + 1) as f64 * dr, theta, zbar, time)
+                        ),
                     }
 
                     // θ faces: periodic, arc distance r̄·Δθ, always in-brick.
-                    // At N_θ = 1 the neighbor is the cell itself ⇒ flux 0.
+                    // At N_θ = 1 the neighbor is the cell itself ⇒ flux ≡ 0
+                    // (and ∂/∂t_c ≡ 0: both terms carry the cell's own T).
                     let a_th = g.face_area_theta();
                     let arc = rbar * dtheta;
                     let jm = (j + nt - 1) % nt;
                     let jp = (j + 1) % nt;
-                    heat_in += self.kappa * a_th * (t_here[here.cell_index(jm, local)] - t_c) / arc;
-                    heat_in += self.kappa * a_th * (t_here[here.cell_index(jp, local)] - t_c) / arc;
+                    let th_m = self.kappa * a_th * (t_here[here.cell_index(jm, local)] - t_c) / arc;
+                    let th_p = self.kappa * a_th * (t_here[here.cell_index(jp, local)] - t_c) / arc;
+                    heat_in += th_m;
+                    heat_in += th_p;
+                    gross += th_m.abs() + th_p.abs();
+                    if jm != j {
+                        diag_c -= 2.0 * self.kappa * a_th / arc;
+                    }
 
                     // z faces.
                     let a_z = g.face_area_z(i_r, nt);
                     match n_zm {
                         Nbr::Edge => {
-                            heat_in += self.face_bc_heat(
-                                &self.bcs.z_lo,
-                                a_z,
-                                t_c,
-                                0.5 * dz,
-                                (rbar, theta, z0, t),
-                            );
+                            edge_face!(&self.bcs.z_lo, a_z, 0.5 * dz, (rbar, theta, z0, time));
                         }
-                        n => {
-                            heat_in += face(
-                                n,
-                                a_z,
-                                dz,
-                                FaceDir::ZMinus,
-                                (rbar, theta, z0 + i_z as f64 * dz, t),
-                            )?;
-                        }
+                        n => interior_face!(
+                            n,
+                            a_z,
+                            dz,
+                            FaceDir::ZMinus,
+                            (rbar, theta, z0 + i_z as f64 * dz, time)
+                        ),
                     }
                     match n_zp {
                         Nbr::Edge => {
-                            heat_in += self.face_bc_heat(
+                            edge_face!(
                                 &self.bcs.z_hi,
                                 a_z,
-                                t_c,
                                 0.5 * dz,
-                                (rbar, theta, z0 + n_z as f64 * dz, t),
+                                (rbar, theta, z0 + n_z as f64 * dz, time)
                             );
                         }
-                        n => {
-                            heat_in += face(
-                                n,
-                                a_z,
-                                dz,
-                                FaceDir::ZPlus,
-                                (rbar, theta, z0 + (i_z + 1) as f64 * dz, t),
-                            )?;
-                        }
+                        n => interior_face!(
+                            n,
+                            a_z,
+                            dz,
+                            FaceDir::ZPlus,
+                            (rbar, theta, z0 + (i_z + 1) as f64 * dz, time)
+                        ),
                     }
 
-                    let s = (self.source)(rbar, theta, zbar, t);
-                    buf[idx] = (heat_in + s * vol) / (self.rho_cp * vol);
-                }
-            }
-            let len = nt as usize * BRICK_CELLS;
-            g.brick_field_mut(bi, rate)[..len].copy_from_slice(&buf[..len]);
-        }
-
-        // Pass 2: apply — gated by the domain mask so the operator never
-        // mutates T outside its own domain (the rate field is zero there
-        // by the per-brick buffer reset, but T must stay untouched, not
-        // merely un-drifted).
-        for bi in 0..g.n_bricks() {
-            let (dmask, bnt) = {
-                let b = g.brick(bi);
-                let dm = match self.domain {
-                    Domain::FlowActive => b.mask(),
-                    Domain::Solid => b.solid_mask(),
-                };
-                (dm, b.n_theta())
-            };
-            let (t_slice, r_slice) = g.brick_fields_mut2(bi, t_field, rate);
-            for j in 0..bnt as usize {
-                for local in 0..BRICK_CELLS {
-                    if dmask & (1u64 << local) != 0 {
-                        let idx = j * BRICK_CELLS + local;
-                        t_slice[idx] += dt * r_slice[idx];
+                    let mut cell_heat = heat_in;
+                    if !linear {
+                        let sv = (self.source)(rbar, theta, zbar, time) * vol;
+                        cell_heat += sv;
+                        gross += sv.abs();
+                        if let Some(l) = ledger.as_deref_mut() {
+                            l.source_w += sv;
+                        }
+                    }
+                    out[bi][idx] = cell_heat;
+                    if let Some(d) = diag.as_deref_mut() {
+                        d[bi][idx] = diag_c;
+                    }
+                    if let Some(l) = ledger.as_deref_mut() {
+                        l.gross_w += gross;
                     }
                 }
             }
@@ -478,30 +577,11 @@ impl Conduction<'_> {
         Ok(())
     }
 
-    /// March `n_steps` of size `dt` from `t0`; returns the final time.
-    pub fn advance(
-        &self,
-        g: &mut Grid,
-        t_field: FieldId,
-        rate: FieldId,
-        t0: f64,
-        dt: f64,
-        n_steps: usize,
-    ) -> Result<f64, SolverError> {
-        let mut t = t0;
-        for _ in 0..n_steps {
-            self.step(g, t_field, rate, t, dt)?;
-            t += dt;
-        }
-        Ok(t)
-    }
-
     /// Explicit-stability step bound `dt ≤ C·ρc_p/(k·Σ 2/d_i²)` with the
-    /// smallest distances on the grid (θ arc at the innermost ring). The
-    /// bound is spectrally sharp including Dirichlet boundaries (a boundary
-    /// face adds to the diagonal but has no off-diagonal partner, leaving
-    /// the Gershgorin radius unchanged — review-verified, with dt at
-    /// 0.999× stable and 1.02× divergent).
+    /// smallest distances on the grid (θ arc at the innermost ring). No
+    /// longer a step controller (class `D` is implicit — COUP-3 §3.1): this
+    /// is the reference bound the stiffness tests measure the implicit
+    /// solve against, and a diagnostic scale.
     pub fn stable_dt(&self, g: &Grid, safety: f64) -> f64 {
         let nt = g.brick(0).n_theta();
         let dtheta = std::f64::consts::TAU / f64::from(nt);
@@ -513,6 +593,8 @@ impl Conduction<'_> {
         safety * self.rho_cp / (self.kappa * inv)
     }
 
+    /// One face-BC heat term and its `∂/∂T_cell` [W/K]. In `linear` mode
+    /// the constant part (prescribed value/flux/ambient) is dropped exactly.
     #[inline]
     fn face_bc_heat(
         &self,
@@ -521,20 +603,33 @@ impl Conduction<'_> {
         t_c: f64,
         half_d: f64,
         pos: (f64, f64, f64, f64),
-    ) -> f64 {
+        linear: bool,
+    ) -> (f64, f64) {
         match bc {
             FaceBc::Dirichlet(f) => {
-                self.kappa * area * (f(pos.0, pos.1, pos.2, pos.3) - t_c) / half_d
+                let t_face = if linear {
+                    0.0
+                } else {
+                    f(pos.0, pos.1, pos.2, pos.3)
+                };
+                let coeff = self.kappa * area / half_d;
+                (coeff * (t_face - t_c), -coeff)
             }
-            FaceBc::HeatFlux(q_out) => -q_out * area,
+            FaceBc::HeatFlux(q_out) => {
+                let term = if linear { 0.0 } else { -q_out * area };
+                (term, 0.0)
+            }
             // Film + half-cell conduction in series — the consistent face
-            // form; bounded above by the Dirichlet coefficient, so the
-            // `stable_dt` Gershgorin bound continues to cover it.
-            FaceBc::Robin { h, t_inf } => area * (t_inf - t_c) / (1.0 / h + half_d / self.kappa),
+            // form; bounded above by the Dirichlet coefficient.
+            FaceBc::Robin { h, t_inf } => {
+                let drive = if linear { 0.0 } else { *t_inf };
+                let coeff = area / (1.0 / h + half_d / self.kappa);
+                (coeff * (drive - t_c), -coeff)
+            }
         }
     }
 
-    /// Fail-loud coefficient checks, once per step (META-1 P6).
+    /// Fail-loud coefficient checks, once per assembly (META-1 P6).
     fn validate(&self) -> Result<(), SolverError> {
         if !(self.kappa.is_finite() && self.kappa > 0.0) {
             return Err(SolverError::BadCoefficient("kappa"));
@@ -563,17 +658,6 @@ impl Conduction<'_> {
         {
             return Err(SolverError::BadCoefficient(
                 "Robin (h, T∞) on an exterior face",
-            ));
-        }
-        // The gas-exchange path only exists for the Solid domain (a
-        // FlowActive sweep's out-of-domain neighbors all take the exterior
-        // BC); a supplied-but-unreachable closure is a caller bug that
-        // would silently substitute physics — refuse it loudly (review
-        // finding: the trap was silent).
-        if self.domain == Domain::FlowActive && self.interior.gas.is_some() {
-            return Err(SolverError::BadCoefficient(
-                "InteriorFaces::gas is Solid-domain-only; a FlowActive domain would silently \
-                 ignore it — gas-side conjugate coupling arrives with COUP-2/COUP-3",
             ));
         }
         Ok(())

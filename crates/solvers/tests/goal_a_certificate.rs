@@ -6,10 +6,11 @@
 //! the committed record can never silently diverge from the code).
 
 use crucible_solvers::certificate::{
-    self, ANNULUS_TOL_REL, BESSEL_TOL_K, CFL_SAFETY, CONSERVATION_STEPS, CONSERVATION_TOL_REL,
-    FIELDS, MMS_ORDER_MAX, MMS_ORDER_MIN, annulus_anchor, bessel_cylinder_anchor,
-    conservation_drift, mms_axisymmetric, mms_theta_mode,
+    self, ANNULUS_TOL_REL, BESSEL_TOL_K, CONSERVATION_STEPS, CONSERVATION_TOL_REL, FIELDS,
+    MMS_ORDER_MAX, MMS_ORDER_MIN, annulus_anchor, bessel_cylinder_anchor, conservation_drift,
+    mms_axisymmetric, mms_theta_mode,
 };
+use crucible_solvers::sdc::{DiffusionClass, Sdc};
 use crucible_solvers::{Bcs, Conduction, FaceBc, SetupError, from_loaded, registry};
 
 // --- MMS order-of-accuracy (the heart of the certificate) --------------------
@@ -135,8 +136,16 @@ fn cert_config_drives_a_run_and_reruns_bit_identically() {
                 z_hi: FaceBc::HeatFlux(0.0),
             },
         };
-        let dt = op.stable_dt(&g, CFL_SAFETY);
-        op.advance(&mut g, t_id, rate_id, 0.0, dt, steps)
+        // The class-D implicit march at 4× the explicit bound — the
+        // production integrator, end to end.
+        let dt = 4.0 * op.stable_dt(&g, 1.0);
+        let dc = DiffusionClass {
+            op: &op,
+            t_field: t_id,
+            scratch_field: rate_id,
+        };
+        Sdc::new()
+            .advance_diffusion(&mut g, &dc, 0.0, dt, steps)
             .expect("advance");
         let bits: Vec<u64> = g
             .bricks()

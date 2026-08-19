@@ -942,6 +942,57 @@ impl Grid {
         }
         acc
     }
+
+    /// Gas-volume-weighted global sum `Σ κV·q` — the stored-total reduction
+    /// of the COUP-2 conservation ledger on cut worlds. Same fixed-shape
+    /// structure as [`Grid::reduce_volume_weighted`]; on full-box worlds
+    /// κ = 1.0 exactly, so the two reductions agree bitwise.
+    pub fn reduce_kappa_volume_weighted(&self, f: FieldId) -> f64 {
+        let partials: Vec<f64> = self
+            .bricks
+            .iter()
+            .map(|b| {
+                let data = b.field(f);
+                let mut acc = 0.0f64;
+                for i_theta in 0..b.n_theta {
+                    for local in 0..BRICK_CELLS {
+                        if b.mask & (1u64 << local) != 0 {
+                            let i_r = b.br as usize * BRICK + local / BRICK;
+                            let v = b.kappa_rz(local) * self.cell_volume(i_r, b.n_theta);
+                            acc += v * data[b.cell_index(i_theta, local)];
+                        }
+                    }
+                }
+                acc
+            })
+            .collect();
+        tree_combine(&partials)
+    }
+
+    /// Volume-weighted global sum `Σ V·q` over the SOLID region — the
+    /// solid-side stored total of the COUP-2 ledger (solid cells are uncut
+    /// in the current geometry class; the full cell volume is theirs).
+    pub fn reduce_solid_volume_weighted(&self, f: FieldId) -> f64 {
+        let partials: Vec<f64> = self
+            .bricks
+            .iter()
+            .map(|b| {
+                let data = b.field(f);
+                let mut acc = 0.0f64;
+                for i_theta in 0..b.n_theta {
+                    for local in 0..BRICK_CELLS {
+                        if b.solid_mask & (1u64 << local) != 0 {
+                            let i_r = b.br as usize * BRICK + local / BRICK;
+                            let v = self.cell_volume(i_r, b.n_theta);
+                            acc += v * data[b.cell_index(i_theta, local)];
+                        }
+                    }
+                }
+                acc
+            })
+            .collect();
+        tree_combine(&partials)
+    }
 }
 
 /// Fixed-shape pairwise tree combine: reduction shape depends only on

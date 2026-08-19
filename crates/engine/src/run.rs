@@ -1,15 +1,16 @@
 //! The ONE coupled stepper + the SOLV-7 readout, parameterized entirely by
 //! the assembled [`EngineSpec`] — no engine-specific code (Rule 13).
 //!
-//! Step structure (station-4's certified pattern, generalized to contour
-//! geometry and the table EOS; honest scaffolding until COUP-3's SDC-IMEX
-//! class-D lands): evaluate every gas↔liner wall exchange once from the
-//! pre-step state (SOLV-1 §3.5's one law — conservation by construction:
-//! the same per-face q drives the solid and debits the gas), advance the
-//! liner conduction (coolant Robin on its exterior faces), debit the gas,
-//! advance the gas (slip-ghost stair walls about the true contour normal —
-//! station-2 machinery). Δt = gas CFL, guarded against both thermal
-//! stability limits (fail-loud, never silently sub-stepped).
+//! Step structure (S2 — the scaffolding retired): the ONE deterministic
+//! SDC-IMEX step (COUP-3 §3.1, `crucible_solvers::sdc`): explicit
+//! hyperbolic class A (the gas operator, slip-ghost/cut-cell machinery
+//! unchanged), implicit class D (liner conduction, fixed-cycle CG; coolant
+//! Robin on its exterior faces), the Robin-Robin wall exchange inside each
+//! sweep's class-D solve (COUP-2 §3.5 — the wall-function h as the Robin
+//! coefficient, gas debited exactly what the solid received), and the
+//! COUP-2 conservation audit armed every step. Δt = the gas CFL alone —
+//! the solid/exchange stability limits are gone by construction, which is
+//! what will let S4 give the liner its physical ρc_p.
 //!
 //! Readout (SOLV-7): every reported number is a plane integral of the
 //! conserved `U` — thrust from exit momentum + pressure flux (vacuum,
@@ -19,108 +20,15 @@
 
 use crate::assembly::EngineSpec;
 use crucible_constants::G0;
-use crucible_grid::{BRICK, FaceDir, Grid, InterfaceFace};
+use crucible_grid::{BRICK, FaceDir, Grid};
 use crucible_solvers::euler::{
-    Cons, EosLaw, Euler, EulerFields, EulerWorkspace, FlowBc, FlowBcs, I_EN, NCOMP, TableEos,
-    srd_neighborhood,
+    Cons, EosLaw, Euler, EulerFields, FlowBc, FlowBcs, NCOMP, Prim, TableEos,
 };
-use crucible_solvers::wall_heat::NearWallGas;
+use crucible_solvers::sdc::{
+    AuditSpec, DiffusionClass, ExchangeClass, FlowClass, Sdc, build_wall_patches,
+};
 use crucible_solvers::{Bcs, Conduction, Domain, FaceBc, InteriorFaces};
 use crucible_tables::{Pin, Table};
-
-/// One gas-cell wall patch — the SOLV-1 §3.5 exchange surface on the cut
-/// geometry: the embedded-interface area |W| and normal from the grid's
-/// closure identity (the smooth-wall area, not the stair overcount), the
-/// gas↔solid grid faces it spans (the solid-side flux carriers), and the
-/// SRD debit set (a small cut cell cannot absorb its own wall debit — the
-/// merged control volume that stabilizes its flux update absorbs the
-/// exchange too; same neighborhood rule, single owner in the solver).
-struct WallPatch {
-    gas: (usize, usize),
-    faces: Vec<InterfaceFace>,
-    /// Full grid area of each spanned face (Σ = the stair area).
-    face_areas: Vec<f64>,
-    /// |W| — the interface area per full ring (N_θ = 1).
-    area: f64,
-    /// Outward (gas→wall) unit normal (n_r, n_z).
-    n_hat: (f64, f64),
-    /// Primary solid partner (across the largest spanned face).
-    solid: (usize, usize),
-    /// Energy-debit cells (the gas cell's SRD neighborhood; `[self]` for
-    /// regular cells) and Σ κV over them.
-    debit_cells: Vec<(usize, usize)>,
-    debit_kv_sum: f64,
-}
-
-/// Enumerate wall patches (deterministic gas-cell lexicographic order).
-/// The single-valued r_wall(z) contour class cannot produce a multi-sided
-/// wall (slot) inside one cell — the gas region {r < r_wall(z)} puts every
-/// cell's wall on one connected outboard arc — so the closure vector is
-/// always a faithful single interface here; per-side reconstruction for
-/// genuine slots is the FND-3 PLIC/CSG wave. Note the stair-face sum may
-/// legitimately exceed |W| by a large factor at steeply-crossing walls
-/// (a covered face the wall immediately dives away from carries almost no
-/// true interface): that overcount is exactly what |W| corrects.
-fn build_wall_patches(g: &Grid) -> Result<Vec<WallPatch>, String> {
-    let mut patches: Vec<WallPatch> = Vec::new();
-    for face in g.gas_solid_faces() {
-        if patches.last().map(|p| p.gas) != Some(face.gas) {
-            patches.push(WallPatch {
-                gas: face.gas,
-                faces: Vec::new(),
-                face_areas: Vec::new(),
-                area: 0.0,
-                n_hat: (0.0, 0.0),
-                solid: face.solid,
-                debit_cells: Vec::new(),
-                debit_kv_sum: 0.0,
-            });
-        }
-        let p = patches.last_mut().expect("just pushed");
-        p.face_areas.push(g.interface_area_per_theta(&face, 1));
-        p.faces.push(face);
-    }
-    for p in &mut patches {
-        let (i_r, i_z) = p.gas;
-        let (w_r, w_z) = g.wall_closure(i_r, i_z, 1);
-        let area = (w_r * w_r + w_z * w_z).sqrt();
-        if !area.is_finite() || area <= 0.0 {
-            return Err(format!(
-                "wall cell ({i_r}, {i_z}): zero closure interface area yet gas↔solid \
-                 faces exist — geometry incoherent (a slot-class wall? per-side \
-                 interface reconstruction is the FND-3 PLIC wave); refusing"
-            ));
-        }
-        p.area = area;
-        p.n_hat = (-w_r / area, -w_z / area);
-        // Primary partner: across the largest spanned face (first wins ties
-        // — the fixed FaceDir enumeration order).
-        let mut best = 0usize;
-        for (k, a) in p.face_areas.iter().enumerate() {
-            if *a > p.face_areas[best] {
-                best = k;
-            }
-        }
-        p.solid = p.faces[best].solid;
-        let hood = srd_neighborhood(g, i_r, i_z).map_err(|e| format!("wall patch: {e}"))?;
-        match hood {
-            Some(members) => {
-                p.debit_kv_sum = members.iter().map(|(_, kv)| kv).sum();
-                p.debit_cells = members.into_iter().map(|(c, _)| c).collect();
-            }
-            None => {
-                p.debit_cells = vec![p.gas];
-                p.debit_kv_sum = g.kappa(i_r, i_z) * g.cell_volume(i_r, 1);
-            }
-        }
-    }
-    Ok(patches)
-}
-
-/// Fraction of the solid/exchange stability limits the coupled Δt may use
-/// (station-4 constants, same rationale).
-pub const SOLID_DT_FRAC: f64 = 0.5;
-pub const EXCHANGE_DT_FRAC: f64 = 0.5;
 
 // --- COUP-3 §3.5 closed-mode expander constants (named, deterministic) -----
 
@@ -508,6 +416,59 @@ pub fn run(
     };
     let n_gas = count_active(&spec.grid);
 
+    // --- COUP-2 audit reference scales (§3.1.1 floors): the fill state's
+    // stored magnitudes — a pure function of {config, table}, deterministic.
+    let audit = {
+        let ids = spec.fields.ids();
+        let mass_ref = spec.grid.reduce_kappa_volume_weighted(ids[0]).abs();
+        let energy_gas = spec.grid.reduce_kappa_volume_weighted(ids[4]).abs();
+        let energy_solid = spec.liner.as_ref().map_or(0.0, |l| {
+            l.rho_cp_j_per_m3_k * spec.grid.reduce_solid_volume_weighted(spec.t_solid).abs()
+        });
+        AuditSpec {
+            k_audit: crucible_solvers::sdc::K_AUDIT,
+            ref_scale: [
+                mass_ref,
+                mass_ref * a_ref,
+                energy_gas + energy_solid,
+                mass_ref,
+            ],
+        }
+    };
+    let mut sdc = Sdc::with_audit(audit);
+
+    // Class D (liner conduction, coolant Robin on exterior faces) — built
+    // once; the exchange data arrives per sweep through the SDC step.
+    let zero_heat = |_: f64, _: f64, _: f64, _: f64| 0.0;
+    let solid_op = spec.liner.as_ref().map(|liner| {
+        let jacket = spec.jacket.as_ref().expect("cooled build has a jacket");
+        Conduction {
+            kappa: liner.kappa_w_per_m_k,
+            rho_cp: liner.rho_cp_j_per_m3_k,
+            source: &zero_heat,
+            domain: Domain::Solid,
+            interior: InteriorFaces {
+                exterior: Some(FaceBc::Robin {
+                    h: jacket.h_w_per_m2_k,
+                    t_inf: jacket.t_coolant_k,
+                }),
+            },
+            bcs: Bcs {
+                r_inner: FaceBc::HeatFlux(0.0),
+                r_outer: FaceBc::Robin {
+                    h: jacket.h_w_per_m2_k,
+                    t_inf: jacket.t_coolant_k,
+                },
+                z_lo: FaceBc::HeatFlux(0.0),
+                z_hi: FaceBc::HeatFlux(0.0),
+            },
+        }
+    });
+    let gas_temperature = |w: &Prim| -> Result<f64, &'static str> {
+        eos.temperature_w(w)
+            .map_err(|_| "wall-patch temperature off the pinned surface")
+    };
+
     // --- March -------------------------------------------------------------
     let mut t = 0.0f64;
     let mut steps = 0usize;
@@ -515,7 +476,6 @@ pub fn run(
     let mut rho_probe = snapshot_rho(&spec.grid, &spec.fields);
     let mut jacket_watts = 0.0f64;
     let mut expander_last: Option<ExpanderReadout> = None;
-    let mut ws = op.workspace(&spec.grid).map_err(|e| pre(format!("{e}")))?;
     while t_final - t > 1e-12 * t_final {
         // The step's inflow: current target ṁ (design, or the expander's
         // last accepted solve) under the declared start ramp, which begins
@@ -526,17 +486,47 @@ pub fn run(
             c_frac: spec.injector.z_frac,
         };
         let dt_cap = t_final - t;
-        let dt = match coupled_step(
-            spec,
-            &op,
-            &eos,
-            &patches,
-            t,
-            dt_cap,
-            &mut jacket_watts,
-            &mut ws,
-        ) {
-            Ok(dt) => dt,
+        // The ONE deterministic step (COUP-3 §3.1): Δt from the gas CFL
+        // alone; audit armed; a failure of any kind halts with the crash
+        // artifact.
+        let step_result = (|| {
+            let flow = FlowClass {
+                op: &op,
+                fields: &spec.fields,
+            };
+            let diffusion = solid_op.as_ref().map(|sop| DiffusionClass {
+                op: sop,
+                t_field: spec.t_solid,
+                scratch_field: spec.rate_solid,
+            });
+            let exchange = spec.wall_law.as_ref().map(|law| ExchangeClass {
+                patches: &patches,
+                law,
+                temperature: &gas_temperature,
+            });
+            let dt = sdc
+                .stable_dt(&spec.grid, &flow, spec.cfl)
+                .map_err(|e| format!("{e}"))?
+                .min(dt_cap);
+            let report = sdc
+                .step(
+                    &mut spec.grid,
+                    Some(&flow),
+                    diffusion.as_ref(),
+                    exchange.as_ref(),
+                    t,
+                    dt,
+                )
+                .map_err(|e| format!("{e}"))?;
+            Ok::<(f64, _), String>((dt, report))
+        })();
+        let dt = match step_result {
+            Ok((dt, report)) => {
+                if let Some(ex) = &report.exchange {
+                    jacket_watts = ex.jacket_w;
+                }
+                dt
+            }
             Err(message) => {
                 return Err(Halt {
                     crash_csv: crash_fields_csv(
@@ -642,170 +632,6 @@ pub fn run(
         throat_area_m2: a_t,
         fields_csv,
     })
-}
-
-/// One coupled step (see module header). Returns the dt taken; updates the
-/// running jacket-watts readout with the final-state value.
-#[allow(clippy::too_many_arguments)]
-fn coupled_step(
-    spec: &mut EngineSpec,
-    op: &Euler<'_, TableEos<'_>>,
-    eos: &TableEos<'_>,
-    patches: &[WallPatch],
-    t: f64,
-    dt_cap: f64,
-    jacket_watts: &mut f64,
-    ws: &mut EulerWorkspace,
-) -> Result<f64, String> {
-    let ids = spec.fields.ids();
-    let (dr, dz) = (spec.grid.spec().dr, spec.grid.spec().dz);
-
-    // Wall exchanges from the pre-step state — SOLV-1 §3.5's one law,
-    // evaluated once per wall patch: operands from the patch cell's state
-    // projected on the interface normal (tangential speed incl. swirl),
-    // wall distance the half-cell along the normal (first-order operands,
-    // inside the law's declared band).
-    let mut q = Vec::with_capacity(patches.len());
-    let mut u_series_max = 0.0f64;
-    if let (Some(law), Some(liner)) = (&spec.wall_law, &spec.liner) {
-        for patch in patches {
-            let mut u = [0.0f64; NCOMP];
-            for (k, id) in ids.iter().enumerate() {
-                u[k] = cell_value(&spec.grid, *id, patch.gas.0, patch.gas.1);
-            }
-            let w = eos
-                .prim_checked(&u)
-                .map_err(|e| format!("wall-patch gas state at {:?}: {e}", patch.gas))?;
-            let temperature = eos
-                .temperature_w(&w)
-                .map_err(|e| format!("wall-patch T at {:?}: {e}", patch.gas))?;
-            let (n_r, n_z) = patch.n_hat;
-            let v_n = w[1] * n_r + w[3] * n_z;
-            let u_t = ((w[1] * w[1] + w[3] * w[3] - v_n * v_n).max(0.0) + w[2] * w[2]).sqrt();
-            let y = 0.5 * (n_r.abs() * dr + n_z.abs() * dz);
-            let gas = NearWallGas {
-                rho: w[0],
-                u_t,
-                temperature,
-                y,
-            };
-            let t_s = cell_value(&spec.grid, spec.t_solid, patch.solid.0, patch.solid.1);
-            let ex = law
-                .wall_exchange(&gas, t_s, y, liner.kappa_w_per_m_k)
-                .map_err(|e| format!("wall exchange at {:?}: {e}", patch.gas))?;
-            u_series_max = u_series_max.max(ex.u_series);
-            q.push(ex.q);
-        }
-    }
-
-    // Δt: gas CFL capped by both thermal limits (fail-loud, station-4 rule).
-    let dt_gas = op
-        .stable_dt_ws(&spec.grid, &spec.fields, ws, spec.cfl)
-        .map_err(|e| format!("{e}"))?;
-    let dt = dt_gas.min(dt_cap);
-    if let Some(liner) = &spec.liner {
-        let zero = |_: f64, _: f64, _: f64, _: f64| 0.0;
-        let solid_probe = Conduction {
-            kappa: liner.kappa_w_per_m_k,
-            rho_cp: liner.rho_cp_j_per_m3_k,
-            source: &zero,
-            domain: Domain::Solid,
-            interior: InteriorFaces {
-                gas: None,
-                exterior: None,
-            },
-            bcs: Bcs {
-                r_inner: FaceBc::HeatFlux(0.0),
-                r_outer: FaceBc::HeatFlux(0.0),
-                z_lo: FaceBc::HeatFlux(0.0),
-                z_hi: FaceBc::HeatFlux(0.0),
-            },
-        };
-        let dt_solid = SOLID_DT_FRAC * solid_probe.stable_dt(&spec.grid, 1.0);
-        let dt_exchange = if u_series_max > 0.0 {
-            EXCHANGE_DT_FRAC * liner.rho_cp_j_per_m3_k * dr.min(dz) / u_series_max
-        } else {
-            f64::INFINITY
-        };
-        if dt_solid.min(dt_exchange) < dt {
-            return Err(format!(
-                "thermal stability limit under the gas CFL (dt_gas {dt_gas:.3e}, \
-                 dt_solid {dt_solid:.3e}, dt_exchange {dt_exchange:.3e}) — raise the liner \
-                 rho_cp continuation device or refine; refusing to silently sub-step"
-            ));
-        }
-    }
-
-    // Solid advance (exchanges as gas-face fluxes; coolant Robin outside).
-    // A patch's total watts q·|W| are carried to the solid across its
-    // spanned grid faces: per-area face flux q·|W|/Σ(face areas), so the
-    // solid side integrates exactly the gas side's debit (conservation by
-    // construction, smooth-area heat on stair-area carriers).
-    if let (Some(liner), Some(jacket)) = (&spec.liner, &spec.jacket) {
-        let mut q_map: std::collections::BTreeMap<(usize, usize, u8), f64> =
-            std::collections::BTreeMap::new();
-        for (patch, &qp) in patches.iter().zip(&q) {
-            let stair: f64 = patch.face_areas.iter().sum();
-            let q_face = qp * patch.area / stair;
-            for face in &patch.faces {
-                q_map.insert(
-                    (face.solid.0, face.solid.1, dir_code(opposite(face.dir))),
-                    q_face,
-                );
-            }
-        }
-        let gas_face_q = |i_r: usize, i_z: usize, _j: u32, dir: FaceDir| -> f64 {
-            *q_map
-                .get(&(i_r, i_z, dir_code(dir)))
-                .expect("every gas-facing solid face has an exchange")
-        };
-        let zero = |_: f64, _: f64, _: f64, _: f64| 0.0;
-        let solid_op = Conduction {
-            kappa: liner.kappa_w_per_m_k,
-            rho_cp: liner.rho_cp_j_per_m3_k,
-            source: &zero,
-            domain: Domain::Solid,
-            interior: InteriorFaces {
-                gas: Some(&gas_face_q),
-                exterior: Some(FaceBc::Robin {
-                    h: jacket.h_w_per_m2_k,
-                    t_inf: jacket.t_coolant_k,
-                }),
-            },
-            bcs: Bcs {
-                r_inner: FaceBc::HeatFlux(0.0),
-                r_outer: FaceBc::Robin {
-                    h: jacket.h_w_per_m2_k,
-                    t_inf: jacket.t_coolant_k,
-                },
-                z_lo: FaceBc::HeatFlux(0.0),
-                z_hi: FaceBc::HeatFlux(0.0),
-            },
-        };
-        solid_op
-            .step(&mut spec.grid, spec.t_solid, spec.rate_solid, t, dt)
-            .map_err(|e| format!("liner conduction: {e}"))?;
-
-        // Gas energy debit: the SAME q·|W|, opposite sign, distributed as a
-        // uniform specific debit over the patch cell's SRD control volume
-        // (Σ ΔE·κV = watts·dt exactly; a sliver cell alone cannot absorb
-        // its wall debit any more than its flux update).
-        let mut watts = 0.0f64;
-        for (patch, &qp) in patches.iter().zip(&q) {
-            let w_patch = qp * patch.area;
-            let de = -w_patch * dt / patch.debit_kv_sum;
-            for &(i_r, i_z) in &patch.debit_cells {
-                cell_add(&mut spec.grid, ids[I_EN], i_r, i_z, de);
-            }
-            watts += w_patch;
-        }
-        *jacket_watts = watts;
-    }
-
-    // Gas advance (persistent workspace: warm-started projections).
-    op.step_ws(&mut spec.grid, &spec.fields, ws, t, dt)
-        .map_err(|e| format!("{e}"))?;
-    Ok(dt)
 }
 
 // --- Plane diagnostics (mask-aware, EOS-threaded — SOLV-7 §3.1/§3.2) -------
@@ -915,17 +741,6 @@ fn cell_value(g: &Grid, f: crucible_grid::FieldId, i_r: usize, i_z: usize) -> f6
     b.field(f)[b.cell_index(0, (i_r % BRICK) * BRICK + i_z % BRICK)]
 }
 
-fn cell_add(g: &mut Grid, f: crucible_grid::FieldId, i_r: usize, i_z: usize, dv: f64) {
-    let bi = g
-        .brick_index_by_coords((i_r / BRICK) as u32, (i_z / BRICK) as u32)
-        .expect("cell in an allocated brick");
-    let idx = {
-        let b = g.brick(bi);
-        b.cell_index(0, (i_r % BRICK) * BRICK + i_z % BRICK)
-    };
-    g.brick_field_mut(bi, f)[idx] += dv;
-}
-
 fn fill_solid(g: &mut Grid, f: crucible_grid::FieldId, value: f64) {
     for bi in 0..g.n_bricks() {
         let (solid, nt) = {
@@ -943,24 +758,6 @@ fn fill_solid(g: &mut Grid, f: crucible_grid::FieldId, value: f64) {
                 }
             }
         }
-    }
-}
-
-fn dir_code(d: FaceDir) -> u8 {
-    match d {
-        FaceDir::RMinus => 0,
-        FaceDir::RPlus => 1,
-        FaceDir::ZMinus => 2,
-        FaceDir::ZPlus => 3,
-    }
-}
-
-fn opposite(d: FaceDir) -> FaceDir {
-    match d {
-        FaceDir::RMinus => FaceDir::RPlus,
-        FaceDir::RPlus => FaceDir::RMinus,
-        FaceDir::ZMinus => FaceDir::ZPlus,
-        FaceDir::ZPlus => FaceDir::ZMinus,
     }
 }
 

@@ -17,9 +17,11 @@
 //! SAME named constants, gate 4 of `scripts/check.sh` diffs it. Everything
 //! is deterministic: fixed grids, CFL-derived step sequences, no RNG.
 
+use crate::sdc::{FlowClass, Sdc, SdcError};
+
 use crate::euler::{
-    Cons, Euler, EulerFields, FlowBc, FlowBcs, FlowError, GammaLaw, I_RC, I_RHO, NCOMP, Prim,
-    RiemannSide, RiemannSolution, fill_from_prim, prim6, solve_riemann,
+    Cons, Euler, EulerFields, FlowBc, FlowBcs, GammaLaw, I_RC, I_RHO, NCOMP, Prim, RiemannSide,
+    RiemannSolution, fill_from_prim, prim6, solve_riemann,
 };
 use crucible_grid::{Grid, GridSpec};
 
@@ -42,9 +44,10 @@ pub const SOD_RIGHT: RiemannSide = RiemannSide {
 pub const SOD_T_FINAL: f64 = 0.2;
 pub const SOD_DIAPHRAGM_Z: f64 = 0.5;
 
-/// CFL safety for the explicit MOL-RK2 march (SSP-RK2 + PPM is stable to
-/// CFL ≈ 1 in 1-D; 0.4 covers the summed multi-direction bound with margin
-/// — same safety philosophy as the Goal-A `CFL_SAFETY`).
+/// CFL safety for the SDC-IMEX march (the explicit-class stability
+/// polynomial 1 + z + z²/2 + z³/4 is imaginary-axis stable to |z| ≤ 2 and
+/// upwind-stable to CFL 1 in 1-D; 0.4 covers the summed multi-direction
+/// bound with margin — same safety philosophy as Goal-A).
 pub const CFL_FLOW: f64 = 0.4;
 
 /// Sod refinement ladder (axial cells; the tube is 4 radial × n_z cells).
@@ -70,9 +73,13 @@ pub const SHOCK_POS_TOL_CELLS: f64 = 1.0;
 /// loss of the Batten contact restoration (HLLE-class smearing is ≫ this).
 pub const CONTACT_POS_TOL_CELLS: f64 = 2.0;
 
-/// Star-plateau max errors (ρ*L, ρ*R, u*, p* windows). Measured ≤ 7.3e-5 at
-/// n_z = 800; 5e-4 gives ~7× regression headroom on states of order 0.3–1.
-pub const STAR_PLATEAU_TOL: f64 = 5e-4;
+/// Star-plateau max errors (ρ*L, ρ*R, u*, p* windows). Measured ≤ 8.9e-4
+/// at n_z = 800 on the S2 SDC spine (was ≤ 7.3e-5 under SSP-RK2 — the
+/// less-dissipative stage structure rings slightly more behind the
+/// captured shock; global L1 and smooth-region orders are unchanged, so
+/// this is a dissipation-profile shift, not an accuracy loss). 2.5e-3
+/// keeps ~2.8× regression headroom on states of order 0.3–1.
+pub const STAR_PLATEAU_TOL: f64 = 2.5e-3;
 
 /// Composition boundedness beyond [0, 1] over the whole tube. Measured
 /// 4e-16 (pure round-off — HLLC's upwind species flux creates no new
@@ -207,21 +214,25 @@ fn closed_tube_op(eos: GammaLaw) -> Euler<'static> {
     }
 }
 
-/// Deterministic CFL march to `t_final`: dt re-derived from the current wave
-/// speeds each step (a fixed rule over the data — COUP-3 §2), clipped to
-/// land on `t_final` exactly. Returns the step count.
+/// Deterministic CFL march to `t_final` on the production integrator (the
+/// SDC-IMEX step, flow-only schedule; COUP-2's audit armed every step): dt
+/// re-derived from the current wave speeds each step (a fixed rule over
+/// the data — COUP-3 §2), clipped to land on `t_final` exactly. Returns
+/// the step count.
 pub fn march_to(
     op: &Euler<'_>,
     g: &mut Grid,
     f: &EulerFields,
     t0: f64,
     t_final: f64,
-) -> Result<usize, FlowError> {
+) -> Result<usize, SdcError> {
+    let mut sdc = Sdc::new();
+    let flow = FlowClass { op, fields: f };
     let mut t = t0;
     let mut steps = 0usize;
     while t_final - t > 1e-12 * t_final {
-        let dt = op.stable_dt(g, f, CFL_FLOW)?.min(t_final - t);
-        op.step(g, f, t, dt)?;
+        let dt = sdc.stable_dt(g, &flow, CFL_FLOW)?.min(t_final - t);
+        sdc.step_flow(g, &flow, t, dt)?;
         t += dt;
         steps += 1;
         assert!(steps < 1_000_000, "runaway march — CFL collapse");
@@ -519,9 +530,17 @@ pub fn uniform_state_is_bitwise_fixed_point(axis: bool) -> bool {
     });
     let before: Vec<Vec<u64>> = snapshot_bits(&g, &f);
     let op = closed_tube_op(eos);
-    let dt = op.stable_dt(&g, &f, CFL_FLOW).expect("dt");
-    op.advance(&mut g, &f, 0.0, dt, UNIFORM_STEPS)
-        .expect("advance");
+    let mut sdc = Sdc::new();
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let dt = sdc.stable_dt(&g, &flow, CFL_FLOW).expect("dt");
+    let mut t = 0.0;
+    for _ in 0..UNIFORM_STEPS {
+        sdc.step_flow(&mut g, &flow, t, dt).expect("step");
+        t += dt;
+    }
     snapshot_bits(&g, &f) == before
 }
 
@@ -543,7 +562,7 @@ fn snapshot_bits(g: &Grid, f: &EulerFields) -> Vec<Vec<u64>> {
 /// states must hold both at round-off. (Momentum is NOT conserved in a
 /// closed tube — the walls push back; that ledger is COUP-2 §3.1.2's
 /// mount-reaction term, a later wave.)
-pub fn closed_tube_conservation() -> Result<(f64, f64), FlowError> {
+pub fn closed_tube_conservation() -> Result<(f64, f64), SdcError> {
     let n_z = 200;
     let mut g = Grid::build(tube_spec(n_z), FIELDS).expect("valid spec");
     let f = EulerFields::resolve(&g).expect("fields");
