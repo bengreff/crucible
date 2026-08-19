@@ -171,6 +171,12 @@ pub(crate) struct ProfileBlock {
     /// establishes quasi-statically).
     #[serde(default)]
     pub pumpdown_flowthroughs: Option<f64>,
+    /// The declared altitude-cell ambient floor [Pa] the pump-down bottoms
+    /// out at (session 12): a real test cell holds finite pressure (~1 mbar
+    /// class), and declaring it keeps the settled plume fringe inside the
+    /// equilibrium surface's cold envelope instead of pinning its edge.
+    #[serde(default)]
+    pub p_amb_floor_pa: Option<f64>,
 }
 
 /// `[determinism]` (O21) — the S6 regime→guarantee declaration surface.
@@ -226,6 +232,7 @@ pub struct ResolvedProfile {
     pub cfl: f64,
     pub fill_p_pa: f64,
     pub pumpdown_flowthroughs: f64,
+    pub p_amb_floor_pa: f64,
 }
 
 /// A fully-resolved table pin — the §3.6 regeneration-key row. `pins`

@@ -87,19 +87,43 @@ def design_window_grid() -> EquilibriumGrid:
 
 
 def station5_envelope_grid() -> EquilibriumGrid:
-    """The station-5 full-engine grid (data_version 0.2.x): same axes and
-    density as the design window, with the pressure axis widened DOWN to the
-    vacuum-plume fringe (the epsilon = 61 exit runs ~3 kPa static; lip-corner
-    transients dip further). Envelope widening is a table-version setting of
-    the same pipeline, never a new pipeline (OFFL-3 §3.3 R2 doctrine —
-    applied to p exactly as specified for Z)."""
+    """The station-5 full-engine grid (data_version 0.3.x): the design-window
+    density with the pressure axis widened DOWN to the vacuum-plume fringe
+    (the epsilon = 61 exit runs ~3 kPa static; lip transients dip further)
+    and — 0.3.0, session 12 — the COLD fringe covered honestly:
+
+    - The settled coarse RL10 field held 35 gas cells pinned at the 0.2.x
+      enthalpy floor (h = -1.15e7 ⇒ T ≈ 698 K at fringe pressures) and the
+      dial-8 establishment transient stepped through it: the floor was
+      binding physics, not margin.
+    - The surface is generated GAS-ONLY (metastable equilibrium, stamped in
+      the deck): the declared model for a rapidly-expanding plume — real
+      plumes supersaturate (condensation kinetics slow vs flow time) — and
+      the only CEA-convergent branch in the deep-cold corners. The
+      `condensed_fraction` column is identically 0 here; fringe validity is
+      this declared model form, not that column.
+    - The Z axis is NARROWED to the premixed operating class (the prior-tier
+      field holds Z = Z_inj everywhere — element advection is source-free —
+      so station-5 never leaves the injector's Z): that is what buys the
+      cold floor on a rectangular grid, whose fuel-rich edge binds CEA's
+      low-T convergence. The MR 3–8 width remains the design-window /
+      resolved-tier table's property.
+
+    Floor placement: gas-only CEA converges at h = -1.25e7 across the full
+    p × Z grid (T down to ~210 K at the rich edge, ~300 K at Z = 1/6);
+    -1.26e7 fails at Z ≥ 0.195. Envelope floor -1.23e7 (T ≈ 410 K at
+    Z = 1/6) with the declared ~1 mbar altitude-cell ambient floor keeps
+    the settled fringe (T ≈ 460 K class) strictly inside — zero pinned
+    cells, checkable in the fields artifact. Envelope widening is a
+    table-version setting of the same pipeline, never a new pipeline
+    (OFFL-3 §3.3 R2 doctrine)."""
     return EquilibriumGrid(
         p_points=tuple(np.geomspace(5.0, 8.0e6, 69)),  # ~11 pts/decade, as v0.1
-        h_points=tuple(np.linspace(-1.18e7, -1.0e5, 31)),
-        z_points=tuple(np.linspace(0.10, 0.26, 13)),
+        h_points=tuple(np.linspace(-1.25e7, -1.0e5, 33)),  # ~3.9e5 J/kg spacing kept
+        z_points=tuple(np.linspace(0.145, 0.195, 11)),
         p_envelope=(1.0e1, 7.0e6),
-        h_envelope=(-1.15e7, -2.0e5),
-        z_envelope=(1.0 / 9.0, 0.25),
+        h_envelope=(-1.23e7, -2.0e5),
+        z_envelope=(0.155, 0.185),  # MR 5.45 … 4.41 (design 5.0 = Z 1/6 mid)
     )
 
 
@@ -247,6 +271,7 @@ def build_equilibrium_surface(
         "columns": sorted(_EQ_RULES),
         "holdout_stride": holdout_stride,
         "engine": f"cea {cea.__version__}",
+        "products": "gas-only-metastable" if engine.gas_only else "full-condensed",
     }
     spec = WriteSpec(
         kind="regular",
@@ -353,10 +378,16 @@ def write_station3_tables(
     propellant: Propellant | None = None,
     eq_grid: EquilibriumGrid | None = None,
     perf_grid: PerformanceGrid | None = None,
+    gas_only: bool = False,
 ) -> dict[str, str]:
     """Generate both station-3 tables into one HDF5 file; return
-    {group_path: content_digest} for pinning."""
-    engine = EquilibriumEngine(propellant) if propellant else EquilibriumEngine()
+    {group_path: content_digest} for pinning. `gas_only` selects the
+    metastable product set (see EquilibriumEngine; deck-stamped)."""
+    engine = (
+        EquilibriumEngine(propellant, gas_only=gas_only)
+        if propellant
+        else EquilibriumEngine(gas_only=gas_only)
+    )
     eq_spec, _ = build_equilibrium_surface(
         engine, eq_grid or design_window_grid(), data_version, generator_commit
     )

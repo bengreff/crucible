@@ -126,10 +126,107 @@ impl<'t> TableEos<'t> {
         })
     }
 
+    /// Warm-started projection: try a tight bracket around a hint pressure
+    /// (the cell's previous-stage projection — the state moves a CFL-limited
+    /// fraction per stage, so the root almost always sits within a few
+    /// percent). Falls back to the full-envelope [`Self::project_pressure`]
+    /// when the tight bracket does not straddle the root. A pure
+    /// data-dependent path (no schedule dependence): bit-reproducible at
+    /// any thread count. Measured session 12: the full-bracket Illinois
+    /// dominated the entire march (~70% of wall clock in the surface
+    /// interpolation it drives).
+    fn project_pressure_hinted(
+        &self,
+        rho: f64,
+        e_q: f64,
+        z: f64,
+        p_hint: f64,
+    ) -> Result<f64, &'static str> {
+        const HINT_SPREAD: f64 = 1.05;
+        let inv = 1.0 / rho;
+        // The same closed-form admissible bounds as the cold path.
+        let p_from_h_lo = rho * (self.h_env.0 - e_q);
+        let p_from_h_hi = rho * (self.h_env.1 - e_q);
+        let lo_adm = self
+            .p_env
+            .0
+            .max(p_from_h_lo * (1.0 + H_BRACKET_MARGIN))
+            .max(0.0);
+        let hi_adm = self.p_env.1.min(p_from_h_hi * (1.0 - H_BRACKET_MARGIN));
+        let a = (p_hint / HINT_SPREAD).max(lo_adm);
+        let b = (p_hint * HINT_SPREAD).min(hi_adm);
+        if !(a.is_finite() && b.is_finite()) || a >= b {
+            return self.project_pressure(rho, e_q, z);
+        }
+        let g = |p: f64| -> Result<f64, &'static str> {
+            self.rho
+                .interpolate(&[p, e_q + p * inv, z])
+                .map(|r| r - rho)
+                .map_err(|_| "equilibrium surface query failed inside the projection bracket")
+        };
+        let ga = g(a)?;
+        if ga == 0.0 {
+            return Ok(a);
+        }
+        let gb = g(b)?;
+        if gb == 0.0 {
+            return Ok(b);
+        }
+        if ga * gb < 0.0 {
+            return Self::illinois_root(a, b, ga, gb, &g);
+        }
+        self.project_pressure(rho, e_q, z)
+    }
+
+    /// The deterministic Illinois regula-falsi over a sign-changing bracket
+    /// (shared by the cold and warm-started projections — one root finder).
+    fn illinois_root(
+        mut a: f64,
+        mut b: f64,
+        mut ga: f64,
+        mut gb: f64,
+        g: &impl Fn(f64) -> Result<f64, &'static str>,
+    ) -> Result<f64, &'static str> {
+        for _ in 0..N_P_ITER_MAX {
+            if (b - a).abs() <= EPS_P_PROJECTION * a.abs().max(b.abs()) {
+                return Ok(0.5 * (a + b));
+            }
+            // Regula-falsi iterate, bisection fallback if it degenerates.
+            let denom = gb - ga;
+            let mut p = if denom != 0.0 {
+                b - gb * (b - a) / denom
+            } else {
+                0.5 * (a + b)
+            };
+            let (loe, hie) = (a.min(b), a.max(b));
+            if !(p > loe && p < hie) {
+                p = 0.5 * (a + b);
+            }
+            let gp = g(p)?;
+            if gp == 0.0 {
+                return Ok(p);
+            }
+            if gp * gb < 0.0 {
+                a = b;
+                ga = gb;
+            } else {
+                // Illinois: halve the stale endpoint's residual so the
+                // bracket cannot stagnate on one side.
+                ga *= 0.5;
+            }
+            b = p;
+            gb = gp;
+        }
+        if (b - a).abs() <= EPS_P_PROJECTION * a.abs().max(b.abs()) * 10.0 {
+            return Ok(0.5 * (a + b));
+        }
+        Err("equilibrium pressure projection did not converge in the fixed iteration budget")
+    }
+
     /// The equilibrium pressure projection: root of
-    /// `ρ_tab(p, e_q + p/ρ, Z) − ρ` over the admissible bracket, where
-    /// `e_q = e + h_offset`. Deterministic Illinois regula-falsi (module
-    /// header). Returns the located pressure.
+    /// `ρ_tab(p, h(p), Z) − ρ` over the admissible bracket, where
+    /// `h(p) = e_q + p/ρ`, `e_q = e + h_offset`. Deterministic Illinois
+    /// regula-falsi (module header). Returns the located pressure.
     fn project_pressure(&self, rho: f64, e_q: f64, z: f64) -> Result<f64, &'static str> {
         let inv = 1.0 / rho;
         // Closed-form admissible bracket: h(p) = e_q + p/ρ must lie in the
@@ -159,7 +256,7 @@ impl<'t> TableEos<'t> {
         if gb0 == 0.0 {
             return Ok(hi);
         }
-        let (mut a, mut b, mut ga, mut gb);
+        let (a, b, ga, gb);
         if ga0 * gb0 < 0.0 {
             // Fast path (the dense interior of the envelope): the endpoints
             // bracket — ∂ρ/∂p dominates and g is effectively monotone.
@@ -230,40 +327,7 @@ impl<'t> TableEos<'t> {
                 }
             }
         }
-        for _ in 0..N_P_ITER_MAX {
-            if (b - a).abs() <= EPS_P_PROJECTION * a.abs().max(b.abs()) {
-                return Ok(0.5 * (a + b));
-            }
-            // Regula-falsi iterate, bisection fallback if it degenerates.
-            let denom = gb - ga;
-            let mut p = if denom != 0.0 {
-                b - gb * (b - a) / denom
-            } else {
-                0.5 * (a + b)
-            };
-            let (loe, hie) = (a.min(b), a.max(b));
-            if !(p > loe && p < hie) {
-                p = 0.5 * (a + b);
-            }
-            let gp = g(p)?;
-            if gp == 0.0 {
-                return Ok(p);
-            }
-            if gp * gb < 0.0 {
-                a = b;
-                ga = gb;
-            } else {
-                // Illinois: halve the stale endpoint's residual so the
-                // bracket cannot stagnate on one side.
-                ga *= 0.5;
-            }
-            b = p;
-            gb = gp;
-        }
-        if (b - a).abs() <= EPS_P_PROJECTION * a.abs().max(b.abs()) * 10.0 {
-            return Ok(0.5 * (a + b));
-        }
-        Err("equilibrium pressure projection did not converge in the fixed iteration budget")
+        Self::illinois_root(a, b, ga, gb, &g)
     }
 
     /// Equilibrium temperature at a primitive state produced by this
@@ -274,14 +338,20 @@ impl<'t> TableEos<'t> {
         self.temperature.interpolate(&[p, h, z])
     }
 
-    /// Conserved state on the equilibrium surface from `(p, h, Z)` and a
-    /// velocity — the constructor initial conditions and the COUP-7 injector
-    /// inflow use (the exact inverse of the projection at `h_offset = 0`;
-    /// with a knockdown in force, `h` is the *query* coordinate and the
-    /// stored energy carries the deficit consistently).
+    /// Conserved state on the equilibrium surface from `(p, h, Z)` — true
+    /// enthalpy — and a velocity (constructor initial conditions and the
+    /// COUP-7 injector inflow). **S18 knockdown semantics (fixed session
+    /// 12):** `h_offset` shifts the equilibrium *interrogation* coordinate
+    /// only — the realized state is the surface at `h + h_offset` — while
+    /// the STORED energy is always the true `h − p/ρ`. The deficit
+    /// enthalpy is conserved but equilibrium-invisible (sequestered as the
+    /// incomplete-combustion energy η_c\* models); a symmetric shift on
+    /// both sides is a pure gauge relabeling that changes nothing (the
+    /// session-11 wiring — found by the calibration trial coming back
+    /// bit-identical).
     pub fn cons_from_phz(&self, p: f64, h: f64, z: f64, vel: [f64; 3]) -> Result<Cons, TableError> {
-        let rho = self.rho.interpolate(&[p, h, z])?;
-        let e_true = h - p / rho - self.h_offset;
+        let rho = self.rho.interpolate(&[p, h + self.h_offset, z])?;
+        let e_true = h - p / rho;
         let ke = 0.5 * (vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2]);
         Ok([
             rho,
@@ -299,8 +369,8 @@ impl<'t> TableEos<'t> {
     }
 }
 
-impl EosLaw for TableEos<'_> {
-    fn prim_checked(&self, u: &Cons) -> Result<Prim, &'static str> {
+impl TableEos<'_> {
+    fn prim_checked_impl(&self, u: &Cons, hint: Option<f64>) -> Result<Prim, &'static str> {
         let rho = u[I_RHO];
         if !rho.is_finite() || rho <= 0.0 {
             return Err("non-positive or non-finite density");
@@ -319,7 +389,12 @@ impl EosLaw for TableEos<'_> {
             return Err("elemental mixture fraction outside the table envelope");
         }
         let e_q = e + self.h_offset;
-        let p = self.project_pressure(rho, e_q, z)?;
+        let p = match hint {
+            Some(ph) if ph.is_finite() && ph > 0.0 => {
+                self.project_pressure_hinted(rho, e_q, z, ph)?
+            }
+            _ => self.project_pressure(rho, e_q, z)?,
+        };
         let h = e_q + p * inv;
         let a = self
             .sound
@@ -327,6 +402,16 @@ impl EosLaw for TableEos<'_> {
             .map_err(|_| "sound-speed query failed at the projected state")?;
         let g1 = rho * a * a / p;
         Ok([rho, ur, ut, uz, p, z, e, g1])
+    }
+}
+
+impl EosLaw for TableEos<'_> {
+    fn prim_checked(&self, u: &Cons) -> Result<Prim, &'static str> {
+        self.prim_checked_impl(u, None)
+    }
+
+    fn prim_checked_hinted(&self, u: &Cons, hint: Option<f64>) -> Result<Prim, &'static str> {
+        self.prim_checked_impl(u, hint)
     }
 
     fn prim_to_cons(&self, w: &Prim) -> Cons {
@@ -417,23 +502,25 @@ impl EosLaw for TableEos<'_> {
         }
         let mut h_s = h_total;
         let (mut rho, mut u) = (f64::NAN, 0.0f64);
+        // Surface queries at the knocked coordinate h + h_offset; stored
+        // energy true (see cons_from_phz — the S18 asymmetry).
         for _ in 0..N_INFLOW_ITER {
             rho = self
                 .rho
-                .interpolate(&[p_int, h_s, c_frac])
+                .interpolate(&[p_int, h_s + self.h_offset, c_frac])
                 .map_err(|_| off("injector inflow state outside the table envelope"))?;
             let a = self
                 .sound
-                .interpolate(&[p_int, h_s, c_frac])
+                .interpolate(&[p_int, h_s + self.h_offset, c_frac])
                 .map_err(|_| off("injector inflow sound speed outside the table envelope"))?;
             u = (mdot_per_area / rho).min(a);
             h_s = h_total - 0.5 * u * u;
         }
         let a = self
             .sound
-            .interpolate(&[p_int, h_s, c_frac])
+            .interpolate(&[p_int, h_s + self.h_offset, c_frac])
             .map_err(|_| off("injector inflow sound speed outside the table envelope"))?;
-        let e_true = h_s - p_int / rho - self.h_offset;
+        let e_true = h_s - p_int / rho;
         let g1 = rho * a * a / p_int;
         let mut m = [rho, 0.0, 0.0, 0.0, p_int, c_frac, e_true, g1];
         m[normal] = sign * u;

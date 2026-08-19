@@ -103,7 +103,7 @@ fn cone_grid(c0: f64, c1: f64, h: f64, n_r: usize, n_z: usize) -> Grid {
     .expect("cone world builds")
 }
 
-fn closed_cone_op<'a>(src: &'a dyn Fn(f64, f64, f64, f64) -> Cons) -> Euler<'a, GammaLaw> {
+fn closed_cone_op<'a>(src: &'a (dyn Fn(f64, f64, f64, f64) -> Cons + Sync)) -> Euler<'a, GammaLaw> {
     Euler {
         eos: GammaLaw { gamma: GAMMA },
         source: src,
@@ -295,5 +295,59 @@ fn an_enclosed_sliver_refuses_loudly() {
     assert!(
         format!("{err}").contains("no ") || format!("{err}").contains("neighborhood"),
         "wrong refusal: {err}"
+    );
+}
+
+#[test]
+fn parallel_march_is_bit_identical_at_any_thread_count() {
+    // FND-2 §3.7: the parallel path partitions work by data ownership
+    // (brick rows/columns), so every cell's accumulation order — and hence
+    // every bit — is thread-count-independent. March the cut cone on 1 vs
+    // 4 rayon threads and compare every field bitwise.
+    let run = |threads: usize| -> Vec<u64> {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .expect("pool");
+        pool.install(|| {
+            let h = 0.1;
+            let mut g = cone_grid(0.62, 0.35, h, 12, 16);
+            let f = EulerFields::resolve(&g).expect("fields");
+            let eos = GammaLaw { gamma: GAMMA };
+            fill_from_prim(&mut g, &f, &eos, |r, _, z| {
+                let d2 = (r - 0.2) * (r - 0.2) + (z - 0.5) * (z - 0.5);
+                prim6(
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0e5 * (1.0 + 4.0 * (-d2 / 0.02).exp()),
+                    0.3,
+                )
+            });
+            let zero: fn(f64, f64, f64, f64) -> Cons = |_, _, _, _| [0.0; NCOMP];
+            let op = closed_cone_op(&zero);
+            let mut ws = op.workspace(&g).expect("workspace");
+            for _ in 0..25 {
+                let dt = op.stable_dt_ws(&g, &f, &ws, 0.4).expect("dt");
+                op.step_ws(&mut g, &f, &mut ws, 0.0, dt).expect("steps");
+            }
+            let ids = f.ids();
+            let mut bits = Vec::new();
+            g.for_each_active_cell(|c| {
+                for id in ids {
+                    bits.push(g.brick(c.bi).field(id)[c.idx].to_bits());
+                }
+            });
+            bits
+        })
+    };
+    let one = run(1);
+    let four = run(4);
+    assert_eq!(one.len(), four.len());
+    let diff = one.iter().zip(&four).filter(|(a, b)| a != b).count();
+    assert_eq!(
+        diff, 0,
+        "{diff} field values differ between 1 and 4 threads"
     );
 }

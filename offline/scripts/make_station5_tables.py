@@ -18,7 +18,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from crucible_offl.surfaces import station5_envelope_grid, write_station3_tables
 
-DATA_VERSION = "0.2.0"
+DATA_VERSION = "0.3.0"
 
 
 def main() -> int:
@@ -35,7 +35,7 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.unlink(missing_ok=True)
     digests = write_station3_tables(
-        str(out), DATA_VERSION, commit, eq_grid=station5_envelope_grid()
+        str(out), DATA_VERSION, commit, eq_grid=station5_envelope_grid(), gas_only=True
     )
     pins = out.with_suffix(".pins.toml")
     with open(pins, "w") as f:

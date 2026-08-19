@@ -31,8 +31,8 @@ pub mod geometry;
 pub mod run;
 
 use crucible_registry::{
-    ChaoticClass, InterfaceVersion, Manifest, ParamSpec, ParamType, PortKind, PortRole, PortSpec,
-    Regime, Registry, TableReq,
+    ChaoticClass, InterfaceVersion, Manifest, ParamSpec, ParamType, ParamValue, PortKind, PortRole,
+    PortSpec, Regime, Registry, TableReq,
 };
 
 const NON_CHAOTIC: &[(Regime, ChaoticClass)] = &[
@@ -104,6 +104,136 @@ pub static INJECTOR_PRIOR_MANIFEST: Manifest = Manifest {
             range: Some((-1.15e7, -2.0e5)),
             default: None,
         },
+        ParamSpec {
+            // The declared η_c\* the knockdown realizes (labeling datum for
+            // the certificate: blind = coax-family band value, calibrated =
+            // the anchor's fitted number). 1.0 = full equilibrium.
+            name: "eta_cstar",
+            ty: ParamType::Float,
+            range: Some((0.5, 1.0)),
+            default: Some(ParamValue::Float(1.0)),
+        },
+        ParamSpec {
+            // S18 source-level realization of eta_cstar: the equilibrium
+            // projection interrogates the surface at e + h_offset (a
+            // combustion-completeness enthalpy deficit ≤ 0), calibrated so
+            // delivered c\* = η_c\*·c\*_ideal at the anchor state (the
+            // calibration pair is documented in the certificate). 0 = none.
+            name: "h_offset_j_per_kg",
+            ty: ParamType::Float,
+            range: Some((-2.0e6, 0.0)),
+            default: Some(ParamValue::Float(0.0)),
+        },
+    ],
+};
+
+/// COUP-7 §3.2/§3.3 turbopump boundary object, closed (expander) mode: the
+/// `drive_power` Require port is bound to the solver's computed jacket
+/// enthalpy rise; the pump/turbine machinery is the abstracted map INSIDE
+/// the object (no new coupler type — Ben's Fork-2 ruling); the delivered ṁ
+/// is solved once per step by COUP-3 §3.5's fixed point (Aitken, fixed
+/// sweeps) and feeds the next step's injector inflow. **Emergent-quantity
+/// rule:** this object states ṁ (from power balance), never p_c. Citations:
+/// `rl10-cycle-data` (TM-107318 Tables 2.2.1/2.3.1/2.4.1/2.6.1 — pump
+/// heads/η, turbine PR/flow, feed ΔPs; **calibrated-mode data**),
+/// `huzel-huang` (pump-class envelopes for blind closed runs). The map
+/// validity envelope is near-design (the declared ṁ window below); an
+/// iterate leaving it is the WON'T-BOOTSTRAP physical diagnosis, never
+/// clamped (COUP-3 §3.5).
+pub static TURBOPUMP_EXPANDER_MANIFEST: Manifest = Manifest {
+    id: "turbopump_expander",
+    interface_version: InterfaceVersion { major: 1, minor: 0 },
+    tables: &[],
+    couplers: &[],
+    ports: &[
+        PortSpec {
+            name: "delivered_flow",
+            role: PortRole::Provide,
+            kind: PortKind::Pump,
+        },
+        PortSpec {
+            name: "drive_power",
+            role: PortRole::Require,
+            kind: PortKind::PowerSupply,
+        },
+    ],
+    chaotic_class: NON_CHAOTIC,
+    params: &[
+        ParamSpec {
+            name: "mdot_design_kg_per_s",
+            ty: ParamType::Float,
+            range: Some((1e-4, 5e3)),
+            default: None,
+        },
+        ParamSpec {
+            // Total shaft power all pumps demand at the design ṁ
+            // (Σ ṁ_i·g·H_i/η_i over the map's stages — pre-config
+            // arithmetic documented in the config).
+            name: "pump_power_design_w",
+            ty: ParamType::Float,
+            range: Some((1.0, 1e9)),
+            default: None,
+        },
+        ParamSpec {
+            // P_pump ∝ ṁ^n along the fixed feed-system impedance line
+            // through the design point (head ∝ ṁ² ⇒ n = 3).
+            name: "impedance_exponent",
+            ty: ParamType::Float,
+            range: Some((2.0, 4.0)),
+            default: None,
+        },
+        ParamSpec {
+            name: "turbine_mdot_frac",
+            ty: ParamType::Float,
+            range: Some((1e-3, 1.0)),
+            default: None,
+        },
+        ParamSpec {
+            name: "turbine_eta",
+            ty: ParamType::Float,
+            range: Some((0.05, 0.95)),
+            default: None,
+        },
+        ParamSpec {
+            name: "turbine_pressure_ratio",
+            ty: ParamType::Float,
+            range: Some((1.001, 100.0)),
+            default: None,
+        },
+        ParamSpec {
+            // Effective γ of the (cold-gas) turbine working fluid.
+            name: "turbine_gamma",
+            ty: ParamType::Float,
+            range: Some((1.05, 1.8)),
+            default: None,
+        },
+        ParamSpec {
+            name: "coolant_cp_j_per_kg_k",
+            ty: ParamType::Float,
+            range: Some((1e2, 2e5)),
+            default: None,
+        },
+        ParamSpec {
+            name: "coolant_t_in_k",
+            ty: ParamType::Float,
+            range: Some((10.0, 700.0)),
+            default: None,
+        },
+        ParamSpec {
+            // The pump map's declared validity window on delivered ṁ,
+            // as fractions of design: an iterate outside is the
+            // won't-bootstrap refusal (physical, COUP-3 §3.5).
+            name: "mdot_envelope_lo_frac",
+            ty: ParamType::Float,
+            range: Some((0.05, 1.0)),
+            default: None,
+        },
+        ParamSpec {
+            name: "mdot_envelope_hi_frac",
+            ty: ParamType::Float,
+            range: Some((1.0, 10.0)),
+            default: None,
+        },
     ],
 };
 
@@ -112,13 +242,19 @@ pub static INJECTOR_PRIOR_MANIFEST: Manifest = Manifest {
 /// correlation until the jacket object's correlation set lands with the
 /// cycle wave. Citation: META-3 `huzel-huang` (channel class),
 /// `rl10-tm107318` Table 2.4.1/App. D (jacket data of record). The gas-side
-/// h is NEVER stated here — it is SOLV-1 §3.5's one wall law.
+/// h is NEVER stated here — it is SOLV-1 §3.5's one wall law. Provides the
+/// `heat_pickup` power port the closed-mode turbopump's `drive_power`
+/// binds to (the wall-exchange coupler's Provide, COUP-7 §4).
 pub static JACKET_COOLANT_MANIFEST: Manifest = Manifest {
     id: "jacket_coolant",
     interface_version: InterfaceVersion { major: 1, minor: 0 },
     tables: &[],
     couplers: &[],
-    ports: &[],
+    ports: &[PortSpec {
+        name: "heat_pickup",
+        role: PortRole::Provide,
+        kind: PortKind::PowerSupply,
+    }],
     chaotic_class: NON_CHAOTIC,
     params: &[
         ParamSpec {
@@ -140,12 +276,13 @@ pub static JACKET_COOLANT_MANIFEST: Manifest = Manifest {
 
 /// The full production registry: the three landed solver rows + this
 /// crate's boundary-object/assembly rows, sorted by id (COUP-8 §3.2).
-static MECHANISMS: [&Manifest; 6] = [
+static MECHANISMS: [&Manifest; 7] = [
     &crucible_solvers::CONDUCTION_MANIFEST,
     &crucible_solvers::FLOW_MANIFEST,
     &FLOW_SHIFTING_MANIFEST,
     &INJECTOR_PRIOR_MANIFEST,
     &JACKET_COOLANT_MANIFEST,
+    &TURBOPUMP_EXPANDER_MANIFEST,
     &crucible_solvers::WALL_HEAT_MANIFEST,
 ];
 

@@ -139,6 +139,16 @@ fn run_config(path: &str) -> i32 {
         report.jacket_watts / 1e6,
         report.liner_t_max_k,
     );
+    if let Some(ex) = &report.expander {
+        println!(
+            "  expander (CLOSED mode): delivered mdot {:.4} kg/s, turbine {:.1} kW, \
+             T_turb_in {:.1} K, resid {:.2e}",
+            ex.mdot_kg_per_s,
+            ex.turbine_power_w / 1e3,
+            ex.t_turbine_in_k,
+            ex.resid,
+        );
+    }
     println!(
         "  {} steps to t = {:.3} ms, steadiness resid {:.2e}, {} active gas cells, {:.1} s wall clock",
         report.steps,

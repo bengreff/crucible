@@ -11,6 +11,10 @@ crucible-config = { path = "../config" }
 crucible-grid = { path = "../grid" }
 crucible-registry = { path = "../registry" }
 crucible-tables = { path = "../tables" }
+# FND-2 §3.7 parallel path: work is partitioned by brick rows/columns so
+# every cell's accumulation order is thread-count-independent (bit-exact
+# at any N — asserted by test).
+rayon = "1.10"
 
 [dev-dependencies]
 # Station tests parse the pins.toml sidecar (single pin owner, session-10

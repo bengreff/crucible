@@ -64,17 +64,17 @@ t_coolant_k = 120.0    # jacket-average coolant temperature (inlet 32 K + ~191 K
 
 [operating_profile]
 mode = "steady_march"
-# NOTE: awaits the stair-corner (State Redistribution) wave before a full
-# settle is reachable — see the KNOWN LIMIT note in rl10_coarse.toml.
-flowthroughs = 12.0
+# Session 12: apertures + State Redistribution landed; the march settles.
+flowthroughs = 12.0 # settle budget in fill-state acoustic span times
 fill_p_pa = 3.0e6   # quiescent startup fill near the expected operating class (steady result is fill-independent)
-pumpdown_flowthroughs = 4.0 # altitude-cell ambient pump-down window (quasi-static nozzle establishment) # settle budget in fill-state acoustic span times
+pumpdown_flowthroughs = 4.0 # altitude-cell ambient pump-down window (quasi-static nozzle establishment)
+p_amb_floor_pa = 100.0 # declared altitude-cell floor (~1 mbar class): keeps the settled plume fringe inside the v0.3.0 surface's cold envelope
 cfl = 0.4
 
 [tables.chem_equilibrium]
-file = "tables/chem/lox_lh2_v0.2.0.h5"
+file = "tables/chem/lox_lh2_v0.3.0.h5"
 group = "/chem/lox_lh2/equilibrium"
-pins = "tables/chem/lox_lh2_v0.2.0.pins.toml" # the machine-written single pin owner
+pins = "tables/chem/lox_lh2_v0.3.0.pins.toml" # the machine-written single pin owner
 
 [determinism]
 mode = "fixed-order"

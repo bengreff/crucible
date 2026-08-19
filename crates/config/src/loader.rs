@@ -36,6 +36,13 @@ pub const DEFAULT_CFL: f64 = 0.4;
 pub const DEFAULT_FILL_P_PA: f64 = 2.0e6;
 /// Default ambient pump-down window (flow-through times).
 pub const DEFAULT_PUMPDOWN_FLOWTHROUGHS: f64 = 4.0;
+/// Default altitude-cell ambient floor [Pa] (session 12): the ~1 mbar class
+/// a real vacuum test cell holds. A declared finite floor keeps the settled
+/// plume fringe inside the equilibrium surface's cold envelope (a fringe
+/// expanded toward true vacuum wants states below any CEA-computable h
+/// floor); the run refuses if the floor sits below the pinned table's own
+/// p envelope.
+pub const DEFAULT_P_AMB_FLOOR_PA: f64 = 100.0;
 /// Load-time sanity bounds (named per META-2 §4). Rationale: FND-2 §3.8 —
 /// 10⁹ distinct cells already exceeds a 128 GB box, so any axis beyond 2²⁴
 /// cells (or a ring beyond 2²⁴ wedges) describes a world that cannot exist;
@@ -453,6 +460,10 @@ pub fn load_str_with_sidecars(
                     "must be finite and >= 0",
                 );
             }
+            let p_amb_floor_pa = p.p_amb_floor_pa.unwrap_or(DEFAULT_P_AMB_FLOOR_PA);
+            if !p_amb_floor_pa.is_finite() || p_amb_floor_pa <= 0.0 {
+                diags.push("operating_profile.p_amb_floor_pa", "must be finite and > 0");
+            }
             if !flowthroughs.is_finite() || flowthroughs <= 0.0 {
                 diags.push("operating_profile.flowthroughs", "must be finite and > 0");
             }
@@ -468,6 +479,7 @@ pub fn load_str_with_sidecars(
                 cfl,
                 fill_p_pa,
                 pumpdown_flowthroughs,
+                p_amb_floor_pa,
             })
         }
     };

@@ -24,6 +24,27 @@ pub struct InjectorSpec {
     /// on (OFFL-3 §3.3).
     pub z_frac: f64,
     pub h_inj_j_per_kg: f64,
+    /// Declared η_c\* (labeling datum; 1.0 = full equilibrium).
+    pub eta_cstar: f64,
+    /// The S18 source-level knockdown realizing it (≤ 0; TableEos::h_offset).
+    pub h_offset_j_per_kg: f64,
+}
+
+/// COUP-7 §3.2 closed-mode turbopump map (see TURBOPUMP_EXPANDER_MANIFEST
+/// for the parameter semantics and citations).
+#[derive(Debug, Clone)]
+pub struct TurbopumpSpec {
+    pub mdot_design_kg_per_s: f64,
+    pub pump_power_design_w: f64,
+    pub impedance_exponent: f64,
+    pub turbine_mdot_frac: f64,
+    pub turbine_eta: f64,
+    pub turbine_pressure_ratio: f64,
+    pub turbine_gamma: f64,
+    pub coolant_cp_j_per_kg_k: f64,
+    pub coolant_t_in_k: f64,
+    pub mdot_envelope_lo_frac: f64,
+    pub mdot_envelope_hi_frac: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +71,10 @@ pub struct EngineSpec {
     pub rate_solid: crucible_grid::FieldId,
     pub contour: Contour,
     pub injector: InjectorSpec,
+    /// `Some` ⇔ a `turbopump_expander` mechanism is selected: the closed
+    /// (cycle-coupled) mode — delivered ṁ from the COUP-3 §3.5 fixed
+    /// point. `None` = open (spec-driven) mode: the injector's declared ṁ.
+    pub turbopump: Option<TurbopumpSpec>,
     /// `None` ⇔ `liner_thickness_m = 0` (cold-flow geometry, no wall
     /// exchange, no conduction sweep).
     pub jacket: Option<JacketSpec>,
@@ -59,6 +84,9 @@ pub struct EngineSpec {
     pub cfl: f64,
     pub fill_p_pa: f64,
     pub pumpdown_flowthroughs: f64,
+    /// Declared altitude-cell ambient floor [Pa] (see the FND-4 default's
+    /// rationale; validated ≥ the pinned table's p envelope at run start).
+    pub p_amb_floor_pa: f64,
     /// The `chem_equilibrium` pin: (file, group, data_version, digest).
     pub table_pin: (String, String, String, String),
 }
@@ -118,9 +146,37 @@ pub fn assemble(
             mixture_ratio: mr,
             z_frac: 1.0 / (1.0 + mr),
             h_inj_j_per_kg: h,
+            eta_cstar: ResolvedConfig::param_f64(block, "eta_cstar").expect("defaulted"),
+            h_offset_j_per_kg: ResolvedConfig::param_f64(block, "h_offset_j_per_kg")
+                .expect("defaulted"),
         }
     };
     let _ = sole(r, "flow_shifting")?; // the operator selection (no params)
+    let turbopump = match r.mechanisms_of_type("turbopump_expander").as_slice() {
+        [] => None,
+        [(_, tb)] => {
+            let f = |name: &str| ResolvedConfig::param_f64(tb, name).expect("declared");
+            Some(TurbopumpSpec {
+                mdot_design_kg_per_s: f("mdot_design_kg_per_s"),
+                pump_power_design_w: f("pump_power_design_w"),
+                impedance_exponent: f("impedance_exponent"),
+                turbine_mdot_frac: f("turbine_mdot_frac"),
+                turbine_eta: f("turbine_eta"),
+                turbine_pressure_ratio: f("turbine_pressure_ratio"),
+                turbine_gamma: f("turbine_gamma"),
+                coolant_cp_j_per_kg_k: f("coolant_cp_j_per_kg_k"),
+                coolant_t_in_k: f("coolant_t_in_k"),
+                mdot_envelope_lo_frac: f("mdot_envelope_lo_frac"),
+                mdot_envelope_hi_frac: f("mdot_envelope_hi_frac"),
+            })
+        }
+        many => {
+            return Err(format!(
+                "{} `turbopump_expander` instances; this wave assembles at most one",
+                many.len()
+            ));
+        }
+    };
     let table_pin = {
         let pin = r
             .tables
@@ -161,6 +217,14 @@ pub fn assemble(
         (None, None, None)
     };
 
+    if turbopump.is_some() && wall_law.is_none() {
+        return Err(
+            "turbopump_expander (closed mode) needs the cooled wall path — the jacket \
+             enthalpy rise IS the drive power (COUP-7 §3.2); declare liner/wall/jacket \
+             mechanisms and a liner_thickness_m > 0"
+                .to_string(),
+        );
+    }
     let profile = r
         .operating_profile
         .as_ref()
@@ -232,6 +296,7 @@ pub fn assemble(
         rate_solid,
         contour,
         injector,
+        turbopump,
         jacket,
         liner,
         wall_law,
@@ -239,6 +304,7 @@ pub fn assemble(
         cfl: profile.cfl,
         fill_p_pa: profile.fill_p_pa,
         pumpdown_flowthroughs: profile.pumpdown_flowthroughs,
+        p_amb_floor_pa: profile.p_amb_floor_pa,
         table_pin,
     })
 }

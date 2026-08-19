@@ -1,16 +1,18 @@
-# RL10A-3-3A, COARSE iteration tier — the laptop preset (minutes, serial).
-# Blind-config inputs only (VAL-2 §3.2 N18/D-G): geometry-of-record CSV,
-# design-spec flow/MR, universal closures. Nothing here is measured on RL10
-# (the design ṁ/MR/ε are the specification; the fitted η_c* = 0.9892 and
-# measured pump maps are calibrated-mode-only and absent). Development is
-# declared OPEN (`development-observed: yes`, VISION_SCOPE §9 v1.4.1).
+# RL10A-3-3A, CALIBRATED (closed-mode) preset — VAL-2 §3.2's calibrated
+# member: binds the anchor's OWN measured component data (TM-107318 Tables
+# 2.2.1/2.3.1/2.4.1/2.6.1 pump heads+η, turbine PR/flow; the fitted
+# η_c* = 0.9892) — every score from this config is labeled CALIBRATED,
+# never blind. The expander loop closes: delivered ṁ = COUP-3 §3.5 fixed
+# point on the computed jacket pickup (engages after the establishment
+# window; the start sequence is out of scope). Development declared OPEN
+# (`development-observed: yes`, VISION_SCOPE §9 v1.4.1).
 #
-# Run from the repository root:  cargo run --release -p crucible -- run configs/rl10_coarse.toml
+# Run from the repository root:  cargo run --release -p crucible -- run configs/rl10_calibrated.toml
 schema_version = 1
 
 [meta]
-name = "rl10-coarse"
-description = "RL10A-3-3A open-mode steady march, coarse tier (cells_across_throat = 5)"
+name = "rl10-calibrated"
+description = "RL10A-3-3A closed-mode (expander) steady march, calibrated tier (cells_across_throat = 5)"
 
 [geometry]
 n_theta_max = 1
@@ -29,10 +31,31 @@ cells_across_throat = 5.0 # THE fidelity dial: cell = r_throat/5 ≈ 12.5 mm
 type = "flow_shifting" # SOLV-1 shifting-equilibrium mode on the pinned (p,h,Z) surface
 
 [mechanisms.injector]
-type = "injector_prior" # COUP-7 §3.2.1 prior tier: premixed at MR; η_c* knockdown lands with the cycle wave (full equilibrium until then, declared)
-mdot_kg_per_s = 16.9465  # design total flow, 37.36 lbm/s (TM-107318 Table 2.5.1)
+type = "injector_prior" # COUP-7 §3.2.1 prior tier: premixed at MR + the S18 knockdown
+mdot_kg_per_s = 16.9465  # design total flow, 37.36 lbm/s (TM-107318 Table 2.5.1) — the closed loop's warm start; delivered ṁ is solved
 mixture_ratio = 5.0      # design O/F (rl10-cycle-data)
 h_inj_j_per_kg = -1083091.499726406 # liquid-injection enthalpy at MR 5 (station-3 pinned CEA datum, H2(L) 20.27 K / O2(L) 90.17 K)
+eta_cstar = 0.9892       # the anchor's OWN fitted η_c* (rl10-cycle-data) — CALIBRATED-mode-only datum
+h_offset_j_per_kg = 0.0  # S18 realization — calibrated against the coarse full-equilibrium pair (certificate documents the pair); 0.0 until the calibration lands
+
+[mechanisms.turbopump]
+type = "turbopump_expander" # COUP-7 §3.2 closed mode: TM-107318 component data (CALIBRATED-only)
+mdot_design_kg_per_s = 16.9465
+# Σ ṁ·g·H/η over the map's stages + shaft drag, at the design point:
+#   fuel stg1: 2.7447 kg/s × 9.80665 × 5172.15 m / 0.5810 = 239.6 kW   (Table 2.2.1)
+#   fuel stg2: 2.7252 kg/s × 9.80665 × 5483.05 m / 0.5619 = 260.8 kW
+#   LOX:      14.2428 kg/s × 9.80665 ×  369.42 m / 0.6422 =  80.3 kW   (Table 2.3.1)
+#   TP drag:  20 lbf·in @ 31537 rpm                        =   7.5 kW
+pump_power_design_w = 5.882e5
+impedance_exponent = 3.0 # P_pump ∝ ṁ³ along the fixed feed impedance line (head ∝ ṁ², Table 2.6.1 orifice class)
+turbine_mdot_frac = 0.15766 # 5.89 / 37.36 lbm/s (Table 2.2.1; jacket bypass excluded)
+turbine_eta = 0.70 # closes the design-point power balance with the tabled heads/η/PR (partial-admission impulse class, huzel-huang 0.65–0.75)
+turbine_pressure_ratio = 1.39 # T-T, Table 2.2.1
+turbine_gamma = 1.40 # cold H2
+coolant_cp_j_per_kg_k = 16270.0 # jacket-consistent effective cp: Q/(ṁ·ΔT) from Table 2.4.1 (8.433 MW / 2.709 kg/s / 191.3 K)
+coolant_t_in_k = 32.0 # jacket inlet (pump discharge) class
+mdot_envelope_lo_frac = 0.5 # near-design map validity (App. B/C maps; outside = won't-bootstrap)
+mdot_envelope_hi_frac = 1.5
 
 [mechanisms.liner]
 type = "conduction"
@@ -62,6 +85,7 @@ t_coolant_k = 120.0    # jacket-average coolant temperature (inlet 32 K + ~191 K
 
 [engine.bindings]
 "flow.inflow" = "injector.combustion_inlet" # O20: nothing auto-matches
+"turbopump.drive_power" = "jacket.heat_pickup" # the wall-exchange coupler's Provide (COUP-7 §4)
 
 [operating_profile]
 mode = "steady_march"

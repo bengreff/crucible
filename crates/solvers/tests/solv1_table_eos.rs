@@ -282,3 +282,57 @@ fn solv1_s34_projection_is_deterministic() {
         assert_eq!(w1[k].to_bits(), w2[k].to_bits(), "slot {k}");
     }
 }
+
+#[test]
+fn solv1_s18_knockdown_actually_bites() {
+    // The S18 η_c* hook must CHANGE the realized equilibrium (session-12
+    // regression: the session-11 wiring compensated the offset on both the
+    // store and query sides — a pure gauge relabeling that left every
+    // readout bit-identical; found when the calibration trial returned the
+    // baseline to the last digit). Correct semantics: stored energy true,
+    // interrogation shifted — so a knocked chamber state must sit COLDER
+    // than full equilibrium at the same (p, h_inj, Z), the stored energy
+    // must NOT carry the shift, and the projection must still round-trip.
+    let t = open_equilibrium();
+    let eos0 = TableEos::bind(&t).expect("bind");
+    let mut eosk = TableEos::bind(&t).expect("bind");
+    eosk.h_offset = -3.0e5;
+
+    let u0 = eos0
+        .cons_from_phz(P_C, H_INJ, Z_MR5, [0.0, 0.0, 0.0])
+        .expect("full-equilibrium chamber state");
+    let uk = eosk
+        .cons_from_phz(P_C, H_INJ, Z_MR5, [0.0, 0.0, 0.0])
+        .expect("knocked chamber state");
+
+    // Stored specific energy is TRUE in both (deficit sequestered, not
+    // subtracted): e = h_inj − p/ρ at each realization's own density.
+    let e0 = u0[I_EN] / u0[I_RHO];
+    let ek = uk[I_EN] / uk[I_RHO];
+    assert!(
+        ((e0 - (H_INJ - P_C / u0[I_RHO])) / e0).abs() < 1e-12,
+        "full-eq stored energy is h − p/ρ"
+    );
+    assert!(
+        ((ek - (H_INJ - P_C / uk[I_RHO])) / ek).abs() < 1e-12,
+        "knocked stored energy is h − p/ρ (no gauge shift)"
+    );
+
+    let w0 = eos0.prim_checked(&u0).expect("full-eq round trip");
+    let wk = eosk.prim_checked(&uk).expect("knocked round trip");
+    assert!(
+        ((w0[4] - P_C) / P_C).abs() < 1e-6 && ((wk[4] - P_C) / P_C).abs() < 1e-6,
+        "projection round-trips both states to p_c"
+    );
+    let t0 = eos0.temperature_w(&w0).expect("T full");
+    let tk = eosk.temperature_w(&wk).expect("T knocked");
+    assert!(
+        (t0 - T_CHAMBER_CEA).abs() < 2.0,
+        "full equilibrium reproduces the pinned CEA chamber T: {t0}"
+    );
+    // δh = −3e5 J/kg at cp_eq ~ 8–9 kJ/kg/K near 3200 K ⇒ ~30–40 K colder.
+    assert!(
+        tk < t0 - 15.0,
+        "the knockdown must bite: T_knocked {tk} vs T_full {t0}"
+    );
+}

@@ -55,9 +55,9 @@ fn smoke_author() -> String {
         fill_p_pa = 3.0e6
         cfl = 0.4
         [tables.chem_equilibrium]
-        file = "tables/chem/lox_lh2_v0.2.0.h5"
+        file = "tables/chem/lox_lh2_v0.3.0.h5"
         group = "/chem/lox_lh2/equilibrium"
-        pins = "tables/chem/lox_lh2_v0.2.0.pins.toml"
+        pins = "tables/chem/lox_lh2_v0.3.0.pins.toml"
         [determinism]
         mode = "fixed-order"
         [rng]

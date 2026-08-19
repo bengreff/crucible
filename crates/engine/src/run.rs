@@ -21,7 +21,8 @@ use crate::assembly::EngineSpec;
 use crucible_constants::G0;
 use crucible_grid::{BRICK, FaceDir, Grid, InterfaceFace};
 use crucible_solvers::euler::{
-    Cons, EosLaw, Euler, EulerFields, FlowBc, FlowBcs, I_EN, NCOMP, TableEos, srd_neighborhood,
+    Cons, EosLaw, Euler, EulerFields, EulerWorkspace, FlowBc, FlowBcs, I_EN, NCOMP, TableEos,
+    srd_neighborhood,
 };
 use crucible_solvers::wall_heat::NearWallGas;
 use crucible_solvers::{Bcs, Conduction, Domain, FaceBc, InteriorFaces};
@@ -121,6 +122,113 @@ fn build_wall_patches(g: &Grid) -> Result<Vec<WallPatch>, String> {
 pub const SOLID_DT_FRAC: f64 = 0.5;
 pub const EXCHANGE_DT_FRAC: f64 = 0.5;
 
+// --- COUP-3 §3.5 closed-mode expander constants (named, deterministic) -----
+
+/// Fixed sweep count of the per-step ṁ fixed point. Sized (doc: "to reach
+/// EPS_EXPANDER_RESID with margin") for the measured loop gain ~0.3 under
+/// continuous Aitken relaxation (superlinear on the near-linear scalar
+/// map; the cold engagement start converges in ~5); warm starts (every
+/// subsequent step) in 2–3.
+pub const N_EXPANDER_SWEEPS: usize = 8;
+/// Residual acceptance |ṁ⁽ᵏ⁾−ṁ⁽ᵏ⁻¹⁾|/ṁ⁽ᵏ⁾ — orders below the pump-map
+/// band, so the floor never contributes to the physics error (COUP-3 §3.5).
+pub const EPS_EXPANDER_RESID: f64 = 1e-8;
+/// Colburn-class jacket-pickup scaling with flow inside the frozen-field
+/// loop: Q(ṁ) = Q_field·(ṁ/ṁ_field)^this (COUP-3 §3.5 "h ~ ṁ^0.8").
+pub const EXPANDER_Q_EXP: f64 = 0.8;
+/// Deterministic Aitken relaxation clamp (COUP-3 §3.5): for a loop gain
+/// g ∈ (−1, 1) any ω ∈ (0, 2/(1−g)) keeps the relaxed map a contraction;
+/// the secant-optimal ω = 1/(1−g) ≈ 1.4 at the measured RL10 gain, so the
+/// clamp ceiling must sit above it.
+pub const EXPANDER_OMEGA_MIN: f64 = 0.1;
+pub const EXPANDER_OMEGA_MAX: f64 = 2.0;
+
+/// Closed-mode per-step readout (the last accepted solve).
+#[derive(Debug, Clone)]
+pub struct ExpanderReadout {
+    /// Accepted delivered ṁ [kg/s] — next step's injector inflow.
+    pub mdot_kg_per_s: f64,
+    /// Turbine shaft power at the accepted point [W].
+    pub turbine_power_w: f64,
+    /// Turbine inlet (jacket outlet) temperature at the accepted point [K].
+    pub t_turbine_in_k: f64,
+    /// Final sweep residual (≤ EPS_EXPANDER_RESID by acceptance).
+    pub resid: f64,
+}
+
+/// One COUP-3 §3.5 fixed-point solve at frozen field state: given the
+/// step's computed jacket pickup `q_field_w` (measured while the field ran
+/// at `mdot_field`), find the delivered ṁ where turbine power balances the
+/// pump demand along the declared impedance line. Aitken Δ² every third
+/// sweep, fixed count, residual acceptance; an iterate leaving the map's
+/// declared ṁ envelope is the WON'T-BOOTSTRAP physical diagnosis, distinct
+/// from the numerical COUPLING_RESIDUAL failure (never conflated).
+fn expander_fixed_point(
+    tp: &crate::assembly::TurbopumpSpec,
+    fuel_frac: f64,
+    q_field_w: f64,
+    mdot_field: f64,
+) -> Result<ExpanderReadout, String> {
+    let x_isen = 1.0
+        - tp.turbine_pressure_ratio
+            .powf(-(tp.turbine_gamma - 1.0) / tp.turbine_gamma);
+    let lo = tp.mdot_envelope_lo_frac * tp.mdot_design_kg_per_s;
+    let hi = tp.mdot_envelope_hi_frac * tp.mdot_design_kg_per_s;
+    let g = |mdot: f64| -> (f64, f64, f64) {
+        let q = q_field_w * (mdot / mdot_field).powf(EXPANDER_Q_EXP);
+        let t_in = tp.coolant_t_in_k + q / (fuel_frac * mdot * tp.coolant_cp_j_per_kg_k);
+        let p_t =
+            tp.turbine_mdot_frac * mdot * tp.turbine_eta * tp.coolant_cp_j_per_kg_k * t_in * x_isen;
+        let mdot_next = tp.mdot_design_kg_per_s
+            * (p_t / tp.pump_power_design_w).powf(1.0 / tp.impedance_exponent);
+        (mdot_next, p_t, t_in)
+    };
+    let mut x = mdot_field;
+    let (mut p_t, mut t_in) = (0.0f64, 0.0f64);
+    let mut resid = f64::INFINITY;
+    let mut prev_r: Option<(f64, f64)> = None; // (x, r) of the last sweep
+    let mut omega = 1.0f64;
+    for _sweep in 0..N_EXPANDER_SWEEPS {
+        let (gx, p, t) = g(x);
+        p_t = p;
+        t_in = t;
+        let r = gx - x;
+        // Continuous Aitken relaxation (the scalar secant form), clamped
+        // deterministically: ω_k = ω_{k−1}·r_{k−1}/(r_{k−1} − r_k).
+        if let Some((_, r_prev)) = prev_r {
+            let dr = r_prev - r;
+            if dr != 0.0 {
+                omega = (omega * r_prev / dr).clamp(EXPANDER_OMEGA_MIN, EXPANDER_OMEGA_MAX);
+            }
+        }
+        prev_r = Some((x, r));
+        let x_next = x + omega * r;
+        resid = (x_next - x).abs() / x_next.abs().max(1e-300);
+        x = x_next;
+        if !(lo..=hi).contains(&x) {
+            return Err(format!(
+                "DOESN'T WORK (cycle won't bootstrap): delivered-ṁ iterate {x:.4} kg/s \
+                 left the pump map's declared envelope [{lo:.4}, {hi:.4}] — an engine \
+                 with no operating point inside the map's validity (physical diagnosis, \
+                 COUP-3 §3.5; not a solver defect)"
+            ));
+        }
+    }
+    if !resid.is_finite() || resid > EPS_EXPANDER_RESID {
+        return Err(format!(
+            "COUPLING_RESIDUAL: expander fixed point residual {resid:.3e} after \
+             {N_EXPANDER_SWEEPS} sweeps exceeds EPS_EXPANDER_RESID {EPS_EXPANDER_RESID:.1e} \
+             (numerical — a solver defect, never an engine verdict; COUP-3 §3.5)"
+        ));
+    }
+    Ok(ExpanderReadout {
+        mdot_kg_per_s: x,
+        turbine_power_w: p_t,
+        t_turbine_in_k: t_in,
+        resid,
+    })
+}
+
 /// Steadiness probe cadence (steps) for the residual + progress callback.
 pub const PROBE_EVERY: usize = 200;
 
@@ -174,7 +282,11 @@ pub struct Report {
     /// Emergent injector-end stagnation chamber pressure (N11).
     pub p_c_pa: f64,
     pub mdot_exit_kg_per_s: f64,
+    /// Final injector ṁ: the declared value (open mode) or the last
+    /// accepted expander solve (closed mode).
     pub mdot_injected_kg_per_s: f64,
+    /// Closed-mode expander readout (None ⇔ open mode).
+    pub expander: Option<ExpanderReadout>,
     /// Total gas→liner wall heat at the final state [W] (the expander drive
     /// integrand; 0 for cold-flow geometry).
     pub jacket_watts: f64,
@@ -217,7 +329,12 @@ pub fn run(
         t: 0.0,
         crash_csv: String::new(),
     };
-    let eos = TableEos::bind(table).map_err(pre)?;
+    let eos = {
+        let mut eos = TableEos::bind(table).map_err(pre)?;
+        // S18 source-level η_c\* knockdown (0.0 = full equilibrium).
+        eos.h_offset = spec.injector.h_offset_j_per_kg;
+        eos
+    };
 
     // --- Initial fill: quiescent near-vacuum equilibrium gas + cold liner --
     let u_fill: Cons = eos
@@ -241,8 +358,9 @@ pub fn run(
     if a_inlet <= 0.0 {
         return Err(pre("no active gas cells on the injector plane".to_string()));
     }
+    let mut mdot_current = spec.injector.mdot_kg_per_s;
     let inflow = FlowBc::MassFlowInflow {
-        mdot_per_area: spec.injector.mdot_kg_per_s / a_inlet,
+        mdot_per_area: mdot_current / a_inlet,
         h_total: spec.injector.h_inj_j_per_kg,
         c_frac: spec.injector.z_frac,
     };
@@ -261,12 +379,21 @@ pub fn run(
     let contour = spec.contour.clone();
     let normal_fn = move |r: f64, z: f64| contour.wall_normal(r, z);
     let zero_src: fn(f64, f64, f64, f64) -> Cons = |_, _, _, _| [0.0; NCOMP];
-    // Vacuum plume seam with the altitude-cell pump-down: ambient falls
-    // log-linearly from the fill pressure to the table-envelope floor
-    // (+25% margin) over the declared window, so the nozzle establishes
-    // quasi-statically (a violent free drain shocks/starves stair corners);
-    // zero upstream influence once the exit runs supersonic.
-    let p_floor = 1.25 * eos.envelopes()[0].0;
+    // Altitude-cell seam: ambient falls log-linearly from the fill pressure
+    // to the DECLARED cell floor over the pump-down window, so the nozzle
+    // establishes quasi-statically (a violent free drain shocks/starves
+    // wall corners); zero upstream influence once the exit runs supersonic.
+    // The declared floor must sit inside the pinned table's p envelope —
+    // an ambient the surface cannot represent is a config error, refused.
+    let p_floor = spec.p_amb_floor_pa;
+    if p_floor < eos.envelopes()[0].0 {
+        return Err(pre(format!(
+            "declared ambient floor {p_floor} Pa is below the pinned table's p envelope \
+             floor {} Pa — the plume fringe would be driven off-surface; raise \
+             operating_profile.p_amb_floor_pa or regenerate a wider table",
+            eos.envelopes()[0].0
+        )));
+    }
     let p_fill = spec.fill_p_pa;
     let t_pump = spec.pumpdown_flowthroughs * span / a_ref;
     let pump_schedule = move |t: f64| -> f64 {
@@ -276,7 +403,7 @@ pub fn run(
         let s = (t / t_pump).min(1.0);
         p_fill * (p_floor / p_fill).powf(s)
     };
-    let op = Euler {
+    let mut op = Euler {
         eos: eos.clone(),
         source: &zero_src,
         bcs: FlowBcs {
@@ -307,9 +434,20 @@ pub fn run(
     let mut resid = f64::INFINITY;
     let mut rho_probe = snapshot_rho(&spec.grid, &spec.fields);
     let mut jacket_watts = 0.0f64;
+    let mut expander_last: Option<ExpanderReadout> = None;
+    let mut ws = op.workspace(&spec.grid).map_err(|e| pre(format!("{e}")))?;
     while t_final - t > 1e-12 * t_final {
         let dt_cap = t_final - t;
-        let dt = match coupled_step(spec, &op, &eos, &patches, t, dt_cap, &mut jacket_watts) {
+        let dt = match coupled_step(
+            spec,
+            &op,
+            &eos,
+            &patches,
+            t,
+            dt_cap,
+            &mut jacket_watts,
+            &mut ws,
+        ) {
             Ok(dt) => dt,
             Err(message) => {
                 return Err(Halt {
@@ -330,6 +468,26 @@ pub fn run(
         };
         t += dt;
         steps += 1;
+        // COUP-3 §3.5: the closed-mode expander solve, once per step after
+        // the wall exchange, at frozen field state; the accepted ṁ drives
+        // the NEXT step's inflow (the declared one-step lag — identically
+        // zero at steady state). Engages once the establishment window
+        // (fill drain + pump-down) has run on the declared open schedule:
+        // the closed mode models the steady operating point, not the
+        // physical start sequence (valve schedules are out of scope).
+        if let Some(tp) = &spec.turbopump
+            && t >= t_pump
+        {
+            let ex = expander_fixed_point(tp, spec.injector.z_frac, jacket_watts, mdot_current)
+                .map_err(|e| halt_at(&spec.grid, &spec.fields, &eos, spec.t_solid, e, steps, t))?;
+            mdot_current = ex.mdot_kg_per_s;
+            op.bcs.z_lo = FlowBc::MassFlowInflow {
+                mdot_per_area: mdot_current / a_inlet,
+                h_total: spec.injector.h_inj_j_per_kg,
+                c_frac: spec.injector.z_frac,
+            };
+            expander_last = Some(ex);
+        }
         if steps >= MARCH_STEP_CAP {
             return Err(Halt {
                 message: format!("runaway march: {steps} steps (mis-sized config?)"),
@@ -389,7 +547,8 @@ pub fn run(
         c_f,
         p_c_pa: p_c,
         mdot_exit_kg_per_s: mdot_exit,
-        mdot_injected_kg_per_s: spec.injector.mdot_kg_per_s,
+        mdot_injected_kg_per_s: mdot_current,
+        expander: expander_last,
         jacket_watts,
         liner_t_max_k: liner_t_max,
         steps,
@@ -412,6 +571,7 @@ fn coupled_step(
     t: f64,
     dt_cap: f64,
     jacket_watts: &mut f64,
+    ws: &mut EulerWorkspace,
 ) -> Result<f64, String> {
     let ids = spec.fields.ids();
     let (dr, dz) = (spec.grid.spec().dr, spec.grid.spec().dz);
@@ -456,7 +616,7 @@ fn coupled_step(
 
     // Δt: gas CFL capped by both thermal limits (fail-loud, station-4 rule).
     let dt_gas = op
-        .stable_dt(&spec.grid, &spec.fields, spec.cfl)
+        .stable_dt_ws(&spec.grid, &spec.fields, ws, spec.cfl)
         .map_err(|e| format!("{e}"))?;
     let dt = dt_gas.min(dt_cap);
     if let Some(liner) = &spec.liner {
@@ -558,8 +718,8 @@ fn coupled_step(
         *jacket_watts = watts;
     }
 
-    // Gas advance.
-    op.step(&mut spec.grid, &spec.fields, t, dt)
+    // Gas advance (persistent workspace: warm-started projections).
+    op.step_ws(&mut spec.grid, &spec.fields, ws, t, dt)
         .map_err(|e| format!("{e}"))?;
     Ok(dt)
 }

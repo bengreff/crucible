@@ -309,7 +309,7 @@ pub fn build_duct() -> Duct {
 
 fn duct_flow_op(
     eos: GammaLaw,
-    inflow: &'static dyn Fn(f64, f64, f64, f64) -> Prim,
+    inflow: &'static (dyn Fn(f64, f64, f64, f64) -> Prim + Sync),
 ) -> Euler<'static> {
     const ZERO_SRC: fn(f64, f64, f64, f64) -> Cons = |_, _, _, _| [0.0; NCOMP];
     Euler {

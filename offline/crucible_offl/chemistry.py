@@ -112,10 +112,19 @@ class RocketPerformance:
 
 
 class EquilibriumEngine:
-    """CEA solvers for one propellant, reused across many states."""
+    """CEA solvers for one propellant, reused across many states.
 
-    def __init__(self, propellant: Propellant = LOX_LH2):
+    `gas_only=True` restricts the product set to gas-phase species —
+    the METASTABLE (supersaturated) equilibrium: the declared model for
+    rapidly-expanding plume states where condensation kinetics are slow
+    against the flow time, and the only convergent branch in the deep-cold
+    corners where CEA's condensed-species iteration fails (session 12).
+    The mode is stamped into the table provenance deck.
+    """
+
+    def __init__(self, propellant: Propellant = LOX_LH2, gas_only: bool = False):
         self.propellant = propellant
+        self.gas_only = gas_only
         species = list(propellant.fuel_species) + list(propellant.oxidizer_species)
         # Fail loud at the boundary where the mistake is made (META-1 P6):
         # incoherent propellants otherwise surface as NaN weights deep in
@@ -138,6 +147,11 @@ class EquilibriumEngine:
             )
         self._reac = cea.Mixture(species)
         self._prod = cea.Mixture(species, products_from_reactants=True)
+        if gas_only:
+            # Condensed CEA species carry a parenthesized phase tag
+            # (H2O(L), H2O(cr), …): filter them from the full product set.
+            gas_names = [s for s in self._prod.species_names if "(" not in s]
+            self._prod = cea.Mixture(gas_names)
         self._fuel_w = np.array(
             [1.0 if s in propellant.fuel_species else 0.0 for s in species]
         )
