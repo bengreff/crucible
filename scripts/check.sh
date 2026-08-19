@@ -41,6 +41,11 @@ cargo run -q --release --bin station1_sod_certificate >/dev/null
 cargo run -q --release --bin station2_nozzle_certificate >/dev/null
 offline/.venv/bin/python offline/scripts/station3_flame_certificate.py >/dev/null
 cargo run -q --release --bin station4_cooled_wall_certificate >/dev/null
+# Station 5 rescoring only: the engine marches behind it are recorded
+# readouts in the bin (minutes-hours each; reproducible via `crucible run`
+# with the pinned configs) — the bin recomputes reference/predicted p-boxes
+# and the Ferson d deterministically and the diff below guards drift.
+cargo run -q --release --bin station5_rl10_certificate >/dev/null
 git diff --exit-code certificates/
 # A brand-new (untracked) certificate is invisible to git diff — refuse it
 # too, or a first regeneration ships uncommitted (review finding).

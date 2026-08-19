@@ -18,7 +18,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from crucible_offl.surfaces import station5_envelope_grid, write_station3_tables
 
-DATA_VERSION = "0.3.0"
+DATA_VERSION = "0.3.2"
 
 
 def main() -> int:

@@ -43,6 +43,9 @@ pub const DEFAULT_PUMPDOWN_FLOWTHROUGHS: f64 = 4.0;
 /// floor); the run refuses if the floor sits below the pinned table's own
 /// p envelope.
 pub const DEFAULT_P_AMB_FLOOR_PA: f64 = 100.0;
+/// Default injector start-ramp window (flow-through times): 0 = step start
+/// (backward-compatible; fine dials declare a window — see the schema note).
+pub const DEFAULT_INJECTOR_RAMP_FLOWTHROUGHS: f64 = 0.0;
 /// Load-time sanity bounds (named per META-2 §4). Rationale: FND-2 §3.8 —
 /// 10⁹ distinct cells already exceeds a 128 GB box, so any axis beyond 2²⁴
 /// cells (or a ring beyond 2²⁴ wedges) describes a world that cannot exist;
@@ -209,6 +212,11 @@ pub fn load_str_with_sidecars(
             );
             continue;
         }
+        // Precedence (session-12 review, documented on ResolvedTablePin):
+        // an explicit pair is AUTHORITATIVE and the sidecar is NOT
+        // consulted, even when both are present — the resolved form
+        // carries pair + `pins` (provenance) and MUST replay without
+        // sidecar I/O (§3.5 fixed point), so pair+pins cannot refuse.
         let pair = match (&tref.data_version, &tref.content_digest, &tref.pins) {
             (Some(v), Some(d), _) => Some((v.clone(), d.clone())),
             (None, None, Some(pins_path)) => {
@@ -464,6 +472,15 @@ pub fn load_str_with_sidecars(
             if !p_amb_floor_pa.is_finite() || p_amb_floor_pa <= 0.0 {
                 diags.push("operating_profile.p_amb_floor_pa", "must be finite and > 0");
             }
+            let injector_ramp_flowthroughs = p
+                .injector_ramp_flowthroughs
+                .unwrap_or(DEFAULT_INJECTOR_RAMP_FLOWTHROUGHS);
+            if !injector_ramp_flowthroughs.is_finite() || injector_ramp_flowthroughs < 0.0 {
+                diags.push(
+                    "operating_profile.injector_ramp_flowthroughs",
+                    "must be finite and >= 0",
+                );
+            }
             if !flowthroughs.is_finite() || flowthroughs <= 0.0 {
                 diags.push("operating_profile.flowthroughs", "must be finite and > 0");
             }
@@ -480,6 +497,7 @@ pub fn load_str_with_sidecars(
                 fill_p_pa,
                 pumpdown_flowthroughs,
                 p_amb_floor_pa,
+                injector_ramp_flowthroughs,
             })
         }
     };

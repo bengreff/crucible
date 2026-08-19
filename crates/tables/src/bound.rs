@@ -104,6 +104,13 @@ impl BoundColumn<'_> {
         self.table.values[self.value_index].interp_error_bound
     }
 
+    /// The rule-space (|Δ ln|, ≈ relative) bound for log-valued columns —
+    /// `None` on linear-valued columns and pre-0.3.2 artifacts (see the
+    /// model's field doc; the recorded digest-v4 deferral rides there).
+    pub fn interp_error_bound_log(&self) -> Option<f64> {
+        self.table.values[self.value_index].interp_error_bound_log
+    }
+
     /// The grid-domain span of one axis (for consumers that must size
     /// iteration brackets inside the tabulated domain, e.g. the SOLV-1 §3.4
     /// p-iteration).

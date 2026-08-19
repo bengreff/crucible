@@ -46,6 +46,15 @@ pub struct TableValue {
     /// §3.4: producer-measured bound, table metadata for COUP-5 — never
     /// folded into a runtime return value.
     pub interp_error_bound: f64,
+    /// Session-12 review: the same producer-measured bound in the VALUE'S
+    /// RULE SPACE (|Δ ln value|, ≈ relative) for log-valued columns — the
+    /// scale-honest form an acceptance gate must use where an absolute
+    /// bound is attained at the dense end of a log-valued range. `None`
+    /// for linear-valued columns and pre-0.3.2 artifacts (consumers fall
+    /// back to the absolute bound — old-artifact behavior preserved).
+    /// RECORDED DEFERRAL: rides OUTSIDE digest v3 (the pinned
+    /// cross-language field set); digest v4 folds it in.
+    pub interp_error_bound_log: Option<f64>,
     /// Sibling `sigma_<name>` dataset (per-point 1σ), if the producer
     /// supplied one; a scalar band may come as `sigma_<name>` attribute.
     pub sigma: Option<Vec<f64>>,

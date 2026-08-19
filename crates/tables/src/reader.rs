@@ -252,6 +252,14 @@ impl Table {
             let units = read_str_attr_ds(&ds, &path, "units")?;
             let interp_rule = read_str_attr_ds(&ds, &path, "interp_rule")?;
             let interp_error_bound = read_f64_attr(&ds, &path, "interp_error_bound")?;
+            let interp_error_bound_log = {
+                let names = ds.attr_names().map_err(h5err)?;
+                if names.iter().any(|n| n == "interp_error_bound_log") {
+                    Some(read_f64_attr(&ds, &path, "interp_error_bound_log")?)
+                } else {
+                    None
+                }
+            };
             let sigma = {
                 let sname = format!("sigma_{name}");
                 if member_names.contains(&sname) {
@@ -322,6 +330,7 @@ impl Table {
                 units,
                 interp_rule,
                 interp_error_bound,
+                interp_error_bound_log,
                 sigma,
                 sigma_scalar,
             });

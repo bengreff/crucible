@@ -276,3 +276,65 @@ the committed artifacts in `certificates/` are the living record.
   chamber + liner heating) rides the fast battery. **KNOWN LIMIT recorded in the preset:**
   settle past ~2.9 FT blocked by the exit-lip starvation — first item of the next wave, before
   the expander cycle. True test count: **122 Rust + 26 Python**.
+- Session 12 (2026-08-18): **STATION-5 WAVES (b′)+(c) — cut cells, the closed cycle, and the
+  FIRST RL10 CERTIFICATE.** Instrument first: `run()` returns a structured `Halt` with a
+  fault-tolerant crash CSV (raw conserved `U` always; derived state where the projection holds;
+  κ column) — the artifact that diagnosed every pathology this session.
+  **Wave A (commit 1): the stair-corner blocker retired.** The crash artifact pinned the
+  session-11 death: the shadow column behind each stair step starving to ρ ~ 10⁻¹² (dial-8
+  check: same class, earlier — not resolution-curable). Cure as designated: **FND-3 §3.3
+  analytic partial fractions + apertures** for the revolved contour (CSG revolved-profile
+  leaf, zero sampling error, exact cylindrical measure) through a validated
+  `build_with_geometry` seam (Gas ⇔ κ>0, bitwise shared faces, covered-vs-κ=0 rule);
+  `wall_closure` = THE discrete interface identity (well-balance defines the wall vector; |W| =
+  the smooth wall area, not the stair overcount); aperture-weighted sweeps with
+  arithmetic-identity defaults (full-box worlds bit-identical — gate 5 held); **Berger–Giuliani
+  SRD** after each RK stage (κ < 0.5, fixed lexicographic neighborhoods, conservation exact;
+  `srd_neighborhood` public — the wall debit deposits into the same merged volume). Engine wall
+  exchange rewired to per-cell closure patches. Tests: frustum volume exact 1e-13; uniform-rest
+  well-balance < 1e-11 in a cut cone; closed-domain conservation < 1e-12 through shocks;
+  κ ~ 4e-3 slivers at the UNCUT CFL. The 6-FT march that died at 2.9 FT completed same-day.
+  **Wave B (commit 2):** table **v0.3.x** — the settled fringe PINNED the v0.2 h floor
+  (T = 698.55 K × 35 cells: binding physics, quasi-clamp); v0.3.2 = **gas-only METASTABLE
+  products** (declared plume model; the only CEA-convergent branch below the condensed cliff;
+  deck-stamped), **Z narrowed to the premixed class** (the prior-tier field holds Z = Z_inj
+  everywhere — what buys the cold floor on a rectangular grid), h ∈ [−1.23e7, **+3.8e6**]
+  (ceiling sized by measured transient overshoots: piston → −1e5, backflow recompression →
+  +1.33e6). `[operating_profile] p_amb_floor_pa` (declared ~1 mbar altitude cell; refused below
+  the table floor) + `injector_ramp_flowthroughs` (declared valve-sequence class). **COUP-3
+  §3.5 expander closed mode**: `turbopump_expander` boundary object (drive_power ← jacket
+  heat_pickup, O20; TM-107318 component data = calibrated-only; algebra internal per Fork-2);
+  per-step Aitken fixed point (residual ≤ 1e-8, machine-0 at steady), engages post-
+  establishment. **S18 FIXED**: the session-11 h_offset wiring was a pure gauge relabeling
+  (calibration trial returned the baseline BIT-IDENTICAL) — correct asymmetry: store true
+  energy, interrogate at h+δ; measured slope −0.847% c\* per −3e5 J/kg. **Optimization**
+  (profiler-led: interpolate = 70%): warm-started projection (uniqueness-guarded) + rayon by
+  brick-row/column ownership partition — **bit-exact at any thread count (asserted)**, coarse
+  12 FT 204 s → 60 s (3.4× on 6 P-cores).
+  **Review wave (Ben's session-6/10 pattern; finder fan-out, verifier fan-out cut for usage —
+  Sonnet for mechanical checks per Ben):** 22 findings / 8 dimensions; confirmed + fixed:
+  **`TableEos::roe_sound_speed` silently ZERO at every face** (γ-law enthalpy identity under
+  the CEA datum + `.max(0.0)` — now datum-free Roe-averaged c²); **warm-start root hysteresis**
+  (non-monotone corner — now gated on the cold fast path's own straddle precondition);
+  **vacuous slow-path acceptance** (absolute bound at fringe ρ = de-facto clamp — now
+  rule-space `interp_error_bound_log`, producer-measured incl. **envelope-EDGE holdout** whose
+  structural hole the review proved against live CEA; digest-v4 deferral recorded; FND-5 0.3.1
+  change log); station-5 fresh-holdout CI gate (was never armed on the pinned artifact — now
+  28 offline tests); perf-deck gas_only stamp; condensed-suffix gas filter; assembly refusals
+  (cooling-declared-with-zero-liner, closed-mode-never-engages, adiabatic liner holes);
+  inflow-plane ṁ honesty signal; pin pair-vs-sidecar precedence documented.
+  **Wave C (commit 3): `certificates/station5_rl10_certificate.md`** — recorded-readout
+  rescoring bin in gate 5; VAL-2 §3.1 reference box (published intervals ⊗ TM's own 0.598%
+  model scatter); Ferson d by fixed quadrature; every score labeled + `development-observed:
+  yes`. **BLIND (coarse, η-family × wall-band corners): F and Isp OVERLAP the record**
+  (d = 0); p_c/c\*/C_F miss coherently ~5.5–5.9% (one discretization signature; →1.4–1.5%
+  under the indicative dial-8 deltas). **CALIBRATED (closed): F, Isp, AND the emergent p_c
+  ALL OVERLAP** — nominal p_c 463.8 psia vs 475–482; the wall-law ±25% band sweeps delivered
+  ṁ 16.74→18.56 kg/s while **Isp self-regulates flat (439.0–441.0 s)** — real expander
+  behavior, reproduced not imposed. **KNOWN LIMIT (recorded, owner named):** dials ≥ 8 cannot
+  ESTABLISH by physical march under the honest acceptance (five schedules probed — hot/low
+  fill, ramp/pump orders, altitude start — each halting loudly at a different envelope edge;
+  thin gas against the 120 K liner physically equilibrates below any CEA floor); the
+  pre-review dial-8 "success" rode the vacuous bound. Cure = **COUP-3 §3.6 pseudo-transient
+  continuation** (the doc's own default route to steady points); grid-sequenced restart
+  (FND-6) alternative. True counts: **136 Rust + 28 Python**; all gates green.

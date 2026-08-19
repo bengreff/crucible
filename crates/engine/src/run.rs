@@ -184,6 +184,13 @@ fn expander_fixed_point(
         (mdot_next, p_t, t_in)
     };
     let mut x = mdot_field;
+    if !(lo..=hi).contains(&x) {
+        return Err(format!(
+            "DOESN'T WORK (cycle won't bootstrap): the engagement-point ṁ {x:.4} kg/s is \
+             already outside the pump map's declared envelope [{lo:.4}, {hi:.4}] — no \
+             admissible starting point (physical diagnosis, COUP-3 §3.5)"
+        ));
+    }
     let (mut p_t, mut t_in) = (0.0f64, 0.0f64);
     let mut resid = f64::INFINITY;
     let mut prev_r: Option<(f64, f64)> = None; // (x, r) of the last sweep
@@ -285,6 +292,11 @@ pub struct Report {
     /// Final injector ṁ: the declared value (open mode) or the last
     /// accepted expander solve (closed mode).
     pub mdot_injected_kg_per_s: f64,
+    /// MEASURED inflow-plane mass flow at readout — the sonic-cap honesty
+    /// signal (session-12 review): if the injector face is still choked,
+    /// this falls short of `mdot_injected_kg_per_s` and the certificate
+    /// must not claim the declared flow was delivered.
+    pub mdot_inflow_plane_kg_per_s: f64,
     /// Closed-mode expander readout (None ⇔ open mode).
     pub expander: Option<ExpanderReadout>,
     /// Total gas→liner wall heat at the final state [W] (the expander drive
@@ -359,8 +371,17 @@ pub fn run(
         return Err(pre("no active gas cells on the injector plane".to_string()));
     }
     let mut mdot_current = spec.injector.mdot_kg_per_s;
+    // Startup ramp (declared schedule — the valve-sequence class device):
+    // the DELIVERED target ṁ(t) = ṁ·min(1, t/t_ramp). 0 ⇒ step start.
+    let ramp_frac = |t: f64, t_ramp: f64| -> f64 {
+        if t_ramp <= 0.0 {
+            1.0
+        } else {
+            (t / t_ramp).clamp(0.0, 1.0)
+        }
+    };
     let inflow = FlowBc::MassFlowInflow {
-        mdot_per_area: mdot_current / a_inlet,
+        mdot_per_area: 0.0, // replaced before the first step below
         h_total: spec.injector.h_inj_j_per_kg,
         c_frac: spec.injector.z_frac,
     };
@@ -394,13 +415,31 @@ pub fn run(
             eos.envelopes()[0].0
         )));
     }
+    if p_floor > spec.fill_p_pa {
+        return Err(pre(format!(
+            "declared ambient floor {p_floor} Pa exceeds the fill pressure {} Pa — the \
+             pump-down schedule would pump UP; lower the floor or raise the fill",
+            spec.fill_p_pa
+        )));
+    }
     let p_fill = spec.fill_p_pa;
-    let t_pump = spec.pumpdown_flowthroughs * span / a_ref;
+    // Establishment SEQUENCE (session 12, the real altitude-start order):
+    // the cell pumps down FIRST with the injector off — the modest fill
+    // drains gently toward the declared floor — and the injector ramp
+    // begins once the cell is at altitude, so the nozzle flows FULL as
+    // chamber pressure rises: the deeply-overexpanded separation/backflow
+    // regime (an ε = 61 bell held at PR ~10 mid-ramp churned h past every
+    // ceiling — the dial-12 halts) never exists. Ramp-then-pump and
+    // concurrent schedules both manufactured off-surface transients at
+    // fine dials; pump-then-ramp is how a vacuum engine actually starts.
+    let t_ramp_window = spec.injector_ramp_flowthroughs * span / a_ref;
+    let t_pump_window = spec.pumpdown_flowthroughs * span / a_ref;
+    let t_pump = t_pump_window + t_ramp_window; // establishment complete
     let pump_schedule = move |t: f64| -> f64 {
-        if t_pump <= 0.0 {
+        if t_pump_window <= 0.0 {
             return p_floor;
         }
-        let s = (t / t_pump).min(1.0);
+        let s = (t / t_pump_window).clamp(0.0, 1.0);
         p_fill * (p_floor / p_fill).powf(s)
     };
     let mut op = Euler {
@@ -422,7 +461,48 @@ pub fn run(
     };
 
     let patches = if spec.wall_law.is_some() {
-        build_wall_patches(&spec.grid).map_err(pre)?
+        let patches = build_wall_patches(&spec.grid).map_err(pre)?;
+        // Adiabatic-hole check (session-12 review): a cooled build where a
+        // wall-bearing gas cell (nonzero closure vector) has no solid
+        // partner would silently skip its exchange — the liner ring failed
+        // to cover the contour there. Refuse with the first hole named.
+        let covered: std::collections::BTreeSet<(usize, usize)> =
+            patches.iter().map(|p| p.gas).collect();
+        let mut hole: Option<(usize, usize)> = None;
+        spec.grid.for_each_active_cell(|c| {
+            if hole.is_some() || covered.contains(&(c.i_r, c.i_z)) {
+                return;
+            }
+            let (w_r, w_z) = spec.grid.wall_closure(c.i_r, c.i_z, 1);
+            // Domain-edge cells (injector/exit planes) legitimately carry
+            // closure from their open boundary faces; only interior wall
+            // cells (a covered r+/r− or interior z face) are holes. The
+            // discriminator: a solid or exterior face-neighbor exists.
+            let has_wall_nbr = [
+                (c.i_r.wrapping_sub(1), c.i_z),
+                (c.i_r + 1, c.i_z),
+                (c.i_r, c.i_z.wrapping_sub(1)),
+                (c.i_r, c.i_z + 1),
+            ]
+            .iter()
+            .any(|&(nr, nz)| {
+                nr < spec.grid.spec().n_r
+                    && nz < spec.grid.spec().n_z
+                    && !spec.grid.is_active(nr, nz)
+            });
+            if (w_r * w_r + w_z * w_z).sqrt() > 0.0 && has_wall_nbr {
+                hole = Some((c.i_r, c.i_z));
+            }
+        });
+        if let Some((i_r, i_z)) = hole {
+            return Err(pre(format!(
+                "cooled build with an ADIABATIC HOLE: wall cell ({i_r}, {i_z}) has a \
+                 nonzero interface but no solid partner — the liner ring does not cover \
+                 the contour there; raise liner_thickness_m (the declared grid-thickened \
+                 ring must span ≥ 1 cell everywhere)"
+            )));
+        }
+        patches
     } else {
         Vec::new()
     };
@@ -437,6 +517,14 @@ pub fn run(
     let mut expander_last: Option<ExpanderReadout> = None;
     let mut ws = op.workspace(&spec.grid).map_err(|e| pre(format!("{e}")))?;
     while t_final - t > 1e-12 * t_final {
+        // The step's inflow: current target ṁ (design, or the expander's
+        // last accepted solve) under the declared start ramp, which begins
+        // when the pump-down completes (the altitude-start order above).
+        op.bcs.z_lo = FlowBc::MassFlowInflow {
+            mdot_per_area: mdot_current * ramp_frac(t - t_pump_window, t_ramp_window) / a_inlet,
+            h_total: spec.injector.h_inj_j_per_kg,
+            c_frac: spec.injector.z_frac,
+        };
         let dt_cap = t_final - t;
         let dt = match coupled_step(
             spec,
@@ -481,11 +569,6 @@ pub fn run(
             let ex = expander_fixed_point(tp, spec.injector.z_frac, jacket_watts, mdot_current)
                 .map_err(|e| halt_at(&spec.grid, &spec.fields, &eos, spec.t_solid, e, steps, t))?;
             mdot_current = ex.mdot_kg_per_s;
-            op.bcs.z_lo = FlowBc::MassFlowInflow {
-                mdot_per_area: mdot_current / a_inlet,
-                h_total: spec.injector.h_inj_j_per_kg,
-                c_frac: spec.injector.z_frac,
-            };
             expander_last = Some(ex);
         }
         if steps >= MARCH_STEP_CAP {
@@ -548,6 +631,7 @@ pub fn run(
         p_c_pa: p_c,
         mdot_exit_kg_per_s: mdot_exit,
         mdot_injected_kg_per_s: mdot_current,
+        mdot_inflow_plane_kg_per_s: plane_mdot(&spec.grid, &spec.fields, 0, FaceDir::ZMinus),
         expander: expander_last,
         jacket_watts,
         liner_t_max_k: liner_t_max,

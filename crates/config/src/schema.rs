@@ -177,6 +177,14 @@ pub(crate) struct ProfileBlock {
     /// equilibrium surface's cold envelope instead of pinning its edge.
     #[serde(default)]
     pub p_amb_floor_pa: Option<f64>,
+    /// Startup device (session 12): the injector mass-flow ramp window, in
+    /// flow-through times — ṁ(t) = ṁ·min(1, t/t_ramp), the declared start
+    /// schedule (a real engine's valve sequence). Kills the injector-piston
+    /// shock a step start drives into the fill gas; with a modest fill
+    /// pressure the establishment is quasi-static end to end. 0 = step
+    /// start (the pre-session-12 behavior).
+    #[serde(default)]
+    pub injector_ramp_flowthroughs: Option<f64>,
 }
 
 /// `[determinism]` (O21) — the S6 regime→guarantee declaration surface.
@@ -233,6 +241,7 @@ pub struct ResolvedProfile {
     pub fill_p_pa: f64,
     pub pumpdown_flowthroughs: f64,
     pub p_amb_floor_pa: f64,
+    pub injector_ramp_flowthroughs: f64,
 }
 
 /// A fully-resolved table pin — the §3.6 regeneration-key row. `pins`
@@ -242,6 +251,13 @@ pub struct ResolvedProfile {
 pub struct ResolvedTablePin {
     pub file: String,
     pub group: String,
+    /// PROVENANCE ONLY (session-12 review): the sidecar this pin was
+    /// originally resolved from, when the author named one. Whenever an
+    /// explicit `data_version`/`content_digest` pair is present it is
+    /// AUTHORITATIVE and the sidecar is NOT consulted — the resolved form
+    /// carries pair + this field and must replay with zero sidecar I/O
+    /// (§3.5 fixed point). An author who states a pair alongside a
+    /// sidecar is therefore declaring the pair, not the sidecar.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub pins: Option<String>,

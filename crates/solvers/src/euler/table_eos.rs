@@ -49,8 +49,14 @@ pub const EPS_P_PROJECTION: f64 = 1e-11;
 const H_BRACKET_MARGIN: f64 = 1e-12;
 
 /// Fixed sign-change scan resolution of the projection's slow path (the
-/// near-vacuum non-monotone corner; see `project_pressure`).
-pub const N_P_SCAN: usize = 16;
+/// near-vacuum non-monotone corner; see `project_pressure`). Sized by
+/// need, not tuned: 16 missed the shallow crossing of a dial-12 RL10
+/// establishment shear-layer state whose root demonstrably sits inside
+/// the bracket (session 12 — the halt's (ρ, e) solved by hand); 64 gives
+/// ~11 points/decade over the widest admissible bracket, matching the
+/// table's own p-axis density, so the scan cannot under-resolve a
+/// contour crossing the surface itself represents.
+pub const N_P_SCAN: usize = 64;
 
 /// Slow-path acceptance: when the constraint line `h = e + p/ρ` does not
 /// cross the *interpolated* ρ-contour, the closest on-line state is
@@ -81,6 +87,12 @@ pub struct TableEos<'t> {
     /// The density column's producer-measured interpolation-error bound
     /// [kg/m³] — the slow-path acceptance (see module consts).
     rho_err_bound: f64,
+    /// The density column's rule-space (|Δln ρ|, ≈ relative) bound —
+    /// present on 0.3.2+ artifacts; the acceptance uses it when available
+    /// (an absolute bound attained at chamber densities is vacuous at
+    /// fringe densities — session-12 review). `None` ⇒ absolute fallback,
+    /// preserving pre-0.3.2 artifact behavior bit-for-bit.
+    rho_err_bound_log: Option<f64>,
     /// Declared envelopes of the (p, h, Z) axes, cached at bind.
     p_env: (f64, f64),
     h_env: (f64, f64),
@@ -119,6 +131,7 @@ impl<'t> TableEos<'t> {
             h_env: rho.axis_envelope(1),
             z_env: rho.axis_envelope(2),
             rho_err_bound: rho.interp_error_bound(),
+            rho_err_bound_log: rho.interp_error_bound_log(),
             rho,
             sound,
             temperature,
@@ -129,12 +142,18 @@ impl<'t> TableEos<'t> {
     /// Warm-started projection: try a tight bracket around a hint pressure
     /// (the cell's previous-stage projection — the state moves a CFL-limited
     /// fraction per stage, so the root almost always sits within a few
-    /// percent). Falls back to the full-envelope [`Self::project_pressure`]
-    /// when the tight bracket does not straddle the root. A pure
-    /// data-dependent path (no schedule dependence): bit-reproducible at
-    /// any thread count. Measured session 12: the full-bracket Illinois
-    /// dominated the entire march (~70% of wall clock in the surface
-    /// interpolation it drives).
+    /// percent). **Root-uniqueness guard (session-12 review):** the tight
+    /// bracket is used ONLY when the full admissible bracket's endpoints
+    /// straddle the root — the cold fast path's own precondition, under
+    /// which the module declares g effectively monotone (unique root), so
+    /// the hinted result is the SAME root the cold path finds and the hint
+    /// stays a pure acceleration. In the non-monotone near-vacuum corner
+    /// (endpoints don't straddle) a tight bracket could lock onto a
+    /// different branch than the cold scan — history-dependent physics —
+    /// so that case falls through to the cold slow path unconditionally.
+    /// Deterministic (data-dependent branch only); bit-reproducible at any
+    /// thread count. Measured session 12: the full-bracket Illinois
+    /// dominated the march (~70% of wall clock in surface interpolation).
     fn project_pressure_hinted(
         &self,
         rho: f64,
@@ -164,6 +183,14 @@ impl<'t> TableEos<'t> {
                 .map(|r| r - rho)
                 .map_err(|_| "equilibrium surface query failed inside the projection bracket")
         };
+        // Uniqueness precondition: the full bracket must straddle. (NaN
+        // products fall through to the cold path — never the warm one.)
+        let ga_full = g(lo_adm)?;
+        let gb_full = g(hi_adm)?;
+        let straddles = ga_full * gb_full < 0.0;
+        if !straddles {
+            return self.project_pressure(rho, e_q, z);
+        }
         let ga = g(a)?;
         if ga == 0.0 {
             return Ok(a);
@@ -175,7 +202,9 @@ impl<'t> TableEos<'t> {
         if ga * gb < 0.0 {
             return Self::illinois_root(a, b, ga, gb, &g);
         }
-        self.project_pressure(rho, e_q, z)
+        // Straddling full bracket but not the tight one: run the fast path
+        // on the full bracket (endpoint values already in hand).
+        Self::illinois_root(lo_adm, hi_adm, ga_full, gb_full, &g)
     }
 
     /// The deterministic Illinois regula-falsi over a sign-changing bracket
@@ -301,25 +330,42 @@ impl<'t> TableEos<'t> {
                     );
                     let mut x1 = x3 - phi * (x3 - x0);
                     let mut x2 = x0 + phi * (x3 - x0);
-                    let mut f1 = g(x1)?.abs();
-                    let mut f2 = g(x2)?.abs();
+                    let mut g1 = g(x1)?; // signed: ρ_tab − ρ
+                    let mut g2 = g(x2)?;
                     for _ in 0..N_P_ITER_MAX {
-                        if f1 < f2 {
+                        if g1.abs() < g2.abs() {
                             x3 = x2;
                             x2 = x1;
-                            f2 = f1;
+                            g2 = g1;
                             x1 = x3 - phi * (x3 - x0);
-                            f1 = g(x1)?.abs();
+                            g1 = g(x1)?;
                         } else {
                             x0 = x1;
                             x1 = x2;
-                            f1 = f2;
+                            g1 = g2;
                             x2 = x0 + phi * (x3 - x0);
-                            f2 = g(x2)?.abs();
+                            g2 = g(x2)?;
                         }
                     }
-                    let (p_best, g_best) = if f1 < f2 { (x1, f1) } else { (x2, f2) };
-                    if g_best <= self.rho_err_bound {
+                    let (p_best, g_best) = if g1.abs() < g2.abs() {
+                        (x1, g1)
+                    } else {
+                        (x2, g2)
+                    };
+                    // Acceptance in the density column's own rule space
+                    // when the producer stamped it (session-12 review: an
+                    // absolute bound attained at chamber ρ accepts states
+                    // 10⁴× the local ρ off-surface at the fringe — a
+                    // de-facto clamp); absolute fallback preserves
+                    // pre-0.3.2 artifacts.
+                    let accepted = match self.rho_err_bound_log {
+                        Some(lb) => {
+                            let ratio = 1.0 + g_best / rho;
+                            ratio > 0.0 && ratio.ln().abs() <= lb
+                        }
+                        None => g_best.abs() <= self.rho_err_bound,
+                    };
+                    if accepted {
                         return Ok(p_best);
                     }
                     return Err("state off the equilibrium surface beyond its declared \
@@ -440,16 +486,25 @@ impl EosLaw for TableEos<'_> {
         &self,
         wl: &Prim,
         wr: &Prim,
-        h_roe: f64,
-        q2_roe: f64,
+        _h_roe: f64,
+        _q2_roe: f64,
         sql: f64,
         sqr: f64,
         inv: f64,
     ) -> f64 {
-        // Roe-averaged Γ₁ — the standard general-convex-EOS extension of the
-        // Batten bounds (the aux slot is reconstructed like every primitive).
-        let g1_roe = (sql * wl[I_G1] + sqr * wr[I_G1]) * inv;
-        ((g1_roe - 1.0) * (h_roe - 0.5 * q2_roe)).max(0.0).sqrt()
+        // Session-12 review fix: the gamma-law identity
+        // `c² = (Γ₁−1)(h − q²/2)` presumes a ZERO-REFERENCED calorically-
+        // perfect enthalpy; on the CEA formation-referenced surface
+        // (h ~ −10⁷ J/kg at chamber states) it is hugely negative and the
+        // old `.max(0.0)` silently returned c_roe = 0 at EVERY face —
+        // degrading the Batten bounds to local-only estimates. The
+        // datum-free general-EOS form: Roe-average the squared sound
+        // speeds themselves, `c̃² = (√ρ_l·c_l² + √ρ_r·c_r²)/(√ρ_l+√ρ_r)`,
+        // with c² = Γ₁·p/ρ from each side's own projected state — always
+        // positive, reduces to the classic value for identical states.
+        let cl2 = wl[I_G1] * wl[4] / wl[I_RHO];
+        let cr2 = wr[I_G1] * wr[4] / wr[I_RHO];
+        ((sql * cl2 + sqr * cr2) * inv).sqrt()
     }
 
     fn stagnation_ghost(

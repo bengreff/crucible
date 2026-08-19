@@ -131,9 +131,21 @@ fn run_config(path: &str) -> i32 {
         report.p_c_pa / 6894.757,
     );
     println!(
-        "  mdot exit/inj    {:>12.3} / {:.3} kg/s",
-        report.mdot_exit_kg_per_s, report.mdot_injected_kg_per_s,
+        "  mdot exit/inj    {:>12.3} / {:.3} kg/s  (inflow-plane measured {:.3})",
+        report.mdot_exit_kg_per_s, report.mdot_injected_kg_per_s, report.mdot_inflow_plane_kg_per_s,
     );
+    if ((report.mdot_inflow_plane_kg_per_s - report.mdot_injected_kg_per_s)
+        / report.mdot_injected_kg_per_s)
+        .abs()
+        > 0.01
+    {
+        println!(
+            "  WARNING: inflow plane delivers {:.3} kg/s vs the declared/solved {:.3} — \
+             the injector face is still choked (sonic startup cap active at readout); \
+             the run is NOT at its declared operating point",
+            report.mdot_inflow_plane_kg_per_s, report.mdot_injected_kg_per_s,
+        );
+    }
     println!(
         "  jacket heat      {:>12.3} MW   liner T_max {:.1} K",
         report.jacket_watts / 1e6,

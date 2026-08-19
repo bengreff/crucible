@@ -76,9 +76,9 @@ p_amb_floor_pa = 100.0 # declared altitude-cell floor (~1 mbar class): keeps the
 cfl = 0.4
 
 [tables.chem_equilibrium]
-file = "tables/chem/lox_lh2_v0.3.0.h5"
+file = "tables/chem/lox_lh2_v0.3.2.h5"
 group = "/chem/lox_lh2/equilibrium"
-pins = "tables/chem/lox_lh2_v0.3.0.pins.toml" # the machine-written single pin owner
+pins = "tables/chem/lox_lh2_v0.3.2.pins.toml" # the machine-written single pin owner
 
 [determinism]
 mode = "fixed-order"

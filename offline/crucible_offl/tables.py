@@ -71,6 +71,16 @@ class TableValue:
     units: str
     interp_rule: str
     interp_error_bound: float
+    #: Session-12 review: for LOG-valued columns the linear-space bound is
+    #: scale-blind (an absolute bound attained at the dense end is vacuous
+    #: at fringe densities), so the producer additionally measures the
+    #: error in the column's own rule space, |Δln value| (≈ relative), and
+    #: stamps it here. RECORDED DEFERRAL: this attr rides OUTSIDE digest
+    #: v3 (the pinned cross-language contract hashes the v3 field set
+    #: only); digest v4 folds it in. None for linear-valued columns and
+    #: pre-0.3.2 artifacts (the Rust acceptance falls back to the
+    #: absolute bound — v0.1.0 behavior preserved).
+    interp_error_bound_log: float | None = None
     sigma: tuple[float, ...] | None = None
     sigma_scalar: float | None = None
 
@@ -267,6 +277,10 @@ def write_table(file_path: str, group_path: str, spec: WriteSpec) -> str:
             put_attr(ds, "units", v.units)
             put_attr(ds, "interp_rule", v.interp_rule)
             ds.attrs.create("interp_error_bound", np.float64(v.interp_error_bound))
+            if v.interp_error_bound_log is not None:
+                ds.attrs.create(
+                    "interp_error_bound_log", np.float64(v.interp_error_bound_log)
+                )
             if v.sigma is not None:
                 values_g.create_dataset(
                     f"sigma_{v.name}", data=np.asarray(v.sigma, dtype=np.float64)

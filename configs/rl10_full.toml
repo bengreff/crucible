@@ -32,6 +32,8 @@ type = "injector_prior" # COUP-7 §3.2.1 prior tier: premixed at MR; η_c* knock
 mdot_kg_per_s = 16.9465  # design total flow, 37.36 lbm/s (TM-107318 Table 2.5.1)
 mixture_ratio = 5.0      # design O/F (rl10-cycle-data)
 h_inj_j_per_kg = -1083091.499726406 # liquid-injection enthalpy at MR 5 (station-3 pinned CEA datum, H2(L) 20.27 K / O2(L) 90.17 K)
+eta_cstar = 0.98         # BLIND: the coax-injector-family prior band MID (0.97–0.99, injector-cstar-eff; NOT the RL10 fitted value)
+h_offset_j_per_kg = -7.16e5 # S18 realization of the band mid (measured slope -0.847% c* per -3.0e5 J/kg); band edges bracketed at the coarse tier (certificate §band)
 
 [mechanisms.liner]
 type = "conduction"
@@ -64,7 +66,17 @@ t_coolant_k = 120.0    # jacket-average coolant temperature (inlet 32 K + ~191 K
 
 [operating_profile]
 mode = "steady_march"
-# Session 12: apertures + State Redistribution landed; the march settles.
+# KNOWN LIMIT (session 12): dials ≥ 12 cannot ESTABLISH by physical march —
+# the startup transient (drain/shear at the bell wall, injector piston, or
+# overexpanded-bell backflow, depending on the schedule; five schedules
+# probed, each halting at a different envelope edge) manufactures mixture
+# states genuinely outside the equilibrium surface's representable set, and
+# the operator rightly refuses (never clamps). Dials 5 and 8 establish and
+# settle. The designated cure is COUP-3 §3.6 pseudo-transient continuation
+# ("the default Stage-1 route to steady points") — local-Δt SER needs no
+# physical transient at all; grid-sequenced restart (FND-6) is the
+# alternative. Until one lands, the certified tiers are 5 (iteration) and
+# 8 (headline); this preset is the waiting full tier.
 flowthroughs = 12.0 # settle budget in fill-state acoustic span times
 fill_p_pa = 3.0e6   # quiescent startup fill near the expected operating class (steady result is fill-independent)
 pumpdown_flowthroughs = 4.0 # altitude-cell ambient pump-down window (quasi-static nozzle establishment)
@@ -72,9 +84,9 @@ p_amb_floor_pa = 100.0 # declared altitude-cell floor (~1 mbar class): keeps the
 cfl = 0.4
 
 [tables.chem_equilibrium]
-file = "tables/chem/lox_lh2_v0.3.0.h5"
+file = "tables/chem/lox_lh2_v0.3.2.h5"
 group = "/chem/lox_lh2/equilibrium"
-pins = "tables/chem/lox_lh2_v0.3.0.pins.toml" # the machine-written single pin owner
+pins = "tables/chem/lox_lh2_v0.3.2.pins.toml" # the machine-written single pin owner
 
 [determinism]
 mode = "fixed-order"

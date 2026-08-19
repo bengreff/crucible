@@ -43,6 +43,7 @@ fn value(name: &str, data: Vec<f64>, rule: &str, bound: f64) -> TableValue {
         units: "K".into(),
         interp_rule: rule.into(),
         interp_error_bound: bound,
+        interp_error_bound_log: None,
         sigma: None,
         sigma_scalar: None,
     }

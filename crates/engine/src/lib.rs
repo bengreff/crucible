@@ -92,16 +92,23 @@ pub static INJECTOR_PRIOR_MANIFEST: Manifest = Manifest {
         ParamSpec {
             name: "mixture_ratio",
             ty: ParamType::Float,
-            // The chem table's Z envelope, exactly (MR 3–8).
+            // Family-class sanity range (LOX/LH2 practice). The MECHANICAL
+            // envelope gate is the pinned table's own Z envelope at
+            // interrogation (narrower per data_version — e.g. the
+            // station-5 0.3.x surface covers MR ≈ 4.4–5.5); a config
+            // outside it refuses at the table seam, never here
+            // (session-12 review: this comment previously claimed to BE
+            // the table envelope, which drifts per artifact).
             range: Some((3.0, 8.0)),
             default: None,
         },
         ParamSpec {
             name: "h_inj_j_per_kg",
             ty: ParamType::Float,
-            // The table's h envelope (J/kg) — inflow enthalpy must be on
-            // the tabulated surface.
-            range: Some((-1.15e7, -2.0e5)),
+            // Cryogenic liquid-injection enthalpy sanity range (CEA
+            // formation-referenced). The pinned table's h envelope is the
+            // mechanical gate at interrogation (see mixture_ratio note).
+            range: Some((-1.3e7, -2.0e5)),
             default: None,
         },
         ParamSpec {

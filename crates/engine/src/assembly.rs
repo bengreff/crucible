@@ -87,6 +87,8 @@ pub struct EngineSpec {
     /// Declared altitude-cell ambient floor [Pa] (see the FND-4 default's
     /// rationale; validated ≥ the pinned table's p envelope at run start).
     pub p_amb_floor_pa: f64,
+    /// Injector start-ramp window (flow-through times; 0 = step start).
+    pub injector_ramp_flowthroughs: f64,
     /// The `chem_equilibrium` pin: (file, group, data_version, digest).
     pub table_pin: (String, String, String, String),
 }
@@ -191,6 +193,20 @@ pub fn assemble(
     };
 
     let cooled = rc.liner_thickness_m > 0.0;
+    if !cooled {
+        // Declared cooling machinery with a zero-thickness liner is a
+        // config contradiction — refuse rather than silently running an
+        // adiabatic engine with cooling selected (session-12 review).
+        for ty in ["jacket_coolant", "conduction", "wall_heat"] {
+            if !r.mechanisms_of_type(ty).is_empty() {
+                return Err(format!(
+                    "`{ty}` is selected but liner_thickness_m = 0 (no solid ring): the \
+                     declared cooling path cannot exist — set a liner thickness or drop \
+                     the cooling mechanisms"
+                ));
+            }
+        }
+    }
     let (jacket, liner, wall_law) = if cooled {
         let (_, jb) = sole(r, "jacket_coolant")?;
         let jacket = JacketSpec {
@@ -229,6 +245,21 @@ pub fn assemble(
         .operating_profile
         .as_ref()
         .ok_or("engine assembly needs an [operating_profile] (mode = \"steady_march\")")?;
+    if turbopump.is_some() {
+        // The closed loop engages after the establishment window (pump-down
+        // + start ramp); a budget that ends inside it would silently run
+        // open-mode — refuse the contradiction (session-12 review).
+        // Sequential establishment: ramp first, then pump-down (run.rs).
+        let window = profile.pumpdown_flowthroughs + profile.injector_ramp_flowthroughs;
+        if profile.flowthroughs <= window {
+            return Err(format!(
+                "closed mode (turbopump_expander) never engages: flowthroughs = {} does \
+                 not exceed the establishment window ({} flow-throughs of pump-down/ramp); \
+                 raise flowthroughs or drop the turbopump",
+                profile.flowthroughs, window
+            ));
+        }
+    }
 
     // The ternary grid through the FND-3 §3.3/§3.6 ingest seam: analytic
     // partial fractions + face apertures from the contour clip. Gas ⇔
@@ -305,6 +336,7 @@ pub fn assemble(
         fill_p_pa: profile.fill_p_pa,
         pumpdown_flowthroughs: profile.pumpdown_flowthroughs,
         p_amb_floor_pa: profile.p_amb_floor_pa,
+        injector_ramp_flowthroughs: profile.injector_ramp_flowthroughs,
         table_pin,
     })
 }

@@ -51,6 +51,26 @@ def _holdout_points(ax: np.ndarray, log: bool) -> np.ndarray:
     return np.exp(pts) if log else pts
 
 
+def _edge_points(ax: np.ndarray, log: bool, env: tuple[float, float]) -> np.ndarray:
+    """Envelope-edge coverage (session-12 review): a declared envelope
+    bound can cut through an axis cell, leaving the in-envelope slab of
+    that cell structurally unreachable by midpoint/quarter offsets (the
+    envelope filter then discards them all) — the stamped bound silently
+    excluded that slab. Sample the envelope boundary itself plus the
+    midpoint between each bound and its nearest interior grid node, in
+    rule space."""
+    lo, hi = env
+    a = np.log(ax) if log else ax
+    el, eh = (np.log(lo), np.log(hi)) if log else (lo, hi)
+    pts = [el, eh]
+    inner = a[(a > el) & (a < eh)]
+    if inner.size:
+        pts.append(0.5 * (el + inner[0]))
+        pts.append(0.5 * (eh + inner[-1]))
+    out = np.array(pts)
+    return np.exp(out) if log else out
+
+
 @dataclass(frozen=True)
 class EquilibriumGrid:
     """Axis grids + declared envelopes for the (p, h, Z) surface (SI)."""
@@ -119,10 +139,17 @@ def station5_envelope_grid() -> EquilibriumGrid:
     (OFFL-3 §3.3 R2 doctrine)."""
     return EquilibriumGrid(
         p_points=tuple(np.geomspace(5.0, 8.0e6, 69)),  # ~11 pts/decade, as v0.1
-        h_points=tuple(np.linspace(-1.25e7, -1.0e5, 33)),  # ~3.9e5 J/kg spacing kept
+        # 0.3.x ceiling: establishment transients overshoot the injection
+        # enthalpy — the dial-16 piston start reached h ≈ -1e5 (0.3.1
+        # raised to +1.3e6) and the dial-12 overexpanded-bell backflow
+        # recompression then reached +1.33e6 (measured at each halt's
+        # crash artifact). 0.3.2 sets the ceiling with REAL transient
+        # margin: +4.0e6 grid / +3.8e6 envelope (T ~ 4100 K class,
+        # trivially CEA-convergent hot).
+        h_points=tuple(np.linspace(-1.25e7, 4.0e6, 43)),  # ~3.9e5 J/kg spacing kept
         z_points=tuple(np.linspace(0.145, 0.195, 11)),
         p_envelope=(1.0e1, 7.0e6),
-        h_envelope=(-1.23e7, -2.0e5),
+        h_envelope=(-1.23e7, 3.8e6),
         z_envelope=(0.155, 0.185),  # MR 5.45 … 4.41 (design 5.0 = Z 1/6 mid)
     )
 
@@ -245,11 +272,18 @@ def build_equilibrium_surface(
     # by stride, restricted to the declared envelope; SAFETY margin on the
     # observed max (module doc).
     axes_list = [p_ax, h_ax, z_ax]
-    hold_p = _holdout_points(p_ax, log=True)[::holdout_stride]
-    hold_h = _holdout_points(h_ax, log=False)[::holdout_stride]
-    hold_z = _holdout_points(z_ax, log=False)[::holdout_stride]
+    hold_p = np.concatenate(
+        [_holdout_points(p_ax, log=True)[::holdout_stride], _edge_points(p_ax, True, grid.p_envelope)]
+    )
+    hold_h = np.concatenate(
+        [_holdout_points(h_ax, log=False)[::holdout_stride], _edge_points(h_ax, False, grid.h_envelope)]
+    )
+    hold_z = np.concatenate(
+        [_holdout_points(z_ax, log=False)[::holdout_stride], _edge_points(z_ax, False, grid.z_envelope)]
+    )
     env = (grid.p_envelope, grid.h_envelope, grid.z_envelope)
     bounds = {name: 0.0 for name in _EQ_RULES}
+    bounds_log = {name: 0.0 for name in _EQ_RULES if _EQ_RULES[name].endswith("log")}
     n_holdout = 0
     for p in hold_p:
         for h in hold_h:
@@ -261,8 +295,15 @@ def build_equilibrium_surface(
                 for name, t in truth.items():
                     est = _multilinear(_EQ_RULES[name], axes_list, grids, (p, h, z), name)
                     bounds[name] = max(bounds[name], abs(est - t))
-    assert n_holdout > 0, "holdout set must not be empty"
+                    if name in bounds_log:
+                        # Rule-space (|Δ ln|, ≈ relative) error for
+                        # log-valued columns — the scale-honest bound the
+                        # runtime acceptance uses (session-12 review).
+                        bounds_log[name] = max(bounds_log[name], abs(np.log(est) - np.log(t)))
+    if n_holdout <= 0:
+        raise RuntimeError("holdout set must not be empty")  # survives -O
     bounds = {name: SAFETY * b for name, b in bounds.items()}
+    bounds_log = {name: SAFETY * b for name, b in bounds_log.items()}
 
     deck = {
         "table": "equilibrium_surface",
@@ -291,6 +332,7 @@ def build_equilibrium_surface(
                 units=_EQ_COLUMNS[name][1],
                 interp_rule=_EQ_COLUMNS[name][0],
                 interp_error_bound=bounds[name],
+                interp_error_bound_log=bounds_log.get(name),
             )
             for name in sorted(_EQ_COLUMNS)
         ),
@@ -305,7 +347,10 @@ def build_performance_reference(
     generator_commit: str,
 ) -> tuple[WriteSpec, dict[str, float]]:
     """The (p_c, MR) chamber performance functional (OFFL-3 §2): c*_ideal,
-    T_c, γ, M̄ — SOLV-7's anchor and SOLV-1 §3.4's knockdown reference."""
+    T_c, γ, M̄ — SOLV-7's anchor and SOLV-1 §3.4's knockdown reference.
+    The provenance deck stamps the product model form (session-12 review:
+    v0.2.0/v0.3.0 shipped identical input_deck_hash across different
+    generation physics)."""
     pc_ax, mr_ax = np.asarray(grid.pc_points), np.asarray(grid.mr_points)
     names = ("c_star_ideal", "T_c", "gamma", "mbar")
     rules = {n: "lin-lin-lin" for n in names}
@@ -337,7 +382,8 @@ def build_performance_reference(
             for n, t in truth.items():
                 est = _multilinear(rules[n], axes_list, grids, (pc, mr), n)
                 bounds[n] = max(bounds[n], abs(est - t))
-    assert n_holdout > 0, "holdout set must not be empty"
+    if n_holdout <= 0:
+        raise RuntimeError("holdout set must not be empty")  # survives -O
     bounds = {n: SAFETY * b for n, b in bounds.items()}
 
     deck = {
@@ -346,6 +392,7 @@ def build_performance_reference(
         "grid": asdict(grid),
         "columns": list(names),
         "engine": f"cea {cea.__version__}",
+        "products": "gas-only-metastable" if engine.gas_only else "full-condensed",
     }
     spec = WriteSpec(
         kind="regular",

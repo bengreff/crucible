@@ -148,9 +148,33 @@ class EquilibriumEngine:
         self._reac = cea.Mixture(species)
         self._prod = cea.Mixture(species, products_from_reactants=True)
         if gas_only:
-            # Condensed CEA species carry a parenthesized phase tag
-            # (H2O(L), H2O(cr), …): filter them from the full product set.
-            gas_names = [s for s in self._prod.species_names if "(" not in s]
+            # Condensed CEA species carry a TRAILING parenthesized phase
+            # tag — (L), (cr), (a), (b), (s), (I…) — filter exactly those.
+            # A bare `"(" in name` test would also drop legitimate gas
+            # species with interior parentheses (e.g. NASA-Glenn organics
+            # like HO(CO)2OH) for carbon-bearing propellants — refuse to
+            # guess: anything filtered must match the condensed-suffix
+            # form, else this propellant needs an explicit species list
+            # (session-12 review).
+            import re
+
+            cond = re.compile(r"\((L|cr|s|a|b|I{1,3}|IV|V|VI)['\d]*\)$")
+            names = list(self._prod.species_names)
+            gas_names = [n for n in names if not cond.search(n)]
+            dropped = [n for n in names if cond.search(n)]
+            odd = [n for n in gas_names if "(" in n]
+            if odd:
+                raise ValueError(
+                    f"gas_only filter: species {odd} carry parentheses but no "
+                    "recognized condensed-phase suffix — extend the filter or "
+                    "supply an explicit gas species list; refusing to guess"
+                )
+            if not dropped:
+                raise ValueError(
+                    "gas_only requested but no condensed species were present "
+                    "to drop — the flag would be a silent no-op; remove it or "
+                    "check the product set"
+                )
             self._prod = cea.Mixture(gas_names)
         self._fuel_w = np.array(
             [1.0 if s in propellant.fuel_species else 0.0 for s in species]
