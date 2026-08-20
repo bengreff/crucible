@@ -566,8 +566,9 @@ pub struct FlowLedger {
 /// the grid state itself stays SoA per FND-2 §3.9) and the rate-evaluation
 /// data the SDC step composes.
 pub(crate) struct Scratch {
-    /// `NPRIM`-wide primitive (+aux) states per cell.
-    prim: Vec<Vec<Prim>>,
+    /// `NPRIM`-wide primitive (+aux) states per cell — the SDC step's gas
+    /// class-D operand source after a `refresh_prims`/`eval_rhs` (S3).
+    pub(crate) prim: Vec<Vec<Prim>>,
     pub(crate) rate: Vec<Vec<Cons>>,
     pub(crate) u0: Vec<Vec<Cons>>,
     /// Brick index by (br·nbz + bz) — resolved once, not per cell; `None`
@@ -698,6 +699,20 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     pub fn workspace(&self, g: &Grid) -> Result<EulerWorkspace, FlowError> {
         let nt = self.validate(g)?;
         Ok(EulerWorkspace(self.scratch(g, nt)?))
+    }
+
+    /// Refresh the workspace's primitive cache from the CURRENT grid
+    /// state — no rate evaluation, no ledger touch. The SDC step's gas
+    /// class-D solve derives its operands from this (S3); warm-start
+    /// hints ride along exactly as in `eval_rhs`.
+    pub fn refresh_prims(
+        &self,
+        g: &Grid,
+        f: &EulerFields,
+        ws: &mut EulerWorkspace,
+    ) -> Result<(), FlowError> {
+        let nt = self.validate(g)?;
+        self.fill_prims(g, f, nt, &mut ws.0)
     }
 
     /// Evaluate `L(U)` — the flux-divergence + source contribution (SOLV-1

@@ -12,6 +12,12 @@
 //! integrators of sessions 5–12 are retired; the flux-form spatial
 //! operators carried over unchanged.
 //!
+//! The missing forces (S3): `gas_diffusion` — SOLV-1 §3.1's `F_visc`
+//! (compressible viscous stress + Fourier conduction + species diffusion
+//! on the exact cylindrical metric, swirl included), the gas occupant of
+//! class `D`, suppressed at wall-law faces (SOLV-1 §3.5 — the wall
+//! function replaces, never adds).
+//!
 //! Session scope: uniform N_θ across bricks per sweep (asserted); the
 //! conservative flux aggregation across an N_θ jump (AMR-refluxing style,
 //! FND-2 §3.4) arrives with the plan's 3-D wave (S8).
@@ -20,6 +26,7 @@ pub mod certificate;
 mod conduction;
 pub mod euler;
 pub mod euler_mms;
+pub mod gas_diffusion;
 mod mechanism;
 pub mod sdc;
 pub mod station1_sod;

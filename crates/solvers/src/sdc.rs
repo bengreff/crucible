@@ -68,9 +68,10 @@ use crate::conduction::{
     AssembleMode, Conduction, Domain, ExchangeKey, GasFaceRobin, HeatLedger, SolverError,
 };
 use crate::euler::{
-    Cons, EosLaw, Euler, EulerFields, EulerWorkspace, FlowError, FlowLedger, I_EN, NCOMP, Prim,
-    srd_neighborhood,
+    Cons, EosLaw, Euler, EulerFields, EulerWorkspace, FlowError, FlowLedger, I_EN, I_MR, I_MT,
+    I_MZ, I_RC, NCOMP, Prim, srd_neighborhood,
 };
+use crate::gas_diffusion::{GasComp, GasDiffError, GasDiffusion, GasOperands, GasWork};
 use crate::wall_heat::{NearWallGas, WallHeatError, WallLaw};
 use crucible_grid::{BRICK, BRICK_CELLS, FaceDir, FieldId, Grid, InterfaceFace, tree_combine};
 
@@ -103,6 +104,22 @@ pub const EPS_ROBIN_RESID: f64 = 1e-6;
 /// deterministic clamp discipline, applied to the exchange iteration).
 pub const ROBIN_OMEGA_MIN: f64 = 0.1;
 pub const ROBIN_OMEGA_MAX: f64 = 2.0;
+
+/// Residual acceptance of the gas class-`D` cross-term Picard (S3): the
+/// STATE effect over this step of the rate change between the last two
+/// Picard sweeps, relative to the conserved components' magnitudes (see
+/// `rate_resid`). This is a **contraction guard, not an
+/// accuracy floor**: the truncated Picard is the same kind of fixed-count
+/// iteration as the SDC sweeps themselves — its remainder is a temporal-
+/// truncation term of the integrator (verified by the dt-Richardson and
+/// MMS order gates), legitimately ~1e-2–1e-4 relative during violent
+/// transients and ~roundoff near steady state. What must NEVER happen is
+/// non-contraction: the lagged remainder's structural gain is ≲ 1/12 at
+/// any Δt (AM-GM over the implicit diagonals), so a final-sweep relative
+/// change above this ceiling means the cross terms are not contracting —
+/// a broken assembly or a regime outside the bound. Failure ⇒
+/// `COUPLING_RESIDUAL` (numerical — a solver defect, never a verdict).
+pub const EPS_GAS_DIFF_RESID: f64 = 0.25;
 
 /// Fixed iteration cap of the class-`D` preconditioned-CG solve. The stop
 /// is the absolute+deterministic rule of META-1 §2.2: residual below
@@ -270,6 +287,15 @@ pub struct ExchangeClass<'a> {
     pub temperature: &'a (dyn Fn(&Prim) -> Result<f64, &'static str> + Sync),
 }
 
+/// The gas-phase class-`D` occupant (S3): `F_visc` — compressible viscous
+/// stress + Fourier conduction + species diffusion (`crate::gas_diffusion`),
+/// solved inside the same fixed Picard sweeps as the wall exchange. The
+/// temperature query is the same FND-7 seam closure as [`ExchangeClass`].
+pub struct GasDiffusionClass<'a> {
+    pub op: &'a GasDiffusion<'a>,
+    pub temperature: &'a (dyn Fn(&Prim) -> Result<f64, &'static str> + Sync),
+}
+
 /// COUP-2 §3.1.1 — the audit's declared reference scales (the absolute
 /// floor ingredient `TOL_AUDIT_FLOOR[q] = K_AUDIT·ε·√N·ref[q]`). Zero is
 /// legal: the throughput term of `S[q]` already scales every quantity that
@@ -298,6 +324,9 @@ pub enum SdcError {
     Flow(FlowError),
     Solid(SolverError),
     Wall(WallHeatError),
+    /// The gas class-`D` operator refused (bad coefficient, non-finite
+    /// operand, N_θ > 1) — `crate::gas_diffusion`.
+    Gas(GasDiffError),
     /// A fixed-sweep coupling solve missed its named residual acceptance —
     /// COUP-4's `COUPLING_RESIDUAL` halt class (numerical: a solver defect,
     /// never an engine verdict).
@@ -325,6 +354,7 @@ impl std::fmt::Display for SdcError {
             Self::Flow(e) => write!(f, "hyperbolic class: {e}"),
             Self::Solid(e) => write!(f, "diffusion class: {e}"),
             Self::Wall(e) => write!(f, "wall law: {e}"),
+            Self::Gas(e) => write!(f, "gas diffusion class: {e}"),
             Self::CouplingResidual { solve, resid, eps } => write!(
                 f,
                 "COUPLING_RESIDUAL: {solve} residual {resid:.3e} exceeds its acceptance \
@@ -365,6 +395,21 @@ impl From<WallHeatError> for SdcError {
     }
 }
 
+impl From<GasDiffError> for SdcError {
+    fn from(e: GasDiffError) -> Self {
+        // A missed CG acceptance is the COUP-4 `COUPLING_RESIDUAL` class,
+        // reported uniformly with the other fixed-sweep solves.
+        if let GasDiffError::CgUnconverged { resid, .. } = e {
+            return Self::CouplingResidual {
+                solve: "class-D gas-diffusion CG (COUP-3 §3.1, S3)",
+                resid,
+                eps: EPS_CG_RESID,
+            };
+        }
+        Self::Gas(e)
+    }
+}
+
 /// One audited quantity's per-step closure record.
 #[derive(Debug, Clone, Copy)]
 pub struct AuditRow {
@@ -381,9 +426,16 @@ pub struct StepReport {
     pub audit: Vec<AuditRow>,
     /// Exchange readout at the accepted solve (None ⇔ no exchange class).
     pub exchange: Option<ExchangeStepReport>,
-    /// Last class-`D` CG solve's iteration count and terminal residual.
+    /// Last SOLID class-`D` CG solve's iteration count and residual.
     pub cg_iters: usize,
     pub cg_resid: f64,
+    /// Gas class-`D` readout (S3): worst per-component CG iterations/
+    /// residual of the accepted solve, and the accepted cross-term Picard
+    /// residual (≤ [`EPS_GAS_DIFF_RESID`] by acceptance). Zero ⇔ no gas
+    /// diffusion scheduled.
+    pub gas_cg_iters: usize,
+    pub gas_cg_resid: f64,
+    pub gas_picard_resid: f64,
 }
 
 /// The Robin-Robin exchange readout of one step.
@@ -427,6 +479,21 @@ struct SolidBufs {
     delta: BufF,
 }
 
+/// Gas class-`D` state (S3): the solved/lagged operand sets, the operator
+/// scratch, and the SDC-node rate records (the solid's heat0/heat_prev/
+/// heat_cur pattern, five components wide; `dlag` is the Picard trial —
+/// the q_trial analogue).
+struct GasBufs {
+    sol: GasOperands,
+    lag: GasOperands,
+    work: GasWork,
+    d0: Vec<Vec<Cons>>,
+    dprev: Vec<Vec<Cons>>,
+    dcur: Vec<Vec<Cons>>,
+    dlag: Vec<Vec<Cons>>,
+    dstage: Vec<Vec<Cons>>,
+}
+
 /// The one deterministic integrator (persistent workspaces; one instance
 /// per grid). Class arguments arrive per step so callers may evolve
 /// boundary schedules between steps (COUP-7 declared schedules).
@@ -434,6 +501,7 @@ pub struct Sdc {
     ws: Option<EulerWorkspace>,
     rate_e0: Vec<Vec<Cons>>,
     sb: Option<SolidBufs>,
+    gb: Option<GasBufs>,
     pub audit_spec: AuditSpec,
 }
 
@@ -449,6 +517,7 @@ impl Sdc {
             ws: None,
             rate_e0: Vec::new(),
             sb: None,
+            gb: None,
             audit_spec: AuditSpec::default(),
         }
     }
@@ -517,6 +586,27 @@ impl Sdc {
         self.sb.as_mut().expect("just ensured")
     }
 
+    fn ensure_gb(&mut self, g: &Grid) -> &mut GasBufs {
+        let nb = g.n_bricks();
+        let stale = self.gb.as_ref().is_none_or(|s| {
+            s.d0.len() != nb || s.d0.first().is_none_or(|v| v.len() != BRICK_CELLS)
+        });
+        if stale {
+            let mkc = || vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; nb];
+            self.gb = Some(GasBufs {
+                sol: GasOperands::alloc(g),
+                lag: GasOperands::alloc(g),
+                work: GasWork::alloc(g),
+                d0: mkc(),
+                dprev: mkc(),
+                dcur: mkc(),
+                dlag: mkc(),
+                dstage: mkc(),
+            });
+        }
+        self.gb.as_mut().expect("just ensured")
+    }
+
     /// Pure-diffusion convenience (the Goal-A studies): the same step with
     /// only class `D` scheduled.
     pub fn step_diffusion(
@@ -526,7 +616,7 @@ impl Sdc {
         t: f64,
         dt: f64,
     ) -> Result<StepReport, SdcError> {
-        self.step::<crate::euler::GammaLaw>(g, None, Some(diffusion), None, t, dt)
+        self.step::<crate::euler::GammaLaw>(g, None, Some(diffusion), None, None, t, dt)
     }
 
     /// March `n_steps` of the pure-diffusion step from `t0`; returns the
@@ -555,7 +645,7 @@ impl Sdc {
         t: f64,
         dt: f64,
     ) -> Result<StepReport, SdcError> {
-        self.step(g, Some(flow), None, None, t, dt)
+        self.step(g, Some(flow), None, None, None, t, dt)
     }
 
     /// CFL-paced flow-only march from `t0` to `t_final`; returns steps taken.
@@ -588,13 +678,16 @@ impl Sdc {
 
     /// One SDC-IMEX step of size `dt` at time `t` (module doc). The
     /// schedule is the fixed source order: class `A` evaluation, then the
-    /// class-`D` solve with the Robin-Robin exchange inside, per sweep;
-    /// the COUP-2 audit closes the step.
+    /// class-`D` solves (gas F_visc, then solid conduction with the
+    /// Robin-Robin exchange) inside the fixed Picard sweeps, per SDC
+    /// sweep; the COUP-2 audit closes the step.
+    #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
     pub fn step<E: EosLaw + Sync>(
         &mut self,
         g: &mut Grid,
         flow: Option<&FlowClass<'_, '_, E>>,
         diffusion: Option<&DiffusionClass<'_, '_>>,
+        gas: Option<&GasDiffusionClass<'_>>,
         exchange: Option<&ExchangeClass<'_>>,
         t: f64,
         dt: f64,
@@ -608,6 +701,18 @@ impl Sdc {
                 "wall exchange needs both the hyperbolic and diffusion classes",
             ));
         }
+        if gas.is_some() && flow.is_none() {
+            return Err(SdcError::Config(
+                "the gas diffusion class rides the flow state; schedule it with \
+                 the hyperbolic class",
+            ));
+        }
+        if gas.is_some() && g.brick(0).n_theta() != 1 {
+            return Err(SdcError::Config(
+                "gas diffusion at N_θ > 1 arrives with the 3-D wave (plan S8); \
+                 refusing rather than guessing",
+            ));
+        }
         if let Some(dc) = diffusion
             && dc.t_field == dc.scratch_field
         {
@@ -619,8 +724,9 @@ impl Sdc {
         if let (Some(dc), Some(_)) = (diffusion, flow) {
             if dc.op.domain != Domain::Solid {
                 return Err(SdcError::Config(
-                    "a gas-domain diffusion class alongside the flow class is the S3 \
-                     viscous wave; this schedule couples flow to SOLID conduction only",
+                    "a scalar gas-domain conduction class alongside the flow class is \
+                     superseded by the S3 gas-diffusion class (which owns the gas \
+                     energy); this schedule couples flow to SOLID conduction only",
                 ));
             }
             if g.brick(0).n_theta() != 1 {
@@ -692,10 +798,43 @@ impl Sdc {
             }
         }
 
+        // Gas class-D at node 0: D(U⁰) rates + ledger (eval_rhs above just
+        // filled the primitive cache from U⁰ — the operand source).
+        let mut gd0 = FlowLedger::default();
+        if let (Some(gc), Some(_)) = (gas, flow) {
+            self.ensure_gb(g);
+            let (gb, ws) = (
+                self.gb.as_mut().expect("ensured"),
+                self.ws.as_ref().expect("ensured"),
+            );
+            derive_gas_operands(
+                g,
+                &ws.0.prim,
+                gc.temperature,
+                &mut gb.sol,
+                &mut gb.work.ke_base,
+            )?;
+            gb.lag.clone_from(&gb.sol);
+            gc.op.fill_lag_gradients(g, &gb.lag, &mut gb.work)?;
+            gc.op
+                .assemble_rates(g, &gb.sol, &gb.lag, &gb.work, t, &mut gb.d0, Some(&mut gd0))?;
+            // dprev starts as D(U⁰) (the predictor's weights are zero —
+            // the buffer must hold SOMETHING shaped right; sweep 1 reads
+            // the predictor's accepted rates), dlag likewise as the first
+            // trial. The heat_prev/q_prev pattern, five components wide.
+            for (bi, src) in gb.d0.iter().enumerate() {
+                gb.dprev[bi].copy_from_slice(src);
+                gb.dlag[bi].copy_from_slice(src);
+            }
+        }
+
         // --- The fixed sweeps --------------------------------------------
         let mut l_last = l0;
         let mut hl_prev = hl0;
         let mut hl_last = HeatLedger::default();
+        let mut gd_prev = gd0;
+        let mut gd_last = FlowLedger::default();
+        let mut gd_iter = FlowLedger::default();
         let mut q_prev = q0.clone();
         let mut debit_applied = 0.0f64; // κV-weighted gas energy debited (J)
         let mut report = StepReport::default();
@@ -734,26 +873,155 @@ impl Sdc {
                 l_last = *ws.ledger();
             }
 
-            // Robin-Picard loop (single pass when no exchange is scheduled).
-            let n_picard = if exchange.is_some() {
+            // The fixed Picard loop (single pass when neither coupled
+            // solve — wall exchange or gas cross terms — is scheduled).
+            let n_picard = if exchange.is_some() || gas.is_some() {
                 N_ROBIN_SWEEPS
             } else {
                 1
             };
+            // Per-sweep trials: the previous sweep's accepted values.
             let mut q_trial = q_prev.clone();
+            if gas.is_some() {
+                let gb = self.gb.as_mut().expect("ensured");
+                for bi in 0..gb.dlag.len() {
+                    let (dlag, dprev) = (&mut gb.dlag[bi], &gb.dprev[bi]);
+                    dlag.copy_from_slice(dprev);
+                }
+            }
             let mut omega = 1.0f64;
             let mut resid_hist: Option<Vec<f64>> = None; // previous residual vector
             let mut robin_resid = 0.0f64;
+            let mut gas_resid = 0.0f64;
             let mut q_new: Vec<f64> = Vec::new();
             let mut hl_tmp = HeatLedger::default();
 
             for ps in 0..n_picard {
                 if let Some(fc) = flow {
                     self.compose_gas(
-                        g, fc, we0, we1, exchange, wq0, &q0, wqprev, &q_prev, wqnew, &q_trial,
+                        g,
+                        fc,
+                        we0,
+                        we1,
+                        exchange,
+                        wq0,
+                        &q0,
+                        wqprev,
+                        &q_prev,
+                        wqnew,
+                        &q_trial,
+                        gas.is_some(),
                     );
                     let ws = self.ws.as_ref().expect("ensured");
                     fc.op.apply_srd(g, fc.fields, ws);
+                }
+                // Gas class-D solves (S3): operate on module buffers only
+                // (the state advances through the composition above, next
+                // iterate, with the freshly-accepted rates in dlag).
+                if let (Some(gc), Some(fc)) = (gas, flow) {
+                    {
+                        let ws = self.ws.as_mut().expect("ensured");
+                        fc.op.refresh_prims(g, fc.fields, ws)?;
+                    }
+                    let gb = self.gb.as_mut().expect("ensured");
+                    let ws = self.ws.as_ref().expect("ensured");
+                    // Cross-term lag = the previous iterate's solutions
+                    // (iterate 0: the composed base itself).
+                    if ps > 0 {
+                        std::mem::swap(&mut gb.lag, &mut gb.sol);
+                    }
+                    derive_gas_operands(
+                        g,
+                        &ws.0.prim,
+                        gc.temperature,
+                        &mut gb.sol,
+                        &mut gb.work.ke_base,
+                    )?;
+                    if ps == 0 {
+                        gb.lag.clone_from(&gb.sol);
+                    }
+                    gc.op.fill_lag_gradients(g, &gb.lag, &mut gb.work)?;
+                    // Stage rates at the base operands (the affine RHS of
+                    // the velocity solves), then the fixed solve order:
+                    // u_r, u_z, ω — then T (work fluxes at the accepted
+                    // velocities) and C off a re-staged assembly.
+                    gc.op.assemble_rates(
+                        g,
+                        &gb.sol,
+                        &gb.lag,
+                        &gb.work,
+                        t + dt,
+                        &mut gb.dstage,
+                        None,
+                    )?;
+                    let mut it_max = 0usize;
+                    let mut rs_max = 0.0f64;
+                    for comp in [GasComp::Ur, GasComp::Uz, GasComp::Om] {
+                        fill_gas_rhs(
+                            g,
+                            comp,
+                            wqnew,
+                            &gb.dstage,
+                            &gb.dlag,
+                            &gb.sol,
+                            &gb.work.ke_base,
+                            &mut gb.work.b,
+                        );
+                        gc.op.fill_mass(g, comp, &gb.sol.rho, &mut gb.work);
+                        let x = match comp {
+                            GasComp::Ur => &mut gb.sol.ur,
+                            GasComp::Uz => &mut gb.sol.uz,
+                            _ => &mut gb.sol.om,
+                        };
+                        let (it, rs) = gc.op.cg_solve(g, comp, wqnew, x, &mut gb.work)?;
+                        it_max = it_max.max(it);
+                        rs_max = rs_max.max(rs);
+                    }
+                    gc.op.assemble_rates(
+                        g,
+                        &gb.sol,
+                        &gb.lag,
+                        &gb.work,
+                        t + dt,
+                        &mut gb.dstage,
+                        None,
+                    )?;
+                    for comp in [GasComp::T, GasComp::C] {
+                        fill_gas_rhs(
+                            g,
+                            comp,
+                            wqnew,
+                            &gb.dstage,
+                            &gb.dlag,
+                            &gb.sol,
+                            &gb.work.ke_base,
+                            &mut gb.work.b,
+                        );
+                        gc.op.fill_mass(g, comp, &gb.sol.rho, &mut gb.work);
+                        let x = match comp {
+                            GasComp::T => &mut gb.sol.tt,
+                            _ => &mut gb.sol.cc,
+                        };
+                        let (it, rs) = gc.op.cg_solve(g, comp, wqnew, x, &mut gb.work)?;
+                        it_max = it_max.max(it);
+                        rs_max = rs_max.max(rs);
+                    }
+                    // The accepted assembly at the solutions — the rates
+                    // the composition applies and the audit ledgers.
+                    gd_iter = FlowLedger::default();
+                    gc.op.assemble_rates(
+                        g,
+                        &gb.sol,
+                        &gb.lag,
+                        &gb.work,
+                        t + dt,
+                        &mut gb.dcur,
+                        Some(&mut gd_iter),
+                    )?;
+                    gas_resid = rate_resid(g, &fc.fields.ids(), &gb.dcur, &gb.dlag, wqnew);
+                    std::mem::swap(&mut gb.dlag, &mut gb.dcur);
+                    report.gas_cg_iters = it_max;
+                    report.gas_cg_resid = rs_max;
                 }
                 if let (Some(xc), Some(fc)) = (exchange, flow) {
                     ex_ops = self.exchange_operands(g, fc, xc)?;
@@ -834,12 +1102,35 @@ impl Sdc {
                 }
                 ex_report.robin_resid = robin_resid;
             }
+            if gas.is_some() {
+                // NaN-safe acceptance of the gas cross-term Picard (S3).
+                if gas_resid.is_nan() || gas_resid > EPS_GAS_DIFF_RESID {
+                    return Err(SdcError::CouplingResidual {
+                        solve: "gas class-D cross-term Picard (COUP-3 §3.1, S3)",
+                        resid: gas_resid,
+                        eps: EPS_GAS_DIFF_RESID,
+                    });
+                }
+                report.gas_picard_resid = gas_resid;
+            }
 
             // Accept the sweep: final gas composition with the ACCEPTED
-            // exchange heats (exactly what the solid solve received).
+            // exchange heats (exactly what the solid solve received) and
+            // the ACCEPTED gas diffusion rates (in dlag after the swap).
             if let Some(fc) = flow {
                 self.compose_gas(
-                    g, fc, we0, we1, exchange, wq0, &q0, wqprev, &q_prev, wqnew, &q_trial,
+                    g,
+                    fc,
+                    we0,
+                    we1,
+                    exchange,
+                    wq0,
+                    &q0,
+                    wqprev,
+                    &q_prev,
+                    wqnew,
+                    &q_trial,
+                    gas.is_some(),
                 );
                 let ws = self.ws.as_ref().expect("ensured");
                 fc.op.apply_srd(g, fc.fields, ws);
@@ -865,13 +1156,23 @@ impl Sdc {
                     ex_report.applied_bc_j = applied_bc_j;
                 }
                 hl_last = hl_tmp;
-            } else if diffusion.is_some() {
-                // Roll the F_I record: heat_prev ← this sweep's accepted
-                // assembly; q_prev/hl_prev likewise.
-                let sb = self.sb.as_mut().expect("ensured");
-                std::mem::swap(&mut sb.heat_prev, &mut sb.heat_cur);
-                hl_prev = hl_tmp;
-                q_prev = q_trial.clone();
+                gd_last = gd_iter;
+            } else {
+                if diffusion.is_some() {
+                    // Roll the F_I record: heat_prev ← this sweep's
+                    // accepted assembly; q_prev/hl_prev likewise.
+                    let sb = self.sb.as_mut().expect("ensured");
+                    std::mem::swap(&mut sb.heat_prev, &mut sb.heat_cur);
+                    hl_prev = hl_tmp;
+                    q_prev = q_trial.clone();
+                }
+                if gas.is_some() {
+                    // Roll the gas D record: dprev ← this sweep's accepted
+                    // rates (sitting in dlag after the iterate swap).
+                    let gb = self.gb.as_mut().expect("ensured");
+                    std::mem::swap(&mut gb.dprev, &mut gb.dlag);
+                    gd_prev = gd_iter;
+                }
             }
         }
 
@@ -881,6 +1182,7 @@ impl Sdc {
             g,
             flow.is_some(),
             diffusion.is_some(),
+            gas.is_some(),
             dt,
             &stored_before,
             &stored_after,
@@ -889,6 +1191,9 @@ impl Sdc {
             &hl0,
             &hl_prev,
             &hl_last,
+            &gd0,
+            &gd_prev,
+            &gd_last,
             debit_applied,
             &mut report,
         )?;
@@ -899,8 +1204,10 @@ impl Sdc {
     }
 
     /// Gas node-1 composition: `U = U⁰ + we0·F_E⁰ + we1·F_E(cur)` plus the
-    /// exchange debit `−(wq0·q0 + wqprev·q_prev + wqnew·q_trial)` per patch
-    /// distributed uniformly over its SRD debit set. Fixed order; serial.
+    /// gas class-D quadrature `wq0·D⁰ + wqprev·D_prev + wqnew·D_trial`
+    /// (S3; dlag holds the trial) plus the exchange debit
+    /// `−(wq0·q0 + wqprev·q_prev + wqnew·q_trial)` per patch distributed
+    /// uniformly over its SRD debit set. Fixed order; serial.
     #[allow(clippy::too_many_arguments)]
     fn compose_gas<E: EosLaw + Sync>(
         &self,
@@ -915,6 +1222,7 @@ impl Sdc {
         q_prev: &[f64],
         wqnew: f64,
         q_trial: &[f64],
+        gas: bool,
     ) {
         let ids = fc.fields.ids();
         let ws = self.ws.as_ref().expect("ensured");
@@ -931,6 +1239,19 @@ impl Sdc {
                 } else {
                     for (cell, v) in dst.iter_mut().enumerate() {
                         *v = u0[cell][k] + we0 * re0[cell][k] + we1 * rl[cell][k];
+                    }
+                }
+            }
+        }
+        if gas {
+            // The gas diffusion rates (mass slot carries none — skipped).
+            let gb = self.gb.as_ref().expect("gas buffers ensured");
+            for bi in 0..g.n_bricks() {
+                for (k, &id) in ids.iter().enumerate().skip(1) {
+                    let (d0, dp, dl) = (&gb.d0[bi], &gb.dprev[bi], &gb.dlag[bi]);
+                    let dst = g.brick_field_mut(bi, id);
+                    for (cell, v) in dst.iter_mut().enumerate() {
+                        *v += wq0 * d0[cell][k] + wqprev * dp[cell][k] + wqnew * dl[cell][k];
                     }
                 }
             }
@@ -1275,6 +1596,7 @@ impl Sdc {
         g: &Grid,
         has_flow: bool,
         has_diffusion: bool,
+        has_gas: bool,
         dt: f64,
         before: &([f64; NCOMP], f64),
         after: &([f64; NCOMP], f64),
@@ -1283,6 +1605,9 @@ impl Sdc {
         hl0: &HeatLedger,
         hl_prev: &HeatLedger,
         hl_last: &HeatLedger,
+        gd0: &FlowLedger,
+        gd_prev: &FlowLedger,
+        gd_last: &FlowLedger,
         debit_applied: f64,
         report: &mut StepReport,
     ) -> Result<(), SdcError> {
@@ -1335,6 +1660,16 @@ impl Sdc {
                     + we1 * (l_last.port_net[k] + l_last.src_net[k]);
                 let mut gross = we0 * (l0.port_abs[k] + l0.src_abs[k])
                     + we1 * (l_last.port_abs[k] + l_last.src_abs[k]);
+                if has_gas {
+                    // The gas class-D quadrature (S3): same weights the
+                    // final composition applied its rates with.
+                    applied += wh0 * (gd0.port_net[k] + gd0.src_net[k])
+                        + whprev * (gd_prev.port_net[k] + gd_prev.src_net[k])
+                        + whnew * (gd_last.port_net[k] + gd_last.src_net[k]);
+                    gross += wh0.abs() * (gd0.port_abs[k] + gd0.src_abs[k])
+                        + whprev.abs() * (gd_prev.port_abs[k] + gd_prev.src_abs[k])
+                        + whnew.abs() * (gd_last.port_abs[k] + gd_last.src_abs[k]);
+                }
                 let mut stored_scale = before.0[k].abs();
                 if k == I_EN {
                     // The combined-energy row: the exchange pair cancels
@@ -1429,6 +1764,160 @@ fn build_ex_map(xc: &ExchangeClass<'_>, ops: &[(f64, f64)]) -> BTreeMap<Exchange
         }
     }
     map
+}
+
+// --- Gas class-D helpers (S3) --------------------------------------------------
+
+/// Derive the gas class-D operands from the primitive cache (the current
+/// composed state): ρ, u_r, ω = u_θ/r̄, u_z, T (the FND-7 seam closure),
+/// C — plus the per-cell base kinetic energy ½|u|² the T-solve's
+/// dissipation bookkeeping needs. N_θ = 1 (validated upstream).
+fn derive_gas_operands(
+    g: &Grid,
+    prim: &[Vec<Prim>],
+    temperature: &(dyn Fn(&Prim) -> Result<f64, &'static str> + Sync),
+    sol: &mut GasOperands,
+    ke_base: &mut [Vec<f64>],
+) -> Result<(), SdcError> {
+    for bi in 0..g.n_bricks() {
+        let b = g.brick(bi);
+        for local in 0..BRICK_CELLS {
+            if b.mask() & (1u64 << local) == 0 {
+                sol.rho[bi][local] = 1.0; // never read; keeps masses finite
+                sol.ur[bi][local] = 0.0;
+                sol.om[bi][local] = 0.0;
+                sol.uz[bi][local] = 0.0;
+                sol.tt[bi][local] = 0.0;
+                sol.cc[bi][local] = 0.0;
+                ke_base[bi][local] = 0.0;
+                continue;
+            }
+            let (i_r, i_z) = b.global_rz(local);
+            let w = &prim[bi][local];
+            let tt = temperature(w).map_err(|what| {
+                SdcError::Flow(FlowError::NonPhysicalState {
+                    i_r,
+                    i_z,
+                    i_theta: 0,
+                    what,
+                })
+            })?;
+            sol.rho[bi][local] = w[0];
+            sol.ur[bi][local] = w[1];
+            sol.om[bi][local] = w[2] / g.r_center(i_r);
+            sol.uz[bi][local] = w[3];
+            sol.tt[bi][local] = tt;
+            sol.cc[bi][local] = w[5];
+            ke_base[bi][local] = 0.5 * (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]);
+        }
+    }
+    Ok(())
+}
+
+/// The right-hand side of one gas component's implicit solve (module doc
+/// of `crate::gas_diffusion`): `b = wqnew·(unit·(R_affine(x₀) − d_lag))`,
+/// in the component's solve units (κV for u_r/u_z/C; λ-units r̄κV for ω;
+/// J for T, which also carries the dissipation bookkeeping
+/// `ρκV·(ke_base − ke_new)` — the KE the momentum solves moved into
+/// internal energy). Zero outside the gas mask.
+#[allow(clippy::too_many_arguments)]
+fn fill_gas_rhs(
+    g: &Grid,
+    comp: GasComp,
+    wqnew: f64,
+    dstage: &[Vec<Cons>],
+    dlag: &[Vec<Cons>],
+    sol: &GasOperands,
+    ke_base: &[Vec<f64>],
+    b: &mut [Vec<f64>],
+) {
+    let k = match comp {
+        GasComp::Ur => I_MR,
+        GasComp::Uz => I_MZ,
+        GasComp::Om => I_MT,
+        GasComp::T => I_EN,
+        GasComp::C => I_RC,
+    };
+    for bi in 0..g.n_bricks() {
+        let brick = g.brick(bi);
+        for local in 0..BRICK_CELLS {
+            if brick.mask() & (1u64 << local) == 0 {
+                b[bi][local] = 0.0;
+                continue;
+            }
+            let (i_r, _) = brick.global_rz(local);
+            let kv = brick.kappa_rz(local) * g.cell_volume(i_r, 1);
+            let ddiff = dstage[bi][local][k] - dlag[bi][local][k];
+            let mut val = match comp {
+                GasComp::Om => wqnew * g.r_center(i_r) * kv * ddiff,
+                _ => wqnew * kv * ddiff,
+            };
+            if comp == GasComp::T {
+                let r = g.r_center(i_r);
+                let ut = sol.om[bi][local] * r;
+                let ke_new = 0.5
+                    * (sol.ur[bi][local] * sol.ur[bi][local]
+                        + ut * ut
+                        + sol.uz[bi][local] * sol.uz[bi][local]);
+                val += sol.rho[bi][local] * kv * (ke_base[bi][local] - ke_new);
+            }
+            b[bi][local] = val;
+        }
+    }
+}
+
+/// The gas Picard residual: the STATE effect of the rate staleness over
+/// this step (`wqnew·|Δrate|`) relative to each conserved component's own
+/// magnitude on the current composed state — the three momentum
+/// components share one scale (same units; the lagged cross terms couple
+/// exactly the momentum block, so momentum-joint is the contraction
+/// claim). A component's rate change is NEVER divided by its own possibly-
+/// degenerate rate scale (a quiescent component's fp-noise rates would
+/// read as divergence). NaN anywhere returns NaN (the caller's NaN-safe
+/// acceptance). Serial fixed order.
+fn rate_resid(
+    g: &Grid,
+    ids: &[FieldId; NCOMP],
+    dcur: &[Vec<Cons>],
+    dlag: &[Vec<Cons>],
+    wqnew: f64,
+) -> f64 {
+    let mut s_mom = 0.0f64;
+    let mut s_en = 0.0f64;
+    let mut s_rc = 0.0f64;
+    for bi in 0..g.n_bricks() {
+        let b = g.brick(bi);
+        for local in 0..BRICK_CELLS {
+            if b.mask() & (1u64 << local) == 0 {
+                continue;
+            }
+            for k in [I_MR, I_MT, I_MZ] {
+                s_mom = s_mom.max(b.field(ids[k])[local].abs());
+            }
+            s_en = s_en.max(b.field(ids[I_EN])[local].abs());
+            s_rc = s_rc.max(b.field(ids[I_RC])[local].abs());
+        }
+    }
+    let mut resid = 0.0f64;
+    for k in 1..NCOMP {
+        let scale = match k {
+            I_EN => s_en,
+            I_RC => s_rc,
+            _ => s_mom,
+        };
+        let mut delta = 0.0f64;
+        for (a, b) in dcur.iter().zip(dlag) {
+            for (ca, cb) in a.iter().zip(b) {
+                let (x, y) = (ca[k], cb[k]);
+                if x.is_nan() || y.is_nan() {
+                    return f64::NAN;
+                }
+                delta = delta.max((x - y).abs());
+            }
+        }
+        resid = resid.max(wqnew * delta / scale.max(f64::MIN_POSITIVE));
+    }
+    resid
 }
 
 // --- Small field utilities (random access at coupler rate) --------------------

@@ -17,13 +17,13 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-19 — session 14 = plan S2 complete)
+## State (2026-08-19 — session 15 = plan S3 complete)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
 closed 68/68-discharged and deleted 2026-08-19; findings live in doc change logs + git history).
-Fourteen sessions, every one gates-green and committed; three multi-agent code reviews
+Fifteen sessions, every one gates-green and committed; three multi-agent code reviews
 (sessions 6, 10, 12) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
-(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **142 Rust + 28 Python
+(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **154 Rust + 28 Python
 tests.** **Blind rule v1.4.1**: blind = mechanical input-blindness; every certificate declares
 `development-observed: yes/no`; the RL10 campaign is declared **open development**.
 
@@ -58,6 +58,30 @@ field c** (SOLV-4 §3.6: unburnt↔equilibrium blend, flame-speed + induction cl
 energy-deposit object, `NEVER_IGNITED`/`FLAMEOUT` halts); **full 3-D is the product tier**;
 GPU (RTX 4080, 24-h cap) on the critical path with **bit-exact-per-device determinism**
 (META-1 §2.5); no solids; no viz until THE RUN (plan S19).
+
+**Session 15 = plan S3: THE MISSING FORCES.** `crucible-solvers::gas_diffusion` = SOLV-1 §3.1's
+`F_visc` — compressible viscous stress + Fourier conduction + species diffusion on the exact
+cylindrical metric (swirl included), the **gas occupant of COUP-3 class D** (0.4.2 amendment
+landed with the code): per-component symmetric fixed-structure CG cores (u_r; **u_θ solved as
+ω = u_θ/r in the angular-momentum form** — rigid rotation discretely stress-free, angular
+momentum telescopes; **T in total-energy flux form** — dissipation from the KE bookkeeping;
+C constant-ρD Fickian), cross-stress couplings converged by the same fixed Picard sweeps as the
+wall exchange (`EPS_GAS_DIFF_RESID` = a declared **contraction guard**, gain ≲ 1/12 structural;
+accuracy owned by the order gates). Transport (μ, Pr→k, Sc→ρD, c_p/c_v) = pure config data from
+the ONE owner (`WallLaw`'s constants). **Wall ownership:** resolved diffusion flows only through
+gas↔gas faces (aperture-aware); wall-law faces contribute nothing (unit-proven bitwise) — no
+double count. Declared viscous BCs incl. **Continuative** (zero-normal-gradient open plane) +
+wall-velocity schedules (a moving wall does ledgered work). The S2 seam refusal retired. Battery:
+Poiseuille at 33.5× the explicit viscous bound (0.73%), Taylor-Couette swirl (0.80%), **exact
+recovery-Couette** 3.584 vs 3.581 K analytic (replaces the flat-plate mini-sim — same physics
+balance, exact solution), thermal_bl erfc + species at Sc≠Pr, whole-operator MMS **orders
+1.92–2.21 on all six components**, a four-class march (the S4 configuration in miniature), N_θ>1
+refusals, thread bit-identity. **Certificates byte-identical** (gas diffusion is opt-in config;
+stations don't schedule it — S4's ◆C1 turns it on with real transport tables). Deferrals:
+skin-friction gas debit (mount-reaction wave); species-enthalpy flux + TableEos-T refresh (S4
+spine); COUP-8 row + config grammar (S4); serial assembly (GPU wave); θ-diffusion (S8). Finding:
+impulsive walls/drives at stiffness ring the truncated sweeps past gas positivity — declared
+ramp schedules (the COUP-7 discipline) are the cure; RL10 already carries its injector ramp.
 
 **Goal A ✓** — conduction convergence certificate (`certificates/convergence_certificate.md`).
 
@@ -119,9 +143,12 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   **`TableEos`** (per-cell (p,h,Z) projection: warm-started + uniqueness-guarded fast path,
   rule-space slow-path acceptance vs the density column's own log bound; **S18 `h_offset`
   knockdown FIXED session 12** — store true energy, interrogate at h+δ; measured slope −0.847%
-  c\* per −3e5 J/kg); `wall_heat` = the one Colburn-class law (**±20–30% band**). Explicit
-  integrators = **honest scaffolding** until COUP-3's SDC-IMEX (plan S2); fine-dial establishment
-  is cured by the plan's Phase 1–2 physics (pseudo-transient DELETED, v1.5).
+  c\* per −3e5 J/kg); `wall_heat` = the one Colburn-class law (**±20–30% band**), the ONE
+  transport-constant owner; **`gas_diffusion` = F_visc (S3)** — the class-D gas occupant
+  (per-component symmetric CG + fixed-Picard cross terms; ω-form swirl; total-energy T-solve;
+  suppressed at wall-law faces; declared viscous BCs incl. Continuative; N_θ = 1, S8 re-keys).
+  Fine-dial establishment is cured by the plan's Phase 1–2 physics (pseudo-transient DELETED,
+  v1.5); S4 wires gas transport into the engine config + real tables.
 - **`crates/engine` — the sandbox seam**: config → assembly (content-verified contour →
   FND-3 cut-geometry grid; refusals: cooling-with-zero-liner, closed-mode-never-engages,
   adiabatic liner holes) → **the ONE SDC-IMEX step (S2)** — wall law on closure-vector patches
@@ -156,11 +183,12 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
 - All five ladder stations earned (session 12); the station-5 certificate scores blind +
   calibrated boxes vs the TM-107318 reference p-box (details: certificate + SESSION_LOG).
 - **Session 13 = plan S1 DONE** (the v1.5 amendment wave); **session 14 = plan S2 DONE** (the
-  real integrator: SDC-IMEX + implicit class-D diffusion + Robin-Robin + every-step COUP-2
-  audit; scaffolding retired; all certificates re-earned on the new spine). **NEXT = plan S3**:
-  the missing forces (compressible viscous stress + heat conduction + species diffusion on the
-  cylindrical metric, aperture-aware, F_visc suppressed at wall-law faces) — read the plan's §5
-  S3 entry + SOLV-1 §3 before coding.
+  real integrator); **session 15 = plan S3 DONE** (the missing forces: gas F_visc as the
+  class-D gas occupant, wall-law suppression, exact-analytic mini-sim battery). **NEXT = plan
+  S4**: real properties + ◆C1 — transport tables μ/k/c_p(T, p, Z) through the FND-7 seam
+  (OFFL-3 Cantera feed, ~10–20% declared bands); liner gets physical ρc_p (continuation device
+  retired); **◆C1: 2-D RL10 with full diffusion physics re-settles with NO schedule tuning**;
+  fine-dial 2-D establishment attempted — read the plan's §5 S4 entry + FND-7 §3 before coding.
 - The old per-item deferral list (station-4 fixture rewire; Bartz oracle scoring; digest v4;
   COUP-5 ensembles; FND-3 PLIC/slot class) is absorbed into the plan's phases: §4 maps each to
   its session.

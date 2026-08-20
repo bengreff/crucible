@@ -6,7 +6,7 @@
 | **Family** | COUP (Coupling & orchestration) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, SOLV-1, COUP-2; COUP-8, COUP-4 |
-| **Version** | 0.4.1 (2026-08-19: §3.1 class-`D` CG wording — "fixed iteration structure" bound to the §3.7 rule) |
+| **Version** | 0.4.2 (2026-08-19: §3.1 gas class-`D` occupant — per-component CG + fixed Picard over the cross-stress couplings, landed with plan S3) |
 
 ---
 
@@ -61,6 +61,17 @@ demands (O1):
   treatment removes the diffusion CFL `Δt ∝ Δx²`, which binds exactly where conduction is stiff (fine wall
   cells — the RL10 closed-mode path); a Jacobi/cell-local fallback loses unconditional stability there and is
   forbidden. [META-3: `geometric-multigrid`]
+  *Gas occupant (S3, `crucible-solvers::gas_diffusion`):* the coupled `F_visc` system (viscous stress +
+  Fourier conduction + species diffusion) is solved as **per-component symmetric fixed-structure CG solves**
+  — `u_r`, `u_z`, `ω = u_θ/r` (the angular-momentum form: the swirl-stress operator collapses to a pure
+  symmetric two-point diffusion; rigid rotation is discretely stress-free), `T` (total-energy flux form —
+  dissipation emerges from the KE bookkeeping), `C` — with the cross-stress couplings (the `τ_rz`
+  cross-derivatives and the `−⅔μ∇·u` compressible corrections) converged by the **same fixed Picard sweeps
+  as §3.5's wall exchange**, sharing the sweep loop. Their fixed point is the fully-implicit solution of the
+  complete `F_visc` operator (unconditional stability holds *at acceptance*); the named acceptance
+  `EPS_GAS_DIFF_RESID` is a **contraction guard** (the lagged remainder's structural gain is ≲ 1/12 at any
+  Δt), not an accuracy floor — the truncated Picard's remainder is a temporal-truncation term of the same
+  order class as the truncated SDC sweeps, verified by the §6 order tests. Failure ⇒ `COUPLING_RESIDUAL`.
 - **`R` — genuinely cell-local stiff sources** (reactions, M1 radiation–matter *source* coupling): the
   cell-local implicit ODE solve of §3.3. "Cell-local implicit" is **reserved** for this class.
 - **`G` — declared global stiff ODE systems** (N6; the pulsed-event carve-out generalized): a system whose
@@ -210,6 +221,7 @@ boundary object whose consistency §3.5 solves), COUP-8 (operator order), COUP-4
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-19 | 0.4.2 | **S3 implementation clarification (plan S3, landed with the code).** §3.1 class-`D` gains its gas occupant: `F_visc` solved as per-component symmetric fixed-structure CG (`u_r`, `u_z`, `ω = u_θ/r` angular-momentum form, `T` total-energy form, `C`) with the cross-stress couplings converged by the §3.5 fixed-Picard discipline inside the same sweep loop; fixed point = the fully-implicit solution of the complete operator, so the §3.1 unconditional-stability consequence holds at acceptance. `EPS_GAS_DIFF_RESID` declared a contraction guard (structural gain ≲ 1/12), with accuracy owned by the §6 order tests; `COUPLING_RESIDUAL` on failure. Wall-law faces stay suppressed per COUP-2 §3.5/SOLV-1 §3.5 (no double count). |
 | 2026-08-19 | 0.4.1 | **S2 implementation clarification (plan S2, landed with the code).** §3.1 class-`D` parenthetical: the CG occupant's "fixed iteration structure" is the §3.7 convergence rule (fixed absolute tolerance `EPS_CG_RESID` + fixed cap `N_CG_ITERS_MAX`, fixed-order reductions — a deterministic pure function of the data), superseding the looser "(fixed count)" phrasing. First occupant of the class-`D` seam = Jacobi-preconditioned CG (`crucible-solvers::sdc`); a geometric-multigrid occupant may supersede it behind the same seam (GPU wave). |
 | 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 (Ben): §3.6 pseudo-transient mode DELETED** (tombstoned in place; §3.7 numbering kept). Stage 1 = physical march only; cost levers = compressed external schedules (COUP-7 §3.2.2) + adaptive resolution + GPU; grid-sequenced restart from settled physical states stays legal (FND-6). `pseudo-transient` key retired; §3.7/§6.9 references cleaned; forward note on implicit/all-speed acoustics for slow-phase (nuclear-wave) profiles. |
 | 2026-08-14 | 0.3 | **Verification pass (V2/N6).** Class-`G` declared global-stiff-ODE slot added to §3.1 (integral-functional systems — reaction kinetics first occupant; evaluated once per SDC sweep in fixed order; Manifest-declared) + the class-`G` Δt-limiter interface in §3.4 — the slot SOLV-4 §3.2 binds to. |

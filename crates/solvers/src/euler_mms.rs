@@ -57,16 +57,22 @@ pub const MMS_ORDER_MIN: f64 = 1.8;
 pub const MMS_ORDER_MAX: f64 = 2.3;
 
 /// The manufactured field and its exact partial derivatives at one point:
-/// value plus ∂/∂r, ∂/∂θ, ∂/∂z, ∂/∂t of every primitive.
-struct Manufactured {
-    w: Prim,
-    dr: Prim,
-    dth: Prim,
-    dz: Prim,
-    dt: Prim,
+/// value plus ∂/∂r, ∂/∂θ, ∂/∂z, ∂/∂t of every primitive — and the second
+/// r/z derivatives (∂rr, ∂rz, ∂zz) the S3 viscous MMS consumes. Public:
+/// the gas-diffusion battery reuses this field and source rather than
+/// restating them.
+pub struct Manufactured {
+    pub w: Prim,
+    pub dr: Prim,
+    pub dth: Prim,
+    pub dz: Prim,
+    pub dt: Prim,
+    pub drr: Prim,
+    pub drz: Prim,
+    pub dzz: Prim,
 }
 
-fn manufactured(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Manufactured {
+pub fn manufactured(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Manufactured {
     let m = f64::from(MMS_M);
     let (sr, cr) = (MMS_A * (r - MMS_R_MIN)).sin_cos();
     let (sz, cz) = (MMS_B * z).sin_cos();
@@ -79,6 +85,9 @@ fn manufactured(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Manufactured {
     let phi_th = sr * cz * (-eps * m * st) * decay;
     let phi_z = -MMS_B * sr * sz * ang * decay;
     let phi_t = -MMS_LAMBDA * phi;
+    let phi_rr = -MMS_A * MMS_A * phi;
+    let phi_rz = -MMS_A * MMS_B * cr * sz * ang * decay;
+    let phi_zz = -MMS_B * MMS_B * phi;
 
     let build = |scale: f64| -> Prim { std::array::from_fn(|k| MMS_AMP[k] * scale) };
     let mut w = build(phi);
@@ -91,6 +100,9 @@ fn manufactured(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Manufactured {
         dth: build(phi_th),
         dz: build(phi_z),
         dt: build(phi_t),
+        drr: build(phi_rr),
+        drz: build(phi_rz),
+        dzz: build(phi_zz),
     }
 }
 
@@ -99,7 +111,7 @@ fn manufactured(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Manufactured {
 /// primitive derivatives. Feeding this to the operator's source intake
 /// makes the manufactured field an exact solution of the forced system.
 #[allow(clippy::similar_names)]
-fn mms_source(r: f64, theta: f64, z: f64, t: f64, eps: f64, eos: &GammaLaw) -> Cons {
+pub fn mms_source(r: f64, theta: f64, z: f64, t: f64, eps: f64, eos: &GammaLaw) -> Cons {
     let mf = manufactured(r, theta, z, t, eps);
     let [rho, ur, ut, uz, p, c, _, _] = mf.w;
     let gm1 = eos.gamma - 1.0;

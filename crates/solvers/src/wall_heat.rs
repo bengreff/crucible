@@ -119,6 +119,21 @@ impl WallLaw {
         self.mu * self.cp / self.pr
     }
 
+    /// The constant transport set, read back (SI). The wall law is the ONE
+    /// owner of these constants (Rule 13); the S3 gas-diffusion operator
+    /// derives its μ/k/ρD/c_v from here — never a second statement.
+    pub fn cp(&self) -> f64 {
+        self.cp
+    }
+
+    pub fn mu(&self) -> f64 {
+        self.mu
+    }
+
+    pub fn pr(&self) -> f64 {
+        self.pr
+    }
+
     /// Film coefficient h [W/(m²·K)] from the local state — the law itself.
     pub fn film_coefficient(&self, gas: &NearWallGas) -> Result<f64, WallHeatError> {
         Self::check_gas(gas)?;

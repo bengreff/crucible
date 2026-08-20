@@ -513,6 +513,7 @@ pub fn run(
                     &mut spec.grid,
                     Some(&flow),
                     diffusion.as_ref(),
+                    None,
                     exchange.as_ref(),
                     t,
                     dt,

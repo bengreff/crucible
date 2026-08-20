@@ -449,3 +449,70 @@ the committed artifacts in `certificates/` are the living record.
   debug_assert; N_SDC_CORRECTIONS ≥ 1 compile guard. Certificates byte-identical through
   the fix wave (no physics touched). True test count: **142 Rust + 28 Python**; all gates
   green.
+- Session 15 (2026-08-19): **PLAN S3 — THE MISSING FORCES: gas-phase F_visc (compressible
+  viscous stress + Fourier conduction + species diffusion) on the exact cylindrical metric,
+  swirl included, as the gas occupant of COUP-3's class D; suppressed at wall-law faces;
+  certificates byte-identical.**
+  **The operator (`crucible-solvers::gas_diffusion`, SOLV-1 §3.1):** one flux-form assembly
+  over (u_r, ω = u_θ/r, u_z, T, C) — transport (μ, Pr→k, Sc→ρD, c_p/c_v) is pure config data
+  derived from THE one owner (`WallLaw`'s constant set; new accessors — nothing restated).
+  Per-component **symmetric two-point implicit cores** solved by the same fixed-structure
+  Jacobi-CG as the solid class-D (shared `EPS_CG_RESID`/`N_CG_ITERS_MAX`, δ-form warm start,
+  module-owned buffers): u_r gets the 4/3-μ radial core + the negative-definite −(4/3)μu_r/r̄²
+  geometric diagonal; **u_θ is solved as angular velocity ω in the angular-momentum form** —
+  the whole τ_rθ/τ_θz operator collapses to a pure symmetric diffusion with r³-class face
+  weights, rigid rotation is DISCRETELY stress-free, angular momentum telescopes exactly, and
+  the linear θ-momentum it induces is ledgered as an applied source (the flow operator's swirl
+  pattern); **T is solved in total-energy flux form** (k∇T + τ·u work fluxes; dissipation
+  emerges from the KE bookkeeping in the RHS — exact for the gamma-law class); C is constant-ρD
+  Fickian. The cross-stress couplings (τ_rz cross-derivatives + the −⅔μ∇·u compressible
+  corrections; ω has NO lagged remainder) converge by the SAME fixed Picard sweeps as the
+  Robin-Robin exchange, riding one loop; **COUP-3 0.4.2 landed with the code**: the gas
+  occupant named in §3.1, and `EPS_GAS_DIFF_RESID` (0.25) declared a **contraction guard**
+  (the lagged remainder's structural gain is ≲ 1/12 at any Δt by AM-GM over the implicit
+  diagonals; the truncated Picard's remainder is a temporal-truncation term of the same order
+  class as the truncated SDC sweeps — accuracy is owned by the order gates), measured as the
+  rate-staleness STATE effect per step against per-component conserved scales (momentum-joint —
+  a near-zero component's own rate scale would read fp noise as divergence; found live).
+  **Ownership at walls (SOLV-1 §3.5/COUP-2 §3.5):** resolved diffusion flows ONLY through
+  gas↔gas faces (aperture-weighted); gas↔solid and gas↔exterior faces contribute nothing —
+  unit-proven (gas rates bitwise independent of solid-cell operand garbage). Declared viscous
+  BCs (data, COUP-7-closure style): NoSlip with wall-velocity schedules (a moving wall does
+  ledgered work — the Couette drive), FreeSlip (τ·n̂ = 0), **Continuative** (zero-normal-
+  gradient open plane — one-sided tangential stress; a FreeSlip channel end would truncate the
+  real τ_rz and drive edge vortices), Isothermal/Adiabatic, species ZeroFlux (non-catalytic;
+  Prescribed exists for MMS only). **Retired:** the S2 seam refusal ("a gas-domain diffusion
+  class alongside the flow class is the S3 viscous wave") — `GasDiffusionClass` is the real
+  thing; scalar gas-domain conduction beside flow stays refused (superseded).
+  **S3 mini-sims (`solv3_gas_diffusion.rs`, 8 tests + 4 module unit tests):** annular
+  Poiseuille marched at **33.5× the explicit viscous bound** (Δt = the gas CFL alone), exact
+  cylindrical profile to 0.73%; Taylor-Couette swirl to 0.80% (+ rigid-rotation/uniform-state
+  exactness and every face coefficient checked by hand at unit level); **recovery Couette
+  EXACT analytic replaces the plan's flat-plate mini-sim** (same physics balance —
+  dissipation vs conduction vs moving-wall work; a Blasius march is not a laptop mini-sim;
+  plan §1 improvisation rule): adiabatic-wall recovery **3.584 K vs 3.581 K analytic at the
+  cell** (ΔT_rec = Pr·U²/2c_p = 3.586 K, worst profile err 0.07% of ΔT_rec); thermal_bl erfc
+  layer 4.9% (the fixture's declared isobaric-limit class) with the species layer at Sc ≠ Pr
+  to 0.29%; **whole-operator MMS with every viscous/conductive/species term active: all six
+  components at order 1.92–2.21** (the analytic residual assembled from the continuous stress
+  formulas — an independent formulation; `euler_mms` gained public second-derivative bundles);
+  a **four-class march** (flow + gas diffusion + solid conduction + exchange — the S4
+  configuration in miniature) with the combined energy row closing every step and the liner
+  warming through the one wall law; refusals (gas without flow; N_θ > 1 → plan S8);
+  1-vs-4-thread bit identity through the full gas-scheduled step.
+  **Findings (recorded):** impulsive wall/drive starts at ~50× stiffness ring the truncated
+  trapezoid sweeps (bounded 7/8-damped oscillation — harmless on the unconstrained solid,
+  positivity-fatal on gas) — fixtures use declared ramp schedules, the COUP-7 discipline;
+  S4's RL10 already carries the injector ramp. A metal-like fixture μ gives the gas a
+  metal-like k through μc_p/Pr and a flash-swinging wall-law h — the wall-heat registry's
+  μ ≤ 1e-2 cap is confirmed physics, not caution.
+  **Deferrals (owners named, module header):** wall-function skin-friction momentum debit
+  (COUP-2 §3.1.2 mount-reaction ledger, verdict wave); species-enthalpy diffusion flux
+  Σh_k·j_k + TableEos-consistent T refresh in the Picard (S4 spine — constant-c_v is exact
+  for the gamma-law class); COUP-8 registry row + config grammar (S4 engine wiring); the gas
+  assembly is serial like the solid one (perf — GPU wave); θ-diffusion fluxes + per-θ operand
+  keying (S8).
+  **Certificates: byte-identical through gate 5** — gas diffusion is opt-in config (Rule 13);
+  no station schedules it (S4's ◆C1 turns it on with real transport tables); the
+  no-gas-diffusion arithmetic is untouched. True test count: **154 Rust + 28 Python**; all
+  gates green.
