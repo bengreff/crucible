@@ -435,4 +435,17 @@ the committed artifacts in `certificates/` are the living record.
   within ~0.1% of the session-12 records (blind: F/Isp still OVERLAP, p_c/c*/C_F same coherent
   coarse-tier signature; calibrated: F, Isp, AND p_c still OVERLAP; expander self-regulation
   reproduced); certificate prose updated (the honest-scaffolding integrator paragraph RETIRED;
-  audit line added). True test count: **142 Rust + 28 Python**; all gates green.
+  audit line added). **Review wave (same session, Ben's pattern):** self-review (δ-form CG
+  RHS + audit composition re-derived by hand) + two independent agents (SDC/audit algebra;
+  assembly/ledger/refits) — **no confirmed correctness bugs on any reachable path**; sweep
+  weights, roll timing, ledger telescoping, exchange single-owner pairing, determinism, and
+  the bitwise-unchanged rate arithmetic all verified against COUP-2/COUP-3. Latent hazards
+  hardened same-session: `ensure_ws` staleness rebuild; station-4 `coolant_joules` read the
+  exterior ledger line and recorded −0.0 (the duct's coolant Robin fires on the r_outer
+  DOMAIN-EDGE line — `ExchangeStepReport.applied_bc_j` added, fixture reads both);
+  `rel_resid` NaN propagation (f64::max drops NaN — the NaN acceptance was dead code) +
+  NaN-‖b‖ → COUPLING_RESIDUAL; `march_flow` sub-ulp-dt stall refusal; `build_wall_patches`
+  N_θ > 1 refusal (S8 re-keys per θ); scratch==t_field refusal; Linear-mode ledger
+  debug_assert; N_SDC_CORRECTIONS ≥ 1 compile guard. Certificates byte-identical through
+  the fix wave (no physics touched). True test count: **142 Rust + 28 Python**; all gates
+  green.

@@ -69,7 +69,8 @@ impl std::fmt::Display for SolverError {
             Self::NonFiniteState { i_r, i_z } => {
                 write!(
                     f,
-                    "non-finite temperature at (i_r={i_r}, i_z={i_z}) — halt with diagnosis"
+                    "non-finite value in the assembled field (temperature, or the class-D \
+                     solver vector) at (i_r={i_r}, i_z={i_z}) — halt with diagnosis"
                 )
             }
             Self::UnhandledInteriorFace { i_r, i_z } => {
@@ -252,6 +253,14 @@ impl Conduction<'_> {
         mut exchange_heats: Option<&mut Vec<(ExchangeKey, f64)>>,
     ) -> Result<(), SolverError> {
         self.validate()?;
+        // Ledger/exchange records are physics lines: only an Affine
+        // assembly produces honest ones (Linear drops every constant term
+        // by design — a caller wiring them together is a defect, not a
+        // request; S2 review finding).
+        debug_assert!(
+            mode == AssembleMode::Affine || (ledger.is_none() && exchange_heats.is_none()),
+            "Linear-mode assembly must not carry ledger/exchange outputs"
+        );
         let nt = g.brick(0).n_theta();
         if g.bricks().iter().any(|b| b.n_theta() != nt) {
             return Err(SolverError::MixedThetaResolution);

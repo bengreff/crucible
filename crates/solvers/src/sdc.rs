@@ -78,7 +78,10 @@ use crucible_grid::{BRICK, BRICK_CELLS, FaceDir, FieldId, Grid, InterfaceFace, t
 
 /// Fixed SDC correction-sweep count after the IMEX-Euler predictor
 /// (COUP-3 §3.1: "2–3 sweeps to 2nd order" — predictor + 2 corrections).
+/// The audit's final-composition weights assume the last sweep is a
+/// trapezoid correction — compile-time-guarded below.
 pub const N_SDC_CORRECTIONS: usize = 2;
+const _: () = assert!(N_SDC_CORRECTIONS >= 1);
 
 /// Fixed Picard sweep count of the Robin-Robin wall-exchange solve inside
 /// each SDC sweep's class-`D` solve (COUP-2 §3.5).
@@ -166,6 +169,17 @@ fn face_key(face: &InterfaceFace) -> ExchangeKey {
 /// inside one cell; per-side reconstruction for genuine slots is the FND-3
 /// PLIC/CSG wave.
 pub fn build_wall_patches(g: &Grid) -> Result<Vec<WallPatch>, String> {
+    if g.brick(0).n_theta() != 1 {
+        // The patch areas, closure vectors, debit κV sums, AND the
+        // exchange-heat keying are per-full-ring (N_θ = 1) here; per-θ
+        // patches arrive with the 3-D wave (plan S8) — refuse rather than
+        // undercount (S2 review finding).
+        return Err(
+            "wall patches at N_θ > 1 arrive with the 3-D wave (plan S8); \
+             refusing rather than guessing"
+                .to_string(),
+        );
+    }
     let cut = g.has_cut_geometry();
     let mut patches: Vec<WallPatch> = Vec::new();
     for face in g.gas_solid_faces() {
@@ -383,9 +397,13 @@ pub struct ExchangeStepReport {
     /// Σ q_w — the jacket enthalpy-rise integrand COUP-3 §3.5 consumes.
     pub jacket_w: f64,
     /// The step's composed exchange energy INTO the solid [J] (the gas was
-    /// debited exactly −this) and composed exterior (coolant) heat [J].
+    /// debited exactly −this), composed exterior-face heat [J], and
+    /// composed domain-edge BC heat [J] — a duct-class liner that reaches
+    /// the domain edge takes its coolant Robin THERE (S2 review finding:
+    /// a coolant ledger reading only the exterior line records zero).
     pub applied_exchange_j: f64,
     pub applied_exterior_j: f64,
+    pub applied_bc_j: f64,
     /// Final Picard residual (≤ [`EPS_ROBIN_RESID`] by acceptance).
     pub robin_resid: f64,
 }
@@ -460,9 +478,14 @@ impl Sdc {
         g: &Grid,
         flow: &FlowClass<'_, '_, E>,
     ) -> Result<&mut EulerWorkspace, SdcError> {
-        if self.ws.is_none() {
+        // Staleness guard (S2 review): a θ-refined or swapped grid must
+        // rebuild the flow workspaces exactly as `ensure_sb` rebuilds the
+        // solid ones — a stale `u0`/`rate_e0` would silently mis-snapshot.
+        let plane = g.brick(0).n_theta() as usize * BRICK_CELLS;
+        let stale = self.rate_e0.len() != g.n_bricks()
+            || self.rate_e0.first().is_none_or(|v| v.len() != plane);
+        if self.ws.is_none() || stale {
             self.ws = Some(flow.op.workspace(g)?);
-            let plane = g.brick(0).n_theta() as usize * BRICK_CELLS;
             self.rate_e0 = vec![vec![[0.0; NCOMP]; plane]; g.n_bricks()];
         }
         Ok(self.ws.as_mut().expect("just ensured"))
@@ -548,6 +571,14 @@ impl Sdc {
         let mut steps = 0usize;
         while t < t_final {
             let dt = self.stable_dt(g, flow, cfl)?.min(t_final - t);
+            if t + dt == t {
+                // dt fell below one ulp of t: the march can no longer
+                // advance (CFL collapse or a mis-scaled t0) — refuse loudly
+                // rather than spin forever (S2 review finding).
+                return Err(SdcError::Config(
+                    "march stalled: dt below one ulp of t (CFL collapse or mis-scaled t0)",
+                ));
+            }
             self.step_flow(g, flow, t, dt)?;
             t += dt;
             steps += 1;
@@ -575,6 +606,14 @@ impl Sdc {
         if exchange.is_some() && (flow.is_none() || diffusion.is_none()) {
             return Err(SdcError::Config(
                 "wall exchange needs both the hyperbolic and diffusion classes",
+            ));
+        }
+        if let Some(dc) = diffusion
+            && dc.t_field == dc.scratch_field
+        {
+            return Err(SdcError::Config(
+                "the class-D scratch field must be distinct from the temperature \
+                 field (the CG direction vector would clobber the solve's warm start)",
             ));
         }
         if let (Some(dc), Some(_)) = (diffusion, flow) {
@@ -816,12 +855,14 @@ impl Sdc {
                     let applied_exterior_j = wq0 * hl0.exterior_w
                         + wqprev * hl_prev.exterior_w
                         + wqnew * hl_tmp.exterior_w;
+                    let applied_bc_j = wq0 * hl0.bc_w + wqprev * hl_prev.bc_w + wqnew * hl_tmp.bc_w;
                     ex_report.q_w = q_trial.clone();
                     ex_report.h = ex_ops.iter().map(|(h, _)| *h).collect();
                     ex_report.t_aw = ex_ops.iter().map(|(_, ta)| *ta).collect();
                     ex_report.jacket_w = q_trial.iter().sum();
                     ex_report.applied_exchange_j = applied_exchange_j;
                     ex_report.applied_exterior_j = applied_exterior_j;
+                    ex_report.applied_bc_j = applied_bc_j;
                 }
                 hl_last = hl_tmp;
             } else if diffusion.is_some() {
@@ -1174,8 +1215,10 @@ impl Sdc {
             iters += 1;
         }
         let resid = (r_norm2 / b_norm2.max(f64::MIN_POSITIVE)).sqrt();
-        // NaN-safe acceptance (a NaN residual is a violation).
-        if b_norm2 > 0.0 && (resid.is_nan() || resid > EPS_CG_RESID) {
+        // NaN-safe acceptance (a NaN right-hand side or residual is a
+        // violation — `b_norm2 > 0.0` alone is false for NaN and would
+        // silently accept; S2 review finding).
+        if b_norm2.is_nan() || (b_norm2 > 0.0 && (resid.is_nan() || resid > EPS_CG_RESID)) {
             return Err(SdcError::CouplingResidual {
                 solve: "class-D fixed-cycle CG (COUP-3 §3.1)",
                 resid,
@@ -1344,8 +1387,13 @@ impl Sdc {
 }
 
 /// Max relative residual of the exchange-heat vector, floored so a
-/// zero-heat patch (cold start) cannot divide by zero.
+/// zero-heat patch (cold start) cannot divide by zero. NaN anywhere is
+/// returned as NaN (S2 review finding: `f64::max` silently DROPS NaN, so
+/// a fold alone would defeat the caller's NaN-safe acceptance).
 fn rel_resid(q_new: &[f64], resid: &[f64]) -> f64 {
+    if q_new.iter().chain(resid).any(|v| v.is_nan()) {
+        return f64::NAN;
+    }
     let scale = q_new
         .iter()
         .fold(0.0f64, |m, q| m.max(q.abs()))
@@ -1355,6 +1403,8 @@ fn rel_resid(q_new: &[f64], resid: &[f64]) -> f64 {
 
 /// Per-patch heat sums from an assembly's recorded per-face exchange
 /// heats (fixed patch/face order — the visit order is keyed, not assumed).
+/// N_θ = 1 only (guarded upstream): at N_θ > 1 the per-θ records would
+/// collapse under one key — the S8 wave re-keys this by (face, θ).
 fn patch_heats(patches: &[WallPatch], rec: &[(ExchangeKey, f64)]) -> Vec<f64> {
     let map: BTreeMap<ExchangeKey, f64> = rec.iter().copied().collect();
     patches

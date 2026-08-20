@@ -366,7 +366,12 @@ pub fn coupled_step(
     rec.h = ex.h;
     rec.t_aw = ex.t_aw;
     rec.wall_joules += ex.applied_exchange_j;
-    rec.coolant_joules += -ex.applied_exterior_j;
+    // Coolant extraction = every non-exchange heat OUT of the liner: this
+    // duct's liner reaches the domain edge, so its coolant Robin fires on
+    // the r_outer BC line (applied_bc_j), not the exterior line — read
+    // BOTH (S2 review finding: the exterior line alone records zero here;
+    // the z-edge/r-inner HeatFlux(0) faces contribute exact zeros).
+    rec.coolant_joules += -(ex.applied_exterior_j + ex.applied_bc_j);
     Ok(dt)
 }
 
