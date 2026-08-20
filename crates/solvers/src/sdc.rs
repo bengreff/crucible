@@ -119,6 +119,13 @@ pub const ROBIN_OMEGA_MAX: f64 = 2.0;
 /// change above this ceiling means the cross terms are not contracting —
 /// a broken assembly or a regime outside the bound. Failure ⇒
 /// `COUPLING_RESIDUAL` (numerical — a solver defect, never a verdict).
+///
+/// The practical margin assumes [`N_ROBIN_SWEEPS`] ≥ 2: on an impulsive
+/// start from rest the composed-state momentum scale is O(Δt·rate), so the
+/// FIRST iterate's self-change is O(1) relative. The check measures the
+/// LAST iterate (post-contraction), which is why it passes there; dropping
+/// the Picard count to 1 would make cold starts trip this spuriously —
+/// loudly, never silently (S3 review finding).
 pub const EPS_GAS_DIFF_RESID: f64 = 0.25;
 
 /// Fixed iteration cap of the class-`D` preconditioned-CG solve. The stop
@@ -586,6 +593,13 @@ impl Sdc {
         self.sb.as_mut().expect("just ensured")
     }
 
+    /// Gas class-`D` buffers. The staleness test is brick-count-only
+    /// (N_θ = 1 is enforced upstream, so the plane size is fixed): this is
+    /// sound ONLY because every buffer is fully rewritten before it is
+    /// read each step — nothing carries across steps. A future warm start
+    /// (persisting `sol` between steps) must strengthen this test first,
+    /// or a same-brick-count grid swap would silently read stale operands
+    /// (S3 review finding).
     fn ensure_gb(&mut self, g: &Grid) -> &mut GasBufs {
         let nb = g.n_bricks();
         let stale = self.gb.as_ref().is_none_or(|s| {
@@ -1245,7 +1259,25 @@ impl Sdc {
         }
         if gas {
             // The gas diffusion rates (mass slot carries none — skipped).
+            // This writes EVERY slot, masked cells included, relying on
+            // `assemble_rates`' contract that non-gas slots are exact
+            // zeros. If that contract ever broke, solid/exterior conserved
+            // fields would drift SILENTLY (κ = 0 hides it from both the
+            // audit and the stored reductions) — so assert it in debug
+            // builds rather than trust it (S3 review finding).
             let gb = self.gb.as_ref().expect("gas buffers ensured");
+            debug_assert!(
+                (0..g.n_bricks()).all(|bi| {
+                    let mask = g.brick(bi).mask();
+                    (0..BRICK_CELLS).all(|c| {
+                        mask & (1u64 << c) != 0
+                            || (gb.d0[bi][c].iter().all(|v| *v == 0.0)
+                                && gb.dprev[bi][c].iter().all(|v| *v == 0.0)
+                                && gb.dlag[bi][c].iter().all(|v| *v == 0.0))
+                    })
+                }),
+                "gas diffusion rates must be exactly zero outside the gas mask"
+            );
             for bi in 0..g.n_bricks() {
                 for (k, &id) in ids.iter().enumerate().skip(1) {
                     let (d0, dp, dl) = (&gb.d0[bi], &gb.dprev[bi], &gb.dlag[bi]);
@@ -1891,11 +1923,21 @@ fn rate_resid(
             if b.mask() & (1u64 << local) == 0 {
                 continue;
             }
-            for k in [I_MR, I_MT, I_MZ] {
-                s_mom = s_mom.max(b.field(ids[k])[local].abs());
+            for k in [I_MR, I_MT, I_MZ, I_EN, I_RC] {
+                // `f64::max` DROPS NaN, so a NaN scale would silently
+                // shrink to a finite one and let the acceptance pass on a
+                // poisoned state — the S2 `rel_resid` finding class, and
+                // the reason this is an explicit test (S3 review finding).
+                let v = b.field(ids[k])[local];
+                if v.is_nan() {
+                    return f64::NAN;
+                }
+                match k {
+                    I_EN => s_en = s_en.max(v.abs()),
+                    I_RC => s_rc = s_rc.max(v.abs()),
+                    _ => s_mom = s_mom.max(v.abs()),
+                }
             }
-            s_en = s_en.max(b.field(ids[I_EN])[local].abs());
-            s_rc = s_rc.max(b.field(ids[I_RC])[local].abs());
         }
     }
     let mut resid = 0.0f64;

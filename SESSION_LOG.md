@@ -516,3 +516,47 @@ the committed artifacts in `certificates/` are the living record.
   no station schedules it (S4's ◆C1 turns it on with real transport tables); the
   no-gas-diffusion arithmetic is untouched. True test count: **154 Rust + 28 Python**; all
   gates green.
+  **Review wave (same session, Ben's pattern):** two independent agents — SDC/audit-algebra
+  lens and continuum-to-discrete lens — on the committed S3 diff. **No confirmed correctness
+  bugs on any reachable path.** The physics reviewer built an INDEPENDENT continuum oracle
+  (own analytic field, own algebra from τ = 2μe − ⅔μΔ) and measured the discrete rates
+  against it: D_mr 1.99/2.00, D_mt 1.98/1.99, D_mz 1.97/1.99, D_en 1.99/2.00, D_rc 2.00/2.00;
+  then finite-differenced the true Jacobian of `assemble_rates` and confirmed `apply_linear`
+  reproduces it to round-off (≤ 3.4e-17 on velocities, 8e-14 relative on T) — the CG solves
+  exactly the operator the composition applies, boundary arms and geometric diagonal included.
+  The angular-momentum reduction, the z-face r̄ weight, the ρr̄²κV mass, the energy-flux slot
+  mapping, `mms_visc_residual` term by term, and the drag/work signs at all four edges (6/6
+  configurations) were each re-derived and confirmed. The SDC reviewer hand-traced all three
+  sweeps' buffer generations (d0/dprev/dlag/dcur), the audit's weight correspondence, the
+  T-solve KE bookkeeping, and the ΣκV·d[k] = port_net + src_net per-assembly identity
+  (θ-momentum deliberately non-telescoping, ledgered wholly as a source).
+  **The one real gap — a TEST hole, fixed:** the S3 battery could not see the compressible
+  (dilatation) terms. `MMS_AMP[1] == MMS_AMP[3]` and one shared mode make manufactured u_r and
+  u_z have IDENTICAL gradient fields, and `face_coefficients_by_hand_at_one_cell` drives one
+  velocity at a time (the other's gradients identically zero) — so swapping `duz_dz` for
+  `dur_dz` in the −⅔μ∇·u corrections was invisible. **Verified by planting exactly that
+  mutation: all 12 tests stayed green.** New unit test
+  `dilatation_and_cross_shear_discriminate_independent_gradients` — a field with BILINEAR
+  cross terms making all four lag gradients pairwise distinct AND varying across the stencil.
+  The bilinearity is load-bearing, and finding out why was itself a result: a spatially
+  UNIFORM dilatation error cancels exactly out of the r-momentum (the τ_rr face term carries
+  it with weight (A_out−A_in)/V and the −τ_θθ/r source with `geo` — the same number), which is
+  correct physics (a uniform isotropic stress exerts no net force) and is why a simpler
+  independent-shape field was ALSO blind. Mutation-tested: all four gradient-confusion classes
+  now caught, pristine code passes.
+  **Latent hazards hardened same-session:** T ≤ 0 now refuses (was `is_finite`-only — a
+  non-positive temperature would have flowed into k∇T unremarked, META-1 P6); the gas ledger's
+  `port_abs` no longer double-counts boundary ports (it added `tot` — which already contains
+  them — on top of the per-port lines, silently LOOSENING `TOL_AUDIT` on every edge-touching
+  cell); `rate_resid`'s scale loop NaN-checks explicitly (`f64::max` drops NaN — the S2
+  `rel_resid` finding class); `compose_gas`'s masked-slot write now debug-asserts the
+  zero-fill contract it depends on (κ = 0 would hide any drift from both the audit and the
+  reductions); `ensure_gb`'s brick-count-only staleness test documents the full-rewrite
+  invariant that makes it sound; `EPS_GAS_DIFF_RESID` records its dependence on
+  N_ROBIN_SWEEPS ≥ 2; `validate` no longer indexes `brick(0)` unconditionally; the
+  zero-gradient `(None, None)` case is named honestly (correct for the symmetric/quasi-1-D
+  cases it reaches today; a genuinely under-resolved one-cell gas island belongs to the FND-3
+  refinement wave). Accepted and recorded, not cured: boundary-cell local truncation is O(1)
+  and mesh-independent (the expected half-cell Dirichlet closure — the solution order survives
+  by supraconvergence, measured; a sign error would instead grow as 1/h, and does not).
+  Certificates byte-identical through the fix wave. True test count: **155 Rust + 28 Python**.

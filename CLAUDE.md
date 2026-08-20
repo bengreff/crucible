@@ -22,8 +22,8 @@ review waves) — consult it for the story behind a surface; this file carries o
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
 closed 68/68-discharged and deleted 2026-08-19; findings live in doc change logs + git history).
 Fifteen sessions, every one gates-green and committed; three multi-agent code reviews
-(sessions 6, 10, 12) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
-(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **154 Rust + 28 Python
+(sessions 6, 10, 12) plus per-session review waves (14, 15) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
+(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **155 Rust + 28 Python
 tests.** **Blind rule v1.4.1**: blind = mechanical input-blindness; every certificate declares
 `development-observed: yes/no`; the RL10 campaign is declared **open development**.
 
@@ -76,7 +76,7 @@ Poiseuille at 33.5× the explicit viscous bound (0.73%), Taylor-Couette swirl (0
 recovery-Couette** 3.584 vs 3.581 K analytic (replaces the flat-plate mini-sim — same physics
 balance, exact solution), thermal_bl erfc + species at Sc≠Pr, whole-operator MMS **orders
 1.92–2.21 on all six components**, a four-class march (the S4 configuration in miniature), N_θ>1
-refusals, thread bit-identity. **Certificates byte-identical** (gas diffusion is opt-in config;
+refusals, thread bit-identity; a two-agent review wave (SDC/audit + an independent continuum oracle) found **no correctness bugs**, closed a real test hole (the battery was blind to the compressible dilatation terms — mutation-proven), and hardened eight latent hazards. **Certificates byte-identical** (gas diffusion is opt-in config;
 stations don't schedule it — S4's ◆C1 turns it on with real transport tables). Deferrals:
 skin-friction gas debit (mount-reaction wave); species-enthalpy flux + TableEos-T refresh (S4
 spine); COUP-8 row + config grammar (S4); serial assembly (GPU wave); θ-diffusion (S8). Finding:

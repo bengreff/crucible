@@ -375,7 +375,7 @@ struct FaceGeom {
 
 impl GasDiffusion<'_> {
     fn validate(&self, g: &Grid) -> Result<(), GasDiffError> {
-        if g.brick(0).n_theta() != 1 || g.bricks().iter().any(|b| b.n_theta() != 1) {
+        if g.bricks().iter().any(|b| b.n_theta() != 1) {
             return Err(GasDiffError::AzimuthalResolution);
         }
         for (which, v) in [
@@ -689,6 +689,16 @@ impl GasDiffusion<'_> {
                         (Some(a), Some(bv)) => (bv - a) / (2.0 * d),
                         (None, Some(bv)) => (bv - c) / d,
                         (Some(a), None) => (c - a) / d,
+                        // No gas neighbor either way in this direction.
+                        // Correct (not a guess) for the symmetric cases
+                        // this reaches today — a quasi-1-D fixture or a
+                        // free-slip single-cell span, where the gradient
+                        // IS zero. A genuinely under-resolved gas island
+                        // (one-cell gap between walls) would also land
+                        // here and silently lose its dilatation term; the
+                        // FND-3 PLIC/refinement wave owns that geometry
+                        // class and should refuse it at build time
+                        // (S3 review finding — recorded, not cured here).
                         (None, None) => 0.0,
                     }
                 };
@@ -845,12 +855,16 @@ impl GasDiffusion<'_> {
                     at(&sol.tt),
                     at(&sol.cc),
                 );
-                for (what, v) in [
-                    ("velocity", ur_c.abs() + om_c.abs() + uz_c.abs()),
-                    ("temperature", tt_c),
-                    ("composition operand", cc_c.abs()),
+                for (what, v, positive) in [
+                    ("velocity", ur_c.abs() + om_c.abs() + uz_c.abs(), false),
+                    // Temperature must be POSITIVE, not merely finite: a
+                    // T ≤ 0 out of the implicit solve would otherwise flow
+                    // into the k∇T fluxes and downstream seams unremarked
+                    // (META-1 P6 — refuse, never carry; S3 review finding).
+                    ("temperature", tt_c, true),
+                    ("composition operand", cc_c.abs(), false),
                 ] {
-                    if !v.is_finite() {
+                    if !v.is_finite() || (positive && v <= 0.0) {
                         return Err(GasDiffError::NonFinite { i_r, i_z, what });
                     }
                 }
@@ -863,6 +877,9 @@ impl GasDiffusion<'_> {
                 let mut tot = [0.0f64; NCOMP];
                 let mut tot_lam = 0.0f64;
                 let mut lam_abs = 0.0f64;
+                // The domain-edge (port) part of `tot`, kept separately so
+                // the ledger's gross scale does not double-count it.
+                let mut bc_port = [0.0f64; NCOMP];
 
                 for (kind, geom) in &faces {
                     match kind {
@@ -942,11 +959,11 @@ impl GasDiffusion<'_> {
                             // +G·A, a low face −G·A (divergence).
                             tot[I_MR] += s * f_mr;
                             tot[I_MZ] += s * f_mz;
-                            // θ: angular-momentum flux = A·r_f·τ_(rθ|θz)
-                            // (r-faces carry r_f = the face radius;
-                            // z-faces r̄ — folded into tau_th? No: tau_th
-                            // here is the plain stress; the λ-flux weight
-                            // is r_face for both kinds).
+                            // θ: the angular-momentum (λ = ρu_θr) flux is
+                            // A·r·τ_(rθ|θz) with the face's own radius —
+                            // `geom.r_face` is the face radius on r-faces
+                            // and r̄ on z-faces, which is exactly the
+                            // reduction of ∫r(∇·τ)_θ dV in each direction.
                             let f_lam = a * geom.r_face * tau_th;
                             tot_lam += s * f_lam;
                             lam_abs += (f_lam / rbar).abs();
@@ -1039,8 +1056,11 @@ impl GasDiffusion<'_> {
                                 let g_cc = s * (wc - cc_c) / half;
                                 port[I_RC] += s * a * self.rho_d * g_cc;
                             }
-                            for (t_k, p_k) in tot.iter_mut().zip(&port) {
+                            for ((t_k, b_k), p_k) in
+                                tot.iter_mut().zip(bc_port.iter_mut()).zip(&port)
+                            {
                                 *t_k += p_k;
+                                *b_k += p_k;
                             }
                             tot_lam += port_lam;
                             lam_abs += (port_lam / rbar).abs();
@@ -1082,14 +1102,20 @@ impl GasDiffusion<'_> {
 
                 if let Some(l) = ledger.as_deref_mut() {
                     // Interior fluxes telescope for r/z-momentum, energy,
-                    // species — only BC ports (above) and the volume/θ
-                    // sources are ledgered. Gross magnitudes feed S[q].
+                    // species — only BC ports (accumulated in the Boundary
+                    // arm above) and the volume/θ sources are ledgered.
                     l.src_net[I_MR] += src_mr;
                     l.src_abs[I_MR] += src_mr.abs();
                     l.src_net[I_MT] += tot_lam / rbar;
                     l.src_abs[I_MT] += lam_abs;
+                    // Gross magnitude for S[q]: the cell's NET applied
+                    // increment. The boundary ports are already in
+                    // `port_abs`; adding `tot` (which contains them) would
+                    // double-count and silently LOOSEN `TOL_AUDIT` on every
+                    // edge-touching cell (S3 review finding) — charge only
+                    // the interior part here.
                     for kk in [I_MR, I_MZ, I_EN, I_RC] {
-                        l.port_abs[kk] += tot[kk].abs();
+                        l.port_abs[kk] += (tot[kk] - bc_port[kk]).abs();
                     }
                 }
             }
@@ -1519,6 +1545,137 @@ mod tests {
         assert!(
             (got - expect).abs() <= 1e-12 * expect.abs().max(1e-30),
             "u_r core: got {got}, expect {expect}"
+        );
+    }
+
+    /// The compressible (dilatation) and cross-shear terms, on a field
+    /// whose FOUR lag gradients `∂u_r/∂r`, `∂u_r/∂z`, `∂u_z/∂r`,
+    /// `∂u_z/∂z` all take DISTINCT values — so any confusion among them
+    /// is caught. This is a deliberate complement to the coefficient test
+    /// above (which drives one velocity component at a time, leaving the
+    /// other's gradients identically zero) and to the MMS study (whose
+    /// shared mode gives `u_r` and `u_z` identical gradient fields):
+    /// under both of those, swapping `duz_dz` for `dur_dz` in the −⅔μ∇·u
+    /// corrections is INVISIBLE. Verified by planting exactly that
+    /// mutation: the whole battery stayed green, this test fails loudly
+    /// (S3 review finding).
+    #[test]
+    fn dilatation_and_cross_shear_discriminate_independent_gradients() {
+        let g = Grid::build(spec(), &["dummy"]).expect("grid");
+        let o = op();
+        let (i_r, i_z) = (4usize, 4usize);
+        let local = (i_r % BRICK) * BRICK + (i_z % BRICK);
+        let (dr, dz) = (g.spec().dr, g.spec().dz);
+        let vol = g.cell_volume(i_r, 1);
+        let (a_in, a_out) = (g.face_area_r(i_r, false, 1), g.face_area_r(i_r, true, 1));
+        let a_z = g.face_area_z(i_r, 1);
+        let rbar = g.r_center(i_r);
+
+        // Independent shapes with BILINEAR cross terms. The cross terms are
+        // essential, not decoration: a dilatation error that is spatially
+        // UNIFORM cancels exactly out of the r-momentum — the face term
+        // carries it with weight (A_out−A_in)/V and the −τ_θθ/r source
+        // with `geo`, which are the same number (a uniform isotropic
+        // stress exerts no net force — real physics, and the reason a
+        // simpler field is blind here). A3/B3 make every gradient vary
+        // across the stencil so nothing cancels.
+        const A1: f64 = 0.7;
+        const A2: f64 = 0.3;
+        const A3: f64 = 0.23;
+        const B1: f64 = 0.11;
+        const B2: f64 = 1.3;
+        const B3: f64 = 0.37;
+        let ur_at = |ir: usize, iz: usize| A1 * ir as f64 + A2 * iz as f64 + A3 * (ir * iz) as f64;
+        let uz_at =
+            |ir: usize, iz: usize| B1 * (iz * iz) as f64 + B2 * ir as f64 + B3 * (ir * iz) as f64;
+        let mut sol = GasOperands::alloc(&g);
+        for bi in 0..g.n_bricks() {
+            let b = g.brick(bi);
+            for l in 0..BRICK_CELLS {
+                let (ir, iz) = b.global_rz(l);
+                sol.rho[bi][l] = 1.0;
+                sol.tt[bi][l] = 300.0;
+                sol.cc[bi][l] = 0.5;
+                sol.ur[bi][l] = ur_at(ir, iz);
+                sol.uz[bi][l] = uz_at(ir, iz);
+            }
+        }
+        let (rates, _) = assemble(&g, &o, &sol);
+
+        // Cell-centered lag gradients, from the analytic central-difference
+        // formulas (exact for these polynomials) — derived here, never read
+        // back from the operator.
+        let f = |i: usize| i as f64;
+        let dur_dr = |_ir: usize, iz: usize| (A1 + A3 * f(iz)) / dr;
+        let dur_dz = |ir: usize, _iz: usize| (A2 + A3 * f(ir)) / dz;
+        let duz_dr = |_ir: usize, iz: usize| (B2 + B3 * f(iz)) / dr;
+        let duz_dz = |ir: usize, iz: usize| (2.0 * B1 * f(iz) + B3 * f(ir)) / dz;
+        for (a, b) in [
+            (dur_dr(i_r, i_z), dur_dz(i_r, i_z)),
+            (dur_dr(i_r, i_z), duz_dr(i_r, i_z)),
+            (dur_dr(i_r, i_z), duz_dz(i_r, i_z)),
+            (dur_dz(i_r, i_z), duz_dr(i_r, i_z)),
+            (dur_dz(i_r, i_z), duz_dz(i_r, i_z)),
+            (duz_dr(i_r, i_z), duz_dz(i_r, i_z)),
+        ] {
+            assert!(
+                (a - b).abs() > 1e-6 * a.abs().max(b.abs()),
+                "the four lag gradients must be pairwise distinct to discriminate"
+            );
+        }
+        let two_thirds = (2.0 / 3.0) * o.mu;
+        let four_thirds = (4.0 / 3.0) * o.mu;
+        let geo = (a_out - a_in) / vol;
+        let e_thth = |ir: usize, iz: usize| ur_at(ir, iz) / g.r_center(ir);
+        let avg = |x: f64, y: f64| 0.5 * (x + y);
+
+        // --- r-momentum ------------------------------------------------
+        // τ_rr on the two radial faces (each carries the face-averaged
+        // e_θθ and e_zz — the u_z → u_r dilatation channel), the τ_rz
+        // z-faces (carrying the face-averaged duz_dr — cross shear), and
+        // the −τ_θθ/r volume source (carrying e_rr AND e_zz).
+        let tau_rr_out = four_thirds * dur_dr(i_r, i_z)
+            - two_thirds
+                * (avg(e_thth(i_r, i_z), e_thth(i_r + 1, i_z))
+                    + avg(duz_dz(i_r, i_z), duz_dz(i_r + 1, i_z)));
+        let tau_rr_in = four_thirds * dur_dr(i_r, i_z)
+            - two_thirds
+                * (avg(e_thth(i_r, i_z), e_thth(i_r - 1, i_z))
+                    + avg(duz_dz(i_r, i_z), duz_dz(i_r - 1, i_z)));
+        let tau_rz_zp = o.mu * (dur_dz(i_r, i_z) + avg(duz_dr(i_r, i_z), duz_dr(i_r, i_z + 1)));
+        let tau_rz_zm = o.mu * (dur_dz(i_r, i_z) + avg(duz_dr(i_r, i_z), duz_dr(i_r, i_z - 1)));
+        let tau_thth =
+            four_thirds * e_thth(i_r, i_z) - two_thirds * (dur_dr(i_r, i_z) + duz_dz(i_r, i_z));
+        let expect_mr = (a_out * tau_rr_out - a_in * tau_rr_in + a_z * (tau_rz_zp - tau_rz_zm))
+            / vol
+            - tau_thth * geo;
+        let got_mr = rates[0][local][I_MR];
+        assert!(
+            (got_mr - expect_mr).abs() <= 1e-11 * expect_mr.abs(),
+            "r-momentum dilatation/cross-shear: got {got_mr}, expect {expect_mr}"
+        );
+
+        // --- z-momentum ------------------------------------------------
+        // τ_rz on the radial faces (face-averaged dur_dz — cross shear)
+        // and τ_zz on the z-faces (face-averaged e_rr and e_θθ — the
+        // u_r → u_z dilatation channel).
+        let tau_rz_rp = o.mu * (duz_dr(i_r, i_z) + avg(dur_dz(i_r, i_z), dur_dz(i_r + 1, i_z)));
+        let tau_rz_rm = o.mu * (duz_dr(i_r, i_z) + avg(dur_dz(i_r, i_z), dur_dz(i_r - 1, i_z)));
+        let g_uz_zp = (uz_at(i_r, i_z + 1) - uz_at(i_r, i_z)) / dz;
+        let g_uz_zm = (uz_at(i_r, i_z) - uz_at(i_r, i_z - 1)) / dz;
+        let tau_zz_p = four_thirds * g_uz_zp
+            - two_thirds
+                * (avg(dur_dr(i_r, i_z), dur_dr(i_r, i_z + 1))
+                    + avg(ur_at(i_r, i_z), ur_at(i_r, i_z + 1)) / rbar);
+        let tau_zz_m = four_thirds * g_uz_zm
+            - two_thirds
+                * (avg(dur_dr(i_r, i_z), dur_dr(i_r, i_z - 1))
+                    + avg(ur_at(i_r, i_z), ur_at(i_r, i_z - 1)) / rbar);
+        let expect_mz = (a_out * tau_rz_rp - a_in * tau_rz_rm + a_z * (tau_zz_p - tau_zz_m)) / vol;
+        let got_mz = rates[0][local][I_MZ];
+        assert!(
+            (got_mz - expect_mz).abs() <= 1e-11 * expect_mz.abs(),
+            "z-momentum cross-shear/dilatation: got {got_mz}, expect {expect_mz}"
         );
     }
 
