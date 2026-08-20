@@ -71,7 +71,10 @@ use crate::euler::{
     Cons, EosLaw, Euler, EulerFields, EulerWorkspace, FlowError, FlowLedger, I_EN, I_MR, I_MT,
     I_MZ, I_RC, NCOMP, Prim, srd_neighborhood,
 };
-use crate::gas_diffusion::{GasComp, GasDiffError, GasDiffusion, GasOperands, GasWork};
+use crate::gas_diffusion::{
+    GasComp, GasDiffError, GasDiffusion, GasOperands, GasTransportField, GasWork,
+};
+use crate::transport::TransportProps;
 use crate::wall_heat::{NearWallGas, WallHeatError, WallLaw};
 use crucible_grid::{BRICK, BRICK_CELLS, FaceDir, FieldId, Grid, InterfaceFace, tree_combine};
 
@@ -86,7 +89,28 @@ const _: () = assert!(N_SDC_CORRECTIONS >= 1);
 
 /// Fixed Picard sweep count of the Robin-Robin wall-exchange solve inside
 /// each SDC sweep's class-`D` solve (COUP-2 §3.5).
-pub const N_ROBIN_SWEEPS: usize = 3;
+///
+/// **Raised 3 → 5 at S4 (review finding).** Before the FND-7 spine, the
+/// wall law's `k` and `c_p` were config constants, so `h` did not depend on
+/// the near-wall gas temperature and the map these sweeps relax,
+/// `q(T_gas) = h·(T_aw(T_gas) − T_w)`, was **affine** — three sweeps
+/// converged it to round-off. With per-cell transport `h` is a function of
+/// the operand the sweeps move, and the map is nonlinear; the contraction
+/// survives (it is still geometric) but the *margin* on
+/// [`EPS_ROBIN_RESID`] does not. Measured on a four-class duct with a
+/// near-wall gradient of ~1.7e5 K/m — milder than an RL10 chamber wall:
+///
+/// | sweeps | 3 | 4 | 5 | 6 |
+/// |---|---|---|---|---|
+/// | residual | 3.8e-6 (**halt**) | 5.5e-10 | 1.6e-11 | 1.2e-13 |
+///
+/// Four would clear the acceptance; five is chosen because the quantity
+/// that sets the required count — `dh/dT_gas` through the equilibrium
+/// conductivity — grows with dissociation, and the shipped surface reaches
+/// `k_eff/k_frozen` = 22.7 at its hottest, thinnest corner. The extra sweep
+/// costs a class-`D` solve per SDC sweep; a halt on a legal config costs
+/// the run.
+pub const N_ROBIN_SWEEPS: usize = 5;
 
 /// Residual acceptance of the Robin-Robin solve: max relative change of
 /// any patch's exchange heat between the last two Picard sweeps. Failure ⇒
@@ -98,6 +122,12 @@ pub const N_ROBIN_SWEEPS: usize = 3;
 /// residual — both sides use the accepted assembly's numbers), and during
 /// violent start transients the operands legitimately move ~1e-8/sweep
 /// (measured, RL10 smoke march).
+///
+/// **S4 note:** that ~1e-8/sweep was measured when `h` was independent of
+/// the operands. It no longer is (see [`N_ROBIN_SWEEPS`]), so the sweep
+/// count — not this constant — carries the margin. The acceptance itself
+/// is unchanged and deliberately so: loosening it would hide exactly the
+/// staleness it exists to catch.
 pub const EPS_ROBIN_RESID: f64 = 1e-6;
 
 /// Clamped Aitken relaxation bounds of the Picard sweeps (COUP-3 §3.5's
@@ -292,6 +322,11 @@ pub struct ExchangeClass<'a> {
     pub patches: &'a [WallPatch],
     pub law: &'a WallLaw,
     pub temperature: &'a (dyn Fn(&Prim) -> Result<f64, &'static str> + Sync),
+    /// The FND-7 §3.3 spine query at a cell's own state — the wall law's
+    /// transport operands (SOLV-1 §3.5, 0.4.1). The **same** closure the
+    /// gas class-`D` occupant reads, so the law and the resolved `F_visc`
+    /// beside it can never disagree about the medium.
+    pub transport: &'a (dyn Fn(&Prim) -> Result<TransportProps, &'static str> + Sync),
 }
 
 /// The gas-phase class-`D` occupant (S3): `F_visc` — compressible viscous
@@ -301,6 +336,8 @@ pub struct ExchangeClass<'a> {
 pub struct GasDiffusionClass<'a> {
     pub op: &'a GasDiffusion<'a>,
     pub temperature: &'a (dyn Fn(&Prim) -> Result<f64, &'static str> + Sync),
+    /// The FND-7 §3.3 spine query (see [`ExchangeClass::transport`]).
+    pub transport: &'a (dyn Fn(&Prim) -> Result<TransportProps, &'static str> + Sync),
 }
 
 /// COUP-2 §3.1.1 — the audit's declared reference scales (the absolute
@@ -494,6 +531,9 @@ struct GasBufs {
     sol: GasOperands,
     lag: GasOperands,
     work: GasWork,
+    /// Per-cell spine transport, refreshed with the operands each Picard
+    /// iterate (COUP-3 §3.1, 0.4.3).
+    tr: GasTransportField,
     d0: Vec<Vec<Cons>>,
     dprev: Vec<Vec<Cons>>,
     dcur: Vec<Vec<Cons>>,
@@ -611,6 +651,7 @@ impl Sdc {
                 sol: GasOperands::alloc(g),
                 lag: GasOperands::alloc(g),
                 work: GasWork::alloc(g),
+                tr: GasTransportField::alloc(g),
                 d0: mkc(),
                 dprev: mkc(),
                 dcur: mkc(),
@@ -825,13 +866,23 @@ impl Sdc {
                 g,
                 &ws.0.prim,
                 gc.temperature,
+                gc.transport,
                 &mut gb.sol,
+                &mut gb.tr,
                 &mut gb.work.ke_base,
             )?;
             gb.lag.clone_from(&gb.sol);
             gc.op.fill_lag_gradients(g, &gb.lag, &mut gb.work)?;
-            gc.op
-                .assemble_rates(g, &gb.sol, &gb.lag, &gb.work, t, &mut gb.d0, Some(&mut gd0))?;
+            gc.op.assemble_rates(
+                g,
+                &gb.sol,
+                &gb.lag,
+                &gb.work,
+                &gb.tr,
+                t,
+                &mut gb.d0,
+                Some(&mut gd0),
+            )?;
             // dprev starts as D(U⁰) (the predictor's weights are zero —
             // the buffer must hold SOMETHING shaped right; sweep 1 reads
             // the predictor's accepted rates), dlag likewise as the first
@@ -948,7 +999,9 @@ impl Sdc {
                         g,
                         &ws.0.prim,
                         gc.temperature,
+                        gc.transport,
                         &mut gb.sol,
+                        &mut gb.tr,
                         &mut gb.work.ke_base,
                     )?;
                     if ps == 0 {
@@ -964,6 +1017,7 @@ impl Sdc {
                         &gb.sol,
                         &gb.lag,
                         &gb.work,
+                        &gb.tr,
                         t + dt,
                         &mut gb.dstage,
                         None,
@@ -981,13 +1035,13 @@ impl Sdc {
                             &gb.work.ke_base,
                             &mut gb.work.b,
                         );
-                        gc.op.fill_mass(g, comp, &gb.sol.rho, &mut gb.work);
+                        gc.op.fill_mass(g, comp, &gb.sol.rho, &gb.tr, &mut gb.work);
                         let x = match comp {
                             GasComp::Ur => &mut gb.sol.ur,
                             GasComp::Uz => &mut gb.sol.uz,
                             _ => &mut gb.sol.om,
                         };
-                        let (it, rs) = gc.op.cg_solve(g, comp, wqnew, x, &mut gb.work)?;
+                        let (it, rs) = gc.op.cg_solve(g, comp, &gb.tr, wqnew, x, &mut gb.work)?;
                         it_max = it_max.max(it);
                         rs_max = rs_max.max(rs);
                     }
@@ -996,6 +1050,7 @@ impl Sdc {
                         &gb.sol,
                         &gb.lag,
                         &gb.work,
+                        &gb.tr,
                         t + dt,
                         &mut gb.dstage,
                         None,
@@ -1011,12 +1066,12 @@ impl Sdc {
                             &gb.work.ke_base,
                             &mut gb.work.b,
                         );
-                        gc.op.fill_mass(g, comp, &gb.sol.rho, &mut gb.work);
+                        gc.op.fill_mass(g, comp, &gb.sol.rho, &gb.tr, &mut gb.work);
                         let x = match comp {
                             GasComp::T => &mut gb.sol.tt,
                             _ => &mut gb.sol.cc,
                         };
-                        let (it, rs) = gc.op.cg_solve(g, comp, wqnew, x, &mut gb.work)?;
+                        let (it, rs) = gc.op.cg_solve(g, comp, &gb.tr, wqnew, x, &mut gb.work)?;
                         it_max = it_max.max(it);
                         rs_max = rs_max.max(rs);
                     }
@@ -1028,6 +1083,7 @@ impl Sdc {
                         &gb.sol,
                         &gb.lag,
                         &gb.work,
+                        &gb.tr,
                         t + dt,
                         &mut gb.dcur,
                         Some(&mut gd_iter),
@@ -1333,6 +1389,15 @@ impl Sdc {
                 i_theta: 0,
                 what,
             })?;
+            // The spine at the SAME near-wall cell state the temperature
+            // came from — SOLV-1 §3.5, 0.4.1: the law states no transport
+            // constant of its own.
+            let tr = (xc.transport)(&w).map_err(|what| FlowError::NonPhysicalState {
+                i_r: patch.gas.0,
+                i_z: patch.gas.1,
+                i_theta: 0,
+                what,
+            })?;
             let (n_r, n_z) = patch.n_hat;
             let v_n = w[1] * n_r + w[3] * n_z;
             let u_t = ((w[1] * w[1] + w[3] * w[3] - v_n * v_n).max(0.0) + w[2] * w[2]).sqrt();
@@ -1342,6 +1407,7 @@ impl Sdc {
                 u_t,
                 temperature,
                 y,
+                tr,
             };
             let h = xc.law.film_coefficient(&gas)?;
             let t_aw = xc.law.adiabatic_wall_temperature(&gas)?;
@@ -1804,11 +1870,14 @@ fn build_ex_map(xc: &ExchangeClass<'_>, ops: &[(f64, f64)]) -> BTreeMap<Exchange
 /// composed state): ρ, u_r, ω = u_θ/r̄, u_z, T (the FND-7 seam closure),
 /// C — plus the per-cell base kinetic energy ½|u|² the T-solve's
 /// dissipation bookkeeping needs. N_θ = 1 (validated upstream).
+#[allow(clippy::too_many_arguments)]
 fn derive_gas_operands(
     g: &Grid,
     prim: &[Vec<Prim>],
     temperature: &(dyn Fn(&Prim) -> Result<f64, &'static str> + Sync),
+    transport: &(dyn Fn(&Prim) -> Result<TransportProps, &'static str> + Sync),
     sol: &mut GasOperands,
+    tr: &mut GasTransportField,
     ke_base: &mut [Vec<f64>],
 ) -> Result<(), SdcError> {
     for bi in 0..g.n_bricks() {
@@ -1821,6 +1890,7 @@ fn derive_gas_operands(
                 sol.uz[bi][local] = 0.0;
                 sol.tt[bi][local] = 0.0;
                 sol.cc[bi][local] = 0.0;
+                tr.set_masked(bi, local);
                 ke_base[bi][local] = 0.0;
                 continue;
             }
@@ -1840,6 +1910,17 @@ fn derive_gas_operands(
             sol.uz[bi][local] = w[3];
             sol.tt[bi][local] = tt;
             sol.cc[bi][local] = w[5];
+            // The spine reading at this cell's own state — the COUP-3
+            // 0.4.3 refresh point. Its refusal carries the cell.
+            let props = transport(w).map_err(|what| {
+                SdcError::Flow(FlowError::NonPhysicalState {
+                    i_r,
+                    i_z,
+                    i_theta: 0,
+                    what,
+                })
+            })?;
+            tr.set(bi, local, i_r, i_z, &props).map_err(SdcError::Gas)?;
             ke_base[bi][local] = 0.5 * (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]);
         }
     }

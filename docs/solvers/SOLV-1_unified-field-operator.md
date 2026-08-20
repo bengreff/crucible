@@ -6,7 +6,7 @@
 | **Family** | SOLV (Runtime unified-grid operators) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, FND-7 (EOS/transport), COUP-3 (time integration), COUP-2 (audit); FND-1, COUP-7 |
-| **Version** | 0.4 (2026-08-19: burn-progress field in U; §5 anchor budget = full-3-D physical march on GPU — VISION_SCOPE v1.5) |
+| **Version** | 0.4.2 (2026-08-20 S4 review: the film-mean-vs-local c_p ruling; the reference-state band claim withdrawn; catalycity stated. 0.4.1: `F_visc`'s species-enthalpy flux `Σ h_k j_k` named; per-cell spine transport + face-averaging rule; the wall law's transport operands are spine queries) |
 | **Skeleton/complete split** | **Fixed now:** the conserved system, the reacting-flow update, the N_θ=1 axisymmetric-with-swirl corner, EOS/transport from the spine, wall-heat coupling (the one local wall-function law, §3.5), halts, oracles. **Deferred (W4):** the two-phase (drift-flux) and two-fluid/MHD (HLLD + constrained-transport) extensions of the *same* operator; the **resolved-mixing rung** (R2, §3.4) — unmixed multi-stream injection with grid-computed mixing (a resolution/N_θ lift, riding the two-phase extension for liquid injection) under the **one universal LES-class subgrid mixing closure** (D-D, §3.4). |
 
 ---
@@ -72,6 +72,17 @@ reaction source (§3.4). Governing law (compressible reacting Navier-Stokes, sou
 - **(SOLV-1.1)** `∂U/∂t + ∇·F(U) = ∇·F_visc(U,∇U) + S_geom + S_react + S_wall`, with `F` the hyperbolic flux,
   `F_visc` the viscous/conductive flux (transport from the spine), `S_geom` the axisymmetric geometric source
   (§3.3), `S_react` the reaction source (§3.4), `S_wall` the wall-heat coupling (§3.5).
+
+**`F_visc`'s energy flux is `τ·u + k∇T + Σ_k h_k j_k`** *(0.4.1, plan S4)* — the third term is the enthalpy
+the diffusing species carry, and omitting it is not a small error when Lewis ≠ 1: it is the difference between
+conducting heat and *transporting* it with the mixture. Under the one composition coordinate of §3.4's
+shifting mode it reduces exactly to `(∂h/∂Z)|_{p,T}·j_Z` with the coefficient a spine output (FND-7 §3.3), so
+it costs one more face term and no new model. It vanishes identically on a single-composition gas — which is
+why the S3 constant-transport occupant could defer it honestly. **Transport is a per-cell spine query on the
+cell's own local state** (FND-7 §3.7's (p, h, Z)); face coefficients are the arithmetic mean of the two
+cells', which is exact in the constant-coefficient limit and second-order for the smooth transport fields a
+gas has — there is no material discontinuity to cross, because a wall face carries no resolved diffusion at
+all (§3.5).
 
 ### 3.2 Discretization — Godunov FV, PPM + HLLC
 Finite-volume Godunov: **PPM (or PLM) reconstruction with characteristic tracing**, **HLLC** numerical flux
@@ -145,7 +156,34 @@ global-MR line — covered natively by the (p, h, Z) table coordinates (OFFL-3 �
 **One local wall-function heat-flux law — every wall, every engine (D-C).** The gas-side convective wall flux
 is a **local Reynolds-analogy/Colburn-class wall function**: h computed from the **local near-wall state
 only** — ρ, tangential velocity, T, T_wall, μ, k, Pr (spine transport, FND-7), and wall distance — with a
-declared **±20–30% band**. Because its operands are purely local `M` + local geometry, the same law is valid
+declared **±20–30% band**. **The transport operands are spine queries at the near-wall gas cell's own state**
+*(0.4.1, plan S4)*, so the law and the resolved `F_visc` next to it read the **same one provider** — the wall
+law states no transport constant of its own.
+
+**Which c_p, and the reference-state question** *(0.4.2, S4 review — this replaces a claim that was measured
+false).* The Colburn analogy transports **enthalpy**: `q_w = St·ρu·(h_aw − h_w)`. Writing that as `h·ΔT`
+requires the **film-mean** slope `(h_aw − h_w)/(T_aw − T_w)`, not the local one. For a dissociating gas the
+local equilibrium c_p is the *peak* of a strongly-peaked curve — ~7970 J/(kg·K) against a film mean of ~4130
+at the RL10 chamber — so driving on it overpredicts `q_w` by **1.7–2.4×**, one-signed, right through this
+band. The law therefore drives its convective limb on the spine's **c_p,frozen** (a measured 0.94–1.06 proxy
+for the film mean at chamber/throat states, 0.76–0.86 below ~0.2 MPa) and its **recovery** term on the local
+c_p, which is an edge-state property. *Recorded deferral:* the exact form drives on `h_aw − h_w` directly —
+the spine is already keyed on h and the EOS can invert `T(p,h,Z)` at the wall temperature, so it is a
+root-solve per wall patch, not a new model; it rides the mount-reaction wave with the skin-friction debit.
+
+The earlier 0.4.1 wording said that evaluating the operands at the gas state rather than at a film or Eckert
+reference temperature was "a declared choice **inside** the ±20–30% band". **That is withdrawn**: with
+constant properties it was vacuously true, but with state-dependent properties the measured lever is
+h(film)/h(gas) ≈ 0.24–0.40 — a factor 2.5–4, not a ±30%. The reference-state choice is now a **named
+model-form limit** of this closure, not a band member: at a resolved near-wall tier the wall-adjacent cell's
+state approaches T_wall and the operand set shifts systematically. It is declared here rather than folded
+into the band, and it is the reason the ±20–30% must not be read as covering resolution changes.
+
+**Wall catalycity** *(0.4.2)*: this law's operands are the equilibrium (fully-catalytic) ones, which is the
+upper bound on `q_w`; the resolved `F_visc` next to it declares a **non-catalytic** species wall
+(zero-flux). They never meet on the same face — `F_visc` is suppressed where the wall function runs — so
+there is no contradiction in the discretization, but the two assumptions are different and both are now
+stated rather than inferred. Because its operands are purely local `M` + local geometry, the same law is valid
 at every wall face in every engine — nozzle, reactor channel, duct — with no per-geometry correlation branch
 (Rule 12; capabilities are general, never engine-specific). **Bartz is demoted to a VAL-2 nozzle-envelope
 oracle** — a cross-check on the integrated nozzle heat load, no longer a runtime closure. [META-3:
@@ -224,6 +262,8 @@ emergent-`p_c` design resolved with COUP-7/SOLV-7, Ben 2026-07-21; injector mixi
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-20 | 0.4.2 | **S4 review corrections (same session).** §3.5: the wall law's convective limb must drive on the **film-mean** enthalpy slope, not the local equilibrium c_p — measured, the latter overpredicts `q_w` by 1.7–2.4× one-signed through the ±20–30% band (the pre-S4 constant c_p = 5000 was accidentally *inside* it at 1.21×, so S4 made the property more accurate and the flux less so until this landed). The law now takes the spine's c_p,frozen for that limb and the local c_p for recovery, with the exact `h_aw − h_w` form a named deferral. **The 0.4.1 sentence claiming the gas-state-vs-reference-temperature choice sits inside the ±20–30% band is WITHDRAWN** — measured h(film)/h(gas) ≈ 0.24–0.40; it is now a declared model-form limit, and the band explicitly does not cover resolution changes. Wall catalycity stated (equilibrium operands in the law, non-catalytic species wall in `F_visc`; they never share a face). |
+| 2026-08-20 | 0.4.1 | **Clarification wave, landed with plan S4's code (the COUP-3 0.4.1/0.4.2 pattern).** §3.1: `F_visc`'s energy flux stated in full as `τ·u + k∇T + Σ_k h_k j_k` — the species-enthalpy term is the Lewis ≠ 1 content, reduces exactly to `(∂h/∂Z)\|_{p,T}·j_Z` under §3.4's one composition coordinate with the coefficient a spine output, and vanishes on a single-composition gas (which is what made the S3 deferral honest); **transport is a per-cell spine query on the local state**, face coefficients the arithmetic mean (exact in the constant limit, 2nd order for smooth gas transport — no material discontinuity crosses a resolved face because wall faces carry no resolved diffusion). §3.5: the wall function's μ/k/Pr are **spine queries at the near-wall gas state** — one provider shared with `F_visc`, no transport constant stated by the law; the gas-state-vs-reference-temperature choice is declared inside the existing ±20–30% band, refinement deferred. |
 | 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 (Ben).** §3.4: `U` gains the **burn-progress field c** (blended unburnt↔equilibrium thermochemistry; rate laws owned by SOLV-4 §3.6; igniter = COUP-7 object). §4: pseudo-transient reference removed (COUP-3 §3.6 tombstone). §5 (S21): anchor budget rewritten — full-3-D **physical march** under a declared compressed start window, GPU-ported, ≤ 24 h; multi-fidelity ensembles; plan pointer. §6.7 updated to match. |
 | 2026-08-14 | 0.3 | **Post-review fix wave (S16, S17, S18, S19, S20, S21; rulings D-A, D-C, D-D).** §3.5 rewritten to the **one local wall-function heat-flux law** for all engines (local near-wall operands, ±20–30% band; Bartz demoted to VAL-2 nozzle-envelope oracle) with the S16 ownership delineation (SOLV-1 evaluates at config-time-identified wall faces, `F_visc` suppressed there; COUP-2 owns sweep placement; COUP-7 owns coolant side only). §3.4: η_c\* prior applied as **in-solver source-term combustion-completeness knockdown** (output-side multiplication forbidden, S18); **shifting mode advects elemental fractions with per-step equilibrium projection / frozen mode advects full species** (frozen↔shifting = discrete epistemic dimension, S19; §3.1 updated); resolved tier gains the **one universal LES-class dynamic-coefficient subgrid mixing closure**, offline-calibrated on canonical turbulence data, per-quantity band (D-D/S20 — laminar-resolved mixing at Re~10⁷ under-mixes by orders of magnitude). §5/§6: **anchor-run budget** stated (grid class, pseudo-step count, cell-updates/s target, ensemble size) with steady-state acceleration = COUP-3's pseudo-transient mode (S21). D-A wording: "m=0 corner" → "N_θ=1 axisymmetric-with-swirl corner"; N_θ>1 is a finite-volume capability lift, no spectral modes (§0, §3.3, §3.4). Reaction lookups re-keyed to local (p, h, Z) state (S22 cross-ref). |
 | 2026-08-13 | 0.2 | **R2 applied — resolved-mixing rung architected.** §3.4 mixing entry re-specified as the config-selected COUP-7 tier: prior tier (premixed + envelope-bounded η_c\* prior, milestone-1) vs resolved tier (unmixed streams on the existing `ρX_k` state; mixing via mode-ceiling/refinement lift; η_c\* emergent; per-quantity closure model-form; liquid injection rides the W4 two-phase extension). Added to the deferred split. OFFL-3 local-mixture-fraction table-envelope dependency noted. |

@@ -37,6 +37,7 @@ use crate::sdc::{
     DiffusionClass, ExchangeClass, FlowClass, Sdc, SdcError, WallPatch, build_wall_patches,
 };
 use crate::station1_sod::FIELDS as EULER_FIELD_NAMES;
+use crate::transport::{ConstantTransport, TransportProps};
 use crate::wall_heat::WallLaw;
 use crucible_grid::{BRICK, FieldId, Grid, GridSpec, InterfaceFace, Region};
 use crucible_units::{dynamic_viscosity_pa_s, specific_heat_capacity_j_per_kg_k};
@@ -60,6 +61,32 @@ pub const CP: f64 = 1004.0; // J/(kg·K)
 pub const R_SPECIFIC: f64 = CP * (GAMMA - 1.0) / GAMMA; // ≈ 286.9
 pub const MU: f64 = 4.0e-5; // Pa·s (hot-gas scale)
 pub const PR: f64 = 0.72;
+/// Station 4's Schmidt number. The fixture carries no composition gradient
+/// (C ≡ 0 everywhere), so the species flux and its enthalpy limb are
+/// identically zero here — the value only has to be a legal gas one.
+pub const SCHMIDT: f64 = 0.7;
+
+/// Station 4's FND-7 §3.3 spine query: the declared-constant occupant
+/// (`CP`, `MU`, `PR`, `GAMMA`, `SCHMIDT`). A single-composition gamma-law
+/// gas has state-independent properties, which is what makes this
+/// fixture's analytic comparison meaningful — so the bundle is built and
+/// validated ONCE and handed out, not reconstructed per wall-patch query
+/// (S4 review: this is a coupler-rate call inside every Picard sweep).
+static STATION4_PROPS: std::sync::LazyLock<TransportProps> = std::sync::LazyLock::new(|| {
+    ConstantTransport::new(
+        specific_heat_capacity_j_per_kg_k(CP),
+        dynamic_viscosity_pa_s(MU),
+        PR,
+        GAMMA,
+        SCHMIDT,
+    )
+    .expect("station-4 transport constants are in range")
+    .into_props()
+});
+
+pub fn station4_transport(_w: &Prim) -> Result<TransportProps, &'static str> {
+    Ok(*STATION4_PROPS)
+}
 pub const MACH_IN: f64 = 2.0;
 pub const T_IN: f64 = 800.0; // K static ⇒ T_aw ≈ 1373 K
 pub const P_IN: f64 = 2.0e5; // Pa
@@ -256,12 +283,7 @@ pub fn build_duct() -> Duct {
     fill_solid(&mut g, t_solid, T_SOLID_INIT);
     let faces = g.gas_solid_faces();
     let patches = build_wall_patches(&g).expect("box-world patches");
-    let law = WallLaw::new(
-        specific_heat_capacity_j_per_kg_k(CP),
-        dynamic_viscosity_pa_s(MU),
-        PR,
-    )
-    .expect("valid transport set");
+    let law = WallLaw::new();
     Duct {
         grid: g,
         flow,
@@ -346,6 +368,7 @@ pub fn coupled_step(
         patches: &duct.patches,
         law: &duct.law,
         temperature: &gas_temperature,
+        transport: &station4_transport,
     };
     let dt = sdc.stable_dt(&duct.grid, &flow, CFL_S4)?.min(dt_cap);
     let report = sdc.step(
@@ -504,12 +527,7 @@ pub fn build_stepped_cavity() -> (Duct, Euler<'static>) {
     });
     fill_solid(&mut g, t_solid, T_SOLID_INIT);
     let faces = g.gas_solid_faces();
-    let law = WallLaw::new(
-        specific_heat_capacity_j_per_kg_k(CP),
-        dynamic_viscosity_pa_s(MU),
-        PR,
-    )
-    .expect("valid transport set");
+    let law = WallLaw::new();
     const ZERO_SRC: fn(f64, f64, f64, f64) -> Cons = |_, _, _, _| [0.0; NCOMP];
     let op = Euler {
         eos,
@@ -581,6 +599,7 @@ pub fn stepped_cavity_step(
         patches: &duct.patches,
         law: &duct.law,
         temperature: &gas_temperature,
+        transport: &station4_transport,
     };
     let dt = sdc.stable_dt(&duct.grid, &flow, CFL_S4)?;
     let report = sdc.step(

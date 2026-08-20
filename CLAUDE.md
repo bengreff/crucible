@@ -17,13 +17,13 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-19 — session 15 = plan S3 complete)
+## State (2026-08-20 — session 16 = plan S4 complete)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
 closed 68/68-discharged and deleted 2026-08-19; findings live in doc change logs + git history).
-Fifteen sessions, every one gates-green and committed; three multi-agent code reviews
-(sessions 6, 10, 12) plus per-session review waves (14, 15) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
-(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **155 Rust + 28 Python
+Sixteen sessions, every one gates-green and committed; three multi-agent code reviews
+(sessions 6, 10, 12) plus per-session review waves (14, 15, 16) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
+(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **172 Rust + 34 Python
 tests.** **Blind rule v1.4.1**: blind = mechanical input-blindness; every certificate declares
 `development-observed: yes/no`; the RL10 campaign is declared **open development**.
 
@@ -82,6 +82,42 @@ skin-friction gas debit (mount-reaction wave); species-enthalpy flux + TableEos-
 spine); COUP-8 row + config grammar (S4); serial assembly (GPU wave); θ-diffusion (S8). Finding:
 impulsive walls/drives at stiffness ring the truncated sweeps past gas positivity — declared
 ramp schedules (the COUP-7 discipline) are the cure; RL10 already carries its injector ramp.
+
+**Session 16 = plan S4: REAL PROPERTIES + ◆C1.** `crucible-solvers::transport` = the **FND-7 §3.3
+spine's transport slot**, filled for the chemical regime (FND-7 0.5 / OFFL-5 0.3 §3.1a / OFFL-3
+0.5 / SOLV-1 0.4.1 / COUP-3 0.4.3 / META-3 0.8 §6.10 — amended first, then coded). Backbone =
+**mixture-averaged Chapman-Enskog** (the chemical sibling of Saha/QEOS: a physics model defined
+everywhere, not a data corner), keyed on the **runtime local state (p, h, Z)** — the S22 rule;
+(T, p, Z) is the generation coordinate only, because a runtime `T(p,h,Z) → μ(T,p,Z)` chain would
+compound two `interp_error_bound`s into a quantity neither describes. **One flux, decomposed:**
+`Σ h_k j_k = −ρD[(c_p,eq − c_p,fr)∇T + (∂h/∂Z)|_{p,T}∇Z]` exactly on the equilibrium manifold, so
+the ∇T limb folds into `k_eff = k_fr + ρD·Δc_p` (the classical equilibrium conductivity, > 3× k_fr
+at the dissociated corner) and the ∇Z limb is the resolved species-enthalpy flux — never counted
+twice, and Pr stays 0.2–1.5 at both ends. **One owner:** `WallLaw` is stateless (its private
+c_p/μ/Pr *was* the degenerate occupant, now stated once as `transport_constant`); `gas_diffusion`
+holds no transport either — a per-cell `GasTransportField` refreshed once per Picard iterate,
+faces = the two-cell arithmetic average (exact in the constant limit ⇒ certificates byte-identical;
+**mutation-proven** — reading one side leaves the whole S3 battery green and fails only the new
+test). Offline: CEA supplies the caloric columns (same solver/mode/coordinate as the EOS surface),
+**Cantera evaluates transport on that composition and never equilibrates anything**; six columns,
+14 763 nodes spanning exactly the EOS envelope, rule-space bounds ≤ 3.3% against the declared
+10–20% band; two generation refusals armed (unmapped species; a Cantera↔CEA two-fit c_p
+cross-check that *bounds* the > 3500 K extrapolation). **Liner ρc_p is physical** (ruling #4): the
+grid-thickened ring now carries **two** declared homogenizations — κ resistance-preserving, ρc_p
+**capacitance-preserving** (`ρc_p_metal·t_real/t_model`). Wall-law band corners are a declared
+`band_factor` on h, replacing the `cp` proxy. **◆C1 MET:** coarse RL10 marched 15 819 steps to a
+settled readout, no halt, no schedule tuning, audit clean — F +0.30%, Isp +0.25%, c\* −0.07%,
+p_c −0.02%, **jacket heat −19.8%**, liner T_max 410.1 K, vs the S3 spine. The shape of that answer
+is the finding: the missing forces barely move plane-integrated performance at dial 5 (the wall law
+already owned the wall) and move the wall term by two orders of magnitude more. **Method note
+worth keeping:** the PRE-review march reported jacket heat −3.27%, which read as harmless; the
+physics reviewer called that a coarse-tier cancellation hiding a 1.9× error in the wall law's
+driving potential, and fixing it turned −3.27% into −19.8%. A small delta after a large model
+change is a reason to investigate, not a clean bill. **KNOWN LIMIT (recorded):** with physical areal
+capacitance the liner's clock (~37 ms) exceeds the 12-flow-through budget (~11 ms) — the gas field
+settles, the wall is still warming; the cure is run length (ruling #4 accepted it), not tuning.
+Cost ~7× per march; station-5 scores stay S2/S3-spine of record with the measured S4 delta
+recorded in the certificate — re-scoring rides the COUP-5 ensemble wave.
 
 **Goal A ✓** — conduction convergence certificate (`certificates/convergence_certificate.md`).
 
@@ -143,12 +179,18 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   **`TableEos`** (per-cell (p,h,Z) projection: warm-started + uniqueness-guarded fast path,
   rule-space slow-path acceptance vs the density column's own log bound; **S18 `h_offset`
   knockdown FIXED session 12** — store true energy, interrogate at h+δ; measured slope −0.847%
-  c\* per −3e5 J/kg); `wall_heat` = the one Colburn-class law (**±20–30% band**), the ONE
-  transport-constant owner; **`gas_diffusion` = F_visc (S3)** — the class-D gas occupant
-  (per-component symmetric CG + fixed-Picard cross terms; ω-form swirl; total-energy T-solve;
+  c\* per −3e5 J/kg); **`transport` = THE FND-7 §3.3 spine seam (S4)** — the ONE provider of
+  (μ, k, c_p, c_v, ρD, ∂h/∂Z, Pr) over the medium state, two occupants selected as config data
+  (`transport_constant` = the declared set the stations use, bit-identical to sessions 7–15;
+  `transport_table` = the OFFL-5 §3.1a surface on the local (p, h, Z) state); `wall_heat` = the
+  one Colburn-class law (**±20–30% band**, now a declared `band_factor` on h), **stateless** —
+  transport is a spine operand; **`gas_diffusion` = F_visc (S3, per-cell at S4)** — the class-D
+  gas occupant (per-component symmetric CG + fixed-Picard cross terms; ω-form swirl;
+  total-energy T-solve with the spine's own c_v as the slope; **the species-enthalpy flux
+  `Σ h_k j_k` = ρD·∂h/∂Z·∇C**; per-cell transport, faces = the two-cell arithmetic average;
   suppressed at wall-law faces; declared viscous BCs incl. Continuative; N_θ = 1, S8 re-keys).
   Fine-dial establishment is cured by the plan's Phase 1–2 physics (pseudo-transient DELETED,
-  v1.5); S4 wires gas transport into the engine config + real tables.
+  v1.5); the cold/unburnt branch (S5–S6) is the remaining leg.
 - **`crates/engine` — the sandbox seam**: config → assembly (content-verified contour →
   FND-3 cut-geometry grid; refusals: cooling-with-zero-liner, closed-mode-never-engages,
   adiabatic liner holes) → **the ONE SDC-IMEX step (S2)** — wall law on closure-vector patches
@@ -184,11 +226,16 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   calibrated boxes vs the TM-107318 reference p-box (details: certificate + SESSION_LOG).
 - **Session 13 = plan S1 DONE** (the v1.5 amendment wave); **session 14 = plan S2 DONE** (the
   real integrator); **session 15 = plan S3 DONE** (the missing forces: gas F_visc as the
-  class-D gas occupant, wall-law suppression, exact-analytic mini-sim battery). **NEXT = plan
-  S4**: real properties + ◆C1 — transport tables μ/k/c_p(T, p, Z) through the FND-7 seam
-  (OFFL-3 Cantera feed, ~10–20% declared bands); liner gets physical ρc_p (continuation device
-  retired); **◆C1: 2-D RL10 with full diffusion physics re-settles with NO schedule tuning**;
-  fine-dial 2-D establishment attempted — read the plan's §5 S4 entry + FND-7 §3 before coding.
+  class-D gas occupant, wall-law suppression, exact-analytic mini-sim battery); **session 16 =
+  plan S4 DONE** (real properties: the FND-7 transport spine filled for the chemical regime,
+  physical liner thermal mass, **◆C1 met**). **NEXT = plan S5**: the cold/unburnt branch —
+  species-vector state widening; the frozen-composition + unburnt-propellant-mixture surfaces
+  (valid to cryo T) from the OFFL-3 pipeline; the frozen↔shifting bracket armed as the declared
+  kinetics band. It retires the envelope refusals and the overshoot-sized table ceiling, and it
+  is the remaining leg of the fine-dial establishment cure (S4 landed the other two). Read the
+  plan's §5 S5 entry + OFFL-3 §2/§3.2 before coding. Carry into S5: the settle budget must grow
+  past the now-physical liner clock (◆C1 finding), and per-species diffusion coefficients
+  supersede S4's single declared Schmidt closure.
 - The old per-item deferral list (station-4 fixture rewire; Bartz oracle scoring; digest v4;
   COUP-5 ensembles; FND-3 PLIC/slot class) is absorbed into the plan's phases: §4 maps each to
   its session.

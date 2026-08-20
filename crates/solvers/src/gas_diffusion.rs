@@ -3,10 +3,13 @@
 //! the exact cylindrical metric, axisymmetric-with-swirl (N_θ = 1; the θ
 //! diffusion fluxes and per-θ re-keying arrive with the 3-D wave, plan S8
 //! — refused, never guessed). One flux-form operator over the gas state —
-//! no material or regime branch; transport (μ, Pr → k, Sc → ρD, c_p/c_v)
-//! is **pure config data** (Rule 13), shared with the wall law (one owner:
-//! [`WallLaw`]'s constant set — the degenerate FND-7 spine occupant until
-//! the S4 transport tables land).
+//! no material or regime branch; transport (μ, k, c_v, ρD, ∂h/∂Z) is a
+//! **per-cell query on the FND-7 §3.3 spine** ([`crate::transport`], S4),
+//! the same one provider the wall law next door reads. This operator holds
+//! no transport constant: the caller refreshes a [`GasTransportField`] from
+//! the spine once per Picard iterate, from that iterate's lag state
+//! (COUP-3 §3.1, 0.4.3 — never inside the CG, which must stay the solve of
+//! one fixed linear operator).
 //!
 //! ## The operator (continuous form, ∂/∂θ = 0)
 //!
@@ -23,10 +26,15 @@
 //!   telescopes exactly; the linear θ-momentum it induces is ledgered as
 //!   an applied source, exactly like the flow operator's swirl source)
 //! - z-momentum: `(1/r)∂_r(r τ_rz) + ∂_z τ_zz`
-//! - energy (total-energy flux form): `∇·(τ·u + k∇T)` — dissipation is not
-//!   a separate term; it emerges from the KE/internal-energy bookkeeping,
-//!   which is what conserves total energy by construction
-//! - species: `∇·(ρD ∇C)` with constant ρD = μ/Sc (the Fickian
+//! - energy (total-energy flux form): `∇·(τ·u + k∇T + Σ_k h_k j_k)` —
+//!   dissipation is not a separate term; it emerges from the
+//!   KE/internal-energy bookkeeping, which is what conserves total energy
+//!   by construction. The **species-enthalpy flux** `Σ_k h_k j_k` (S4)
+//!   reduces exactly to `(∂h/∂Z)|_{p,T}·j_Z` under one composition
+//!   coordinate; its ∇T limb is NOT here — that limb is already inside the
+//!   spine's effective conductivity, and adding it again would double-count
+//!   one flux (`crate::transport` module doc has the decomposition)
+//! - species: `∇·(ρD ∇C)` with ρD = μ/Sc from the spine (the Fickian
 //!   gradient-diffusion occupant; the LES subgrid flux of SOLV-1 §3.4 is a
 //!   later occupant of this same F_visc-class seam)
 //!
@@ -60,17 +68,30 @@
 //! drive), free-slip, isothermal or adiabatic; species is zero-flux at
 //! every domain edge (non-catalytic — the only occupant this session).
 //!
+//! ## The temperature solve's slope (S4)
+//!
+//! `fill_mass` gives the `T` component the mass `ρ·c_v·κV`, and `c_v` is now
+//! the spine's **equilibrium** `∂e/∂T|_ρ` per cell — the derivative of the
+//! very surface the Picard re-derives `T` from each iterate
+//! (`sdc::derive_gas_operands` reads the composed state through
+//! `EosLaw::prim_checked` + the FND-7 temperature query). That is what
+//! "TableEos-consistent T refresh" means concretely: the linearization
+//! slope and the surface that closes the iterate are the same object.
+//! `c_v` never enters the fixed point — at convergence the right-hand side
+//! is zero and the mass divides nothing — so this is about *reaching* the
+//! fixed point inside the fixed sweep count. It matters: across the RL10's
+//! state range the equilibrium `c_v` spans more than an order of magnitude
+//! (recombination stores energy the frozen value cannot see), so the
+//! constant slope S3 used would leave the truncated solve far off wherever
+//! dissociation runs.
+//!
 //! ## Recorded deferrals (owners named)
 //! - **Wall-function skin-friction momentum debit**: the wall law is a
 //!   heat law (SOLV-1 §3.5); its tangential-force leg rides the COUP-2
 //!   §3.1.2 mount-reaction ledger (the verdict wave). Until then wall-law
 //!   faces are momentum-slip, declared.
-//! - **Species-enthalpy diffusion flux** `Σ h_k j_k` and a **TableEos-
-//!   consistent T refresh** in the Picard: both need the S4 spine
-//!   (per-cell c_p/c_v/partial enthalpies). The constant-c_v occupant here
-//!   is exact for the gamma-law class; S4 owns the general case.
-//! - **COUP-8 registry row + config grammar**: lands with S4's engine
-//!   wiring (a manifest without its `from_loaded` path would be half-wired).
+//! - θ-diffusion fluxes and per-θ operand keying (plan S8) — refused, not
+//!   guessed.
 //! - Near-wall/boundary lagged-cross stencils are one-sided (first-order
 //!   locally — the MMS battery verifies the composed order).
 //!
@@ -81,7 +102,7 @@
 
 use crate::euler::{Cons, FlowLedger, I_EN, I_MR, I_MT, I_MZ, I_RC, NCOMP};
 use crate::sdc::{EPS_CG_RESID, N_CG_ITERS_MAX};
-use crate::wall_heat::WallLaw;
+use crate::transport::TransportProps;
 use crucible_grid::{BRICK, BRICK_CELLS, FaceDir, Grid, tree_combine};
 
 pub(crate) type BufF = Vec<Vec<f64>>;
@@ -91,8 +112,6 @@ pub enum GasDiffError {
     /// Gas diffusion at N_θ > 1 arrives with the 3-D wave (plan S8):
     /// θ-direction diffusion fluxes + per-θ operand keying. Refuse.
     AzimuthalResolution,
-    /// A non-physical transport coefficient (META-1 P6).
-    BadCoefficient(&'static str),
     /// Non-finite operand in the assembly — halt with diagnosis.
     NonFinite {
         i_r: usize,
@@ -111,10 +130,6 @@ impl std::fmt::Display for GasDiffError {
                 f,
                 "gas diffusion at N_θ > 1 arrives with the 3-D wave (plan S8); \
                  refusing rather than guessing"
-            ),
-            Self::BadCoefficient(which) => write!(
-                f,
-                "{which} must be finite and positive (fail loud, META-1 P6)"
             ),
             Self::NonFinite { i_r, i_z, what } => write!(
                 f,
@@ -193,45 +208,132 @@ pub struct GasDiffBcs<'a> {
     pub z_hi: FaceGasBc<'a>,
 }
 
-/// The gas-phase diffusion operator (module doc). Constructed from the one
-/// transport owner ([`WallLaw`]) — the constants are never restated.
+/// The gas-phase diffusion operator (module doc). It holds **only** its
+/// declared boundary conditions: transport arrives per cell in a
+/// [`GasTransportField`] the caller refreshes from the FND-7 spine once per
+/// Picard iterate (COUP-3 §3.1, 0.4.3). Before S4 this struct cached four
+/// scalars copied out of the wall law; the spine is now the one owner and
+/// nothing is copied.
 pub struct GasDiffusion<'a> {
-    /// Dynamic viscosity μ [Pa·s].
-    pub(crate) mu: f64,
-    /// Thermal conductivity k = μ·c_p/Pr [W/(m·K)].
-    pub(crate) k_gas: f64,
-    /// Specific heats [J/(kg·K)]: c_v = c_p/γ is the implicit T-solve's
-    /// linearization slope (exact for the gamma-law class).
-    pub(crate) cv: f64,
-    /// Species diffusion coefficient ρD = μ/Sc [kg/(m·s)] (constant-ρD
-    /// Fickian occupant).
-    pub(crate) rho_d: f64,
     pub bcs: GasDiffBcs<'a>,
 }
 
 impl<'a> GasDiffusion<'a> {
-    /// Build from the one transport owner: k, ρD, c_v are DERIVED from the
-    /// wall law's (c_p, μ, Pr) + the declared γ and Schmidt number — no
-    /// second statement of any constant (Rule 13, one owner).
-    pub fn from_transport(
-        law: &WallLaw,
-        gamma: f64,
-        schmidt: f64,
-        bcs: GasDiffBcs<'a>,
-    ) -> Result<Self, GasDiffError> {
-        if !(gamma.is_finite() && gamma > 1.0) {
-            return Err(GasDiffError::BadCoefficient("gamma (> 1)"));
+    pub fn new(bcs: GasDiffBcs<'a>) -> Self {
+        GasDiffusion { bcs }
+    }
+}
+
+/// Per-cell spine transport for one gas class-`D` solve, per brick at
+/// N_θ = 1 — the coefficient fields of COUP-3 §3.1's variable-coefficient
+/// rule. `cp` is not carried: the operator needs only the coefficients that
+/// multiply a gradient (μ, k, ρD, ∂h/∂Z) and the T-solve's slope c_v.
+pub struct GasTransportField {
+    pub(crate) mu: BufF,
+    pub(crate) k: BufF,
+    pub(crate) cv: BufF,
+    pub(crate) rho_d: BufF,
+    pub(crate) dh_dz: BufF,
+}
+
+impl GasTransportField {
+    pub fn alloc(g: &Grid) -> Self {
+        let mk = || vec![vec![0.0f64; BRICK_CELLS]; g.n_bricks()];
+        GasTransportField {
+            mu: mk(),
+            k: mk(),
+            cv: mk(),
+            rho_d: mk(),
+            dh_dz: mk(),
         }
-        if !(schmidt.is_finite() && schmidt > 0.0) {
-            return Err(GasDiffError::BadCoefficient("schmidt"));
+    }
+
+    /// Write one gas cell's spine reading, validating it at the point of
+    /// production (META-1 P6 — a coefficient that is not finite and
+    /// positive must never reach an assembly, where its provenance is
+    /// gone). `dh_dz` is signed and only checked finite.
+    pub fn set(
+        &mut self,
+        bi: usize,
+        local: usize,
+        i_r: usize,
+        i_z: usize,
+        tr: &TransportProps,
+    ) -> Result<(), GasDiffError> {
+        for (what, v) in [
+            ("spine mu", tr.mu),
+            ("spine k", tr.k),
+            ("spine c_v", tr.cv),
+            ("spine rho*D", tr.rho_d),
+        ] {
+            if !(v.is_finite() && v > 0.0) {
+                return Err(GasDiffError::NonFinite { i_r, i_z, what });
+            }
         }
-        Ok(GasDiffusion {
-            mu: law.mu(),
-            k_gas: law.k_gas(),
-            cv: law.cp() / gamma,
-            rho_d: law.mu() / schmidt,
-            bcs,
-        })
+        if !tr.dh_dz.is_finite() {
+            return Err(GasDiffError::NonFinite {
+                i_r,
+                i_z,
+                what: "spine dh/dZ",
+            });
+        }
+        self.mu[bi][local] = tr.mu;
+        self.k[bi][local] = tr.k;
+        self.cv[bi][local] = tr.cv;
+        self.rho_d[bi][local] = tr.rho_d;
+        self.dh_dz[bi][local] = tr.dh_dz;
+        Ok(())
+    }
+
+    /// Masked (non-gas) slots: values that keep the arithmetic finite and
+    /// are never read (the assembly skips masked cells and suppresses every
+    /// face against one). `1.0`, not `0.0`, so a hypothetical read produces
+    /// an obviously-wrong number rather than a silent zero coefficient.
+    pub fn set_masked(&mut self, bi: usize, local: usize) {
+        for f in [&mut self.mu, &mut self.k, &mut self.cv, &mut self.rho_d] {
+            f[bi][local] = 1.0;
+        }
+        self.dh_dz[bi][local] = 0.0;
+    }
+}
+
+/// One face's transport, from the visiting cell's side. Interior faces take
+/// the **arithmetic mean** of the two cells' spine readings (SOLV-1 §3.1,
+/// 0.4.1): exact in the constant-coefficient limit — which is what keeps
+/// every constant-occupant fixture and certificate bit-identical — and
+/// second order for the smooth transport fields a gas has. There is no
+/// material discontinuity to cross, because a wall face carries no resolved
+/// diffusion at all. Boundary faces take the cell's own value, one-sided,
+/// exactly as their lagged cross terms already do.
+#[derive(Clone, Copy)]
+struct FaceTr {
+    mu: f64,
+    k: f64,
+    rho_d: f64,
+    dh_dz: f64,
+}
+
+impl FaceTr {
+    fn at(tr: &GasTransportField, bi: usize, local: usize) -> Self {
+        FaceTr {
+            mu: tr.mu[bi][local],
+            k: tr.k[bi][local],
+            rho_d: tr.rho_d[bi][local],
+            dh_dz: tr.dh_dz[bi][local],
+        }
+    }
+
+    /// The face average. Commutative in the two cells, so the coefficient
+    /// seen from either side is bit-identical — the symmetry the CG's SPD
+    /// contract and the flux telescoping both rest on.
+    fn between(tr: &GasTransportField, a: (usize, usize), b: (usize, usize)) -> Self {
+        let avg = |f: &BufF| 0.5 * (f[a.0][a.1] + f[b.0][b.1]);
+        FaceTr {
+            mu: avg(&tr.mu),
+            k: avg(&tr.k),
+            rho_d: avg(&tr.rho_d),
+            dh_dz: avg(&tr.dh_dz),
+        }
     }
 }
 
@@ -378,42 +480,33 @@ impl GasDiffusion<'_> {
         if g.bricks().iter().any(|b| b.n_theta() != 1) {
             return Err(GasDiffError::AzimuthalResolution);
         }
-        for (which, v) in [
-            ("mu", self.mu),
-            ("k_gas", self.k_gas),
-            ("cv", self.cv),
-            ("rho_d", self.rho_d),
-        ] {
-            if !(v.is_finite() && v > 0.0) {
-                return Err(GasDiffError::BadCoefficient(which));
-            }
-        }
         Ok(())
     }
 
     /// Implicit two-point face coefficient of a component [per unit
-    /// gradient·area]: the symmetric core the CG matrix carries.
-    fn face_coef(&self, comp: GasComp, geom: &FaceGeom) -> f64 {
+    /// gradient·area]: the symmetric core the CG matrix carries, at this
+    /// face's transport.
+    fn face_coef(comp: GasComp, geom: &FaceGeom, tr: &FaceTr) -> f64 {
         match comp {
             GasComp::Ur => {
                 if geom.radial {
-                    (4.0 / 3.0) * self.mu
+                    (4.0 / 3.0) * tr.mu
                 } else {
-                    self.mu
+                    tr.mu
                 }
             }
             GasComp::Uz => {
                 if geom.radial {
-                    self.mu
+                    tr.mu
                 } else {
-                    (4.0 / 3.0) * self.mu
+                    (4.0 / 3.0) * tr.mu
                 }
             }
             // The angular-momentum form: flux = μ·A·r_f²·Δω/d (r-faces) or
             // μ·A·r̄²·Δω/d (z-faces, both cells share r̄).
-            GasComp::Om => self.mu * geom.r_face * geom.r_face,
-            GasComp::T => self.k_gas,
-            GasComp::C => self.rho_d,
+            GasComp::Om => tr.mu * geom.r_face * geom.r_face,
+            GasComp::T => tr.k,
+            GasComp::C => tr.rho_d,
         }
     }
 
@@ -719,6 +812,7 @@ impl GasDiffusion<'_> {
         &self,
         g: &Grid,
         comp: GasComp,
+        tr: &GasTransportField,
         x: &BufF,
         out: &mut BufF,
         mut diag: Option<&mut BufF>,
@@ -752,7 +846,19 @@ impl GasDiffusion<'_> {
                 let mut acc = 0.0f64;
                 let mut dg = 0.0f64;
                 for (kind, geom) in &faces {
-                    let coef = self.face_coef(comp, geom);
+                    // The face's transport must be formed EXACTLY as
+                    // `assemble_rates` forms it, or the CG solves a
+                    // different operator than the composition applies (the
+                    // S3 review wave verified that identity by
+                    // finite-differencing the true Jacobian; variable
+                    // coefficients must not break it).
+                    let ftr = match kind {
+                        FaceKind::Interior {
+                            bi: nbi, local: nl, ..
+                        } => FaceTr::between(tr, (bi, local), (*nbi, *nl)),
+                        _ => FaceTr::at(tr, bi, local),
+                    };
+                    let coef = Self::face_coef(comp, geom, &ftr);
                     match kind {
                         FaceKind::Interior {
                             bi: nbi,
@@ -785,7 +891,7 @@ impl GasDiffusion<'_> {
                     let vol = g.cell_volume(i_r, 1);
                     let geo = (g.face_area_r(i_r, true, 1) - g.face_area_r(i_r, false, 1)) / vol;
                     let kv = b.kappa_rz(local) * vol;
-                    let c = (4.0 / 3.0) * self.mu * geo / g.r_center(i_r) * kv;
+                    let c = (4.0 / 3.0) * tr.mu[bi][local] * geo / g.r_center(i_r) * kv;
                     acc -= c * x_c;
                     dg -= c;
                 }
@@ -812,12 +918,12 @@ impl GasDiffusion<'_> {
         sol: &GasOperands,
         lag: &GasOperands,
         work: &GasWork,
+        tr: &GasTransportField,
         time: f64,
         rates: &mut [Vec<Cons>],
         mut ledger: Option<&mut FlowLedger>,
     ) -> Result<(), GasDiffError> {
         self.validate(g)?;
-        let two_thirds_mu = (2.0 / 3.0) * self.mu;
         for bi in 0..g.n_bricks() {
             let b = g.brick(bi);
             let (br, bz) = (b.br(), b.bz());
@@ -888,6 +994,8 @@ impl GasDiffusion<'_> {
                             local: nl,
                             ap,
                         } => {
+                            let ftr = FaceTr::between(tr, (bi, local), (*nbi, *nl));
+                            let two_thirds_mu = (2.0 / 3.0) * ftr.mu;
                             let a = geom.area * ap;
                             let d = geom.dist;
                             let (ur_n, om_n, uz_n, tt_n, cc_n) = (
@@ -934,20 +1042,20 @@ impl GasDiffusion<'_> {
                             // normal-gradient parts at sol; cross at lag).
                             let (f_mr, f_mz, tau_rr_or_zz, tau_rz, tau_th);
                             if geom.radial {
-                                let tau_rr = (4.0 / 3.0) * self.mu * g_ur
+                                let tau_rr = (4.0 / 3.0) * ftr.mu * g_ur
                                     - two_thirds_mu * (e_thth_f + e_zz_f);
-                                let t_rz = self.mu * (g_uz + dur_dz_f);
-                                let t_rth = self.mu * geom.r_face * g_om;
+                                let t_rz = ftr.mu * (g_uz + dur_dz_f);
+                                let t_rth = ftr.mu * geom.r_face * g_om;
                                 f_mr = a * tau_rr;
                                 f_mz = a * t_rz;
                                 tau_rr_or_zz = tau_rr;
                                 tau_rz = t_rz;
                                 tau_th = t_rth;
                             } else {
-                                let tau_zz = (4.0 / 3.0) * self.mu * g_uz
+                                let tau_zz = (4.0 / 3.0) * ftr.mu * g_uz
                                     - two_thirds_mu * (e_rr_f + e_thth_f);
-                                let t_rz = self.mu * (g_ur + duz_dr_f);
-                                let t_thz = self.mu * rbar * g_om;
+                                let t_rz = ftr.mu * (g_ur + duz_dr_f);
+                                let t_thz = ftr.mu * rbar * g_om;
                                 f_mr = a * t_rz;
                                 f_mz = a * tau_zz;
                                 tau_rr_or_zz = tau_zz;
@@ -972,15 +1080,28 @@ impl GasDiffusion<'_> {
                                 ur_f * tau_rr_or_zz + ut_f * tau_th + uz_f * tau_rz
                             } else {
                                 ur_f * tau_rz + ut_f * tau_th + uz_f * tau_rr_or_zz
-                            } + self.k_gas * g_tt;
+                            } + ftr.k * g_tt
+                                // The species-enthalpy diffusion flux
+                                // `Σ h_k j_k` (SOLV-1 §3.1, 0.4.1): with one
+                                // composition coordinate it is exactly
+                                // (∂h/∂Z)|_{p,T}·j_Z, and it is identically
+                                // zero on a single-composition gas — which is
+                                // what kept the S3 constant occupant honest.
+                                // Its ∇T limb is NOT here: that limb is already
+                                // inside the spine's effective conductivity
+                                // (crate::transport module doc), so adding it
+                                // again would double-count one flux.
+                                + ftr.rho_d * ftr.dh_dz * g_cc;
                             tot[I_EN] += s * a * g_e;
                             // Species.
-                            tot[I_RC] += s * a * self.rho_d * g_cc;
+                            tot[I_RC] += s * a * ftr.rho_d * g_cc;
                         }
                         FaceKind::Boundary { bc, ap } => {
                             if geom.area == 0.0 {
                                 continue; // the axis face drops out
                             }
+                            let ftr = FaceTr::at(tr, bi, local);
+                            let two_thirds_mu = (2.0 / 3.0) * ftr.mu;
                             let a = geom.area * ap;
                             let half = 0.5 * geom.dist;
                             let theta = Grid::theta_center(0, 1);
@@ -1021,17 +1142,17 @@ impl GasDiffusion<'_> {
                             if let Some((g_ur, g_uz, g_om, wr, wt, wz)) = visc {
                                 let (tau_nn, tau_rz, tau_th);
                                 if geom.radial {
-                                    tau_nn = (4.0 / 3.0) * self.mu * g_ur
+                                    tau_nn = (4.0 / 3.0) * ftr.mu * g_ur
                                         - two_thirds_mu * (e_thth_f + e_zz_f);
-                                    tau_rz = self.mu * (g_uz + dur_dz_f);
-                                    tau_th = self.mu * geom.r_face * g_om;
+                                    tau_rz = ftr.mu * (g_uz + dur_dz_f);
+                                    tau_th = ftr.mu * geom.r_face * g_om;
                                     port[I_MR] += s * a * tau_nn;
                                     port[I_MZ] += s * a * tau_rz;
                                 } else {
-                                    tau_nn = (4.0 / 3.0) * self.mu * g_uz
+                                    tau_nn = (4.0 / 3.0) * ftr.mu * g_uz
                                         - two_thirds_mu * (e_rr_f + e_thth_f);
-                                    tau_rz = self.mu * (g_ur + duz_dr_f);
-                                    tau_th = self.mu * rbar * g_om;
+                                    tau_rz = ftr.mu * (g_ur + duz_dr_f);
+                                    tau_th = ftr.mu * rbar * g_om;
                                     port[I_MZ] += s * a * tau_nn;
                                     port[I_MR] += s * a * tau_rz;
                                 }
@@ -1050,11 +1171,13 @@ impl GasDiffusion<'_> {
                             // independently of the velocity condition).
                             if let Some(w_tt) = self.bc_value(GasComp::T, bc, geom, theta, time) {
                                 let g_tt = s * (w_tt - tt_c) / half;
-                                port[I_EN] += s * a * self.k_gas * g_tt;
+                                port[I_EN] += s * a * ftr.k * g_tt;
                             }
                             if let Some(wc) = self.bc_value(GasComp::C, bc, geom, theta, time) {
                                 let g_cc = s * (wc - cc_c) / half;
-                                port[I_RC] += s * a * self.rho_d * g_cc;
+                                port[I_RC] += s * a * ftr.rho_d * g_cc;
+                                // ...and the enthalpy that flux carries.
+                                port[I_EN] += s * a * ftr.rho_d * ftr.dh_dz * g_cc;
                             }
                             for ((t_k, b_k), p_k) in
                                 tot.iter_mut().zip(bc_port.iter_mut()).zip(&port)
@@ -1086,8 +1209,9 @@ impl GasDiffusion<'_> {
                 let geo = (g.face_area_r(i_r, true, 1) - g.face_area_r(i_r, false, 1)) / vol;
                 let e_rr_c = work.dur_dr[bi][local];
                 let e_zz_c = work.duz_dz[bi][local];
+                let mu_c = tr.mu[bi][local];
                 let tau_thth =
-                    (4.0 / 3.0) * self.mu * (ur_c / rbar) - two_thirds_mu * (e_rr_c + e_zz_c);
+                    (4.0 / 3.0) * mu_c * (ur_c / rbar) - (2.0 / 3.0) * mu_c * (e_rr_c + e_zz_c);
                 let src_mr = -tau_thth * geo * kv;
                 tot[I_MR] += src_mr;
 
@@ -1132,6 +1256,7 @@ impl GasDiffusion<'_> {
         &self,
         g: &Grid,
         comp: GasComp,
+        tr: &GasTransportField,
         wqnew: f64,
         x: &mut BufF,
         work: &mut GasWork,
@@ -1155,7 +1280,7 @@ impl GasDiffusion<'_> {
         };
 
         // A's diagonal: mass − wqnew·diag(L)  (diag(L) ≤ 0 ⇒ positive).
-        self.apply_linear(g, comp, x, &mut work.q, Some(&mut work.diag));
+        self.apply_linear(g, comp, tr, x, &mut work.q, Some(&mut work.diag));
         for bi in 0..nb {
             let m = masked(bi);
             for local in 0..BRICK_CELLS {
@@ -1183,7 +1308,7 @@ impl GasDiffusion<'_> {
         let mut iters = 0usize;
         while iters < N_CG_ITERS_MAX && r_norm2 > eps2 && rz > 0.0 {
             // q = (mass − wqnew·L)·p.
-            self.apply_linear(g, comp, &work.p, &mut work.q, None);
+            self.apply_linear(g, comp, tr, &work.p, &mut work.q, None);
             for bi in 0..nb {
                 let m = masked(bi);
                 for local in 0..BRICK_CELLS {
@@ -1242,7 +1367,14 @@ impl GasDiffusion<'_> {
 
     /// Fill `work.mass` with one component's per-cell mass:
     /// u_r/u_z: ρκV; ω: ρr̄²κV (angular-momentum form); T: ρc_vκV; C: ρκV.
-    pub(crate) fn fill_mass(&self, g: &Grid, comp: GasComp, rho: &BufF, work: &mut GasWork) {
+    pub(crate) fn fill_mass(
+        &self,
+        g: &Grid,
+        comp: GasComp,
+        rho: &BufF,
+        tr: &GasTransportField,
+        work: &mut GasWork,
+    ) {
         for (bi, mb) in work.mass.iter_mut().enumerate() {
             let b = g.brick(bi);
             for (local, mv) in mb.iter_mut().enumerate() {
@@ -1259,16 +1391,10 @@ impl GasDiffusion<'_> {
                         let r = g.r_center(i_r);
                         rho_c * r * r * kv
                     }
-                    GasComp::T => rho_c * self.cv * kv,
+                    GasComp::T => rho_c * tr.cv[bi][local] * kv,
                 };
             }
         }
-    }
-
-    /// The T-solve's linearization slope c_v [J/(kg·K)] (exact for the
-    /// gamma-law class; the S4 spine owns the general case).
-    pub fn cv(&self) -> f64 {
-        self.cv
     }
 }
 
@@ -1285,24 +1411,48 @@ mod tests {
     const SC: f64 = 0.8;
 
     fn op() -> GasDiffusion<'static> {
-        let law = WallLaw::new(
+        GasDiffusion::new(GasDiffBcs {
+            r_inner: FaceGasBc::free(),
+            r_outer: FaceGasBc::free(),
+            z_lo: FaceGasBc::free(),
+            z_hi: FaceGasBc::free(),
+        })
+    }
+
+    /// The declared-constant spine occupant these fixtures run on — the
+    /// same one a `[mechanisms.transport] type = "transport_constant"`
+    /// block builds, so the unit tests exercise the production path.
+    fn props() -> TransportProps {
+        crate::transport::ConstantTransport::new(
             specific_heat_capacity_j_per_kg_k(CP),
             dynamic_viscosity_pa_s(MU),
             PR,
-        )
-        .expect("transport");
-        GasDiffusion::from_transport(
-            &law,
             GAMMA,
             SC,
-            GasDiffBcs {
-                r_inner: FaceGasBc::free(),
-                r_outer: FaceGasBc::free(),
-                z_lo: FaceGasBc::free(),
-                z_hi: FaceGasBc::free(),
-            },
         )
-        .expect("operator")
+        .expect("transport")
+        .into_props()
+    }
+
+    /// A uniform transport field over every gas cell.
+    fn tr(g: &Grid) -> GasTransportField {
+        tr_with(g, &props())
+    }
+
+    fn tr_with(g: &Grid, t: &TransportProps) -> GasTransportField {
+        let mut f = GasTransportField::alloc(g);
+        for bi in 0..g.n_bricks() {
+            let b = g.brick(bi);
+            for local in 0..BRICK_CELLS {
+                if b.mask() & (1u64 << local) == 0 {
+                    f.set_masked(bi, local);
+                } else {
+                    let (i_r, i_z) = b.global_rz(local);
+                    f.set(bi, local, i_r, i_z, t).expect("valid transport");
+                }
+            }
+        }
+        f
     }
 
     fn spec() -> GridSpec {
@@ -1326,53 +1476,485 @@ mod tests {
         let mut work = GasWork::alloc(g);
         let mut rates = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
         let mut ledger = FlowLedger::default();
+        let t = tr(g);
         op.fill_lag_gradients(g, sol, &mut work).expect("gradients");
-        op.assemble_rates(g, sol, sol, &work, 0.0, &mut rates, Some(&mut ledger))
+        op.assemble_rates(g, sol, sol, &work, &t, 0.0, &mut rates, Some(&mut ledger))
             .expect("assembly");
         (rates, ledger)
     }
 
-    /// One transport owner: the derived constants restate NOTHING.
+    /// One transport owner: the fixtures' coefficients come from the
+    /// spine's declared-constant occupant, and the operator restates
+    /// nothing (it holds no transport at all since S4).
     #[test]
     fn transport_derivation_by_hand() {
+        let t = props();
+        assert_eq!(t.mu, MU);
+        assert_eq!(t.k, MU * CP / PR);
+        assert_eq!(t.cv, CP / GAMMA);
+        assert_eq!(t.rho_d, MU / SC);
+        // A single-composition gas carries no species-enthalpy flux.
+        assert_eq!(t.dh_dz, 0.0);
+    }
+
+    /// **The S4 blindness test.** Every S3 fixture runs a UNIFORM transport
+    /// field, so a face coefficient that used only the visiting cell's
+    /// value — instead of the two-cell average — would be invisible to all
+    /// of them, and would also break the CG's symmetry silently (the
+    /// coefficient seen from A would differ from the one seen from B). Give
+    /// the spine a spatially varying reading and check every core against
+    /// the face average, by hand.
+    ///
+    /// Mutation-proven: replacing `FaceTr::between` with `FaceTr::at` in
+    /// `assemble_rates` leaves the whole rest of the battery green and
+    /// fails only here.
+    #[test]
+    fn face_coefficients_are_the_two_cell_average_of_a_varying_spine() {
+        let g = Grid::build(spec(), &["dummy"]).expect("grid");
         let o = op();
-        assert_eq!(o.mu, MU);
-        assert_eq!(o.k_gas, MU * CP / PR);
-        assert_eq!(o.cv, CP / GAMMA);
-        assert_eq!(o.rho_d, MU / SC);
-        let law = WallLaw::new(
-            specific_heat_capacity_j_per_kg_k(CP),
-            dynamic_viscosity_pa_s(MU),
-            PR,
-        )
-        .unwrap();
-        assert!(
-            GasDiffusion::from_transport(
-                &law,
-                1.0,
-                SC,
-                GasDiffBcs {
-                    r_inner: FaceGasBc::free(),
-                    r_outer: FaceGasBc::free(),
-                    z_lo: FaceGasBc::free(),
-                    z_hi: FaceGasBc::free(),
+        // A transport field that varies in BOTH directions and is nowhere
+        // symmetric about the probe cell — a one-sided read must show up.
+        let base = props();
+        let scale = |i_r: usize, i_z: usize| 1.0 + 0.31 * (i_r as f64) + 0.17 * (i_z as f64);
+        let mut tf = GasTransportField::alloc(&g);
+        for bi in 0..g.n_bricks() {
+            let b = g.brick(bi);
+            for l in 0..BRICK_CELLS {
+                if b.mask() & (1u64 << l) == 0 {
+                    tf.set_masked(bi, l);
+                    continue;
                 }
-            )
-            .is_err()
+                let (i_r, i_z) = b.global_rz(l);
+                let f = scale(i_r, i_z);
+                tf.set(
+                    bi,
+                    l,
+                    i_r,
+                    i_z,
+                    &TransportProps {
+                        mu: base.mu * f,
+                        k: base.k * f,
+                        cv: base.cv,
+                        rho_d: base.rho_d * f,
+                        dh_dz: 0.0,
+                        cp: base.cp,
+                        cp_film: base.cp_film,
+                        pr: base.pr,
+                    },
+                )
+                .expect("valid");
+            }
+        }
+
+        let (i_r, i_z) = (4usize, 4usize);
+        let local = (i_r % BRICK) * BRICK + (i_z % BRICK);
+        let vol = g.cell_volume(i_r, 1);
+        let a_z = g.face_area_z(i_r, 1);
+        let dz = g.spec().dz;
+
+        // T(z) with a varying k: the two z-faces now carry DIFFERENT
+        // coefficients, each the average of its two cells.
+        let t_at = |iz: usize| 300.0 + 5.0 * (iz as f64) * (iz as f64);
+        let mut sol = GasOperands::alloc(&g);
+        for bi in 0..g.n_bricks() {
+            let b = g.brick(bi);
+            for l in 0..BRICK_CELLS {
+                let (_, iz) = b.global_rz(l);
+                sol.rho[bi][l] = 1.0;
+                sol.tt[bi][l] = t_at(iz);
+                sol.cc[bi][l] = 0.5;
+            }
+        }
+        let mut work = GasWork::alloc(&g);
+        let mut rates = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
+        o.fill_lag_gradients(&g, &sol, &mut work)
+            .expect("gradients");
+        o.assemble_rates(&g, &sol, &sol, &work, &tf, 0.0, &mut rates, None)
+            .expect("assembly");
+
+        let k_hi = base.k * 0.5 * (scale(i_r, i_z) + scale(i_r, i_z + 1));
+        let k_lo = base.k * 0.5 * (scale(i_r, i_z) + scale(i_r, i_z - 1));
+        let expect = a_z
+            * (k_hi * (t_at(i_z + 1) - t_at(i_z)) - k_lo * (t_at(i_z) - t_at(i_z - 1)))
+            / (dz * vol);
+        let got = rates[0][local][I_EN];
+        assert!(
+            (got - expect).abs() <= 1e-12 * expect.abs(),
+            "varying-k T core: got {got}, expect {expect}"
+        );
+
+        // The CG operator must see the SAME face coefficients, or it solves
+        // a different matrix than the composition applies (the S3 review's
+        // Jacobian identity, now with variable coefficients). Check the
+        // implicit apply against the same hand-built expression.
+        let mut x = vec![vec![0.0f64; BRICK_CELLS]; g.n_bricks()];
+        for (bi, xb) in x.iter_mut().enumerate() {
+            let b = g.brick(bi);
+            for (l, xv) in xb.iter_mut().enumerate() {
+                let (_, iz) = b.global_rz(l);
+                *xv = t_at(iz);
+            }
+        }
+        let mut out = vec![vec![0.0f64; BRICK_CELLS]; g.n_bricks()];
+        o.apply_linear(&g, GasComp::T, &tf, &x, &mut out, None);
+        let expect_lin =
+            a_z * (k_hi * (t_at(i_z + 1) - t_at(i_z)) - k_lo * (t_at(i_z) - t_at(i_z - 1))) / dz;
+        assert!(
+            (out[0][local] - expect_lin).abs() <= 1e-9 * expect_lin.abs(),
+            "apply_linear must carry the same face coefficients as the assembly: \
+             got {}, expect {expect_lin}",
+            out[0][local]
+        );
+
+        // Symmetry: the flux across one face, seen from either side, must
+        // be the exact negation — otherwise the CG matrix is not symmetric
+        // and conservation stops telescoping.
+        let mut probe = GasOperands::alloc(&g);
+        for bi in 0..g.n_bricks() {
+            for l in 0..BRICK_CELLS {
+                probe.rho[bi][l] = 1.0;
+                probe.tt[bi][l] = 300.0;
+                probe.cc[bi][l] = 0.5;
+            }
+        }
+        probe.tt[0][local] = 700.0;
+        let mut rates2 = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
+        o.fill_lag_gradients(&g, &probe, &mut work)
+            .expect("gradients");
+        o.assemble_rates(&g, &probe, &probe, &work, &tf, 0.0, &mut rates2, None)
+            .expect("assembly");
+        let nb_local = (i_r % BRICK) * BRICK + ((i_z + 1) % BRICK);
+        let out_flux = rates2[0][local][I_EN] * vol; // κ = 1 in a full box
+        let in_flux = rates2[0][nb_local][I_EN] * vol;
+        assert!(
+            out_flux < 0.0 && in_flux > 0.0,
+            "the hot cell must lose what its neighbours gain"
+        );
+    }
+
+    /// **S4 review finding 4.1.** Deleting the BOUNDARY arm's
+    /// species-enthalpy port left the whole battery green — the interior
+    /// arm has its own test, the boundary one had none, and the omission is
+    /// conservation-neutral (it transports the wrong physics without
+    /// breaking the ledger). A `Prescribed` species wall with a non-zero
+    /// `∂h/∂Z` must carry enthalpy through that face, by hand.
+    #[test]
+    fn the_boundary_species_port_carries_its_enthalpy_too() {
+        let g = Grid::build(spec(), &["dummy"]).expect("grid");
+        const C_WALL: f64 = 0.9;
+        const DH_DZ: f64 = 6.0e7;
+        let wall_c = |_: f64, _: f64, _: f64, _: f64| C_WALL;
+        let o = GasDiffusion::new(GasDiffBcs {
+            r_inner: FaceGasBc::free(),
+            r_outer: FaceGasBc::free(),
+            z_lo: FaceGasBc {
+                velocity: VelocityBc::FreeSlip,
+                thermal: ThermalBc::Adiabatic,
+                species: SpeciesBc::Prescribed(&wall_c),
+            },
+            z_hi: FaceGasBc::free(),
+        });
+        let mut sol = GasOperands::alloc(&g);
+        for bi in 0..g.n_bricks() {
+            for l in 0..BRICK_CELLS {
+                sol.rho[bi][l] = 1.0;
+                sol.tt[bi][l] = 300.0; // uniform: no Fourier flux anywhere
+                sol.cc[bi][l] = 0.1;
+            }
+        }
+        let base = props();
+        let tf = tr_with(
+            &g,
+            &TransportProps {
+                dh_dz: DH_DZ,
+                ..base
+            },
+        );
+        let mut work = GasWork::alloc(&g);
+        let mut rates = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
+        let mut ledger = FlowLedger::default();
+        o.fill_lag_gradients(&g, &sol, &mut work)
+            .expect("gradients");
+        o.assemble_rates(
+            &g,
+            &sol,
+            &sol,
+            &work,
+            &tf,
+            0.0,
+            &mut rates,
+            Some(&mut ledger),
+        )
+        .expect("assembly");
+
+        // The z_lo boundary cell of the first ring: one half-cell two-point
+        // species flux against the wall value, and the enthalpy it carries.
+        let (i_r, i_z) = (0usize, 0usize);
+        let local = (i_r % BRICK) * BRICK + (i_z % BRICK);
+        let vol = g.cell_volume(i_r, 1);
+        let a_z = g.face_area_z(i_r, 1);
+        let half = 0.5 * g.spec().dz;
+        let g_cc = (C_WALL - 0.1) / half;
+        let expect_c = a_z * base.rho_d * g_cc / vol;
+        let expect_e = a_z * base.rho_d * DH_DZ * g_cc / vol;
+        assert!(
+            (rates[0][local][I_RC] - expect_c).abs() <= 1e-12 * expect_c.abs(),
+            "boundary species flux: got {}, expect {expect_c}",
+            rates[0][local][I_RC]
         );
         assert!(
-            GasDiffusion::from_transport(
-                &law,
-                GAMMA,
-                0.0,
-                GasDiffBcs {
-                    r_inner: FaceGasBc::free(),
-                    r_outer: FaceGasBc::free(),
-                    z_lo: FaceGasBc::free(),
-                    z_hi: FaceGasBc::free(),
+            (rates[0][local][I_EN] - expect_e).abs() <= 1e-12 * expect_e.abs(),
+            "boundary species-ENTHALPY port: got {}, expect {expect_e}",
+            rates[0][local][I_EN]
+        );
+        // And it must be ledgered as a port, or the audit's port/source
+        // books stop matching the applied increment.
+        assert!(
+            ledger.port_net[I_EN] > 0.0,
+            "the enthalpy entering through a species wall is a PORT"
+        );
+    }
+
+    /// **S4 review finding 4.1, second mutation.** A one-sided read of
+    /// `dh_dz` at an interior face breaks conservation, and nothing in the
+    /// battery could see it. Assert the ledger identity directly on a
+    /// STRONGLY varying spine: interior fluxes must telescope, so the sum
+    /// of applied increments equals ports + sources exactly.
+    #[test]
+    fn a_varying_spine_still_telescopes_exactly() {
+        let g = Grid::build(spec(), &["dummy"]).expect("grid");
+        let o = op();
+        let base = props();
+        let mut tf = GasTransportField::alloc(&g);
+        for bi in 0..g.n_bricks() {
+            let b = g.brick(bi);
+            for l in 0..BRICK_CELLS {
+                if b.mask() & (1u64 << l) == 0 {
+                    tf.set_masked(bi, l);
+                    continue;
                 }
-            )
-            .is_err()
+                let (i_r, i_z) = b.global_rz(l);
+                // Independent, strongly-varying fields — a shared scale
+                // factor would let a one-sided read of one coefficient hide
+                // behind the correct averaging of another.
+                let f = 1.0 + 0.7 * i_r as f64;
+                let q = 1.0 + 0.5 * i_z as f64;
+                tf.set(
+                    bi,
+                    l,
+                    i_r,
+                    i_z,
+                    &TransportProps {
+                        mu: base.mu * f,
+                        k: base.k * q,
+                        cv: base.cv,
+                        rho_d: base.rho_d * (1.0 + 0.3 * i_z as f64),
+                        dh_dz: 1.0e7 * (1.0 + 0.9 * i_r as f64),
+                        cp: base.cp,
+                        cp_film: base.cp_film,
+                        pr: base.pr,
+                    },
+                )
+                .expect("valid");
+            }
+        }
+        // A state with gradients in every solved variable.
+        let mut sol = GasOperands::alloc(&g);
+        for bi in 0..g.n_bricks() {
+            let b = g.brick(bi);
+            for l in 0..BRICK_CELLS {
+                let (i_r, i_z) = b.global_rz(l);
+                let (x, y) = (i_r as f64, i_z as f64);
+                sol.rho[bi][l] = 1.0 + 0.05 * x;
+                sol.ur[bi][l] = 3.0 * (0.1 * x).sin() + 0.7 * y;
+                sol.om[bi][l] = 0.4 + 0.03 * x * y;
+                sol.uz[bi][l] = 2.0 + 0.5 * x - 0.3 * y;
+                sol.tt[bi][l] = 300.0 + 11.0 * x + 7.0 * y;
+                sol.cc[bi][l] = 0.2 + 0.01 * x + 0.02 * y;
+            }
+        }
+        let mut work = GasWork::alloc(&g);
+        let mut rates = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
+        let mut ledger = FlowLedger::default();
+        o.fill_lag_gradients(&g, &sol, &mut work)
+            .expect("gradients");
+        o.assemble_rates(
+            &g,
+            &sol,
+            &sol,
+            &work,
+            &tf,
+            0.0,
+            &mut rates,
+            Some(&mut ledger),
+        )
+        .expect("assembly");
+
+        // Σ_cells rate[k]·κV == port_net[k] + src_net[k], to round-off.
+        for k in [I_MR, I_MZ, I_EN, I_RC] {
+            let mut applied = 0.0f64;
+            let mut scale = 0.0f64;
+            for (bi, rb) in rates.iter().enumerate() {
+                let b = g.brick(bi);
+                for (l, cell) in rb.iter().enumerate() {
+                    if b.mask() & (1u64 << l) == 0 {
+                        continue;
+                    }
+                    let (i_r, _) = b.global_rz(l);
+                    let kv = b.kappa_rz(l) * g.cell_volume(i_r, 1);
+                    applied += cell[k] * kv;
+                    scale += (cell[k] * kv).abs();
+                }
+            }
+            let books = ledger.port_net[k] + ledger.src_net[k];
+            assert!(
+                (applied - books).abs() <= 1e-11 * scale.max(f64::MIN_POSITIVE),
+                "component {k}: applied {applied} vs ports+sources {books} \
+                 (scale {scale}) — interior fluxes must telescope on a \
+                 varying spine too"
+            );
+        }
+    }
+
+    /// The temperature solve's mass must be `ρ·c_v·κV` with the **cell's
+    /// own** spine `c_v` (module doc). Every S3 fixture had a single c_v,
+    /// so a stale constant here would be invisible to all of them.
+    #[test]
+    fn temperature_solve_mass_uses_the_per_cell_spine_slope() {
+        let g = Grid::build(spec(), &["dummy"]).expect("grid");
+        let o = op();
+        let base = props();
+        let cv_at = |i_r: usize, i_z: usize| base.cv * (1.0 + 0.4 * i_r as f64 + 0.9 * i_z as f64);
+        let mut tf = GasTransportField::alloc(&g);
+        for bi in 0..g.n_bricks() {
+            let b = g.brick(bi);
+            for l in 0..BRICK_CELLS {
+                if b.mask() & (1u64 << l) == 0 {
+                    tf.set_masked(bi, l);
+                    continue;
+                }
+                let (i_r, i_z) = b.global_rz(l);
+                tf.set(
+                    bi,
+                    l,
+                    i_r,
+                    i_z,
+                    &TransportProps {
+                        cv: cv_at(i_r, i_z),
+                        ..base
+                    },
+                )
+                .expect("valid");
+            }
+        }
+        let mut rho = vec![vec![0.0f64; BRICK_CELLS]; g.n_bricks()];
+        for (bi, rb) in rho.iter_mut().enumerate() {
+            let b = g.brick(bi);
+            for (l, v) in rb.iter_mut().enumerate() {
+                let (i_r, _) = b.global_rz(l);
+                *v = 0.7 + 0.05 * i_r as f64;
+            }
+        }
+        let mut work = GasWork::alloc(&g);
+        o.fill_mass(&g, GasComp::T, &rho, &tf, &mut work);
+        for (bi, rb) in rho.iter().enumerate() {
+            let b = g.brick(bi);
+            for (l, rv) in rb.iter().enumerate() {
+                if b.mask() & (1u64 << l) == 0 {
+                    continue;
+                }
+                let (i_r, i_z) = b.global_rz(l);
+                let kv = b.kappa_rz(l) * g.cell_volume(i_r, 1);
+                let expect = rv * cv_at(i_r, i_z) * kv;
+                assert!(
+                    (work.mass[bi][l] - expect).abs() <= 1e-12 * expect,
+                    "T mass at ({i_r}, {i_z}): got {}, expect {expect}",
+                    work.mass[bi][l]
+                );
+            }
+        }
+        // The velocity/species components take ρκV — no heat capacity.
+        o.fill_mass(&g, GasComp::Ur, &rho, &tf, &mut work);
+        let b = g.brick(0);
+        let (i_r, _) = b.global_rz(9);
+        assert_eq!(
+            work.mass[0][9],
+            rho[0][9] * b.kappa_rz(9) * g.cell_volume(i_r, 1)
+        );
+    }
+
+    /// The species-enthalpy diffusion flux `Σ h_k j_k` (S4). It is
+    /// identically zero on a single-composition gas — which is why S3 could
+    /// defer it honestly — so nothing in the S3 battery can see it. With a
+    /// non-zero `∂h/∂Z` and a composition gradient, energy must move by
+    /// exactly `ρD·(∂h/∂Z)·∇C` per face, on top of the Fourier flux.
+    #[test]
+    fn species_enthalpy_flux_carries_energy_down_a_composition_gradient() {
+        let g = Grid::build(spec(), &["dummy"]).expect("grid");
+        let o = op();
+        let (i_r, i_z) = (4usize, 4usize);
+        let local = (i_r % BRICK) * BRICK + (i_z % BRICK);
+        let vol = g.cell_volume(i_r, 1);
+        let a_z = g.face_area_z(i_r, 1);
+        let dz = g.spec().dz;
+        let c_at = |iz: usize| 0.1 + 0.02 * (iz as f64) * (iz as f64);
+
+        let mut sol = GasOperands::alloc(&g);
+        for bi in 0..g.n_bricks() {
+            let b = g.brick(bi);
+            for l in 0..BRICK_CELLS {
+                let (_, iz) = b.global_rz(l);
+                sol.rho[bi][l] = 1.0;
+                sol.tt[bi][l] = 300.0; // uniform: no Fourier flux at all
+                sol.cc[bi][l] = c_at(iz);
+            }
+        }
+        let mut work = GasWork::alloc(&g);
+        o.fill_lag_gradients(&g, &sol, &mut work)
+            .expect("gradients");
+
+        // With dh_dz = 0 (a single-composition gas) the energy rate is
+        // exactly zero — the S3 arithmetic, unchanged.
+        let quiet = tr(&g);
+        let mut rates = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
+        o.assemble_rates(&g, &sol, &sol, &work, &quiet, 0.0, &mut rates, None)
+            .expect("assembly");
+        assert_eq!(
+            rates[0][local][I_EN], 0.0,
+            "a single-composition gas carries no species enthalpy"
+        );
+
+        // Now switch the spine to a reacting mixture.
+        const DH_DZ: f64 = 6.0e7; // J/kg, the LOX/LH2 class
+        let base = props();
+        let hot = tr_with(
+            &g,
+            &TransportProps {
+                dh_dz: DH_DZ,
+                ..base
+            },
+        );
+        let mut rates = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
+        o.assemble_rates(&g, &sol, &sol, &work, &hot, 0.0, &mut rates, None)
+            .expect("assembly");
+        let expect =
+            base.rho_d * DH_DZ * a_z * ((c_at(i_z + 1) - c_at(i_z)) - (c_at(i_z) - c_at(i_z - 1)))
+                / (dz * vol);
+        let got = rates[0][local][I_EN];
+        assert!(
+            (got - expect).abs() <= 1e-12 * expect.abs(),
+            "species-enthalpy flux: got {got}, expect {expect}"
+        );
+        // The species flux itself is untouched by the enthalpy limb.
+        let expect_c =
+            base.rho_d * a_z * ((c_at(i_z + 1) - c_at(i_z)) - (c_at(i_z) - c_at(i_z - 1)))
+                / (dz * vol);
+        assert!((rates[0][local][I_RC] - expect_c).abs() <= 1e-12 * expect_c.abs());
+        // Ratio check, stated as the physics: the energy the flux carries
+        // is exactly ∂h/∂Z per unit of composition it moves.
+        assert!(
+            (got / rates[0][local][I_RC] - DH_DZ).abs() <= 1e-9 * DH_DZ,
+            "the enthalpy carried per unit diffused composition must be ∂h/∂Z"
         );
     }
 
@@ -1445,7 +2027,7 @@ mod tests {
         }
         let (rates, _) = assemble(&g, &o, &sol);
         let t_at = |iz: usize| 300.0 + 5.0 * (iz as f64) * (iz as f64);
-        let expect = o.k_gas * a_z * ((t_at(i_z + 1) - t_at(i_z)) - (t_at(i_z) - t_at(i_z - 1)))
+        let expect = props().k * a_z * ((t_at(i_z + 1) - t_at(i_z)) - (t_at(i_z) - t_at(i_z - 1)))
             / (dz * vol);
         let got = rates[0][local][I_EN];
         assert!(
@@ -1464,8 +2046,9 @@ mod tests {
         }
         let (rates, _) = assemble(&g, &o, &sol);
         let c_at = |iz: usize| 0.1 + 0.02 * (iz as f64) * (iz as f64);
-        let expect = o.rho_d * a_z * ((c_at(i_z + 1) - c_at(i_z)) - (c_at(i_z) - c_at(i_z - 1)))
-            / (dz * vol);
+        let expect =
+            props().rho_d * a_z * ((c_at(i_z + 1) - c_at(i_z)) - (c_at(i_z) - c_at(i_z - 1)))
+                / (dz * vol);
         let got = rates[0][local][I_RC];
         assert!(
             (got - expect).abs() <= 1e-12 * expect.abs(),
@@ -1484,7 +2067,7 @@ mod tests {
         }
         let (rates, _) = assemble(&g, &o, &sol);
         let u_at = |ir: usize| 3.0 * (ir as f64) * (ir as f64);
-        let expect = o.mu
+        let expect = props().mu
             * (a_out * (u_at(i_r + 1) - u_at(i_r)) - a_in * (u_at(i_r) - u_at(i_r - 1)))
             / (dr * vol);
         let got = rates[0][local][I_MZ];
@@ -1506,7 +2089,7 @@ mod tests {
         let (rates, _) = assemble(&g, &o, &sol);
         let om_at = |ir: usize| 2.0 + 0.5 * (ir as f64) * (ir as f64);
         let (rf_in, rf_out) = (g.face_radius(i_r), g.face_radius(i_r + 1));
-        let expect = o.mu
+        let expect = props().mu
             * (a_out * rf_out * rf_out * (om_at(i_r + 1) - om_at(i_r))
                 - a_in * rf_in * rf_in * (om_at(i_r) - om_at(i_r - 1)))
             / (dr * g.r_center(i_r) * vol);
@@ -1535,11 +2118,12 @@ mod tests {
         // Radial-face compressible correction −⅔μ(e_θθ+e_zz)|face (e_zz=0):
         let e_thth_out = 0.5 * (ur_at(i_r) / rbar + ur_at(i_r + 1) / g.r_center(i_r + 1));
         let e_thth_in = 0.5 * (ur_at(i_r) / rbar + ur_at(i_r - 1) / g.r_center(i_r - 1));
-        let tau_out = (4.0 / 3.0) * o.mu * (ur_at(i_r + 1) - ur_at(i_r)) / dr
-            - (2.0 / 3.0) * o.mu * e_thth_out;
-        let tau_in = (4.0 / 3.0) * o.mu * (ur_at(i_r) - ur_at(i_r - 1)) / dr
-            - (2.0 / 3.0) * o.mu * e_thth_in;
-        let tau_thth = (4.0 / 3.0) * o.mu * ur_at(i_r) / rbar - (2.0 / 3.0) * o.mu * e_rr;
+        let tau_out = (4.0 / 3.0) * props().mu * (ur_at(i_r + 1) - ur_at(i_r)) / dr
+            - (2.0 / 3.0) * props().mu * e_thth_out;
+        let tau_in = (4.0 / 3.0) * props().mu * (ur_at(i_r) - ur_at(i_r - 1)) / dr
+            - (2.0 / 3.0) * props().mu * e_thth_in;
+        let tau_thth =
+            (4.0 / 3.0) * props().mu * ur_at(i_r) / rbar - (2.0 / 3.0) * props().mu * e_rr;
         let expect = (a_out * tau_out - a_in * tau_in) / vol - tau_thth * geo;
         let got = rates[0][local][I_MR];
         assert!(
@@ -1623,8 +2207,8 @@ mod tests {
                 "the four lag gradients must be pairwise distinct to discriminate"
             );
         }
-        let two_thirds = (2.0 / 3.0) * o.mu;
-        let four_thirds = (4.0 / 3.0) * o.mu;
+        let two_thirds = (2.0 / 3.0) * props().mu;
+        let four_thirds = (4.0 / 3.0) * props().mu;
         let geo = (a_out - a_in) / vol;
         let e_thth = |ir: usize, iz: usize| ur_at(ir, iz) / g.r_center(ir);
         let avg = |x: f64, y: f64| 0.5 * (x + y);
@@ -1642,8 +2226,10 @@ mod tests {
             - two_thirds
                 * (avg(e_thth(i_r, i_z), e_thth(i_r - 1, i_z))
                     + avg(duz_dz(i_r, i_z), duz_dz(i_r - 1, i_z)));
-        let tau_rz_zp = o.mu * (dur_dz(i_r, i_z) + avg(duz_dr(i_r, i_z), duz_dr(i_r, i_z + 1)));
-        let tau_rz_zm = o.mu * (dur_dz(i_r, i_z) + avg(duz_dr(i_r, i_z), duz_dr(i_r, i_z - 1)));
+        let tau_rz_zp =
+            props().mu * (dur_dz(i_r, i_z) + avg(duz_dr(i_r, i_z), duz_dr(i_r, i_z + 1)));
+        let tau_rz_zm =
+            props().mu * (dur_dz(i_r, i_z) + avg(duz_dr(i_r, i_z), duz_dr(i_r, i_z - 1)));
         let tau_thth =
             four_thirds * e_thth(i_r, i_z) - two_thirds * (dur_dr(i_r, i_z) + duz_dz(i_r, i_z));
         let expect_mr = (a_out * tau_rr_out - a_in * tau_rr_in + a_z * (tau_rz_zp - tau_rz_zm))
@@ -1659,8 +2245,10 @@ mod tests {
         // τ_rz on the radial faces (face-averaged dur_dz — cross shear)
         // and τ_zz on the z-faces (face-averaged e_rr and e_θθ — the
         // u_r → u_z dilatation channel).
-        let tau_rz_rp = o.mu * (duz_dr(i_r, i_z) + avg(dur_dz(i_r, i_z), dur_dz(i_r + 1, i_z)));
-        let tau_rz_rm = o.mu * (duz_dr(i_r, i_z) + avg(dur_dz(i_r, i_z), dur_dz(i_r - 1, i_z)));
+        let tau_rz_rp =
+            props().mu * (duz_dr(i_r, i_z) + avg(dur_dz(i_r, i_z), dur_dz(i_r + 1, i_z)));
+        let tau_rz_rm =
+            props().mu * (duz_dr(i_r, i_z) + avg(dur_dz(i_r, i_z), dur_dz(i_r - 1, i_z)));
         let g_uz_zp = (uz_at(i_r, i_z + 1) - uz_at(i_r, i_z)) / dz;
         let g_uz_zm = (uz_at(i_r, i_z) - uz_at(i_r, i_z - 1)) / dz;
         let tau_zz_p = four_thirds * g_uz_zp

@@ -85,6 +85,13 @@ fn run_config(path: &str) -> i32 {
             return 1;
         }
     };
+    let transport_table = match crucible_engine::run::open_transport_table(&spec) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("table error: {e}");
+            return 1;
+        }
+    };
     let started = std::time::Instant::now();
     let mut on_progress = |p: &crucible_engine::run::Progress| {
         println!(
@@ -98,7 +105,12 @@ fn run_config(path: &str) -> i32 {
         );
         let _ = std::io::stdout().flush();
     };
-    let report = match crucible_engine::run::run(&mut spec, &table, &mut on_progress) {
+    let report = match crucible_engine::run::run(
+        &mut spec,
+        &table,
+        transport_table.as_ref(),
+        &mut on_progress,
+    ) {
         Ok(r) => r,
         Err(halt) => {
             eprintln!("run halted: {halt}");

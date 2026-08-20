@@ -10,7 +10,6 @@ use crucible_config::{Loaded, ResolvedConfig, parse_contour_csv};
 use crucible_grid::{CellGeom, Grid, GridSpec, Region};
 use crucible_solvers::euler::{EULER_FIELDS, EulerFields};
 use crucible_solvers::wall_heat::WallLaw;
-use crucible_units::{dynamic_viscosity_pa_s, specific_heat_capacity_j_per_kg_k};
 
 /// Grid field names: the six `U` components + the liner temperature/rate.
 pub const T_SOLID: &str = "t_solid";
@@ -64,6 +63,22 @@ pub struct LinerSpec {
 
 /// Everything a run needs besides the table (which the caller owns — the
 /// `TableEos` borrows it, so the binding happens in the runner's scope).
+/// FND-7 §3.3 — which occupant fills the spine's transport slot, chosen by
+/// the config's mechanism id (`transport_constant` vs `transport_table` —
+/// the `flow` ↔ `flow_shifting` pattern; Rule 13, data not code).
+#[derive(Debug, Clone)]
+pub enum TransportSpec {
+    /// Fully built here: the declared-constant occupant needs no table.
+    Constant(crucible_solvers::transport::ConstantTransport),
+    /// The OFFL-5 §3.1a surface pin (file, group, data_version, digest) and
+    /// the declared Schmidt number; opened and bound at run time, like the
+    /// equilibrium surface.
+    Table {
+        pin: (String, String, String, String),
+        schmidt: f64,
+    },
+}
+
 pub struct EngineSpec {
     pub grid: Grid,
     pub fields: EulerFields,
@@ -91,6 +106,12 @@ pub struct EngineSpec {
     pub injector_ramp_flowthroughs: f64,
     /// The `chem_equilibrium` pin: (file, group, data_version, digest).
     pub table_pin: (String, String, String, String),
+    /// The FND-7 transport spine occupant (S4).
+    pub transport: TransportSpec,
+    /// Whether SOLV-1 §3.1's `F_visc` is scheduled — `gas_diffusion`
+    /// selected in config. The operator itself is parameter-free; it is
+    /// built inside `run` because it borrows its boundary closures.
+    pub gas_diffusion: bool,
 }
 
 /// Assemble from a loaded config. `read_file` supplies the contour CSV
@@ -219,18 +240,64 @@ pub fn assemble(
             rho_cp_j_per_m3_k: ResolvedConfig::param_f64(cb, "rho_cp_j_per_m3_k")
                 .expect("declared"),
         };
-        let (_, wb) = sole(r, "wall_heat")?;
-        let law = WallLaw::new(
-            specific_heat_capacity_j_per_kg_k(
-                ResolvedConfig::param_f64(wb, "cp_j_per_kg_k").expect("declared"),
-            ),
-            dynamic_viscosity_pa_s(ResolvedConfig::param_f64(wb, "mu_pa_s").expect("declared")),
-            ResolvedConfig::param_f64(wb, "pr").expect("declared"),
-        )
-        .map_err(|e| format!("wall_heat: {e}"))?;
-        (Some(jacket), Some(liner), Some(law))
+        let (_, _wb) = sole(r, "wall_heat")?; // parameter-free since S4
+        (Some(jacket), Some(liner), Some(WallLaw::new()))
     } else {
         (None, None, None)
+    };
+
+    // --- FND-7 §3.3: which occupant fills the spine's transport slot ------
+    // Exactly one, always: every configuration has a medium, and leaving it
+    // unstated would mean a hidden default (FND-4 §3.5).
+    let n_const = r.mechanisms_of_type("transport_constant").len();
+    let n_table = r.mechanisms_of_type("transport_table").len();
+    let transport = match (n_const, n_table) {
+        (1, 0) => {
+            let (name, law) = crucible_solvers::constant_transport_from_loaded(loaded)
+                .map_err(|e| e.to_string())?;
+            let _ = name;
+            TransportSpec::Constant(law)
+        }
+        (0, 1) => {
+            let (_, schmidt) = crucible_solvers::table_transport_schmidt_from_loaded(loaded)
+                .map_err(|e| e.to_string())?;
+            let pin = r.tables.get("spine_transport").ok_or(
+                "transport_table requires the `spine_transport` table pin ([tables] block)",
+            )?;
+            TransportSpec::Table {
+                pin: (
+                    pin.file.clone(),
+                    pin.group.clone(),
+                    pin.data_version.clone(),
+                    pin.content_digest.clone(),
+                ),
+                schmidt,
+            }
+        }
+        (0, 0) => {
+            return Err("no transport occupant selected: declare exactly one of \
+                 `transport_constant` (declared constants) or `transport_table` \
+                 (the OFFL-5 §3.1a spine surface). The wall law and F_visc both \
+                 read it, and neither may invent one (FND-7 §3.3)"
+                .to_string());
+        }
+        (c, t) => {
+            return Err(format!(
+                "{c} `transport_constant` + {t} `transport_table` instances: the spine \
+                 has exactly ONE transport slot; refusing rather than picking"
+            ));
+        }
+    };
+    // SOLV-1 §3.1's F_visc, selected as data (Rule 13).
+    let gas_diffusion = match r.mechanisms_of_type("gas_diffusion").as_slice() {
+        [] => false,
+        [_] => true,
+        many => {
+            return Err(format!(
+                "{} `gas_diffusion` instances; there is one gas",
+                many.len()
+            ));
+        }
     };
 
     if turbopump.is_some() && wall_law.is_none() {
@@ -338,6 +405,8 @@ pub fn assemble(
         p_amb_floor_pa: profile.p_amb_floor_pa,
         injector_ramp_flowthroughs: profile.injector_ramp_flowthroughs,
         table_pin,
+        transport,
+        gas_diffusion,
     })
 }
 

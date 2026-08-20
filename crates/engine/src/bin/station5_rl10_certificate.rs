@@ -63,8 +63,16 @@ const R_BLIND_NOM: Readout = Readout {
 };
 
 /// BLIND corners: η edge (offset −1.079e6 → realized 0.966..0.969, or
-/// −3.56e5 → realized 0.988..0.991) × wall-law band edge (cp 3750/6250 =
-/// h × 0.75/1.25 at fixed Pr, μ).
+/// −3.56e5 → realized 0.988..0.991) × wall-law band edge.
+///
+/// The band edge was reached, on the S2/S3 spine these readouts come from, by
+/// setting the wall law's then-private `cp_j_per_kg_k` to 3750/6250 at fixed
+/// Pr and μ — which scales k = μc_p/Pr with c_p and so scales h by
+/// 0.75/1.25 exactly. S4 retired that block (transport is a spine query) and
+/// named the band directly: `[mechanisms.wall] band_factor = 0.75 / 1.25`.
+/// The two are not identical — the proxy also moved the recovery temperature
+/// and, after S3, the resolved viscous fluxes — which is one reason an S4
+/// re-scoring is a re-run, not a relabel (see KNOWN LIMITS).
 const R_B_E97_WLO: Readout = Readout {
     f: 71317.0,
     isp: 429.12,
@@ -119,8 +127,10 @@ const R_CAL_NOM: Readout = Readout {
     resid: 2.49e-2,
 };
 
-/// CALIBRATED wall-band corners (cp 3750/6250): the wall law drives the
-/// cycle, so the ±25% h band sweeps delivered ṁ 16.74 → 18.56 kg/s.
+/// CALIBRATED wall-band corners (S2/S3 spine, cp 3750/6250 = the h × 0.75/1.25
+/// proxy — S4's direct form is `band_factor`, see the blind corners above):
+/// the wall law drives the cycle, so the ±25% h band sweeps delivered
+/// ṁ 16.74 → 18.56 kg/s.
 const R_C_WLO: Readout = Readout {
     f: 72338.1,
     isp: 440.98,
@@ -350,7 +360,9 @@ fn render(w: &mut String) {
          exchange inside the step, the COUP-2 conservation audit armed on every one \
          of the ~15,800 steps of every member, zero violations). Every reported \
          number is a plane integral of the conserved field (SOLV-7); chamber pressure \
-         and thrust are **emergent, never imposed**.\n"
+         and thrust are **emergent, never imposed**. **Spine of record for the scores \
+         below: S2/S3** — see KNOWN LIMITS for the measured S4 delta and why the \
+         scores are not re-derived here.\n"
     )
     .unwrap();
     writeln!(
@@ -533,7 +545,31 @@ fn render(w: &mut String) {
          hidden inside the boxes.\n\
          - `interp_error_bound_log` rides outside digest v3 (recorded digest-v4 \
          deferral). The station-4-fixture rewire deferral is DISCHARGED (S2): the \
-         fixture and the engine now march the same one integrator.\n"
+         fixture and the engine now march the same one integrator.\n\
+         - **The recorded readouts below predate plan S4 (session 16).** They were \
+         earned on the S2/S3 spine with the wall law's chamber-fitted constant \
+         transport and the ρc_p continuation device. S4 replaced both — the FND-7 \
+         §3.3 tabulated spine now supplies per-cell μ/k/c_p/c_v and the liner carries \
+         physical areal thermal capacitance — and the preset TOMLs cited under \
+         Reproduction are the S4 ones. The **measured** S4 shift on the η = 1 baseline \
+         member (`configs/rl10_coarse.toml`, 15 819 steps, audit clean): thrust \
+         +0.30%, Isp +0.25%, c\\* −0.07%, C_F +0.32%, p_c −0.02%, and **jacket heat \
+         −19.8%** (liner T_max 410.1 K) — every scored quantity moves an order of \
+         magnitude less than the declared bands the boxes carry, while the wall term \
+         (which no scored quantity reports, but which drives the closed cycle) moves by \
+         two orders of magnitude more. That last number is why the CALIBRATED members \
+         cannot simply be relabeled: the closed cycle converts jacket pickup into \
+         delivered ṁ, so a −19.8% wall term is a first-order change to those scores and \
+         **only** to those scores. The \
+         scores are therefore NOT re-derived here: re-scoring all eight members on the \
+         S4 spine is ~5 h of laptop march and it rides the **COUP-5 ensemble wave \
+         (plan S18/S19)**, which replaces these hand-run corner brackets with sampled \
+         p-boxes anyway. Two consequences are recorded rather than papered over: the \
+         wall-law band corners are now the declared `band_factor` (h × 0.75/1.25 \
+         directly) instead of the `cp_j_per_kg_k` proxy that reached the same h; and \
+         the physical liner clock (~37 ms) exceeds the 12-flow-through settle budget \
+         (~11 ms), so an S4 re-scoring must also grow that budget — run length, which \
+         plan ruling #4 accepted, not schedule tuning.\n"
     )
     .unwrap();
 
@@ -543,7 +579,9 @@ fn render(w: &mut String) {
         "`cargo run --release -p crucible -- run configs/rl10_coarse.toml` (η = 1 \
          baseline), `configs/rl10_calibrated.toml` (calibrated nominal). Bracket \
          members = the coarse preset + the overrides stated in the recorded-readout \
-         comments of `station5_rl10_certificate.rs`. Table regen: \
+         comments of `station5_rl10_certificate.rs` (note: those comments name the \
+         S2/S3-spine overrides; S4 reaches the wall-law band corners through \
+         `[mechanisms.wall] band_factor` instead). Table regen: \
          `offline/scripts/make_station5_tables.py` (~2 min). Every run writes its \
          resolved-config manifest + fields CSV under `runs/<name>/`; halts write \
          `crash_fields.csv` (raw conserved state — the session-12 instrument that \

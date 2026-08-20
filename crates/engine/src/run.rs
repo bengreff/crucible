@@ -18,15 +18,19 @@
 //! plane (N11 convention), c\*/C_F/Isp per SOLV-7.2–7.4. Emergent, never
 //! imposed.
 
-use crate::assembly::EngineSpec;
+use crate::assembly::{EngineSpec, TransportSpec};
 use crucible_constants::G0;
 use crucible_grid::{BRICK, FaceDir, Grid};
 use crucible_solvers::euler::{
     Cons, EosLaw, Euler, EulerFields, FlowBc, FlowBcs, NCOMP, Prim, TableEos,
 };
-use crucible_solvers::sdc::{
-    AuditSpec, DiffusionClass, ExchangeClass, FlowClass, Sdc, build_wall_patches,
+use crucible_solvers::gas_diffusion::{
+    FaceGasBc, GasDiffBcs, GasDiffusion, SpeciesBc, ThermalBc, VelocityBc,
 };
+use crucible_solvers::sdc::{
+    AuditSpec, DiffusionClass, ExchangeClass, FlowClass, GasDiffusionClass, Sdc, build_wall_patches,
+};
+use crucible_solvers::transport::{TabulatedTransport, TransportProps, TransportSpine};
 use crucible_solvers::{Bcs, Conduction, Domain, FaceBc, InteriorFaces};
 use crucible_tables::{Pin, Table};
 
@@ -235,12 +239,35 @@ pub fn open_pinned_table(spec: &EngineSpec) -> Result<Table, String> {
     .map_err(|e| format!("table {file}:{group}: {e}"))
 }
 
+/// Open the pinned FND-7 §3.3 spine transport surface, when the config
+/// selected the tabulated occupant. `None` for the declared-constant
+/// occupant, which needs no table.
+pub fn open_transport_table(spec: &EngineSpec) -> Result<Option<Table>, String> {
+    match &spec.transport {
+        TransportSpec::Constant(_) => Ok(None),
+        TransportSpec::Table { pin, .. } => {
+            let (file, group, version, digest) = pin;
+            Table::open(
+                file,
+                group,
+                &Pin {
+                    data_version: version.clone(),
+                    content_digest: Some(digest.clone()),
+                },
+            )
+            .map(Some)
+            .map_err(|e| format!("spine transport table {file}:{group}: {e}"))
+        }
+    }
+}
+
 /// March the assembled engine to its settle budget and read out the
 /// performance object. `on_progress` fires every [`PROBE_EVERY`] steps.
 /// A mid-march failure returns a [`Halt`] carrying the crash artifact.
 pub fn run(
     spec: &mut EngineSpec,
     table: &Table,
+    transport_table: Option<&Table>,
     on_progress: &mut dyn FnMut(&Progress),
 ) -> Result<Report, Halt> {
     let pre = |message: String| Halt {
@@ -469,6 +496,84 @@ pub fn run(
             .map_err(|_| "wall-patch temperature off the pinned surface")
     };
 
+    // --- The FND-7 §3.3 spine (S4) ----------------------------------------
+    // ONE provider for the wall law and F_visc alike. The tabulated
+    // occupant is interrogated at the EOS's own (p, h, Z) coordinate
+    // (`interrogation_php`), so the two surfaces can never be read at
+    // different states.
+    let spine = match &spec.transport {
+        TransportSpec::Constant(c) => TransportSpine::Constant(*c),
+        TransportSpec::Table { schmidt, .. } => {
+            let t = transport_table.ok_or_else(|| {
+                pre(
+                    "config selected `transport_table` but no spine transport table \
+                     was opened — call `open_transport_table` and pass it to `run`"
+                        .to_string(),
+                )
+            })?;
+            TransportSpine::Tabulated(
+                TabulatedTransport::bind(t, *schmidt)
+                    .map_err(|e| pre(format!("spine transport bind: {e}")))?,
+            )
+        }
+    };
+    // The two surfaces must refuse on the same states, or a march can walk
+    // off one while the other still answers (OFFL-5 §3.1a). Checked here,
+    // at assembly time, against the pins actually loaded — COUP-8 §3.3(2)
+    // checks each table against its consumers alone and cannot see this.
+    if let TransportSpine::Tabulated(t) = &spine {
+        let eos_env = eos.envelopes();
+        for (i, name) in ["p", "h", "Z"].iter().enumerate() {
+            let (a, b) = t.envelopes()[i];
+            let (c, d) = eos_env[i];
+            if a > c || b < d {
+                return Err(pre(format!(
+                    "spine transport {name}-envelope [{a:.6e}, {b:.6e}] does not cover the \
+                     equilibrium surface's [{c:.6e}, {d:.6e}] — a march could leave the \
+                     transport surface while the EOS still answers"
+                )));
+            }
+        }
+    }
+    let gas_transport = |w: &Prim| -> Result<TransportProps, &'static str> {
+        spine
+            .eval(eos.interrogation_php(w))
+            .map_err(|_| "transport off the pinned spine surface")
+    };
+
+    // --- SOLV-1 §3.1 F_visc (S4 wiring) ------------------------------------
+    // Domain-edge viscous conditions, declared as data. The chamber ends are
+    // OPEN planes: `Continuative` (zero normal gradient, one-sided
+    // tangential stress) — a `FreeSlip` end would truncate the real τ_rz and
+    // drive edge vortices (the S3 finding). The r_outer edge is the grid
+    // box, not the engine wall: the contour's wall faces are gas↔solid and
+    // carry no resolved diffusion at all (the wall law owns them), so the
+    // box edge only ever touches exterior cells.
+    let gas_op = spec.gas_diffusion.then(|| {
+        GasDiffusion::new(GasDiffBcs {
+            r_inner: FaceGasBc {
+                velocity: VelocityBc::FreeSlip, // the r = 0 axis (zero area anyway)
+                thermal: ThermalBc::Adiabatic,
+                species: SpeciesBc::ZeroFlux,
+            },
+            r_outer: FaceGasBc {
+                velocity: VelocityBc::FreeSlip,
+                thermal: ThermalBc::Adiabatic,
+                species: SpeciesBc::ZeroFlux,
+            },
+            z_lo: FaceGasBc {
+                velocity: VelocityBc::Continuative,
+                thermal: ThermalBc::Adiabatic,
+                species: SpeciesBc::ZeroFlux,
+            },
+            z_hi: FaceGasBc {
+                velocity: VelocityBc::Continuative,
+                thermal: ThermalBc::Adiabatic,
+                species: SpeciesBc::ZeroFlux,
+            },
+        })
+    });
+
     // --- March -------------------------------------------------------------
     let mut t = 0.0f64;
     let mut steps = 0usize;
@@ -503,6 +608,12 @@ pub fn run(
                 patches: &patches,
                 law,
                 temperature: &gas_temperature,
+                transport: &gas_transport,
+            });
+            let gas = gas_op.as_ref().map(|op| GasDiffusionClass {
+                op,
+                temperature: &gas_temperature,
+                transport: &gas_transport,
             });
             let dt = sdc
                 .stable_dt(&spec.grid, &flow, spec.cfl)
@@ -513,7 +624,7 @@ pub fn run(
                     &mut spec.grid,
                     Some(&flow),
                     diffusion.as_ref(),
-                    None,
+                    gas.as_ref(),
                     exchange.as_ref(),
                     t,
                     dt,

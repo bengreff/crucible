@@ -6,20 +6,20 @@ Goal-B station 4 (SOLV-1 §3.5; COUP-2 §3.5 subset; META-3 `wall-function-heat`
 
 | quantity | value |
 |---|---|
-| steadiness residual (ρ and T_solid, check window) | 6.16e-4 |
+| steadiness residual (ρ and T_solid, check window) | 6.73e-4 |
 | ṁ | 7.7596 kg/s |
 | T0 in → out | 1439.94 → 1422.83 K |
-| gas enthalpy deficit ṁ·c_p·ΔT0 | 133295.0 W |
+| gas enthalpy deficit ṁ·c_p·ΔT0 | 133319.1 W |
 | wall-face exchange Σq·A | 133744.1 W |
 | coolant extraction | 133744.0 W |
-| ledger closure (wall vs gas, wall vs coolant) | 3.36e-3, 1.05e-6 |
-| mid-duct film h | 2298.9 W/m²·K |
+| ledger closure (wall vs gas, wall vs coolant) | 3.18e-3, 1.12e-6 |
+| mid-duct film h | 2298.8 W/m²·K |
 | mid-duct wall flux q | 1.063e6 W/m² (rocket-scale) |
 | liner ΔT at mid-duct (inner → outer) | 762.4 → 399.6 K |
-| **series-resistance oracle, worst dev past entrance band** | **9.44e-4** |
+| **series-resistance oracle, worst dev past entrance band** | **9.49e-4** |
 | T_aw(wall cell) / free-stream recovery at mid-duct | 0.940 |
 
-**The oracle** (VAL-1 rung i): at steady state the coupled system must reproduce the cylindrical film + ln-annulus + coolant-film series-resistance solution, built from the simulated *gas* state and declared coolant data only — the simulated solid field never enters. Pointwise agreement to 9.44e-4 (gate 5e-3) past the 8-cell entrance band says the wall law, the Robin faces, the region-masked conduction, and the Robin-Robin exchange inside the class-D solve compose into exactly the textbook conjugate solution.
+**The oracle** (VAL-1 rung i): at steady state the coupled system must reproduce the cylindrical film + ln-annulus + coolant-film series-resistance solution, built from the simulated *gas* state and declared coolant data only — the simulated solid field never enters. Pointwise agreement to 9.49e-4 (gate 5e-3) past the 8-cell entrance band says the wall law, the Robin faces, the region-masked conduction, and the Robin-Robin exchange inside the class-D solve compose into exactly the textbook conjugate solution.
 
 ## Stair-interface conservation (the stepped cavity)
 

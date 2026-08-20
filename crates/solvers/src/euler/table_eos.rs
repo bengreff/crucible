@@ -376,12 +376,29 @@ impl<'t> TableEos<'t> {
         Self::illinois_root(a, b, ga, gb, &g)
     }
 
+    /// **The one interrogation coordinate** of the pinned surfaces at a
+    /// primitive state: `(p, h, Z)` with `h` the surface's own enthalpy
+    /// coordinate, `h_offset` included (S18 knockdown semantics — see
+    /// [`TableEos::cons_from_phz`]). Every consumer that interrogates a
+    /// (p, h, Z)-keyed surface at a cell — this occupant's temperature, and
+    /// the FND-7 §3.3 transport spine — forms the triple **here**, so the
+    /// EOS and the transport surface can never be read at different states
+    /// (OFFL-5 §3.1a's envelope-identity requirement is pointless if the
+    /// two coordinates drift).
+    pub fn interrogation_php(&self, w: &Prim) -> crate::transport::MediumState {
+        let (rho, p, z) = (w[I_RHO], w[4], w[I_RC]);
+        crate::transport::MediumState {
+            p,
+            h: w[I_EI] + self.h_offset + p / rho,
+            z,
+        }
+    }
+
     /// Equilibrium temperature at a primitive state produced by this
     /// occupant (diagnostics + the wall-law operand feed).
     pub fn temperature_w(&self, w: &Prim) -> Result<f64, TableError> {
-        let (rho, p, z) = (w[I_RHO], w[4], w[I_RC]);
-        let h = w[I_EI] + self.h_offset + p / rho;
-        self.temperature.interpolate(&[p, h, z])
+        let st = self.interrogation_php(w);
+        self.temperature.interpolate(&[st.p, st.h, st.z])
     }
 
     /// Conserved state on the equilibrium surface from `(p, h, Z)` — true

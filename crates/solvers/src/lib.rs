@@ -18,6 +18,12 @@
 //! class `D`, suppressed at wall-law faces (SOLV-1 §3.5 — the wall
 //! function replaces, never adds).
 //!
+//! Real properties (S4): `transport` — the FND-7 §3.3 spine seam, the ONE
+//! provider of the diffusive-flux closure (μ, k, c_p, c_v, ρD, ∂h/∂Z, Pr)
+//! over the medium state, with the declared-constant and the OFFL-5 §3.1a
+//! tabulated occupants. `gas_diffusion` and `wall_heat` both read it; after
+//! S4 neither states a transport constant of its own.
+//!
 //! Session scope: uniform N_θ across bricks per sweep (asserted); the
 //! conservative flux aggregation across an N_θ jump (AMR-refluxing style,
 //! FND-2 §3.4) arrives with the plan's 3-D wave (S8).
@@ -32,6 +38,7 @@ pub mod sdc;
 pub mod station1_sod;
 pub mod station2_nozzle;
 pub mod station4_cooled_wall;
+pub mod transport;
 pub mod wall_heat;
 
 pub use conduction::{
@@ -39,6 +46,8 @@ pub use conduction::{
     SolverError,
 };
 pub use mechanism::{
-    CONDUCTION_MANIFEST, ConductionSetup, FLOW_MANIFEST, FlowSetup, SetupError, WALL_HEAT_MANIFEST,
-    flow_from_loaded, from_loaded, registry, wall_law_from_loaded,
+    CONDUCTION_MANIFEST, ConductionSetup, FLOW_MANIFEST, FlowSetup, GAS_DIFFUSION_MANIFEST,
+    SetupError, TRANSPORT_CONSTANT_MANIFEST, TRANSPORT_TABLE_MANIFEST, WALL_HEAT_MANIFEST,
+    constant_transport_from_loaded, flow_from_loaded, from_loaded, registry,
+    table_transport_schmidt_from_loaded, wall_law_from_loaded,
 };

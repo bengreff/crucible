@@ -6,7 +6,7 @@
 | **Family** | OFFL (Offline pipeline) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-7 (the spec it generates), FND-5 (table schema), FND-1 |
-| **Version** | 0.2 |
+| **Version** | 0.3 (2026-08-20: §3.1a the **chemical-regime transport stage** — the first stage of the slot to ship; landed with plan S4) |
 
 ---
 
@@ -39,7 +39,8 @@ fidelity obligation is a **continuous** law over all of `M` (no phase/regime cli
 |---|---|---|
 | **Spine tables** | FND-5 → SOLV-1/2/3 (via `M`) | EOS, transport, opacity, stopping vs the §3.2 coordinates (per-species Helmholtz F_s(ρ_s,T); transport/opacity vs (ρ,T,⟨Z⟩)); declared bands (COUP-5 declarations); continuous across phase/regime |
 | **Material definition** | config (FND-4) | fundamental data (composition, cohesive energy, ρ₀, bulk modulus, ionization potentials) + optional GP correction — **not** a handbook table |
-| **Transport feed (input, S23)** | OFFL-5 ← OFFL-3 | Cantera mixture `μ, k` vs (T, p, Z) as GP calibration data for the spine assembly — the spine is the **sole runtime provider** of transport |
+| **Transport feed (input, S23)** | OFFL-5 ← OFFL-3 | Cantera mixture `μ, k, c_p, c_v, ∂h/∂Z\|_{p,T}` vs (T, p, Z) — the chemical regime's backbone evaluation (§3.1a) and, in the plasma/WDM regimes, GP calibration data for the Saha/QEOS assembly. Either way the spine is the **sole runtime provider** of transport |
+| **Chemical-regime transport surface** *(0.3, plan S4)* | FND-5 → SOLV-1 (via `M`) | μ, k, c_p, c_v, ∂h/∂Z vs the **local state (p, h, Z)**; axes/envelope matched to the equilibrium surface's; declared **10–20%** band; measured interp-error bounds (§3.1a) |
 
 **Invariant:** every generated property is a **continuous** function of `M` (a discontinuity across melt/
 ionization/metal-insulator is a bug, FND-7); it carries a **declared band**; the GP correction **reverts to
@@ -61,6 +62,28 @@ guarantee): the spine's envelope is the model's, not the data's, so an off-data 
 ionizing-steam stretch) gets the analytic backbone with its declared band, not a refusal cliff. These are
 the data anchors FND-7 §3.6 names. [META-3: `saha-qeos`, `qeos`, `cantera`, `coolprop`, `tprc-cindas`,
 `nist-janaf`, `lee-more-desjarlais`, `stanton-murillo`]
+
+### 3.1a The chemical-regime transport stage *(0.3, plan S4 — the stage that ships first)*
+The same transport slot, in the regime the chemical sandbox marches in. Backbone: **mixture-averaged
+Chapman-Enskog kinetic theory** (FND-7 §3.3) evaluated by **Cantera** on the pinned species set and its LJ
+transport data — the chemical sibling of Saha/QEOS, and, exactly like it, **a physics model defined over the
+whole state space, not a data corner**. In this regime the §3.3 GP discrepancy is therefore **identity**: the
+backbone *is* the evaluation, there is no independent measured set to nudge it toward, and pretending
+otherwise would fabricate a correction. That is a stage property, recorded, not a weakening of §3.3 — when
+high-temperature H₂O/H₂ transport measurements are brought in, they enter as a coverage-weighted GP on top of
+this backbone with no change to the runtime contract.
+
+**Emitted product:** one FND-5 `regular` table, keyed on the **local state (p, h, Z)** (FND-7 §3.7 — the S22
+rule; the Cantera evaluation happens in its natural (T, p, Z) coordinate at each grid node and is written out
+in the runtime coordinate), carrying **μ, k, c_p, c_v, ∂h/∂Z|_{p,T}** with per-column measured
+interpolation-error bounds (absolute + rule-space, FND-5 §3.4) and the **declared 10–20% band**. Its axes and
+envelope are generated to **match the equilibrium surface's**, so the two runtime surfaces a cell interrogates
+refuse and accept on the same set of states — an envelope gap between them would be a mid-march surprise the
+COUP-8 §3.3(2) coverage check cannot see across two independently declared tables. Provenance stamps the
+Cantera version, the mechanism/transport-data deck, **and the transport model** (mixture-averaged vs
+multicomponent) — the model form is part of the input-deck hash, per the §3.4 lesson that two different
+physics choices must never share a deck hash. [META-3: `chapman-enskog-mixavg`, `h2o2-transport-data`,
+`cantera`]
 
 ### 3.2 The DFT average-atom backbone upgrade *(later waves)* — and the emitted coordinates *(S12)*
 The WDM-valley upgrade of the same slot: a **Kohn-Sham DFT average-atom** solve (prototyped from open-source
@@ -127,7 +150,8 @@ validation that underwrites S8's extrapolation claim.
 5. **Provenance:** every table regenerable from generator hash + tool/data versions.
 
 ## 7. References
-META-3 keys: `saha-qeos`, `cantera`, `coolprop`, `tprc-cindas`, `nist-janaf`, `dft-avg-atom`, `atomec`,
+META-3 keys: `saha-qeos`, `cantera`, `chapman-enskog-mixavg`, `h2o2-transport-data`, `coolprop`,
+`tprc-cindas`, `nist-janaf`, `dft-avg-atom`, `atomec`,
 `qeos`, `feos`, `helmholtz-table`, `lee-more-desjarlais`, `stanton-murillo`, `aa-opacity`,
 `stopping-rpa-lda`, `ko-discrepancy`, `hugoniot-anchor`. Depends on FND-7 (spec), FND-5 (schema), FND-1
 (uncertainty); consumes OFFL-3's transport feed (S23).
@@ -139,5 +163,6 @@ later-wave WDM upgrade.)*
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-20 | 0.3 | **The chemical-regime transport stage (plan S4 — landed with the code).** New §3.1a: the transport slot's chemical stage, mixture-averaged Chapman-Enskog via Cantera on the pinned species/LJ deck, **the first stage of the slot to ship**. Records that in this regime the §3.3 GP discrepancy is **identity** — the backbone *is* the evaluation and there is no independent measured set to nudge toward; a fabricated correction would be worse than none, and measured high-T transport data enter later with no runtime-contract change. Emitted product: one FND-5 `regular` table on the **local state (p, h, Z)** (FND-7 §3.7/S22; Cantera evaluates in (T, p, Z) at each node and the table is written in the runtime coordinate) carrying **μ, k, c_p, c_v, ∂h/∂Z\|_{p,T}**, axes/envelope **matched to the equilibrium surface's** (a gap between two independently declared surfaces is invisible to the COUP-8 §3.3(2) coverage check), measured abs + rule-space interp bounds, declared **10–20%** band, and provenance stamping the transport model into the deck hash. §2 gains the emitted-surface row and widens the OFFL-3 feed's quantity set to the caloric companions. |
 | 2026-08-14 | 0.2 | **Post-review fix wave (S12, S14, S15/D-E, S23, S24).** §0/§3.1: W2/W3 deliverable re-staged per D-E — **Saha/QEOS analytic backbone over the full (ρ,T) range from day one** (~10–20% bands; QEOS+Saha ⟨Z⟩ feeding LMD/Stanton-Murillo/Kramers-class closures) with reference data **GP-blended on top** (data = calibration on an everywhere-defined backbone, never the backbone — no data-edge cliff; NSWR ionizing-steam covered); DFT-AA = later-wave upgrade of the same slot. §3.2: **emitted table coordinates stated** — per-species Helmholtz F_s(ρ_s,T) + `thermo_audit` obligation (S11), transport/opacity vs (ρ,T,⟨Z⟩); mixture rule cross-ref'd to FND-7 §3.7, never pre-mixed (S12). §3.4: interpolation bound = declared metadata → COUP-5 epistemic interval, never RSS'd (S14). New §3.5: **compute-cost/table-size budget** — points × per-solve × elements ⇒ hours-to-days on 32 cores, MB-class tables (S24). §2: OFFL-3 Cantera **transport feed named as input**; spine = sole runtime transport provider (S23). |
 | 2026-07-21 | 0.1 | Initial draft. Table-generation pipeline (never a runtime AA solver). W2 chemical/cold corner built data-first (Cantera + CoolProp/REFPROP + TPRC/CINDAS + NIST); DFT-average-atom backbone (atoMEC/QEOS/FEOS/LMD/Stanton-Murillo/RPA-LDA) deferred to WDM/plasma waves; coverage-weighted Kennedy-O'Hagan GP no-cliff calibration; per-regime declared bands; unit-physics validation tier. |

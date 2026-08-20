@@ -16,13 +16,19 @@ MR = ṁ_ox/ṁ_fuel. The advected-element coordinate of SOLV-1's shifting
 mode (S19) — for a two-stream propellant the elemental composition is
 fully determined by Z.
 
+This module is also the thermochemical half of the OFFL-3 §2 **transport
+feed** (v0.5, plan S4): every state it returns carries the caloric
+companions (``cp_eq``, ``cp_fr``, ``cv_eq``) that ``transport.py``
+assembles with Cantera's molecular μ, k into the spine's chemical-regime
+surface (OFFL-5 §3.1a). One engine states the thermochemistry; Cantera
+states only the collision physics.
+
 Deferred to later waves (loud, with owners — OFFL-3 §2 contract rows not
 yet emitted): the frozen-path surface vs (p, h, {X_k}) (its axis set is the
 SOLV-1 frozen-advection consumer's, arrives with that wave); quasi-1-D
 expansion oracles (SOLV-7/VAL-2 C_F cross-check wave — station 5); B′
-ablation tables (SOLV-8 wave); the Cantera transport feed (OFFL-5 spine
-wave, S23). The frozen↔shifting *bracket* itself is validated now
-(§6-3, ``frozen_shifting_gap``).
+ablation tables (SOLV-8 wave). The frozen↔shifting *bracket* itself is
+validated now (§6-3, ``frozen_shifting_gap``).
 """
 
 from __future__ import annotations
@@ -93,6 +99,15 @@ class EqState:
     a: float  # m/s
     mbar: float  # kg/kmol
     cp_eq: float  # J/(kg·K)
+    #: The caloric companions of the OFFL-3 §2 transport feed (v0.5), from
+    #: the SAME solve: frozen-composition c_p (which pairs with a frozen
+    #: conductivity to form a true molecular Prandtl number) and the
+    #: EQUILIBRIUM c_v (the class-D temperature solve's linearization slope
+    #: ∂e/∂T|_ρ on the very surface the runtime interpolates — FND-7 §3.3).
+    #: They differ by up to ~15× where dissociation is strong, so which one
+    #: a consumer wants is a physical question, never a rounding one.
+    cp_fr: float  # J/(kg·K)
+    cv_eq: float  # J/(kg·K)
     mole_fractions: dict[str, float]
 
 
@@ -193,15 +208,9 @@ class EquilibriumEngine:
         w = self._weights(z)
         return float(self._reac.calc_property(cea.ENTHALPY, w, self._temps))
 
-    def state_php(self, p: float, h: float, z: float) -> EqState:
-        """Equilibrium state at local (p [Pa], h [J/kg], Z) — the S22
-        runtime-surface coordinate, one HP solve."""
-        sol = cea.EqSolution(self._eq_solver)
-        self._eq_solver.solve(sol, cea.HP, h / R_CEA, p / BAR, self._weights(z))
-        if not sol.converged:
-            raise ConvergenceError(
-                f"CEA HP solve failed at p={p} Pa, h={h} J/kg, Z={z}"
-            )
+    def _state_from(self, sol: "cea.EqSolution", p: float) -> EqState:
+        """Shared SI unpacking of a converged CEA equilibrium solution —
+        one conversion site (the module doc's rule)."""
         T = float(sol.T)
         mbar = float(sol.M)
         gamma = float(sol.gamma_s)
@@ -215,8 +224,34 @@ class EquilibriumEngine:
             a=float(np.sqrt(gamma * R_CEA / mbar * T)),
             mbar=mbar,
             cp_eq=float(sol.cp_eq) * 1.0e3,
+            cp_fr=float(sol.cp_fr) * 1.0e3,
+            cv_eq=float(sol.cv_eq) * 1.0e3,
             mole_fractions={k: float(v) for k, v in sol.mole_fractions.items()},
         )
+
+    def state_php(self, p: float, h: float, z: float) -> EqState:
+        """Equilibrium state at local (p [Pa], h [J/kg], Z) — the S22
+        runtime-surface coordinate, one HP solve."""
+        sol = cea.EqSolution(self._eq_solver)
+        self._eq_solver.solve(sol, cea.HP, h / R_CEA, p / BAR, self._weights(z))
+        if not sol.converged:
+            raise ConvergenceError(
+                f"CEA HP solve failed at p={p} Pa, h={h} J/kg, Z={z}"
+            )
+        return self._state_from(sol, p)
+
+    def state_tp(self, p: float, t: float, z: float) -> EqState:
+        """Equilibrium state at (p [Pa], T [K], Z) — the TP problem. Used
+        by the OFFL-5 §3.1a transport surface for `∂h/∂Z|_{p,T}`, which is
+        a derivative **at fixed temperature** and so cannot be taken on the
+        (p, h, Z) coordinate without unwinding the enthalpy change first."""
+        sol = cea.EqSolution(self._eq_solver)
+        self._eq_solver.solve(sol, cea.TP, t, p / BAR, self._weights(z))
+        if not sol.converged:
+            raise ConvergenceError(
+                f"CEA TP solve failed at p={p} Pa, T={t} K, Z={z}"
+            )
+        return self._state_from(sol, p)
 
     def chamber(self, p_c: float, mr: float) -> EqState:
         """Chamber stagnation state at (p_c [Pa], MR): HP at the injection

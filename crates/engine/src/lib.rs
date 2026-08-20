@@ -284,12 +284,15 @@ pub static JACKET_COOLANT_MANIFEST: Manifest = Manifest {
 
 /// The full production registry: the three landed solver rows + this
 /// crate's boundary-object/assembly rows, sorted by id (COUP-8 §3.2).
-static MECHANISMS: [&Manifest; 7] = [
+static MECHANISMS: [&Manifest; 10] = [
     &crucible_solvers::CONDUCTION_MANIFEST,
     &crucible_solvers::FLOW_MANIFEST,
     &FLOW_SHIFTING_MANIFEST,
+    &crucible_solvers::GAS_DIFFUSION_MANIFEST,
     &INJECTOR_PRIOR_MANIFEST,
     &JACKET_COOLANT_MANIFEST,
+    &crucible_solvers::TRANSPORT_CONSTANT_MANIFEST,
+    &crucible_solvers::TRANSPORT_TABLE_MANIFEST,
     &TURBOPUMP_EXPANDER_MANIFEST,
     &crucible_solvers::WALL_HEAT_MANIFEST,
 ];

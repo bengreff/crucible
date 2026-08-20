@@ -6,7 +6,7 @@
 | **Family** | OFFL (Offline pipeline) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-5 (table schema), FND-1 (uncertainty); consumed by SOLV-1/7/8, OFFL-5 (transport feed) |
-| **Version** | 0.4 (2026-08-19: unburnt-reactant surface + S_L/τ_ign closure products — VISION_SCOPE v1.5) |
+| **Version** | 0.5 (2026-08-20: transport-feed quantity set widened to the caloric companions c_p/c_v/∂h∂Z — plan S4) |
 
 ---
 
@@ -42,7 +42,7 @@ standard tabulate-offline / interpolate-online method (FND-2 §3.4.1).
 | **Ignition/flame closures** *(v0.4)* | SOLV-4 §3.6 | laminar flame speed `S_L(p, T_u, Z)` + induction time `τ_ign(p, T_u, Z)` surfaces, computed **offline** (Cantera 1-D freely-propagating flames + 0-D constant-pressure reactors on the cited `h2-kinetics-mech`); measured-data holdout bounds; envelopes = flammability/quench limits (outside: S_L → 0, τ_ign → ∞ smoothly — the closure carries its own extinction) |
 | **Performance reference** | SOLV-7, SOLV-1 (§3.4 anchor knockdown) | `c*_ideal, T_c, γ, M̄` vs `(p_c, MR)` — a chamber-stagnation performance functional, not a field lookup |
 | **Expansion oracles** *(quasi-1-D, demoted S22)* | SOLV-7, VAL-2 | shifting **and** frozen state `(T,p,ρ,h,s,γ_eff,a)` + species vs area/pressure ratio — **oracle cross-checks only, never interpolated by the field solver**; labeled `oracle` in FND-5 metadata |
-| **Transport feed** *(S23)* | OFFL-5 | Cantera mixture `μ, k` vs `(T, p, Z)` — **input to the spine assembly**; the spine (FND-7) is the **sole runtime provider** of transport |
+| **Transport feed** *(S23; quantity set widened v0.5)* | OFFL-5 | Cantera mixture-averaged `μ, k` **plus the caloric companions `c_p, c_v, ∂h/∂Z\|_{p,T}`** vs `(T, p, Z)` — all five from the **one** Cantera evaluation (FND-7 §3.3: a second model for c_v would be a seam inside the spine). **Input to the spine assembly**; OFFL-3 still ships no runtime transport table — the spine (FND-7) is the **sole runtime provider**, and OFFL-5 §3.1a owns the emitted surface and its runtime (p, h, Z) coordinate |
 | **B′ ablation table** | SOLV-8 | blowing-rate/recession coefficients vs surface state |
 
 **Invariant:** every table carries FND-5 mandatory metadata (provenance, versions, envelope, per-column
@@ -73,9 +73,10 @@ consistent with SOLV-1's advected-element shifting mode (S19). The **performance
 §3.4 anchor knockdown. **B′ ablation coefficients** vs surface state. The **area-ratio/pressure-ratio
 expansion tables survive only as quasi-1-D oracles** — SOLV-7's C_F cross-check and VAL-2's nozzle-envelope
 checks — labeled `oracle` in their FND-5 metadata and **never interpolated by the field solver** (naive
-wiring would double-count the expansion physics the grid already computes). **Transport** (Cantera mixture
-`μ, k` vs (T, p, Z) — the same local coordinate) is computed here but shipped **only as OFFL-5's input feed**
-(S23). Grid spacing is chosen offline to meet the FND-5 interpolation-error budget (interpolate in
+wiring would double-count the expansion physics the grid already computes). **Transport** (Cantera
+mixture-averaged `μ, k, c_p, c_v, ∂h/∂Z|_{p,T}` vs (T, p, Z) — Cantera's natural coordinate) is computed here
+but shipped **only as OFFL-5's input feed** (S23); OFFL-5 §3.1a converts it to the runtime local-state
+(p, h, Z) coordinate and owns the shipped surface. Grid spacing is chosen offline to meet the FND-5 interpolation-error budget (interpolate in
 linearizing space where curvature warrants). Runtime reads via multilinear/monotone-cubic interpolation only
 — never a runtime equilibrium solve.
 
@@ -131,6 +132,7 @@ Apache-2.0 + Cantera cross-check) resolved 2026-07-21.)*
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-20 | 0.5 | **Transport-feed quantity set (plan S4 — landed with the code).** §2/§3.3: the S23 Cantera transport feed widens from `μ, k` to **`μ, k, c_p, c_v, ∂h/∂Z\|_{p,T}`** — all five from the one Cantera evaluation, because the resolved diffusion operator needs the caloric companions (the implicit T-solve's linearization slope and the species-enthalpy diffusion-flux coefficient) and a second model for them would be a seam inside the spine (FND-7 §3.3). The S23 ruling is otherwise unchanged and restated: OFFL-3 ships **no** runtime transport table; OFFL-5 §3.1a converts the (T, p, Z) feed to the runtime local-state (p, h, Z) coordinate and owns the shipped surface; the spine (FND-7) is the sole runtime provider. |
 | 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 / SOLV-4 §3.6 products.** §2 gains the **unburnt-reactant surface** (the burn-progress c = 0 branch, cryo-valid) and the **ignition/flame closure surfaces** `S_L(p,T_u,Z)` + `τ_ign(p,T_u,Z)` — offline finite-rate chemistry (Cantera flames/reactors on the cited `h2-kinetics-mech`) is in scope *for table generation only*; runtime stays interpolation. Closure envelopes carry the flammability/quench limits so extinction is the closure's own smooth behavior. Unit-anchored per VAL-2 §3.3 (`h2-flame-speed`, `h2-ignition-delay`). |
 | 2026-08-14 | 0.3 | **Post-review fix wave (S22, S23).** Runtime tables **re-parameterized to local state**: equilibrium + frozen-path composition/thermo surfaces vs **(p, h, Z)** (consistent with SOLV-1's S19 advected-element mode); the (p_c, MR) chamber product survives as the **performance reference** (a stagnation functional for SOLV-7 and the §3.4 anchor knockdown); **area-ratio expansion tables demoted to SOLV-7/VAL-2 quasi-1-D oracles** (`oracle`-labeled, never interpolated by the field solver). **OFFL-3→SOLV-1 transport interface deleted** — two providers of μ,k was a seam: Cantera transport becomes an **input feed to OFFL-5's spine assembly**; the spine (FND-7) is the sole runtime provider; the transport axis uses the same local (T, p, Z) coordinate. §2/§3.3/§4/§5 reworded to match; coordinate-consistency validation item added. |
 | 2026-08-13 | 0.2 | **R2 applied — local-composition envelope.** §3.3 gains the resolved-mixing-tier requirement: property surfaces generatable over the full local mixture-fraction range as a table-envelope setting (dense design core, coarse wings; FND-5 refusal guards a resolved-tier run against design-window-only tables). Defer/coupling wording updated to the tiered injector (COUP-7 §3.2.1). |

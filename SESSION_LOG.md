@@ -560,3 +560,326 @@ the committed artifacts in `certificates/` are the living record.
   and mesh-independent (the expected half-cell Dirichlet closure — the solution order survives
   by supraconvergence, measured; a sign error would instead grow as 1/h, and does not).
   Certificates byte-identical through the fix wave. True test count: **155 Rust + 28 Python**.
+- Session 16 (2026-08-20): **PLAN S4 — REAL PROPERTIES: the FND-7 constitutive spine's
+  chemical-regime transport slot, filled; the wall law and F_visc read ONE owner; the liner's
+  thermal mass made physical; ◆C1.**
+
+  **The doc wave first (the working rule).** FND-7 0.5 gains the transport slot's
+  **chemical-regime stage**: where ⟨Z⟩ ≡ 0 and Lee-More-Desjarlais/Stanton-Murillo degenerate,
+  the everywhere-defined analytic backbone is **mixture-averaged Chapman-Enskog kinetic
+  theory** — the chemical sibling of Saha/QEOS, *a physics model, not a data table*, so §3.6's
+  no-cliff guarantee and §5's envelope-is-the-model's rule carry unchanged; declared band
+  **10–20%**. It states, once, the quantity set the slot returns (μ, k, c_p, **c_v**,
+  **∂h/∂Z|_{p,T}**), that **Pr = μc_p/k is derived, never a second datum**, and that the
+  runtime coordinate is the **local state (p, h, Z)** — the S22 rule — because keying transport
+  on T would make every per-cell query a chained `T(p,h,Z) → μ(T,p,Z)` interpolation,
+  compounding two `interp_error_bound`s into a quantity neither describes. OFFL-5 0.3 §3.1a
+  owns the emitted surface (and records that in this regime the §3.3 GP discrepancy is
+  **identity** — the backbone *is* the evaluation; a fabricated correction would be worse than
+  none). OFFL-3 0.5 widens the S23 transport feed to the caloric companions. SOLV-1 0.4.1 names
+  `F_visc`'s third energy limb and makes the wall law's operands spine queries. COUP-3 0.4.3
+  gives class `D` its **variable-coefficient rule**. META-3 0.8 §6.10 adds the four keys.
+
+  **The one flux, decomposed (the design decision the session turned on).** A dissociated gas
+  moves far more energy down a temperature gradient by recombination than by collisions. The
+  tempting move is to tabulate an equilibrium conductivity — but that would be a second model
+  of a flux the operator already carries. On the equilibrium manifold `Y_k(T,p,Z)` the chain
+  rule is exact:
+  `Σ_k h_k j_k = −ρD[(c_p,eq − c_p,fr)∇T + (∂h/∂Z)|_{p,T}∇Z]`, so its ∇T limb folds into the
+  Fourier flux as `k_eff = k_fr + ρD(c_p,eq − c_p,fr)` — precisely the classical equilibrium
+  conductivity — and its ∇Z limb is the resolved species-enthalpy flux. **One flux, two limbs,
+  never counted twice**; the table therefore ships the *molecular* pieces and the *caloric*
+  pieces and the runtime composes them with the one declared Schmidt number. The payoff is
+  measurable: at the dissociated low-pressure corner `k_eff/k_fr` exceeds 3, and **Pr stays a
+  gas Prandtl number (0.2–1.5) at both ends** — had k been left frozen while c_p went
+  equilibrium, Pr would have blown up with the dissociation and the Colburn analogy would have
+  silently misfired.
+
+  **The offline product (`crucible_offl::transport`, OFFL-5 §3.1a).** Two engines, one state:
+  CEA (the pinned equilibrium engine — the *same* solver, `gas_only` mode, and (p,h,Z)
+  coordinate as the shipped EOS surface) supplies the caloric columns; **Cantera evaluates
+  mixture-averaged Chapman-Enskog transport on that composition at that (T,p)** and is never
+  asked to equilibrate anything. Using a second thermochemistry would have put a seam between
+  the EOS the runtime projects onto and the heat capacity it linearizes with. Six columns
+  (`viscosity`, `conductivity_frozen`, `cp_frozen`, `cp_equilibrium`, `cv_equilibrium`,
+  `dh_dz`), five of them log-valued with rule-space bounds. Two refusals armed at generation:
+  a CEA species absent from the Cantera set above 1e-6 mole fraction (O₃ appears at ≤ 1e-8),
+  and a **two-fit c_p cross-check** (Cantera NASA-7 vs CEA NASA-9 on the identical state, 2%)
+  — which is what *bounds* Cantera's above-3500 K extrapolation rather than hoping about it.
+  `∂h/∂Z|_{p,T}` is a central difference over two CEA **TP** solves, step-independent to
+  ~8e-5 relative over δZ ∈ [5e-5, 2e-4].
+
+  **Grid density is a measured choice**: 57 × 37 × 7 = 14,763 nodes spanning **exactly the
+  equilibrium surface's declared envelope** (so every node is a state a run may legally reach,
+  and the two surfaces refuse and accept on the same set — the engine cross-checks that at
+  assembly, because COUP-8 §3.3(2) checks each table against its consumers alone and cannot see
+  a gap *between* two tables). Measured rule-space bounds: μ 3.0%, k 3.3%, c_p,eq 1.6%,
+  c_v,eq 1.7%, c_p,fr 0.11% — a factor ≥ 3 inside the declared 10–20% physics band, which is
+  what FND-5 §3.4's grid-sizing rule asks for. Artifact `tables/spine/
+  lox_lh2_transport_v0.1.0.h5` (727 KB) + sidecar; regen ≈ 10 s.
+
+  **The runtime seam (`crucible-solvers::transport`, FND-7 §3.3).** ONE provider, two occupants
+  selected by config id (the `flow` ↔ `flow_shifting` pattern): `transport_constant` (the
+  declared c_p/μ/Pr/γ/Sc set the stations have used since session 7 — still the right occupant
+  for every analytic fixture, where a constant-coefficient exact solution is the point) and
+  `transport_table`. **`WallLaw` is now stateless** — its private (c_p, μ, Pr) *was* the
+  degenerate spine occupant, and it is now that occupant, stated once; transport arrives as a
+  `TransportProps` operand at the near-wall cell's own state, the same provider the resolved
+  `F_visc` next door reads. `gas_diffusion` likewise holds no transport: the caller refreshes a
+  per-cell `GasTransportField` from the spine **once per Picard iterate, from that iterate's lag
+  state** (COUP-3 0.4.3 — never inside the CG, which must stay the solve of one fixed linear
+  operator). Interior face coefficients are the **arithmetic two-cell average** — exact in the
+  constant-coefficient limit (which is what keeps every fixture and certificate bit-identical)
+  and commutative, so the coefficient seen from either side is bit-identical and the CG stays
+  SPD while the flux telescopes.
+
+  **What the constant occupant preserves, bitwise:** `k = μc_p/Pr`, `c_v = c_p/γ`, `ρD = μ/Sc`,
+  `∂h/∂Z ≡ 0` — the retired expressions verbatim, asserted by test, which is why stations 1–5
+  regenerate byte-identically.
+
+  **The wall-law band is now named.** The p-box corners used to be reached by scaling the wall
+  law's private `cp_j_per_kg_k` at fixed Pr and μ — a proxy that happened to scale h
+  proportionally but also moved the recovery temperature and (after S3) the resolved viscous
+  fluxes. `wall_heat` gains a declared `band_factor` (default 1.0, range [0.5, 2.0]) that
+  multiplies **h and nothing else** — the direct realization of SOLV-1 §3.5's ±20–30% band, and
+  a labeled band coordinate rather than a tuning dial.
+
+  **Liner thermal mass made physical (plan ruling #4).** The ~10³-fast ρc_p continuation device
+  is deleted. Below the dial at which the liner is resolved at physical thickness the modeled
+  ring is thicker than the metal it stands for, so it carries **two** declared homogenizations,
+  not one: κ resistance-preserving (since session 11) and now ρc_p **capacitance-preserving** —
+  `ρc_p_metal · t_real/t_model`, because what sets the expander bootstrap clock is thermal mass
+  *per unit wall area*. 0.33 mm of SS-347 (ρc_p ≈ 3.95e6, META-3 `ss347-liner-thermal`) on the
+  20 mm coarse ring ⇒ 6.52e4 J/(m³·K) (65× the retired device); on the 8 mm dial-16 ring ⇒
+  1.63e5. Both retire together when the liner is resolved (THE RUN). The silver braze girdle is
+  excluded — declared, a faster wall clock.
+
+  **New tests, chosen for what nothing else could see.** Every S3 fixture runs a UNIFORM
+  transport field, so a face coefficient that read only the visiting cell would have been
+  invisible to all of them *and* would have broken the CG's symmetry silently.
+  `face_coefficients_are_the_two_cell_average_of_a_varying_spine` gives the spine a
+  two-directionally varying reading and checks the assembly, `apply_linear`, and the
+  either-side flux antisymmetry by hand — **mutation-proven**: swapping `FaceTr::between` for
+  `FaceTr::at` leaves the entire S3 battery (8 tests, 91 s) green and fails only this one.
+  `species_enthalpy_flux_carries_energy_down_a_composition_gradient` does the same for the new
+  term (zero on a single-composition gas — which is what made the S3 deferral honest);
+  `temperature_solve_mass_uses_the_per_cell_spine_slope` for the c_v mass.
+  `crates/solvers/tests/fnd7_transport_spine.rs` (7) scores the production artifact: units-gate
+  refusals per column, the derived-group identities, envelope refusal instead of extrapolation,
+  the interpolation bounds against the physics band, the equilibrium-conductivity behaviour
+  above, and — the session's motivating claim as a test — that the tabulated occupant genuinely
+  **departs from the constants it replaces** where it should (within ~2× at the chamber, where
+  those constants were sized; far below at the recombined fringe; c_v spanning > 3× between the
+  fringe and the dissociated core, which is exactly the deferral the S3 header recorded).
+  `engine_smoke` gains the S4 configuration end to end and a proof that a surface without the
+  transport columns **refuses at bind**, not somewhere downstream.
+
+  **Deferrals (owners named).** Per-species diffusion coefficients (the single effective Sc is
+  a declared one-composition-coordinate closure) and Soret/Dufour/pressure diffusion ride plan
+  S5's species-vector state; the wall law's film/Eckert reference-temperature refinement is
+  declared inside its existing ±20–30% band; measured high-temperature H₂O/H₂ transport data
+  enter later as a coverage-weighted GP on this backbone with no runtime-contract change
+  (OFFL-5 §3.1a); `interp_error_bound_log` still rides outside digest v3 (digest v4);
+  θ-diffusion at N_θ > 1 refuses (plan S8); the gas assembly and the per-cell spine query are
+  serial (perf — the GPU wave), and the spine query is now a measurable share of step cost.
+
+  **◆C1 — MET (open mode, coarse tier).** `configs/rl10_coarse.toml` with the tabulated spine
+  and F_visc scheduled marched **15 819 steps to a settled readout with no halt, no refusal and
+  no schedule tuning** — the COUP-2 audit armed on every one of them, zero violations. Numbers
+  below are the **post-review** march (the review's E1/E2 both changed the wall term, so the
+  first measurement was re-run rather than published):
+
+  | | S4 (full diffusion + real transport) | S3 spine (constant transport) | Δ |
+  |---|---|---|---|
+  | thrust | 74 382.2 N | 74 162.9 N | +0.30% |
+  | Isp | 447.37 s | 446.25 s | +0.25% |
+  | c\* | 2255.5 m/s | 2257.0 m/s | −0.07% |
+  | C_F | 1.9451 | 1.9389 | +0.32% |
+  | p_c | 3.0926 MPa | 3.0933 MPa | −0.02% |
+  | **jacket heat** | **7.812 MW** | **9.737 MW** | **−19.8%** |
+  | liner T_max | 410.1 K | — | — |
+  | ṁ_inj | 16.947 kg/s | 16.947 kg/s | 0 |
+
+  **The finding: the missing forces barely move plane-integrated performance at this tier, and
+  move the wall term by two orders of magnitude more.** Every scored quantity lands within
+  ±0.32% — the wall law already owned the wall and the boundary layers are not resolved at
+  dial 5, so resolved viscous stress and conduction have little to add to a plane integral. What
+  changes is the wall: real transport, and the corrected driving potential, drop the jacket
+  pickup by a fifth and the liner's peak temperature from 535.7 K to 410.1 K.
+
+  **The pre-review measurement was a trap, and the reviewer called it in advance.** Before the
+  E1 fix the same march reported jacket heat −3.27%, which read as "the new physics is harmless
+  here". The physics reviewer flagged that reading as *"a coarse-tier coincidence — most
+  near-wall cells sit near ~2200–2700 K where the c_p rise and the μ/k changes happen to
+  cancel"*, and predicted the sign would move at a resolved tier. Fixing the potential turned
+  −3.27% into **−19.8%**: the cancellation was real and it was hiding a 1.9× error. The lesson is
+  recorded because it is about method, not about this number — a small measured delta after a
+  large model change is evidence to *investigate*, not evidence of harmlessness.
+
+  **What did NOT settle: the liner.** Steadiness residual 7.06e-3 (better than the pre-fix run's
+  1.38e-2 — the extra Robin sweeps converge the coupling harder) but liner T_max is still
+  climbing at cutoff. With physical areal capacitance the wall's thermal time constant is
+  ~C/(h_gas + h_cool) ≈ 37 ms against an 11 ms march — the gas field is settled and the wall is
+  not. This is plan ruling #4 doing exactly what it was for (the retired device made the solid
+  clock ~10³ fast, which is what hid it), and the cure is run length, not tuning: the certified
+  budget must grow past the wall clock. **Cost measured:** 1625 s solver wall clock at dial 5 vs
+  ~155 s on the S2 spine — **~10.5×**, of which roughly 7× is F_visc + the per-cell spine query
+  and the rest is the review's Robin-sweep fix (3 → 5). The spine is queried for every gas cell
+  on every Picard iterate of every SDC sweep; that and the serial gas assembly are the recorded
+  perf deferrals the GPU wave owns.
+
+  **New tests, chosen for what nothing else could see.** Every S3 fixture runs a UNIFORM
+  transport field, so a face coefficient that read only the visiting cell would have been
+  invisible to all of them *and* would have broken the CG's symmetry silently.
+  `face_coefficients_are_the_two_cell_average_of_a_varying_spine` gives the spine a
+  two-directionally varying reading and checks the assembly, `apply_linear`, and the
+  either-side flux antisymmetry by hand — **mutation-proven**: swapping `FaceTr::between` for
+  `FaceTr::at` leaves the entire S3 battery (8 tests, 91 s) green and fails only this one.
+  `species_enthalpy_flux_carries_energy_down_a_composition_gradient` does the same for the new
+  term (zero on a single-composition gas — which is what made the S3 deferral honest);
+  `temperature_solve_mass_uses_the_per_cell_spine_slope` for the c_v mass.
+  `crates/solvers/tests/fnd7_transport_spine.rs` (7) scores the production artifact: units-gate
+  refusals per column, the derived-group identities, envelope refusal instead of extrapolation,
+  the interpolation bounds against the physics band, the equilibrium-conductivity behaviour
+  above, and — the session's motivating claim as a test — that the tabulated occupant genuinely
+  **departs from the constants it replaces** where it should (within ~2× at the chamber, where
+  those constants were sized; far below at the recombined fringe; c_v spanning > 3× between the
+  fringe and the dissociated core, which is exactly the deferral the S3 header recorded).
+  `engine_smoke` gains the S4 configuration end to end and a proof that a surface without the
+  transport columns **refuses at bind**, not somewhere downstream.
+
+  **Deferrals (owners named).** Per-species diffusion coefficients (the single effective Sc is
+  a declared one-composition-coordinate closure) and Soret/Dufour/pressure diffusion ride plan
+  S5's species-vector state; the wall law's film/Eckert reference-temperature refinement is
+  declared inside its existing ±20–30% band; measured high-temperature H₂O/H₂ transport data
+  enter later as a coverage-weighted GP on this backbone with no runtime-contract change
+  (OFFL-5 §3.1a); `interp_error_bound_log` still rides outside digest v3 (digest v4);
+  θ-diffusion at N_θ > 1 refuses (plan S8); the gas assembly and the per-cell spine query are
+  serial (perf — the GPU wave), and the spine query is now a measurable share of step cost.
+
+  **◆C1 — MET (open mode, coarse tier).** `configs/rl10_coarse.toml` with the tabulated spine
+  and F_visc scheduled marched **15,778 steps to a settled readout with no halt, no refusal and
+  no schedule tuning** — the COUP-2 audit armed on every one of them, zero violations. Measured
+  against the S3-spine recorded baseline (`R_COARSE_ETA1`):
+
+  | | S4 (full diffusion + real transport) | S3 spine (constant transport) | Δ |
+  |---|---|---|---|
+  | thrust | 74 080.8 N | 74 162.9 N | −0.11% |
+  | Isp | 445.72 s | 446.25 s | −0.12% |
+  | c\* | 2248.7 m/s | 2257.0 m/s | −0.37% |
+  | C_F | 1.9437 | 1.9389 | +0.25% |
+  | p_c | 3.0822 MPa | 3.0933 MPa | −0.36% |
+  | jacket heat | 9.419 MW | 9.737 MW | **−3.27%** |
+  | ṁ_inj | 16.947 kg/s | 16.947 kg/s | 0 |
+
+  **The finding: the missing forces barely move integrated performance at this tier, and move
+  the wall heat by ten times as much.** That is the physically right shape of the answer — the
+  wall law already owned the wall, the boundary layers are not resolved at dial 5, so resolved
+  viscous stress and conduction have little to add to a plane-integrated thrust; what changes is
+  the *wall* term, where real (equilibrium) transport replaced a chamber-fitted constant. It is
+  also the honest reading of the previous tier: the S3 numbers were not wrong because the
+  physics was missing, they were right *for the quantities they reported* and blind to the one
+  the expander cycle depends on.
+
+  **What did NOT settle: the liner.** Steadiness residual 1.38e-2 vs the S3 spine's 6.16e-3, and
+  liner T_max 535.7 K still climbing at cutoff. With physical areal capacitance the wall's
+  thermal time constant is ~C/(h_gas + h_cool) ≈ 1.3e3/3.5e4 ≈ 37 ms against an 11 ms march —
+  so the gas field is settled and the wall is not. This is plan ruling #4 doing exactly what it
+  was for (the retired device made the solid clock ~10³ fast, which is what hid this), and the
+  cure is run length, not tuning: the certified budget must grow past the wall clock. **Cost
+  measured:** 1075.6 s solver wall clock at dial 5 vs ~155 s on the S2 spine — ~7× (this run
+  shared the machine with the test battery and the review agents; the clean figure is lower).
+  The per-cell spine query (six interpolations per gas cell per Picard iterate) is a real share
+  of that and is a recorded perf deferral alongside the serial gas assembly.
+
+  **Gates green.** True test count: **172 Rust + 34 Python** (155 + 28 at S3). Certificates:
+  stations 1, 2, 4 and the convergence certificate regenerate **byte-identically** — the
+  constant occupant reproduces the retired expressions bitwise, which is the whole point of
+  keeping it. Stations 3 and 5 carry text-only amendments: station 3's transport-feed deferral
+  is discharged, and station 5 now declares **S2/S3 as its spine of record** with the measured
+  S4 delta and the reason the eight members are not re-scored here (~5 h of laptop march, and
+  the COUP-5 ensemble wave replaces these hand-run corner brackets anyway — plan S18/S19).
+
+  **Review wave (same session, two independent agents — Ben's pattern).** One on the discrete
+  algebra (conservation, the SDC/Picard structure, the CG operator identity, determinism), one
+  as an independent continuum/thermodynamics oracle. Both worked from first principles: the
+  algebra reviewer built the full dense Jacobian column-by-column from `apply_linear` and
+  finite-differenced `assemble_rates` against it (worst deviation **1.0e-10** across all five
+  components on a 100×-contrast spine, boundary arms and geometric diagonal included — the S3
+  identity survives variable coefficients), asserted `L[i][j] == L[j][i]` **bitwise**, proved
+  masked transport slots unreadable (two fillings differing by 1.0 vs 9.87e11 give bit-identical
+  rates), and confirmed the constant occupant's bit identity down to the sign of a zero. The
+  physics reviewer re-derived the chain-rule decomposition against CEA + Cantera partial-molar
+  enthalpies (`Σ h_k ∂Y_k/∂T` vs `c_p,eq − c_p,fr`: 0.19–0.32%; `∂h/∂Z` two ways: 0.05–0.07%)
+  and measured the >3500 K extrapolation directly by rebuilding the mechanism with stretched fit
+  ranges (**μ ≤ 0.29%, k ≤ 2.87%**).
+
+  **Four confirmed findings, all fixed:**
+
+  1. **The wall law's driving potential.** The Colburn analogy transports *enthalpy*, so
+     `h·ΔT` needs the **film-mean** slope `(h_aw − h_w)/(T_aw − T_w)`. S4 fed it the local
+     equilibrium c_p — the *peak* of a strongly-peaked curve (~7970 vs a film mean of ~4130 at
+     the chamber) — **overpredicting q_w by 1.7–2.4×**, one-signed, through a ±20–30% band. The
+     sting: the pre-S4 constant c_p = 5000 was accidentally *inside* that band at 1.21×, so S4
+     made the property more accurate and the flux less so. Fixed: the spine returns **both**
+     c_p's, the convective limb drives on `cp_film` (frozen c_p, a measured 0.94–1.06 proxy at
+     chamber/throat) and recovery on the local one; exact `h_aw − h_w` is a named deferral.
+     **SOLV-1 0.4.2 withdraws** the 0.4.1 sentence claiming the gas-state-vs-reference-temperature
+     choice sat inside the band — measured h(film)/h(gas) ≈ 0.24–0.40, a factor 2.5–4, now a
+     declared model-form limit instead.
+  2. **The Robin-Robin Picard lost its margin.** With `h` a config constant the exchange map was
+     **affine** in T_gas and three sweeps converged it to round-off; per-cell transport makes it
+     nonlinear. Constructed failing case: a four-class duct at a near-wall gradient of ~1.7e5 K/m
+     (milder than an RL10 chamber wall) **halts** on `EPS_ROBIN_RESID` at 3.8e-6. The contraction
+     survives — 4 sweeps give 5.5e-10, 5 give 1.6e-11 — so it is a margin loss, not a divergence.
+     `N_ROBIN_SWEEPS` raised **3 → 5** (four would clear it; five because `dh/dT_gas` grows with
+     dissociation and the shipped surface reaches `k_eff/k_fr` = 22.7), with the measurement in
+     the constant's doc and the `EPS_ROBIN_RESID` rationale corrected — the acceptance itself is
+     deliberately unchanged, since loosening it would hide the staleness it exists to catch.
+  3. **Sc = 0.5 was 25% off, and META-3's justification was factually wrong.** Measured directly
+     (impose a pure ∇Z at fixed (T,p), contract the mixture-averaged fluxes onto the elemental
+     fuel fraction): **Sc_eff = 0.402–0.412 across four decades of pressure**. The per-species
+     numbers are H 0.21, H₂ 0.27, O 0.68, OH 0.70, O₂ 1.02, **H₂O 1.79** — the 90%-mass species
+     is the *slowest* diffuser, not the 0.8 the entry claimed. Nominal → **0.40**, which moves
+     `k_eff` from 21–32% below the mixture-averaged truth to ~11%, inside the declared band.
+  4. **A claimed guard that did not exist.** Both reviewers found it: the `cp_eq ≥ cp_fr` comment
+     asserted the positivity loop would catch a violation, but that loop tests each column alone
+     — 2.3% of shipped nodes carry a tiny negative Δ (CEA round-off, ≤ 7e-10, in undissociated
+     corners). The data are left alone (doctoring a table to satisfy an inequality is worse than
+     the 1e-13 W/(m·K) it would fix); an explicit `k ≥ k_fr(1 − K_ORDERING_SLACK)` floor now
+     guards the real failure, and the **tabulated occupant gained the same declared rails the
+     constant one's manifest carries** — a table is not more trustworthy than a config value.
+
+  **The test hole they found, closed and mutation-proven.** The species-enthalpy term had no
+  coverage the battery could feel: deleting the **boundary-arm** enthalpy port left every test
+  green (the omission is conservation-neutral — it transports the wrong physics without breaking
+  the ledger), and a one-sided `dh_dz` read at interior faces left all 27 lib tests green while
+  breaking conservation. Two new tests, each verified to fail on exactly its own mutation and
+  nothing else: `the_boundary_species_port_carries_its_enthalpy_too` (hand-computed half-cell
+  flux + its ledger line) and `a_varying_spine_still_telescopes_exactly` (the
+  `Σ rate·κV == ports + sources` identity on independently-varying μ/k/ρD/∂h∂Z fields — a shared
+  scale factor would let one coefficient's one-sided read hide behind another's correct average).
+
+  **Also recorded:** `h_offset` now shifts the transport interrogation as well as the EOS one —
+  the consistent choice (one coordinate) but a widened reach for a calibration dial, declared in
+  `table_eos.rs`. The ∇p limb's neglect was re-justified: it is **not** small (22–45% of the
+  retained ∇T limb) but vanishes where diffusion matters (∂p/∂n ≈ 0 in a boundary layer) and is
+  irrelevant where it doesn't (Pe ≫ 1) — falsifiable as stated, unlike "third-order small".
+  Wall catalycity is now stated (equilibrium operands in the law, non-catalytic species wall in
+  `F_visc`; they never share a face). Dead `BadCoefficient` refusal removed; station-4's
+  transport bundle hoisted out of its per-call path. Perf deferral widened: the spine is queried
+  for every gas cell on every Picard iterate of every SDC sweep — 9 full-field refreshes per step
+  at 6 interpolations each — which is a real share of the ~7× cost.
+
+  **Certificate consequence of the Robin-sweep fix — checked, not assumed.** I expected station 4
+  to stay byte-identical (with the constant occupant `h` is independent of T_gas, so the map the
+  sweeps relax is affine) and **it moved**. The reason is that the affine argument covers only
+  the gas half: the Robin-Robin fixed point also relaxes the *solid* surface temperature the
+  exchange debits against, so more sweeps genuinely converge it further. The shift is
+  noise-level and in the right direction — ledger closure **improves** 3.36e-3 → 3.18e-3, the
+  analytic series-resistance oracle moves 9.44e-4 → 9.49e-4 against its 5e-3 gate, mid-duct h
+  2298.9 → 2298.8 W/(m²·K), gas enthalpy deficit 133295.0 → 133319.1 W. Regenerated and
+  committed. Recorded because the prediction was wrong and gate 5 is what caught it: a
+  correctness fix in a shared constant reaches every fixture that runs the coupled step, and the
+  right response is to re-measure rather than to reason about which ones "shouldn't" care.
+

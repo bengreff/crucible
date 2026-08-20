@@ -6,7 +6,7 @@
 | **Family** | COUP (Coupling & orchestration) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, SOLV-1, COUP-2; COUP-8, COUP-4 |
-| **Version** | 0.4.2 (2026-08-19: §3.1 gas class-`D` occupant — per-component CG + fixed Picard over the cross-stress couplings, landed with plan S3) |
+| **Version** | 0.4.3 (2026-08-20: §3.1 class-`D` **variable coefficients** — per-cell spine transport refreshed per Picard iterate; fixed structure and the contraction bound both coefficient-independent; landed with plan S4) |
 
 ---
 
@@ -72,6 +72,14 @@ demands (O1):
   `EPS_GAS_DIFF_RESID` is a **contraction guard** (the lagged remainder's structural gain is ≲ 1/12 at any
   Δt), not an accuracy floor — the truncated Picard's remainder is a temporal-truncation term of the same
   order class as the truncated SDC sweeps, verified by the §6 order tests. Failure ⇒ `COUPLING_RESIDUAL`.
+  *Variable coefficients (0.4.3, plan S4):* once the spine supplies transport **per cell** (FND-7 §3.3), the
+  class-`D` coefficient fields vary in space and are refreshed **once per Picard iterate, from that iterate's
+  lag state** — never inside the CG, which must remain the solve of one fixed linear operator. What "fixed
+  structure" names is unchanged, and deliberately so: the stencil, the iteration cap, the acceptance constant
+  and the reduction topology are all coefficient-*independent*, so §3.7's determinism argument carries
+  verbatim. So does the contraction bound — it compares a lagged term's row sum against the implicit diagonal
+  **at the same face**, and both scale with that face's own coefficient, so the ≲ 1/12 gain is a ratio of
+  geometry and is magnitude-independent: a 100× transport contrast across the domain does not weaken it.
 - **`R` — genuinely cell-local stiff sources** (reactions, M1 radiation–matter *source* coupling): the
   cell-local implicit ODE solve of §3.3. "Cell-local implicit" is **reserved** for this class.
 - **`G` — declared global stiff ODE systems** (N6; the pulsed-event carve-out generalized): a system whose
@@ -221,6 +229,7 @@ boundary object whose consistency §3.5 solves), COUP-8 (operator order), COUP-4
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-20 | 0.4.3 | **S4 implementation clarification (plan S4, landed with the code).** §3.1 class-`D` gains its **variable-coefficient** rule: per-cell spine transport (FND-7 §3.3) makes the coefficient fields spatial; they are refreshed **once per Picard iterate from that iterate's lag state**, never inside the CG (which stays the solve of one fixed linear operator). "Fixed structure" is re-stated as what it always meant — stencil, iteration cap, acceptance constant, reduction topology, all coefficient-independent — so §3.7 determinism is untouched; and the ≲ 1/12 contraction bound is shown magnitude-independent (it compares a lagged row sum to the implicit diagonal *at the same face*, both carrying that face's own coefficient), so a large transport contrast does not weaken it. |
 | 2026-08-19 | 0.4.2 | **S3 implementation clarification (plan S3, landed with the code).** §3.1 class-`D` gains its gas occupant: `F_visc` solved as per-component symmetric fixed-structure CG (`u_r`, `u_z`, `ω = u_θ/r` angular-momentum form, `T` total-energy form, `C`) with the cross-stress couplings converged by the §3.5 fixed-Picard discipline inside the same sweep loop; fixed point = the fully-implicit solution of the complete operator, so the §3.1 unconditional-stability consequence holds at acceptance. `EPS_GAS_DIFF_RESID` declared a contraction guard (structural gain ≲ 1/12), with accuracy owned by the §6 order tests; `COUPLING_RESIDUAL` on failure. Wall-law faces stay suppressed per COUP-2 §3.5/SOLV-1 §3.5 (no double count). |
 | 2026-08-19 | 0.4.1 | **S2 implementation clarification (plan S2, landed with the code).** §3.1 class-`D` parenthetical: the CG occupant's "fixed iteration structure" is the §3.7 convergence rule (fixed absolute tolerance `EPS_CG_RESID` + fixed cap `N_CG_ITERS_MAX`, fixed-order reductions — a deterministic pure function of the data), superseding the looser "(fixed count)" phrasing. First occupant of the class-`D` seam = Jacobi-preconditioned CG (`crucible-solvers::sdc`); a geometric-multigrid occupant may supersede it behind the same seam (GPU wave). |
 | 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 (Ben): §3.6 pseudo-transient mode DELETED** (tombstoned in place; §3.7 numbering kept). Stage 1 = physical march only; cost levers = compressed external schedules (COUP-7 §3.2.2) + adaptive resolution + GPU; grid-sequenced restart from settled physical states stays legal (FND-6). `pseudo-transient` key retired; §3.7/§6.9 references cleaned; forward note on implicit/all-speed acoustics for slow-phase (nuclear-wave) profiles. |

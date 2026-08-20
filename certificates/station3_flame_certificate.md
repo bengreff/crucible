@@ -91,7 +91,7 @@ At (p_c = 32.75 bar, h = h_inj, Z = 1/6): the Rust loader verifies the pin, inte
 
 - **Frozen-path surface vs (p, h, {X_k})** — its axis set belongs to SOLV-1's frozen-advection consumer; arrives with that wave (the frozen *bracket* is validated above; `chemistry.py` header).
 - **Quasi-1-D expansion oracles** (`oracle`-labeled, never field-interpolated) — SOLV-7/VAL-2 C_F cross-check wave, station 5.
-- **B′ ablation tables** — SOLV-8 wave. **Transport feed (μ, k vs T, p, Z)** — OFFL-5 spine wave (S23); OFFL-3 never ships runtime transport.
+- **B′ ablation tables** — SOLV-8 wave. The **transport feed is DISCHARGED** (plan S4): `chemistry.py` now returns the caloric companions (c_p,fr, c_v,eq) from the same CEA solve, and `crucible_offl/transport.py` assembles them with Cantera's mixture-averaged transport into the spine's chemical-regime surface (OFFL-5 §3.1a, `tables/spine/lox_lh2_transport_v0.1.0.h5`) — written in the runtime local-state (p, h, Z) coordinate, not the (T, p, Z) feed one. OFFL-3 still ships no runtime transport table; the spine (FND-7) is the sole runtime provider.
 - **Config→tables pin wiring** (FND-4 §6-4) — the `[tables]` grammar consumes `lox_lh2_v0.1.0.pins.toml` when it lands; until then the sidecar + the Rust test pins are the record.
 - **Per-point sigma columns** — the thermodynamic-data band enters with the COUP-5 UQ wave; the seam already carries sigma companions (proven by the fixture).
 

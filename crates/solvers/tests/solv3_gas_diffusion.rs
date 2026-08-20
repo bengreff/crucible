@@ -25,6 +25,7 @@ use crucible_solvers::sdc::{
 };
 use crucible_solvers::station1_sod::FIELDS;
 use crucible_solvers::station4_cooled_wall::fill_solid;
+use crucible_solvers::transport::{ConstantTransport, TransportProps};
 use crucible_solvers::wall_heat::WallLaw;
 use crucible_solvers::{Bcs, Conduction, Domain, FaceBc, InteriorFaces};
 use crucible_units::{dynamic_viscosity_pa_s, specific_heat_capacity_j_per_kg_k};
@@ -46,13 +47,28 @@ fn temperature(w: &Prim) -> Result<f64, &'static str> {
     Ok(w[4] / (w[0] * R_GAS))
 }
 
-fn law(mu: f64) -> WallLaw {
-    WallLaw::new(
+/// The channel fixtures' FND-7 spine reading: the declared-constant
+/// occupant, exactly what a `transport_constant` config block builds. These
+/// are constant-coefficient analytic fixtures — a state-varying spine would
+/// destroy the exact solutions they are scored against.
+fn transport(mu: f64) -> TransportProps {
+    ConstantTransport::new(
         specific_heat_capacity_j_per_kg_k(CP),
         dynamic_viscosity_pa_s(mu),
         PR,
+        GAMMA,
+        SC,
     )
     .expect("transport set")
+    .into_props()
+}
+
+/// The spine query closure a fixture hands the SDC classes.
+macro_rules! spine_query {
+    ($props:expr) => {{
+        let p = $props;
+        move |_: &Prim| -> Result<TransportProps, &'static str> { Ok(p) }
+    }};
 }
 
 /// CFL-paced march of the coupled flow + gas-diffusion step; returns
@@ -158,35 +174,30 @@ fn visc_channel_poiseuille_exact_profile_far_beyond_explicit_bound() {
     };
     let still = |_: f64, _: f64, _: f64, _: f64| (0.0, 0.0, 0.0);
     let wall_t = |_: f64, _: f64, _: f64, _: f64| T0;
-    let lw = law(MU);
-    let gas_op = GasDiffusion::from_transport(
-        &lw,
-        GAMMA,
-        SC,
-        GasDiffBcs {
-            r_inner: FaceGasBc {
-                velocity: VelocityBc::NoSlip(&still),
-                thermal: ThermalBc::Isothermal(&wall_t),
-                species: SpeciesBc::ZeroFlux,
-            },
-            r_outer: FaceGasBc {
-                velocity: VelocityBc::NoSlip(&still),
-                thermal: ThermalBc::Isothermal(&wall_t),
-                species: SpeciesBc::ZeroFlux,
-            },
-            z_lo: FaceGasBc {
-                velocity: VelocityBc::Continuative,
-                thermal: ThermalBc::Adiabatic,
-                species: SpeciesBc::ZeroFlux,
-            },
-            z_hi: FaceGasBc {
-                velocity: VelocityBc::Continuative,
-                thermal: ThermalBc::Adiabatic,
-                species: SpeciesBc::ZeroFlux,
-            },
+    let tr_props = transport(MU);
+    let tr_query = spine_query!(tr_props);
+    let gas_op = GasDiffusion::new(GasDiffBcs {
+        r_inner: FaceGasBc {
+            velocity: VelocityBc::NoSlip(&still),
+            thermal: ThermalBc::Isothermal(&wall_t),
+            species: SpeciesBc::ZeroFlux,
         },
-    )
-    .expect("gas operator");
+        r_outer: FaceGasBc {
+            velocity: VelocityBc::NoSlip(&still),
+            thermal: ThermalBc::Isothermal(&wall_t),
+            species: SpeciesBc::ZeroFlux,
+        },
+        z_lo: FaceGasBc {
+            velocity: VelocityBc::Continuative,
+            thermal: ThermalBc::Adiabatic,
+            species: SpeciesBc::ZeroFlux,
+        },
+        z_hi: FaceGasBc {
+            velocity: VelocityBc::Continuative,
+            thermal: ThermalBc::Adiabatic,
+            species: SpeciesBc::ZeroFlux,
+        },
+    });
     let flow = FlowClass {
         op: &op,
         fields: &f,
@@ -194,6 +205,7 @@ fn visc_channel_poiseuille_exact_profile_far_beyond_explicit_bound() {
     let gas = GasDiffusionClass {
         op: &gas_op,
         temperature: &temperature,
+        transport: &tr_query,
     };
 
     let nu = MU / rho0;
@@ -283,35 +295,30 @@ fn visc_channel_taylor_couette_swirl_matches_exact_profile() {
     let spin = move |_: f64, _: f64, _: f64, t: f64| (0.0, W * (t / t_ramp).min(1.0), 0.0);
     let still = |_: f64, _: f64, _: f64, _: f64| (0.0, 0.0, 0.0);
     let wall_t = |_: f64, _: f64, _: f64, _: f64| T0;
-    let lw = law(MU);
-    let gas_op = GasDiffusion::from_transport(
-        &lw,
-        GAMMA,
-        SC,
-        GasDiffBcs {
-            r_inner: FaceGasBc {
-                velocity: VelocityBc::NoSlip(&spin),
-                thermal: ThermalBc::Isothermal(&wall_t),
-                species: SpeciesBc::ZeroFlux,
-            },
-            r_outer: FaceGasBc {
-                velocity: VelocityBc::NoSlip(&still),
-                thermal: ThermalBc::Isothermal(&wall_t),
-                species: SpeciesBc::ZeroFlux,
-            },
-            z_lo: FaceGasBc {
-                velocity: VelocityBc::Continuative,
-                thermal: ThermalBc::Adiabatic,
-                species: SpeciesBc::ZeroFlux,
-            },
-            z_hi: FaceGasBc {
-                velocity: VelocityBc::Continuative,
-                thermal: ThermalBc::Adiabatic,
-                species: SpeciesBc::ZeroFlux,
-            },
+    let tr_props = transport(MU);
+    let tr_query = spine_query!(tr_props);
+    let gas_op = GasDiffusion::new(GasDiffBcs {
+        r_inner: FaceGasBc {
+            velocity: VelocityBc::NoSlip(&spin),
+            thermal: ThermalBc::Isothermal(&wall_t),
+            species: SpeciesBc::ZeroFlux,
         },
-    )
-    .expect("gas operator");
+        r_outer: FaceGasBc {
+            velocity: VelocityBc::NoSlip(&still),
+            thermal: ThermalBc::Isothermal(&wall_t),
+            species: SpeciesBc::ZeroFlux,
+        },
+        z_lo: FaceGasBc {
+            velocity: VelocityBc::Continuative,
+            thermal: ThermalBc::Adiabatic,
+            species: SpeciesBc::ZeroFlux,
+        },
+        z_hi: FaceGasBc {
+            velocity: VelocityBc::Continuative,
+            thermal: ThermalBc::Adiabatic,
+            species: SpeciesBc::ZeroFlux,
+        },
+    });
     let flow = FlowClass {
         op: &op,
         fields: &f,
@@ -319,6 +326,7 @@ fn visc_channel_taylor_couette_swirl_matches_exact_profile() {
     let gas = GasDiffusionClass {
         op: &gas_op,
         temperature: &temperature,
+        transport: &tr_query,
     };
 
     let nu = MU / rho0;
@@ -397,35 +405,30 @@ fn recovery_couette_reproduces_the_exact_recovery_temperature() {
     let t_ramp = 5.0 * (6.6e-3f64 - 5.0e-3).powi(2) / (MU / rho0_for_ramp);
     let slide = move |_: f64, _: f64, _: f64, t: f64| (0.0, 0.0, U_WALL * (t / t_ramp).min(1.0));
     let wall_t = |_: f64, _: f64, _: f64, _: f64| T0;
-    let lw = law(MU);
-    let gas_op = GasDiffusion::from_transport(
-        &lw,
-        GAMMA,
-        SC,
-        GasDiffBcs {
-            r_inner: FaceGasBc {
-                velocity: VelocityBc::NoSlip(&still),
-                thermal: ThermalBc::Adiabatic, // the recovery wall
-                species: SpeciesBc::ZeroFlux,
-            },
-            r_outer: FaceGasBc {
-                velocity: VelocityBc::NoSlip(&slide),
-                thermal: ThermalBc::Isothermal(&wall_t),
-                species: SpeciesBc::ZeroFlux,
-            },
-            z_lo: FaceGasBc {
-                velocity: VelocityBc::Continuative,
-                thermal: ThermalBc::Adiabatic,
-                species: SpeciesBc::ZeroFlux,
-            },
-            z_hi: FaceGasBc {
-                velocity: VelocityBc::Continuative,
-                thermal: ThermalBc::Adiabatic,
-                species: SpeciesBc::ZeroFlux,
-            },
+    let tr_props = transport(MU);
+    let tr_query = spine_query!(tr_props);
+    let gas_op = GasDiffusion::new(GasDiffBcs {
+        r_inner: FaceGasBc {
+            velocity: VelocityBc::NoSlip(&still),
+            thermal: ThermalBc::Adiabatic, // the recovery wall
+            species: SpeciesBc::ZeroFlux,
         },
-    )
-    .expect("gas operator");
+        r_outer: FaceGasBc {
+            velocity: VelocityBc::NoSlip(&slide),
+            thermal: ThermalBc::Isothermal(&wall_t),
+            species: SpeciesBc::ZeroFlux,
+        },
+        z_lo: FaceGasBc {
+            velocity: VelocityBc::Continuative,
+            thermal: ThermalBc::Adiabatic,
+            species: SpeciesBc::ZeroFlux,
+        },
+        z_hi: FaceGasBc {
+            velocity: VelocityBc::Continuative,
+            thermal: ThermalBc::Adiabatic,
+            species: SpeciesBc::ZeroFlux,
+        },
+    });
     let flow = FlowClass {
         op: &op,
         fields: &f,
@@ -433,6 +436,7 @@ fn recovery_couette_reproduces_the_exact_recovery_temperature() {
     let gas = GasDiffusionClass {
         op: &gas_op,
         temperature: &temperature,
+        transport: &tr_query,
     };
 
     let nu = MU / rho0;
@@ -514,23 +518,18 @@ fn thermal_bl_layer_growth_matches_erfc_and_species_spread() {
     };
     let still = |_: f64, _: f64, _: f64, _: f64| (0.0, 0.0, 0.0);
     let hot = |_: f64, _: f64, _: f64, _: f64| T0 + DELTA_T;
-    let lw = law(MU);
-    let gas_op = GasDiffusion::from_transport(
-        &lw,
-        GAMMA,
-        SC,
-        GasDiffBcs {
-            r_inner: FaceGasBc::free(),
-            r_outer: FaceGasBc::free(),
-            z_lo: FaceGasBc {
-                velocity: VelocityBc::NoSlip(&still),
-                thermal: ThermalBc::Isothermal(&hot),
-                species: SpeciesBc::ZeroFlux,
-            },
-            z_hi: FaceGasBc::free(),
+    let tr_props = transport(MU);
+    let tr_query = spine_query!(tr_props);
+    let gas_op = GasDiffusion::new(GasDiffBcs {
+        r_inner: FaceGasBc::free(),
+        r_outer: FaceGasBc::free(),
+        z_lo: FaceGasBc {
+            velocity: VelocityBc::NoSlip(&still),
+            thermal: ThermalBc::Isothermal(&hot),
+            species: SpeciesBc::ZeroFlux,
         },
-    )
-    .expect("gas operator");
+        z_hi: FaceGasBc::free(),
+    });
     let flow = FlowClass {
         op: &op,
         fields: &f,
@@ -538,6 +537,7 @@ fn thermal_bl_layer_growth_matches_erfc_and_species_spread() {
     let gas = GasDiffusionClass {
         op: &gas_op,
         temperature: &temperature,
+        transport: &tr_query,
     };
 
     // March to t*: the thermal layer reaches ~6 cells (√(α·t*) = 6Δz).
@@ -732,24 +732,22 @@ fn mms_with_all_viscous_terms_recovers_formal_order() {
             thermal: ThermalBc::Isothermal(&wall_t),
             species: SpeciesBc::Prescribed(&wall_c),
         };
-        let lw = WallLaw::new(
+        let tr_props = ConstantTransport::new(
             specific_heat_capacity_j_per_kg_k(MMS_CP),
             dynamic_viscosity_pa_s(MMS_MU),
             MMS_PR,
-        )
-        .expect("transport");
-        let gas_op = GasDiffusion::from_transport(
-            &lw,
             emms::MMS_GAMMA,
             MMS_SC,
-            GasDiffBcs {
-                r_inner: face(),
-                r_outer: face(),
-                z_lo: face(),
-                z_hi: face(),
-            },
         )
-        .expect("gas operator");
+        .expect("transport")
+        .into_props();
+        let tr_query = spine_query!(tr_props);
+        let gas_op = GasDiffusion::new(GasDiffBcs {
+            r_inner: face(),
+            r_outer: face(),
+            z_lo: face(),
+            z_hi: face(),
+        });
         let mms_temp =
             |w: &Prim| -> Result<f64, &'static str> { Ok(w[4] / (w[0] * (MMS_CP - MMS_CV))) };
         let flow = FlowClass {
@@ -759,6 +757,7 @@ fn mms_with_all_viscous_terms_recovers_formal_order() {
         let gas = GasDiffusionClass {
             op: &gas_op,
             temperature: &mms_temp,
+            transport: &tr_query,
         };
         let mut sdc = Sdc::new();
         let mut t = 0.0f64;
@@ -823,22 +822,18 @@ fn gas_diffusion_without_flow_or_at_azimuthal_resolution_refuses() {
         axisymmetry_assertion: true,
     };
     let mut g = Grid::build(spec, FIELDS).expect("grid");
-    let lw = law(0.01);
-    let gas_op = GasDiffusion::from_transport(
-        &lw,
-        GAMMA,
-        SC,
-        GasDiffBcs {
-            r_inner: FaceGasBc::free(),
-            r_outer: FaceGasBc::free(),
-            z_lo: FaceGasBc::free(),
-            z_hi: FaceGasBc::free(),
-        },
-    )
-    .expect("gas operator");
+    let tr_props = transport(0.01);
+    let tr_query = spine_query!(tr_props);
+    let gas_op = GasDiffusion::new(GasDiffBcs {
+        r_inner: FaceGasBc::free(),
+        r_outer: FaceGasBc::free(),
+        z_lo: FaceGasBc::free(),
+        z_hi: FaceGasBc::free(),
+    });
     let gas = GasDiffusionClass {
         op: &gas_op,
         temperature: &temperature,
+        transport: &tr_query,
     };
     match Sdc::new().step::<GammaLaw>(&mut g, None, None, Some(&gas), None, 0.0, 1e-6) {
         Err(SdcError::Config(_)) => {}
@@ -931,35 +926,30 @@ fn coupled_step_with_gas_diffusion_is_bit_identical_across_threads() {
             let slide =
                 move |_: f64, _: f64, _: f64, t: f64| (0.0, 0.0, U_WALL * (t / t_ramp).min(1.0));
             let wall_t = |_: f64, _: f64, _: f64, _: f64| T0;
-            let lw = law(MU);
-            let gas_op = GasDiffusion::from_transport(
-                &lw,
-                GAMMA,
-                SC,
-                GasDiffBcs {
-                    r_inner: FaceGasBc {
-                        velocity: VelocityBc::NoSlip(&still),
-                        thermal: ThermalBc::Adiabatic,
-                        species: SpeciesBc::ZeroFlux,
-                    },
-                    r_outer: FaceGasBc {
-                        velocity: VelocityBc::NoSlip(&slide),
-                        thermal: ThermalBc::Isothermal(&wall_t),
-                        species: SpeciesBc::ZeroFlux,
-                    },
-                    z_lo: FaceGasBc {
-                        velocity: VelocityBc::Continuative,
-                        thermal: ThermalBc::Adiabatic,
-                        species: SpeciesBc::ZeroFlux,
-                    },
-                    z_hi: FaceGasBc {
-                        velocity: VelocityBc::Continuative,
-                        thermal: ThermalBc::Adiabatic,
-                        species: SpeciesBc::ZeroFlux,
-                    },
+            let tr_props = transport(MU);
+            let tr_query = spine_query!(tr_props);
+            let gas_op = GasDiffusion::new(GasDiffBcs {
+                r_inner: FaceGasBc {
+                    velocity: VelocityBc::NoSlip(&still),
+                    thermal: ThermalBc::Adiabatic,
+                    species: SpeciesBc::ZeroFlux,
                 },
-            )
-            .expect("gas operator");
+                r_outer: FaceGasBc {
+                    velocity: VelocityBc::NoSlip(&slide),
+                    thermal: ThermalBc::Isothermal(&wall_t),
+                    species: SpeciesBc::ZeroFlux,
+                },
+                z_lo: FaceGasBc {
+                    velocity: VelocityBc::Continuative,
+                    thermal: ThermalBc::Adiabatic,
+                    species: SpeciesBc::ZeroFlux,
+                },
+                z_hi: FaceGasBc {
+                    velocity: VelocityBc::Continuative,
+                    thermal: ThermalBc::Adiabatic,
+                    species: SpeciesBc::ZeroFlux,
+                },
+            });
             let flow = FlowClass {
                 op: &op,
                 fields: &f,
@@ -967,6 +957,7 @@ fn coupled_step_with_gas_diffusion_is_bit_identical_across_threads() {
             let gas = GasDiffusionClass {
                 op: &gas_op,
                 temperature: &temperature,
+                transport: &tr_query,
             };
             let mut sdc = Sdc::new();
             let mut t = 0.0f64;
@@ -1058,19 +1049,14 @@ fn four_class_coupled_march_audits_closed_with_wall_ownership() {
         wall_normal: None,
         slip_wall_z_faces: true,
     };
-    let lw = law(MU);
-    let gas_op = GasDiffusion::from_transport(
-        &lw,
-        GAMMA,
-        SC,
-        GasDiffBcs {
-            r_inner: FaceGasBc::free(),
-            r_outer: FaceGasBc::free(), // unreached: wall-law faces interpose
-            z_lo: FaceGasBc::free(),
-            z_hi: FaceGasBc::free(),
-        },
-    )
-    .expect("gas operator");
+    let tr_props = transport(MU);
+    let tr_query = spine_query!(tr_props);
+    let gas_op = GasDiffusion::new(GasDiffBcs {
+        r_inner: FaceGasBc::free(),
+        r_outer: FaceGasBc::free(), // unreached: wall-law faces interpose
+        z_lo: FaceGasBc::free(),
+        z_hi: FaceGasBc::free(),
+    });
     let zero_heat = |_: f64, _: f64, _: f64, _: f64| 0.0;
     let solid_op = Conduction {
         kappa: 20.0,
@@ -1097,6 +1083,7 @@ fn four_class_coupled_march_audits_closed_with_wall_ownership() {
     let gas = GasDiffusionClass {
         op: &gas_op,
         temperature: &temperature,
+        transport: &tr_query,
     };
     let diffusion = DiffusionClass {
         op: &solid_op,
@@ -1105,8 +1092,9 @@ fn four_class_coupled_march_audits_closed_with_wall_ownership() {
     };
     let exchange = ExchangeClass {
         patches: &patches,
-        law: &lw,
+        law: &WallLaw::new(),
         temperature: &temperature,
+        transport: &tr_query,
     };
 
     let mut sdc = Sdc::new();
