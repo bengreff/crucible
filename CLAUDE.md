@@ -17,13 +17,13 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-20 — session 16 = plan S4 complete)
+## State (2026-08-20 — session 17 = plan S5 complete)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
 closed 68/68-discharged and deleted 2026-08-19; findings live in doc change logs + git history).
-Sixteen sessions, every one gates-green and committed; three multi-agent code reviews
-(sessions 6, 10, 12) plus per-session review waves (14, 15, 16) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
-(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **172 Rust + 34 Python
+Seventeen sessions, every one gates-green and committed; three multi-agent code reviews
+(sessions 6, 10, 12) plus per-session review waves (14, 15, 16, 17) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
+(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **179 Rust + 45 Python
 tests.** **Blind rule v1.4.1**: blind = mechanical input-blindness; every certificate declares
 `development-observed: yes/no`; the RL10 campaign is declared **open development**.
 
@@ -119,6 +119,26 @@ settles, the wall is still warming; the cure is run length (ruling #4 accepted i
 Cost ~7× per march; station-5 scores stay S2/S3-spine of record with the measured S4 delta
 recorded in the certificate — re-scoring rides the COUP-5 ensemble wave.
 
+**Session 17 = plan S5: THE COLD/UNBURNT BRANCH (split).** The burn-progress **c = 0 branch**
+shipped: `crucible_offl::FrozenReactantEngine` = the **gas-phase ideal-gas frozen reactant mixture**
+(gaseous H₂+O₂ at the proportions Z sets) via the **same CEA engine and enthalpy reference** as the
+equilibrium surface — a correctness requirement, since the SOLV-4 §3.6 blend `h = (1−c)h_u + c·h_b` is
+a category error on two references (verified: h_u−h_b = the physical heat of reaction, +12.4→13.5 MJ/kg
+across MR 4–6). Artifact `tables/chem/lox_lh2_unburnt_v0.1.0.h5` (670 KB, 9×121×15, cryo-valid to
+~100 K; bounds T 1.66 K / ρ 0.81% rule-space) uses the equilibrium surface's FND-5 schema, so the
+**existing `TableEos` occupant binds it with no new code** (SOLV-1 §3.4) — the whole runtime cost of the
+cold branch. The **frozen↔shifting bracket** is shipped as a declared model-form band
+(`KineticEfficiencyBand`: raw bracket a few %, ~3.8% at ε=61; the `jannaf-eff` ~0.8–1% is the delivered
+estimate *inside* it). Docs amended first: OFFL-3 0.6, FND-7 0.5.2, SOLV-1 0.4.3, SOLV-4 0.4.1,
+META-3 0.8.1. **The split (Ben):** the frozen-mode `{ρX_k}` **field-advection** widening (a `NCOMP` change
+to the flat conserved state; stable Rust blocks the clean const-generic via `NPRIM=NCOMP+2`; no consumer
+before S18) → **S5b**; per-species diffusion + Soret/Dufour + Stefan-Maxwell ride it. The establishment-
+refusal / overshoot-ceiling retirement is **enabled** here (the branch is representable + marchable) and
+**realized at S6** (the c-blend routes transient cells to it); the pinned v0.3.2 burnt surface and ◆C1
+config are untouched, so the shifting stations stay **byte-identical**. **Two flagged rulings (mine):**
+settle budget grows as run length at S7 (ruling #4, not paid now); station-5 re-score left to the COUP-5
+wave (S18). A two-agent review wave (code/physics + doc-claims) ran before commit.
+
 **Goal A ✓** — conduction convergence certificate (`certificates/convergence_certificate.md`).
 
 **Goal B — the BLIND RL10 (M2). Five certificate stations, ALL FIVE EARNED (session 12):**
@@ -179,7 +199,8 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   **`TableEos`** (per-cell (p,h,Z) projection: warm-started + uniqueness-guarded fast path,
   rule-space slow-path acceptance vs the density column's own log bound; **S18 `h_offset`
   knockdown FIXED session 12** — store true energy, interrogate at h+δ; measured slope −0.847%
-  c\* per −3e5 J/kg); **`transport` = THE FND-7 §3.3 spine seam (S4)** — the ONE provider of
+  c\* per −3e5 J/kg; **also binds the S5 c = 0 unburnt-reactant surface with no new code** — same
+  (p, h, Z) schema, so the cold branch is a table, not an occupant); **`transport` = THE FND-7 §3.3 spine seam (S4)** — the ONE provider of
   (μ, k, c_p, c_v, ρD, ∂h/∂Z, Pr) over the medium state, two occupants selected as config data
   (`transport_constant` = the declared set the stations use, bit-identical to sessions 7–15;
   `transport_table` = the OFFL-5 §3.1a surface on the local (p, h, Z) state); `wall_heat` = the
@@ -208,11 +229,15 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   h5py writer, NASA-CEA engine behind SI boundaries (**`gas_only` metastable mode**, deck-stamped,
   condensed-suffix filter), Cantera cross-check, surface generators with measured interp-error
   bounds (×1.5 margin; abs + **rule-space log bounds**; **envelope-EDGE holdout** — session-12
-  review fix; fresh-holdout CI gates on BOTH pinned artifacts). Production tables:
-  `lox_lh2_v0.1.0.h5` (station-3 certificate — untouched) + **`v0.3.2`** (station-5: gas-only
-  metastable, Z narrowed to the premixed class MR ≈ 4.4–5.5, p ∈ [10 Pa, 7 MPa],
-  h ∈ [−1.23e7, +3.8e6] with transient-sized ceiling); sidecars = single pin owners. Regen ≈
-  2 min (`make_station5_tables.py`).
+  review fix; fresh-holdout CI gates on BOTH pinned artifacts); **`FrozenReactantEngine` (S5)** =
+  the gas-phase ideal-gas frozen reactant mixture (the c = 0 unburnt branch, same CEA enthalpy
+  reference as the equilibrium surface); **`KineticEfficiencyBand` (S5)** = the shipped
+  frozen↔shifting model-form band. Production tables: `lox_lh2_v0.1.0.h5` (station-3 certificate —
+  untouched) + **`v0.3.2`** (station-5: gas-only metastable, Z narrowed to the premixed class
+  MR ≈ 4.4–5.5, p ∈ [10 Pa, 7 MPa], h ∈ [−1.23e7, +3.8e6] with transient-sized ceiling) +
+  **`lox_lh2_unburnt_v0.1.0.h5` (S5)** = the c = 0 unburnt-reactant (p, h, Z) surface, cryo-valid
+  to ~100 K, equilibrium-surface schema (so `TableEos` binds it); sidecars = single pin owners.
+  Regen ≈ 2 min (`make_station5_tables.py`) / ≈ 4 s (`make_unburnt_tables.py`).
 - `data/anchors/` — **TM-107318 cached** (sha256 2d25422c…, META-3 `rl10-tm107318`) + the
   **digitized geometry-of-record `rl10_contour.csv`** (Table E1 + Table 2.5.1 + Fig. E1 planes;
   closures declared in-header). **ERRATUM (session 11): Table 2.5.1's "Diameter" values are
@@ -228,14 +253,19 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   real integrator); **session 15 = plan S3 DONE** (the missing forces: gas F_visc as the
   class-D gas occupant, wall-law suppression, exact-analytic mini-sim battery); **session 16 =
   plan S4 DONE** (real properties: the FND-7 transport spine filled for the chemical regime,
-  physical liner thermal mass, **◆C1 met**). **NEXT = plan S5**: the cold/unburnt branch —
-  species-vector state widening; the frozen-composition + unburnt-propellant-mixture surfaces
-  (valid to cryo T) from the OFFL-3 pipeline; the frozen↔shifting bracket armed as the declared
-  kinetics band. It retires the envelope refusals and the overshoot-sized table ceiling, and it
-  is the remaining leg of the fine-dial establishment cure (S4 landed the other two). Read the
-  plan's §5 S5 entry + OFFL-3 §2/§3.2 before coding. Carry into S5: the settle budget must grow
-  past the now-physical liner clock (◆C1 finding), and per-species diffusion coefficients
-  supersede S4's single declared Schmidt closure.
+  physical liner thermal mass, **◆C1 met**); **session 17 = plan S5 DONE (split)** — the cold/unburnt
+  branch: the c = 0 unburnt-reactant (p, h, Z) surface shipped (frozen gas H₂/O₂ via CEA, cryo-valid,
+  bound by the existing `TableEos` with no new code), the frozen↔shifting bracket shipped as a declared
+  band; the frozen-mode `{ρX_k}` **field-advection** widening + the (p, h, {X_k}) advection surface +
+  per-species diffusion (superseding the single Sc) split to **S5b** (may ride S8), no consumer before
+  S18. **NEXT = plan S6**: ignition — the burn-progress **c-field** + blended thermochemistry (the two
+  (p, h, Z) branches S5 shipped, blended by c); `S_L(p,T,Z)`/`τ_ign(p,T,Z)` surfaces generated +
+  VAL-2-anchored; flame-propagation + auto-ignition rate law (SOLV-4 §3.6, TFC form); igniter boundary
+  object; `flame_1d`/`spark_box`/`lean_no_light`/`quench_box` mini-sims. **S6 realizes** the establishment-
+  refusal cure S5 enabled (the c-blend routes transient cells to the cold branch). Read the plan's §5 S6
+  entry + SOLV-4 §3.6 before coding. Carry into S6: the settle budget must grow past the now-physical
+  liner clock (◆C1 finding); the cold branch's `T_u` is the coordinate `S_L`/`τ_ign` are keyed on
+  (SOLV-4 §3.6's unburnt-isentrope closure).
 - The old per-item deferral list (station-4 fixture rewire; Bartz oracle scoring; digest v4;
   COUP-5 ensembles; FND-3 PLIC/slot class) is absorbed into the plan's phases: §4 maps each to
   its session.

@@ -6,7 +6,7 @@
 | **Family** | SOLV (Runtime unified-grid operators) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, FND-7 (EOS/transport), COUP-3 (time integration), COUP-2 (audit); FND-1, COUP-7 |
-| **Version** | 0.4.2 (2026-08-20 S4 review: the film-mean-vs-local c_p ruling; the reference-state band claim withdrawn; catalycity stated. 0.4.1: `F_visc`'s species-enthalpy flux `Σ h_k j_k` named; per-cell spine transport + face-averaging rule; the wall law's transport operands are spine queries) |
+| **Version** | 0.4.3 (2026-08-20 plan S5: frozen-mode `{ρX_k}` state widening explicitly rides **plan S5b**; the c = 0 unburnt (p, h, Z) branch is shipped and bound by the existing `TableEos` — no widening — §3.4). 0.4.2 (S4 review: the film-mean-vs-local c_p ruling; the reference-state band claim withdrawn; catalycity stated). 0.4.1: `F_visc`'s species-enthalpy flux `Σ h_k j_k` named; per-cell spine transport + face-averaging rule; the wall law's transport operands are spine queries |
 | **Skeleton/complete split** | **Fixed now:** the conserved system, the reacting-flow update, the N_θ=1 axisymmetric-with-swirl corner, EOS/transport from the spine, wall-heat coupling (the one local wall-function law, §3.5), halts, oracles. **Deferred (W4):** the two-phase (drift-flux) and two-fluid/MHD (HLLD + constrained-transport) extensions of the *same* operator; the **resolved-mixing rung** (R2, §3.4) — unmixed multi-stream injection with grid-computed mixing (a resolution/N_θ lift, riding the two-phase extension for liquid injection) under the **one universal LES-class subgrid mixing closure** (D-D, §3.4). |
 
 ---
@@ -112,6 +112,17 @@ heat release are the OFFL-3 equilibrium surface evaluated at the cell's local (p
 is exact because only elements are advected. **Frozen** mode advects the full species set with zero reaction
 source. The frozen↔shifting gap is a **discrete epistemic model-form dimension** sampled by COUP-5 (the
 JANNAF kinetic-efficiency deviation becomes an error bar, not a hidden choice).
+
+**Frozen-mode state widening rides plan S5b** *(0.4.3, plan S5).* The frozen mode's `{ρX_k}` composition
+block is a **wider `U`** than shifting mode's single advected element — a change to the conserved-state width
+`NCOMP`, which the fixed-array runtime carries as a compile-time constant. Ben split that widening into its
+own session (S5b): it is bit-identity-critical for the shifting stations (the `c ≡ 1` / single-element
+corner must stay byte-for-byte), has **no consumer before the COUP-5 ensemble wave** (S18 — the delivered-
+performance frozen end is carried by the OFFL-3 §3.2 *bracket* until then), and is orthogonal to S5's actual
+mission, the cold/unburnt branch. **The c = 0 unburnt branch needs no widening**: it is a single-element
+(p, h, Z) surface (a two-stream reactant mixture is set by Z), shipped at S5 (OFFL-3 §3.3) and bound by the
+**existing** `TableEos` occupant with no new state — so a cold non-reacting flow is representable now, and
+S6's burn-progress blend (§3.4 below) composes the two (p, h, Z) branches without a species vector.
 
 **Burn progress (v0.4, VISION_SCOPE v1.5).** `U` additionally carries the **burn-progress field c ∈ [0,1]**
 (cell burnt mass fraction): the cell's thermochemistry is the SOLV-4 §3.6 blend of the **unburnt**
@@ -262,6 +273,7 @@ emergent-`p_c` design resolved with COUP-7/SOLV-7, Ben 2026-07-21; injector mixi
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-20 | 0.4.3 | **Plan S5 — the cold/unburnt branch (landed with the code).** §3.4: the frozen mode's `{ρX_k}` composition-block **state widening** (a `NCOMP` change to the fixed-array conserved state) is stated to ride **plan S5b**, the session Ben split it into — bit-identity-critical for the shifting stations, no consumer before the COUP-5 wave (S18; the frozen delivered-performance end is the OFFL-3 §3.2 bracket until then), orthogonal to S5's mission. The **c = 0 unburnt branch needs no widening**: a single-element (p, h, Z) frozen-reactant surface (OFFL-3 §3.3) bound by the **existing** `TableEos` occupant, so a cold non-reacting flow is representable at S5 and S6's blend composes the two (p, h, Z) branches. No operator/flux/EOS change — the shifting stations are byte-for-byte unchanged. |
 | 2026-08-20 | 0.4.2 | **S4 review corrections (same session).** §3.5: the wall law's convective limb must drive on the **film-mean** enthalpy slope, not the local equilibrium c_p — measured, the latter overpredicts `q_w` by 1.7–2.4× one-signed through the ±20–30% band (the pre-S4 constant c_p = 5000 was accidentally *inside* it at 1.21×, so S4 made the property more accurate and the flux less so until this landed). The law now takes the spine's c_p,frozen for that limb and the local c_p for recovery, with the exact `h_aw − h_w` form a named deferral. **The 0.4.1 sentence claiming the gas-state-vs-reference-temperature choice sits inside the ±20–30% band is WITHDRAWN** — measured h(film)/h(gas) ≈ 0.24–0.40; it is now a declared model-form limit, and the band explicitly does not cover resolution changes. Wall catalycity stated (equilibrium operands in the law, non-catalytic species wall in `F_visc`; they never share a face). |
 | 2026-08-20 | 0.4.1 | **Clarification wave, landed with plan S4's code (the COUP-3 0.4.1/0.4.2 pattern).** §3.1: `F_visc`'s energy flux stated in full as `τ·u + k∇T + Σ_k h_k j_k` — the species-enthalpy term is the Lewis ≠ 1 content, reduces exactly to `(∂h/∂Z)\|_{p,T}·j_Z` under §3.4's one composition coordinate with the coefficient a spine output, and vanishes on a single-composition gas (which is what made the S3 deferral honest); **transport is a per-cell spine query on the local state**, face coefficients the arithmetic mean (exact in the constant limit, 2nd order for smooth gas transport — no material discontinuity crosses a resolved face because wall faces carry no resolved diffusion). §3.5: the wall function's μ/k/Pr are **spine queries at the near-wall gas state** — one provider shared with `F_visc`, no transport constant stated by the law; the gas-state-vs-reference-temperature choice is declared inside the existing ±20–30% band, refinement deferred. |
 | 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 (Ben).** §3.4: `U` gains the **burn-progress field c** (blended unburnt↔equilibrium thermochemistry; rate laws owned by SOLV-4 §3.6; igniter = COUP-7 object). §4: pseudo-transient reference removed (COUP-3 §3.6 tombstone). §5 (S21): anchor budget rewritten — full-3-D **physical march** under a declared compressed start window, GPU-ported, ≤ 24 h; multi-fidelity ensembles; plan pointer. §6.7 updated to match. |

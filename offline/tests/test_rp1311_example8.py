@@ -89,3 +89,22 @@ def test_frozen_shifting_bracket(engine):
     # The JANNAF kinetic-efficiency knockdown (~0.8–1% of shifting Isp,
     # META-3 `jannaf-eff`) must sit inside the bracket the two tables span.
     assert gap > 0.01, "bracket must contain the JANNAF kinetic band"
+
+
+def test_frozen_shifting_band_is_a_shipped_datum(engine):
+    """OFFL-3 §3.2 (plan S5): the bracket is promoted from a validation check
+    to a shipped declared band a run records. `frozen_shifting_band` wraps the
+    same pair, guards the ordering (frozen never exceeds shifting), and exposes
+    the relative gap — the model-form interval the pedigree carries."""
+    band = engine.frozen_shifting_band(PC, MR, supar=25.0)
+    assert band.isp_frozen < band.isp_shifting  # kinetics never help
+    assert band.relative_gap == pytest.approx(
+        (band.isp_shifting - band.isp_frozen) / band.isp_shifting
+    )
+    # Same measured bracket the §6-3 check sees, and the JANNAF ~0.8–1%
+    # delivered estimate sits inside it (band is the outer model-form width).
+    assert 0.01 < band.relative_gap < 0.08
+    # The band widens with expansion (more recombination energy the frozen
+    # limb leaves unclaimed) — a monotone, physical signature.
+    wide = engine.frozen_shifting_band(PC, MR, supar=61.0)
+    assert wide.relative_gap > band.relative_gap

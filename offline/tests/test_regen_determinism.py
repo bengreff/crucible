@@ -38,9 +38,28 @@ print(spec_digest(spec))
 """
 
 
-def _run_probe() -> str:
+# The unburnt-reactant build path (plan S5) is a DIFFERENT pipeline —
+# `FrozenReactantEngine` with a fixed-count bisection T-inversion and a
+# CEA reactant `calc_property` — so it earns its own cross-process probe:
+# the bisection and the derivative step are fixed/declared, but only a
+# two-subprocess digest match proves the whole path is bit-reproducible.
+UNBURNT_PROBE = r"""
+from crucible_offl.chemistry import FrozenReactantEngine
+from crucible_offl.surfaces import unburnt_reactant_grid, build_unburnt_surface
+from crucible_offl.tables import spec_digest
+
+eng = FrozenReactantEngine()
+grid = unburnt_reactant_grid(eng, n_p=3, n_h=5, n_z=3)
+spec, _bounds = build_unburnt_surface(
+    eng, grid, data_version="probe-0.0.0", generator_commit="regen-probe"
+)
+print(spec_digest(spec))
+"""
+
+
+def _run(probe: str) -> str:
     out = subprocess.run(
-        [sys.executable, "-c", PROBE],
+        [sys.executable, "-c", probe],
         capture_output=True,
         text=True,
         check=True,
@@ -51,10 +70,19 @@ def _run_probe() -> str:
 
 
 def test_fresh_process_regeneration_reproduces_the_digest() -> None:
-    first = _run_probe()
-    second = _run_probe()
+    first = _run(PROBE)
+    second = _run(PROBE)
     assert first == second, (
         "two cold-start generations of the same probe surface disagree — "
         "the regeneration key (config + pinned pipeline) cannot replay "
         f"({first} vs {second})"
+    )
+
+
+def test_unburnt_build_path_regenerates_deterministically() -> None:
+    first = _run(UNBURNT_PROBE)
+    second = _run(UNBURNT_PROBE)
+    assert first == second, (
+        "two cold-start generations of the unburnt probe surface disagree — "
+        f"the frozen-reactant build path is not bit-reproducible ({first} vs {second})"
     )

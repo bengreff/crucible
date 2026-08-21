@@ -30,7 +30,13 @@ import numpy as np
 
 import cea
 
-from .chemistry import EquilibriumEngine, EqState, Propellant
+from .chemistry import (
+    EquilibriumEngine,
+    EqState,
+    FrozenReactantEngine,
+    FrozenReactantState,
+    Propellant,
+)
 from .tables import Axis, Provenance, TableValue, WriteSpec, write_table
 
 SCHEMA_VERSION = "1.0"
@@ -416,6 +422,197 @@ def build_performance_reference(
         ),
     )
     return spec, bounds
+
+
+#: (interp_rule, units) per unburnt-reactant column — the SAME schema and
+#: rule strings as the equilibrium surface's shared columns, so `TableEos`
+#: binds either with no new occupant (SOLV-1 §3.4). Axes (p, h, Z): p log,
+#: h/Z linear; density is log-valued (ideal gas ρ ∝ p spans orders),
+#: everything else linear. No X_species columns — the frozen reactant
+#: composition is fixed by Z, so tabulating it would be redundant bytes.
+_UNBURNT_COLUMNS = {
+    "temperature": ("log-lin-lin-lin", "K"),
+    "density": ("log-lin-lin-log", "kg/m^3"),
+    "gamma_eff": ("log-lin-lin-lin", "1"),
+    "sound_speed": ("log-lin-lin-lin", "m/s"),
+    "mbar": ("log-lin-lin-lin", "kg/kmol"),
+}
+_UNBURNT_RULES = {name: rule for name, (rule, _u) in _UNBURNT_COLUMNS.items()}
+
+
+def unburnt_reactant_grid(
+    engine: FrozenReactantEngine,
+    n_p: int = 9,
+    n_h: int = 121,
+    n_z: int = 15,
+    t_floor: float = 100.0,
+    t_ceil: float = 2200.0,
+) -> EquilibriumGrid:
+    """The (p, h, Z) grid + envelope for the unburnt-reactant surface
+    (OFFL-3 §3.3, plan S5), DERIVED from the engine so the rectangular
+    h-envelope is one every Z can convergently populate.
+
+    The frozen reactant enthalpy is Z-dependent (H₂-rich mixtures store more
+    enthalpy per K), so a fixed h maps to a different T at each Z. A
+    rectangular envelope valid across the whole Z band therefore runs its
+    **hot floor at the H₂-poor edge and its cold floor at the H₂-rich edge**:
+    `h_env_lo = max_Z h(t_floor, Z)` guarantees every Z is at least `t_floor`
+    at the envelope's cold edge, and `h_env_hi = min_Z h(t_ceil, Z)` bounds
+    every Z below `t_ceil` at the hot edge. The grid overhangs the envelope
+    by a few percent of the h-span (the equilibrium grid's convention), so
+    the envelope boundary interpolates from bracketing nodes.
+
+    `t_floor = 100 K` is the declared cold floor of the **gas-phase** branch:
+    below the liquefaction line the ideal-gas frozen mixture is a declared
+    metastable model, and the real two-phase state is the SOLV-1 W4 drift-
+    flux extension (plan S15). `t_ceil = 2200 K` covers pre-ignition
+    compression toward the H₂/O₂ autoignition class (~1000 K) with headroom;
+    beyond it the cell has lit and reads the burnt branch."""
+    zs = np.linspace(0.10, 0.26, n_z)
+    h_env_lo = max(engine.enthalpy_at(t_floor, float(z)) for z in zs)
+    h_env_hi = min(engine.enthalpy_at(t_ceil, float(z)) for z in zs)
+    if not h_env_lo < h_env_hi:
+        raise RuntimeError(
+            f"unburnt grid: empty h-envelope [{h_env_lo}, {h_env_hi}] — "
+            "t_floor/t_ceil cross once the Z-dependence is folded in"
+        )
+    span = h_env_hi - h_env_lo
+    margin = 0.03 * span
+    return EquilibriumGrid(
+        p_points=tuple(np.geomspace(5.0, 8.0e6, n_p)),
+        h_points=tuple(np.linspace(h_env_lo - margin, h_env_hi + margin, n_h)),
+        z_points=tuple(zs),
+        p_envelope=(10.0, 7.0e6),
+        h_envelope=(h_env_lo, h_env_hi),
+        z_envelope=(1.0 / 9.0, 0.25),  # MR 8 … 3, the design-window class
+    )
+
+
+def _unburnt_columns(state: FrozenReactantState) -> dict[str, float]:
+    return {
+        "temperature": state.T,
+        "density": state.rho,
+        "gamma_eff": state.gamma,
+        "sound_speed": state.a,
+        "mbar": state.mbar,
+    }
+
+
+def build_unburnt_surface(
+    engine: FrozenReactantEngine,
+    grid: EquilibriumGrid,
+    data_version: str,
+    generator_commit: str,
+    holdout_stride: int = 2,
+) -> tuple[WriteSpec, dict[str, float]]:
+    """Solve every grid node of the gas-phase frozen reactant mixture,
+    measure holdout errors exactly as `build_equilibrium_surface` does
+    (midpoints + ¼-offsets + envelope edges, `SAFETY` margin, absolute +
+    rule-space), return the WriteSpec + per-column bounds."""
+    p_ax, h_ax, z_ax = (
+        np.asarray(a) for a in (grid.p_points, grid.h_points, grid.z_points)
+    )
+    shape = (len(p_ax), len(h_ax), len(z_ax))
+    grids = {name: np.empty(shape) for name in _UNBURNT_RULES}
+    # T, γ, a, M̄ are pressure-independent (ideal gas) — cache them per
+    # (h, Z) so the surface is built with one T-inversion per column, not
+    # one per (p, h, Z) node.
+    for j, h in enumerate(h_ax):
+        for k, z in enumerate(z_ax):
+            base = engine.state_php(float(p_ax[0]), float(h), float(z))
+            for i, p in enumerate(p_ax):
+                # Ideal gas: ρ ∝ p at fixed (T, M̄), so scale the base state
+                # rather than re-derive — exact in real arithmetic (~1 ULP in
+                # f64, far below the stamped bound) and it keeps the sole ρ
+                # formula in `state_php` (one owner).
+                grids["density"][i, j, k] = base.rho * (float(p) / float(p_ax[0]))
+                grids["temperature"][i, j, k] = base.T
+                grids["gamma_eff"][i, j, k] = base.gamma
+                grids["sound_speed"][i, j, k] = base.a
+                grids["mbar"][i, j, k] = base.mbar
+
+    axes_list = [p_ax, h_ax, z_ax]
+    hold_p = np.concatenate(
+        [_holdout_points(p_ax, log=True)[::holdout_stride], _edge_points(p_ax, True, grid.p_envelope)]
+    )
+    hold_h = np.concatenate(
+        [_holdout_points(h_ax, log=False)[::holdout_stride], _edge_points(h_ax, False, grid.h_envelope)]
+    )
+    hold_z = np.concatenate(
+        [_holdout_points(z_ax, log=False)[::holdout_stride], _edge_points(z_ax, False, grid.z_envelope)]
+    )
+    env = (grid.p_envelope, grid.h_envelope, grid.z_envelope)
+    bounds = {name: 0.0 for name in _UNBURNT_RULES}
+    bounds_log = {name: 0.0 for name in _UNBURNT_RULES if _UNBURNT_RULES[name].endswith("log")}
+    n_holdout = 0
+    for p in hold_p:
+        for h in hold_h:
+            for z in hold_z:
+                if not all(lo <= q <= hi for (lo, hi), q in zip(env, (p, h, z))):
+                    continue
+                n_holdout += 1
+                truth = _unburnt_columns(engine.state_php(float(p), float(h), float(z)))
+                for name, t in truth.items():
+                    est = _multilinear(_UNBURNT_RULES[name], axes_list, grids, (p, h, z), name)
+                    bounds[name] = max(bounds[name], abs(est - t))
+                    if name in bounds_log:
+                        bounds_log[name] = max(bounds_log[name], abs(np.log(est) - np.log(t)))
+    if n_holdout <= 0:
+        raise RuntimeError("holdout set must not be empty")  # survives -O
+    bounds = {name: SAFETY * b for name, b in bounds.items()}
+    bounds_log = {name: SAFETY * b for name, b in bounds_log.items()}
+
+    deck = {
+        "table": "unburnt_reactant_surface",
+        "propellant": asdict(engine.propellant),
+        "grid": asdict(grid),
+        "columns": sorted(_UNBURNT_RULES),
+        "holdout_stride": holdout_stride,
+        "engine": f"cea {cea.__version__}",
+        "products": "gas-phase-frozen-reactant-mixture",  # the declared model form
+    }
+    spec = WriteSpec(
+        kind="regular",
+        schema_version=SCHEMA_VERSION,
+        data_version=data_version,
+        interp_method="multilinear",
+        provenance=_provenance(generator_commit, deck),
+        axes=(
+            Axis("p", tuple(p_ax), *grid.p_envelope),
+            Axis("h", tuple(h_ax), *grid.h_envelope),
+            Axis("Z", tuple(z_ax), *grid.z_envelope),
+        ),
+        values=tuple(
+            TableValue(
+                name,
+                tuple(grids[name].reshape(-1)),
+                units=_UNBURNT_COLUMNS[name][1],
+                interp_rule=_UNBURNT_COLUMNS[name][0],
+                interp_error_bound=bounds[name],
+                interp_error_bound_log=bounds_log.get(name),
+            )
+            for name in sorted(_UNBURNT_COLUMNS)
+        ),
+    )
+    return spec, bounds
+
+
+def write_unburnt_table(
+    path: str,
+    data_version: str,
+    generator_commit: str,
+    engine: FrozenReactantEngine | None = None,
+    grid: EquilibriumGrid | None = None,
+    holdout_stride: int = 2,
+) -> dict[str, str]:
+    """Write the unburnt-reactant surface (the c = 0 branch); return
+    {group_path: digest} for pinning."""
+    eng = engine if engine is not None else FrozenReactantEngine()
+    spec, _ = build_unburnt_surface(
+        eng, grid or unburnt_reactant_grid(eng), data_version, generator_commit, holdout_stride
+    )
+    group = f"/chem/{eng.propellant.name}/unburnt"
+    return {group: write_table(path, group, spec)}
 
 
 def write_station3_tables(

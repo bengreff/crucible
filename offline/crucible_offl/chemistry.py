@@ -23,12 +23,18 @@ assembles with Cantera's molecular μ, k into the spine's chemical-regime
 surface (OFFL-5 §3.1a). One engine states the thermochemistry; Cantera
 states only the collision physics.
 
+The **unburnt-reactant surface** (the burn-progress c = 0 branch, SOLV-4
+§3.6) ships here as of plan S5: ``FrozenReactantEngine`` is the gas-phase
+ideal-gas frozen reactant mixture, on the SAME CEA enthalpy reference as the
+equilibrium surface (``surfaces.build_unburnt_surface`` writes it). The
+frozen↔shifting **bracket** is likewise promoted from a validation check to
+a shipped declared band (``frozen_shifting_band``, OFFL-3 §3.2).
+
 Deferred to later waves (loud, with owners — OFFL-3 §2 contract rows not
-yet emitted): the frozen-path surface vs (p, h, {X_k}) (its axis set is the
-SOLV-1 frozen-advection consumer's, arrives with that wave); quasi-1-D
-expansion oracles (SOLV-7/VAL-2 C_F cross-check wave — station 5); B′
-ablation tables (SOLV-8 wave). The frozen↔shifting *bracket* itself is
-validated now (§6-3, ``frozen_shifting_gap``).
+yet emitted): the frozen-**advection** surface vs (p, h, {X_k}) (its axis
+set is the SOLV-1 frozen-advection consumer's, rides the species-vector
+state — plan **S5b**); quasi-1-D expansion oracles (SOLV-7/VAL-2 C_F
+cross-check wave — station 5); B′ ablation tables (SOLV-8 wave).
 """
 
 from __future__ import annotations
@@ -303,3 +309,235 @@ class EquilibriumEngine:
             sol = self._rocket(p_c, mr, n_frz, supar=[supar])
             isp.append(float(sol.Isp_vacuum[-1]))
         return isp[0], isp[1]
+
+    def frozen_shifting_band(
+        self, p_c: float, mr: float, supar: float
+    ) -> "KineticEfficiencyBand":
+        """OFFL-3 §3.2 (plan S5) — the frozen↔shifting model-form band as a
+        **shipped declared datum**, not just a validation check. The pair
+        `frozen_shifting_gap` returns brackets delivered performance; this
+        wraps it as the labeled `jannaf-eff` band a run records in its
+        pedigree so the report is an interval, not a point. The band is the
+        relative gap `(Isp_shift − Isp_frozen)/Isp_shift` (frozen always the
+        lower bound — kinetics never *help*)."""
+        isp_shift, isp_frozen = self.frozen_shifting_gap(p_c, mr, supar)
+        if not (isp_shift > 0.0 and isp_frozen > 0.0):
+            raise ConvergenceError(
+                f"frozen↔shifting band: non-physical Isp pair "
+                f"({isp_shift}, {isp_frozen}) at p_c={p_c}, MR={mr}, ε-ratio={supar}"
+            )
+        if isp_frozen > isp_shift:
+            # Shifting is the equilibrium (upper) limit by construction;
+            # frozen-from-chamber cannot exceed it. If it does, the rocket
+            # solve is not the pair we think it is — refuse (META-1 P6).
+            raise ConvergenceError(
+                f"frozen↔shifting band: frozen Isp {isp_frozen} exceeds shifting "
+                f"{isp_shift} — the bracket is inverted; the solve is wrong"
+            )
+        return KineticEfficiencyBand(
+            p_c=p_c,
+            mr=mr,
+            area_ratio=supar,
+            isp_shifting=isp_shift,
+            isp_frozen=isp_frozen,
+            relative_gap=(isp_shift - isp_frozen) / isp_shift,
+        )
+
+
+@dataclass(frozen=True)
+class KineticEfficiencyBand:
+    """OFFL-3 §3.2 — the shipped frozen↔shifting model-form band (plan S5).
+    A run records this so its performance is reported as the `[frozen,
+    shifting]` interval with the `jannaf-eff` anchor, never a hidden point
+    choice.
+
+    `relative_gap` is the **full raw bracket width** `(shift−frozen)/shift` —
+    a few percent for LOX/LH₂, and it widens with the area ratio (more
+    recombination energy the frozen limb leaves on the table): ~3.7–4.8% at
+    ε = 61 over MR 5.0–5.5 (≈ 4.3% at the RP-1311 example-8 anchor). The
+    **JANNAF kinetic-efficiency knockdown** (~0.8–1% of shifting
+    Isp, META-3 `jannaf-eff`) is the *data-anchored delivered estimate that
+    sits inside* this bracket — H/O kinetics are fast, so the delivered value
+    hugs the shifting (equilibrium) end. The bracket is the model-form
+    interval; the JANNAF factor says where in it the real engine lands."""
+
+    p_c: float  # Pa
+    mr: float
+    area_ratio: float  # A_exit / A_throat the band is evaluated at
+    isp_shifting: float  # m/s (N·s/kg), the equilibrium upper limit
+    isp_frozen: float  # m/s, the frozen-from-chamber lower limit
+    relative_gap: float  # (shift − frozen)/shift ≥ 0
+
+
+#: The gas-phase suffix stripped to turn a condensed reactant species into
+#: its gas form for the frozen unburnt-mixture branch (H2(L) → H2). The
+#: same condensed-phase-suffix grammar the `gas_only` product filter uses
+#: (chemistry.py EquilibriumEngine) — one place, one regex.
+_CONDENSED_SUFFIX = __import__("re").compile(r"\((L|cr|s|a|b|I{1,3}|IV|V|VI)['\d]*\)$")
+
+
+def gasify(species: str) -> str:
+    """Strip a condensed-phase suffix so a liquid injection species names
+    its gas-phase form (H2(L) → H2, O2(L) → O2); a bare gas name is
+    unchanged. The unburnt branch is the GAS reactant mixture (SOLV-1 W4's
+    two-phase drift-flux owns liquid/vapor — plan S15)."""
+    return _CONDENSED_SUFFIX.sub("", species)
+
+
+@dataclass(frozen=True)
+class FrozenReactantState:
+    """One state of the gas-phase **frozen reactant mixture** (SI) — the
+    burn-progress blend's c = 0 branch (SOLV-4 §3.6). `gamma` is the frozen
+    isentropic exponent c_p,fr/c_v,fr; `a = √(γ_fr·R̄·T/M̄)` — CEA's own
+    sound-speed algebra, identical to `EqState`'s."""
+
+    p: float  # Pa
+    T: float  # K
+    rho: float  # kg/m^3 (ideal gas: p·M̄/(R̄·T))
+    h: float  # J/kg (CEA reference — the SAME as EqState.h, so the blend adds)
+    gamma: float  # 1 (frozen c_p/c_v)
+    a: float  # m/s
+    mbar: float  # kg/kmol
+    cp_fr: float  # J/(kg·K)
+
+
+class FrozenReactantEngine:
+    """The gas-phase ideal-gas **frozen reactant mixture** thermo for one
+    propellant — the OFFL-3 §3.3 unburnt-reactant surface's engine (plan S5).
+
+    Deliberately reuses the **same CEA reactant `Mixture` machinery** as
+    `EquilibriumEngine`: `calc_property(ENTHALPY, …)` is the very call
+    `injection_enthalpy` uses, so the unburnt branch's enthalpy is on the
+    **same reference** as the burnt equilibrium surface. The SOLV-4 §3.6
+    blend `h = (1−c)·h_u + c·h_b` is a category error on two references, so
+    this shared reference is a correctness requirement, not tidiness.
+
+    The mixture is FROZEN (no equilibration) and IDEAL (ρ = p·M̄/(R̄·T)) —
+    the same ideal-gas assumption CEA makes for the equilibrium products, so
+    the two branches differ only in composition.
+
+    **Validity floor (review-clarified).** The reactant elements have zero
+    formation enthalpy, so — unlike the equilibrium surface's condensing
+    products — CEA *converges* down to ~35 K here (which is what lets the
+    shipped grid overhang the envelope for interpolation). But convergence is
+    not validity: the NASA polynomials are extrapolated below their ~200 K fit
+    floor, and the extrapolated γ is still physical (~1.47) at the **100 K
+    envelope floor** but degrades below ~60 K (γ → 1.14 at 40 K, `c_p` blowing
+    up) and `c_p ≤ 0` below ~35 K, where `state_php` refuses. The shipped
+    surface's **envelope** floor is 100 K; the sub-floor grid nodes are the
+    declared metastable-model overhang, gated off at runtime. The real cold
+    two-phase state is SOLV-1's W4 drift-flux extension (plan S15).
+    """
+
+    #: Deterministic T-inversion bracket [K]. Wide enough to bracket every
+    #: envelope the surface declares; fixed (never data-dependent) so the
+    #: bisection is bit-reproducible (META-1 §2.1). The reactant thermo is
+    #: a declared metastable ideal-gas model below the liquefaction line
+    #: (two-phase = plan S15); it stays convergent over this whole bracket.
+    T_SOLVE_LO: float = 20.0
+    T_SOLVE_HI: float = 6000.0
+    #: Fixed bisection count: (hi−lo)/2^60 ≈ 5e-15 K — machine-exact for a
+    #: monotone smooth h(T). Not a tunable.
+    N_T_BISECT: int = 60
+    #: Central-difference half-step for c_p = ∂h/∂T [K]. Fixed/declared: an
+    #: adaptive step would not be bit-reproducible (META-1 §2.1).
+    DT_CP: float = 0.5
+
+    def __init__(self, propellant: Propellant = LOX_LH2):
+        self.propellant = propellant
+        fuel = [gasify(s) for s in propellant.fuel_species]
+        ox = [gasify(s) for s in propellant.oxidizer_species]
+        species = fuel + ox
+        dup = {s for s in species if species.count(s) > 1}
+        if dup:
+            raise ValueError(
+                f"propellant {propellant.name!r}: gas-phase reactant species "
+                f"{sorted(dup)} collide after gasify — a frozen mixture needs "
+                "distinct gas species per stream; refusing to guess"
+            )
+        self._mix = cea.Mixture(species)
+        self._fuel_w = np.array([1.0 if s in fuel else 0.0 for s in species])
+        self._ox_w = 1.0 - self._fuel_w
+
+    def _weights(self, z: float) -> np.ndarray:
+        """Mass weights of the gas reactant mixture at mixture fraction Z —
+        CEA's own of_ratio split (identical routine to `EquilibriumEngine`)."""
+        return self._mix.of_ratio_to_weights(self._ox_w, self._fuel_w, z_to_mr(z))
+
+    def mbar(self, z: float) -> float:
+        """Mean molar mass [kg/kmol] of the gas reactant mixture at Z.
+        `of_ratio_to_weights` returns UN-normalized mass weights (CEA scales
+        them internally), so M̄ = Σ(mass)/Σ(moles) — normalization-
+        independent — never `1/Σ(moles)`."""
+        w = self._weights(z)
+        moles = self._mix.weights_to_moles(w)
+        return float(np.sum(w)) / float(np.sum(moles))  # g/mol = kg/kmol
+
+    def _h_of_t(self, t: float, w: np.ndarray) -> float:
+        """Frozen-mixture specific enthalpy [J/kg] at uniform temperature t.
+        Pressure-independent (ideal gas) — the surface's p-dependence is in
+        ρ alone."""
+        return float(self._mix.calc_property(cea.ENTHALPY, w, np.full(w.shape, t)))
+
+    def t_of_h(self, h: float, z: float) -> float:
+        """Temperature [K] of the frozen mixture at (h, Z) — the monotone
+        inverse of `_h_of_t`, by deterministic fixed-count bisection."""
+        w = self._weights(z)
+        lo, hi = self.T_SOLVE_LO, self.T_SOLVE_HI
+        h_lo, h_hi = self._h_of_t(lo, w), self._h_of_t(hi, w)
+        if not (h_lo <= h <= h_hi):
+            raise ConvergenceError(
+                f"frozen-reactant enthalpy h={h} J/kg at Z={z} is outside the "
+                f"solvable T bracket [{lo}, {hi}] K (h ∈ [{h_lo:.1f}, {h_hi:.1f}])"
+            )
+        for _ in range(self.N_T_BISECT):
+            mid = 0.5 * (lo + hi)
+            if self._h_of_t(mid, w) < h:
+                lo = mid
+            else:
+                hi = mid
+        return 0.5 * (lo + hi)
+
+    def state_php(self, p: float, h: float, z: float) -> FrozenReactantState:
+        """Frozen gas reactant state at local (p [Pa], h [J/kg], Z)."""
+        w = self._weights(z)
+        t = self.t_of_h(h, z)
+        # M̄ = Σ(mass)/Σ(moles); of_ratio weights are un-normalized (see `mbar`).
+        mbar = float(np.sum(w)) / float(np.sum(self._mix.weights_to_moles(w)))
+        rho = p * mbar / (R_CEA * t)  # ideal gas; M̄ [kg/kmol], R_CEA [J/(kmol·K)]
+        # c_p = ∂h/∂T (frozen composition); central difference of the same
+        # monotone enthalpy the inversion uses.
+        cp_fr = (
+            self._h_of_t(t + self.DT_CP, w) - self._h_of_t(t - self.DT_CP, w)
+        ) / (2.0 * self.DT_CP)
+        # `c_p > 0` is dh/dT > 0 — the inversion's monotonicity assumption,
+        # checked AT THE ROOT (META-1 P6, review-hardened). The bisection is
+        # valid only on an increasing branch; a `c_p ≤ 0` here means the
+        # NASA-polynomial extrapolation folded (it does below ~40 K, or for
+        # an extreme ox-rich Z outside any shipped envelope), so the located
+        # root is off the physical branch — refuse rather than return it. On
+        # every shipped-envelope state this holds with wide margin.
+        if cp_fr <= 0.0:
+            raise ConvergenceError(
+                f"frozen-reactant c_p = {cp_fr} ≤ 0 at (p={p}, h={h}, Z={z}) — the "
+                "enthalpy is non-monotone in T here (the extrapolated thermo folded); "
+                "the bisection root is off the physical branch, refusing"
+            )
+        r_specific = R_CEA / mbar
+        cv_fr = cp_fr - r_specific
+        if cv_fr <= 0.0:
+            raise ConvergenceError(
+                f"frozen-reactant c_v = {cv_fr} ≤ 0 at (p={p}, h={h}, Z={z}) — "
+                "the ideal-gas relation c_p − R/M̄ degenerated; refusing"
+            )
+        gamma = cp_fr / cv_fr
+        a = float(np.sqrt(gamma * r_specific * t))
+        return FrozenReactantState(
+            p=p, T=t, rho=rho, h=h, gamma=gamma, a=a, mbar=mbar, cp_fr=cp_fr
+        )
+
+    def enthalpy_at(self, t: float, z: float) -> float:
+        """Frozen-mixture enthalpy [J/kg] at (T, Z) — grid/envelope planning
+        (`surfaces.unburnt_reactant_grid` maps a T-range to the rectangular
+        h-envelope every Z can convergently populate)."""
+        return self._h_of_t(t, self._weights(z))

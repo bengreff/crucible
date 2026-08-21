@@ -883,3 +883,143 @@ the committed artifacts in `certificates/` are the living record.
   correctness fix in a shared constant reaches every fixture that runs the coupled step, and the
   right response is to re-measure rather than to reason about which ones "shouldn't" care.
 
+
+- Session 17 (2026-08-20): **PLAN S5 — THE COLD/UNBURNT BRANCH: the burn-progress
+  c = 0 branch shipped as a (p, h, Z) surface `TableEos` binds with no new occupant; the
+  frozen↔shifting bracket shipped as a declared model-form band; the species-vector FIELD
+  widening split out to S5b.**
+
+  **The scope decision, made first (Ben).** Plan S5's headline goal — "species-vector state
+  widening" — is a `NCOMP` change to the flat, compile-time-sized conserved state
+  (`Cons = [f64; NCOMP]`, ~125 references across `sdc`/`gas_diffusion`/`euler` + the engine
+  consumers), and stable Rust blocks the clean const-generic because `NPRIM = NCOMP + 2` needs
+  `generic_const_exprs` (nightly). It is bit-identity-critical for the shifting stations and has
+  **no consumer before the COUP-5 ensemble wave (S18)**. The physics that de-risked the split:
+  the session's *named* mission — the cold/unburnt branch and the fine-dial establishment cure —
+  needs none of it. The unburnt-reactant branch is a **(p, h, Z)** surface (a two-stream reactant
+  mixture is set by Z), and S6's ignition blend is unburnt(p,h,Z)↔burnt(p,h,Z); the full
+  frozen-species *field advection* is the orthogonal frozen end of the frozen↔shifting bracket,
+  and the bracket carries that delivered-performance content as a declared band without advecting
+  a species vector. So the widening is both the riskiest and the least urgent of the five goals.
+  Ben chose to split it into **S5b** (may ride S8's state-layout/refluxing wave); per-species
+  diffusion coefficients + Soret/Dufour + Stefan-Maxwell baro-diffusion ride S5b with it
+  (per-species D is meaningless without per-species gradients).
+
+  **The doc wave first (the working rule).** OFFL-3 0.6 promotes the **unburnt-reactant surface**
+  from a contract row to shipped and the **frozen↔shifting bracket** from a validation check to a
+  shipped declared band; FND-7 0.5.2 retargets the frozen-chemistry-ceiling + per-species-D owners
+  to S5b (with the S5 bracket recorded as the interim delivered-performance mitigation); SOLV-1
+  0.4.3 states the `{ρX_k}` widening rides S5b and the c=0 branch needs none of it; SOLV-4 0.4.1
+  records that its §3.6 blend's `h_u`/`T_u` surface is now a real artifact; META-3 0.8.1 fixes the
+  `schmidt-combustion-gas` per-species-D handoff (S5 → S5b); plan §5/§8 record the split and the
+  two flagged rulings.
+
+  **The offline product (`FrozenReactantEngine`, OFFL-3 §3.3).** The unburnt branch is the
+  **gas-phase ideal-gas frozen reactant mixture** — gaseous H₂ + O₂ at the mass proportions Z
+  sets — evaluated by the **same CEA reactant-`Mixture` machinery** the equilibrium surface's
+  reactants use (the `calc_property(cea.ENTHALPY, …)` mechanism, on a *gasified* reactant mixture
+  rather than the liquid one `injection_enthalpy` reads — same absolute formation reference, different
+  species state), so the two branches carry **one enthalpy reference**. That is a correctness
+  requirement, not tidiness: the SOLV-4
+  §3.6 blend `h = (1−c)h_u + c·h_b` is a category error on two references. `T(h, Z)` is the
+  (pressure-independent) monotone inverse of the frozen mixture enthalpy by fixed-count bisection;
+  `ρ = pM̄/(R̄T)`, `c_p,fr = ∂h/∂T`, `c_v = c_p,fr − R̄/M̄`, `γ_fr = c_p/c_v`,
+  `a = √(γ_fr R̄T/M̄)` — CEA's own sound-speed algebra. The mixture is ideal-gas exactly as CEA's
+  products are, so the two branches are *consistently* ideal, differing only in composition. Its
+  **envelope floor is 100 K** — where the reactant elements (zero formation enthalpy) still give a
+  physical γ ≈ 1.47 while the equilibrium surface's condensing products already refuse, the *point*
+  of the branch. CEA converges below the floor (to ~35 K), which is what lets the grid overhang for
+  interpolation, but convergence is not validity: the review corrected an early "~50 K valid" phrasing —
+  below ~60 K the extrapolated NASA thermo degrades (γ → 1.14 at 40 K) and `state_php` refuses where
+  `c_p ≤ 0`; those sub-floor nodes are the declared gated-off overhang. **One M̄ bug caught in the
+  probe:** `of_ratio_to_weights` returns UN-normalized
+  mass weights (sum ≈ 34), so M̄ = Σ(mass)/Σ(moles), never `1/Σ(moles)` — the first version gave
+  c_v < 0 and refused loudly, exactly as it should.
+
+  **The surface artifact.** `tables/chem/lox_lh2_unburnt_v0.1.0.h5` (670 KB) + sidecar, the same
+  FND-5 schema as the equilibrium surface (density/sound_speed/temperature/gamma_eff/mbar keyed
+  (p, h, Z)), regen ≈ 4 s. Grid 9 × 121 × 15 = 16 335 nodes is a measured choice: the p-axis is
+  coarse on purpose (ideal-gas ρ is exactly log-linear in p and the other columns are p-invariant,
+  so p resolution costs and buys nothing beyond bracketing the envelope), the h-axis carries the
+  T(h) curvature and the Z-axis the M̄/mixture-c_p curvature (worst at the H₂-rich hot corner where
+  H₂'s vibrational modes activate — found by locating the worst holdout point, not guessed).
+  Measured holdout bounds: temperature 1.66 K abs (~0.08 % hot, ~1.7 % at the 100 K floor), density
+  0.81 % rule-space, sound speed 0.90 m/s, γ 1.2e-3 — a factor ≥ 10 inside any reasonable model
+  band. The rectangular h-envelope is Z-coupled (the frozen enthalpy is Z-dependent), so it is
+  derived as `h_env_lo = max_Z h(t_floor, Z)`, `h_env_hi = min_Z h(t_ceil, Z)` — a hot floor at the
+  H₂-poor edge, a cold floor at the H₂-rich edge, every node convergent. `t_floor = 100 K` is the
+  declared cold floor of the gas-phase branch; below the liquefaction line the ideal-gas frozen
+  mixture is a declared metastable model and the real two-phase state is SOLV-1's W4 drift-flux
+  extension (plan S15).
+
+  **The frozen↔shifting bracket shipped (`KineticEfficiencyBand`, OFFL-3 §3.2).** Promoted from a
+  §6-3 validation check to a shipped datum a run records in its pedigree, so performance is reported
+  as the `[frozen, shifting]` interval, not a point. `relative_gap` is the raw bracket width
+  `(shift−frozen)/shift` — a few percent, widening with the area ratio (~3.7–4.8% at ε = 61 over
+  MR 5.0–5.5, ≈ 4.3% at the RP-1311 anchor) as the frozen limb leaves more recombination energy
+  unclaimed; the JANNAF kinetic-efficiency knockdown
+  (~0.8–1 % of shifting Isp, `jannaf-eff`) is the data-anchored *delivered estimate inside* that
+  bracket (H/O kinetics are fast, so the real engine hugs the equilibrium end). The ordering is
+  guarded (frozen can never exceed shifting — an inverted bracket refuses).
+
+  **The runtime seam — zero new production code (SOLV-1 §3.4).** The unburnt surface uses the
+  equilibrium surface's FND-5 schema, so the **existing `TableEos` occupant binds it unchanged** —
+  the whole runtime cost of the cold branch is "bind the same occupant to a different table," no
+  `if(unburnt)`, no new state. `crates/solvers/tests/solv1_unburnt_branch.rs` (4) proves it against
+  the production artifact through the full FND-5 pin gate: `TableEos` binds and projects a cold state
+  (~168 K, frozen Γ₁ ≈ 1.4 — genuinely cold reactant gas, not the ~3000 K a burnt surface would
+  read); uniform cold rest is a **bitwise fixed point** (well-balance is geometric, not
+  EOS-specific); a cold/warm transient **marches through the projection every stage without
+  refusing and telescopes to round-off** with elemental Z untouched (the establishment-cure core —
+  a startup cell has an honest home); and a sub-floor state **refuses rather than extrapolates**
+  (the gas-phase branch is a declared model down to its floor; liquid/vapor is S15).
+
+  **What "retires the envelope refusals" actually means here — the honest scoping.** The cure is
+  *enabled* by the shipped branch and *realized* at S6. S5 ships the branch that makes cold unburnt
+  states representable and proves it is marchable; the *routing* of a transient cell to the unburnt
+  branch is S6's burn-progress c-blend. The pinned v0.3.2 burnt surface and the ◆C1 config are
+  untouched, so the shifting stations stay byte-identical — the log does **not** claim the RL10
+  dial-16 establishment refusals are gone (they are cured when S6 wires the blend). A correction of
+  the reviewer's own reflex: I first wrote a test asserting the equilibrium surface *refuses* at the
+  cold h; it does not — at the same h the burnt branch gives a *hot* state (the two branches map
+  h→T differently by the heat of reaction). The honest, robust claim the test now makes is that the
+  branches are *physically distinct* (Σ several MJ/kg apart at the same p,T,Z), which is *why* the
+  c=0 branch is needed.
+
+  **Two flagged rulings (mine).** (1) **Settle budget** — grow the certified budget to cover the
+  ~37 ms liner clock as *run length* (ruling #4) at the coarse tier; ◆C2 is S7, so the exact
+  flow-through count is set when S7 needs it, not paid now. (2) **Station-5 re-score** — left to the
+  COUP-5 ensemble wave (S18); S2/S3 stay spine-of-record with the S4 delta declared (the hand-run
+  brackets are replaced there anyway). Neither costs a march this session.
+
+  **Deferrals (owners named), all to S5b unless noted.** The frozen-mode `{ρX_k}` field advection
+  (the `NCOMP` widening); the frozen-composition (p, h, {X_k}) advection surface; per-species
+  diffusion coefficients on the transport spine (superseding the single Sc); Soret/Dufour + Stefan-
+  Maxwell baro-diffusion. The liquid-injection / vaporization coupling of the unburnt branch is
+  SOLV-1's W4 drift-flux extension (plan S15).
+
+  **Gates green.** True test count: **179 Rust + 45 Python** (**175** + 34 at S4 — the CLAUDE.md "172"
+  was a stale harness undercount, corrected here): +4 Rust (`solv1_unburnt_branch`) and +11 Python
+  (9 unburnt-surface incl. the Cantera frozen-c_p cross-check and the in-envelope diatomic gate, 1
+  shipped-bracket, 1 unburnt-path regen-determinism probe — the frozen-reactant build path earns its
+  own cross-process digest match, since its bisection T-inversion is a new pipeline). Certificates
+  regenerate **byte-identically** — no production Rust changed and no station-pinned table moved (the
+  unburnt surface is a new artifact with no station consumer yet).
+
+  **Review wave (two independent agents, before commit — Ben's pattern; one pointed at the doc
+  amendments, per the S4 finding).** The code/physics reviewer found **no correctness bug** and
+  verified every load-bearing claim empirically against CEA — the shared enthalpy reference
+  (`h_u − h_b` = the physical heat of reaction, +12.4→13.5 MJ/kg across MR 4–6), M̄, units, cross-process
+  determinism, and the envelope bounds (in-envelope error 0.67–0.84× the stamped bounds). Its hardening,
+  all applied: an explicit fail-loud `c_p ≤ 0` guard in `state_php` (the bisection's monotonicity
+  assumption, checked at the root — META-1 P6); a **Cantera NASA-7 cross-check** bounding the cold-corner
+  CEA extrapolation (worst 2.8% at the 100 K floor, < 0.3% above 200 K — the OFFL-3 §6-2 two-fit
+  discipline applied to the frozen branch, which had no built-in thermo cross-check); tightened Python
+  physicality gates (γ > 1.1 all-nodes + an in-envelope γ ∈ [1.3, 1.5] / c_p gate — a units-collapse
+  bug gives a self-consistent γ ≈ 1.0003 that a `> 1.0` gate misses); a tightened reference backstop.
+  The doc reviewer caught the exact S4-class defect: the plan §5 line's **trailing "Retires the envelope
+  refusals" sentence stood uncorrected** by the split parenthetical — read standalone it claimed a cure
+  S5 only *enables* (§8 and this log had it right); fixed. It also corrected the test count (179, not
+  the 172-baseline undercount) and flagged the ε = 61 band figure as condition-specific (~3.7–4.8% over
+  MR 5.0–5.5, ≈ 4.3% at the RP-1311 anchor — qualified in all three places). No finding survived to the
+  commit unfixed.

@@ -6,7 +6,7 @@
 | **Family** | SOLV (Runtime unified-grid operators) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, OFFL-1 (fission data), OFFL-4 (annihilation), COUP-3 (integration), SOLV-2/SOLV-3 (transport); FND-1 |
-| **Version** | 0.4 (2026-08-19: §3.6 chemical burn-progress source — VISION_SCOPE v1.5; prior: 0.3 review fixes N5, N6, E-2) |
+| **Version** | 0.4.1 (2026-08-20: §3.6's **c = 0 unburnt-reactant surface dependency is now shipped** by OFFL-3 §3.3 — plan S5; no design change, the blend/rate-law spec is 0.4's) |
 
 ---
 
@@ -225,6 +225,7 @@ slowing-down `f`. Resolved 2026-07-21.)*
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-20 | 0.4.1 | **Plan S5 — the c = 0 branch is shipped (dependency note, no design change).** §3.6's blend `h = (1−c)h_u + c·h_b` reads `h_u` from the **unburnt-reactant surface**, which OFFL-3 §3.3 now ships (a gas-phase ideal-gas frozen reactant mixture vs (p, h, Z), cryo-valid, on the equilibrium surface's FND-5 schema and enthalpy reference). The blend, the TFC rate law, the sub-cell partition, and the igniter object are unchanged and remain S6 build content; only the surface `h_u`/`T_u` are keyed on is now a real artifact rather than a contract row. |
 | 2026-07-21 | 0.1 | Initial draft. One `ReactionSource` (fission/fusion/annihilation differ only in rate law + birth spectrum). Advected-precursor fission kinetics with point kinetics as the static-fuel reduction + source-driven subcritical (NSWR/ICAN); no private integrator (COUP-3 owns it; CRAM≠PKE). Fusion ⟨σv⟩ sourcing emitting birth spectra (p-¹¹B 3α continuum, D-D secondaries as the one rate functional on SOLV-3's slowing-down f, thermal-broadened neutron peaks). Annihilation via OFFL-4 with the factor-of-several band. Emit-once/transport-once; no private transport. |
 | 2026-08-13 | 0.2 | R3 terminology: annihilation model-form reframed from a blanket "factor-of-several band" to OFFL-4's **per-quantity physics-list spread**; efficiency/waste-heat noted as computed downstream by SOLV-2/3 transport, not emitted here. |
 | 2026-08-19 | 0.4 | **VISION_SCOPE v1.5 (Ben): the chemical burn-progress source (§3.6).** c ∈ [0,1] burnt-fraction field on `U`; blended unburnt↔equilibrium thermochemistry; one continuous rate law (SOLV-4.4: flame propagation via `S_L`×wrinkling + auto-ignition via `τ_ign`), closures offline-generated (OFFL-3) and unit-anchored (VAL-2); igniter = COUP-7 energy-deposit object; grid-independent front speed = the acceptance gate; reacting-measure thresholds feed the new COUP-4 `NEVER_IGNITED`/`FLAMEOUT` halts; class-`R` cell-local stiff source; runtime finite-rate networks remain out. §1/§2/§6 updated. *Same-day adversarial-review fixes:* SOLV-4.4 restated in **TFC form** (`ρ_u·S_T·|∇c|` + the **matched front-thickening diffusion `D_c`** as the explicit grid-independence mechanism — a bare source self-sharpens and its speed goes grid-set); **sub-cell partition rule stated** (common p, mass-weighted h, unburnt-isentrope closure for `h_u`/`T_u` — no second energy field); the flame/auto-ignition overlap addressed (deflagration regime is propagation-dominated; autoignitive end-gas addition is physics, each closure anchored where it dominates). |
