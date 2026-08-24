@@ -113,7 +113,7 @@ def design_window_grid() -> EquilibriumGrid:
 
 
 def station5_envelope_grid() -> EquilibriumGrid:
-    """The station-5 full-engine grid (data_version 0.3.x): the design-window
+    """The station-5 full-engine grid (data_version 0.3.x–0.4.x): the design-window
     density with the pressure axis widened DOWN to the vacuum-plume fringe
     (the epsilon = 61 exit runs ~3 kPa static; lip transients dip further)
     and — 0.3.0, session 12 — the COLD fringe covered honestly:
@@ -149,13 +149,33 @@ def station5_envelope_grid() -> EquilibriumGrid:
         # enthalpy — the dial-16 piston start reached h ≈ -1e5 (0.3.1
         # raised to +1.3e6) and the dial-12 overexpanded-bell backflow
         # recompression then reached +1.33e6 (measured at each halt's
-        # crash artifact). 0.3.2 sets the ceiling with REAL transient
-        # margin: +4.0e6 grid / +3.8e6 envelope (T ~ 4100 K class,
-        # trivially CEA-convergent hot).
-        h_points=tuple(np.linspace(-1.25e7, 4.0e6, 43)),  # ~3.9e5 J/kg spacing kept
+        # crash artifact). 0.3.2 set the ceiling with transient margin:
+        # +4.0e6 grid / +3.8e6 envelope (T ~ 4100 K class).
+        # 0.4.0 (plan S6, OFFL-3 0.6.2 — the ignition-headroom ruling):
+        # the SOLV-4 §3.6 blend interrogates BOTH branches at the same
+        # cell enthalpy, and a spark-heated igniting kernel (T_u ~
+        # 1000-1300 K => h ~ 2.5-4e6 J/kg) rode the TOP of this surface
+        # while still valid cold gas — the burnt ceiling sat BELOW the
+        # unburnt surface's (+5.0e6), an envelope inversion. Standing
+        # rule: burnt ceiling >> unburnt ceiling, so a burning cell can
+        # never refuse where the same cold gas was fine. STRICT
+        # EXTENSION discipline: the 0.3.2 43-node axis is reproduced
+        # bit-exact and 21 nodes appended above at the SAME spacing
+        # (ceiling +1.225e7; T ~ 5000-6000 K class, trivially
+        # CEA-convergent, still chemistry) — every in-old-envelope
+        # interpolation, i.e. all five station certificates, is
+        # byte-identical; only pins/digests/bounds metadata move.
+        h_points=tuple(
+            np.concatenate(
+                [
+                    np.linspace(-1.25e7, 4.0e6, 43),  # the 0.3.2 axis, bit-exact
+                    4.0e6 + (1.65e7 / 42.0) * np.arange(1, 22),  # same ~3.9e5 spacing
+                ]
+            )
+        ),
         z_points=tuple(np.linspace(0.145, 0.195, 11)),
         p_envelope=(1.0e1, 7.0e6),
-        h_envelope=(-1.23e7, 3.8e6),
+        h_envelope=(-1.23e7, 1.2e7),
         z_envelope=(0.155, 0.185),  # MR 5.45 … 4.41 (design 5.0 = Z 1/6 mid)
     )
 
@@ -465,10 +485,22 @@ def unburnt_reactant_grid(
     `t_floor = 100 K` is the declared cold floor of the **gas-phase** branch:
     below the liquefaction line the ideal-gas frozen mixture is a declared
     metastable model, and the real two-phase state is the SOLV-1 W4 drift-
-    flux extension (plan S15). `t_ceil = 2200 K` covers pre-ignition
-    compression toward the H₂/O₂ autoignition class (~1000 K) with headroom;
-    beyond it the cell has lit and reads the burnt branch."""
+    flux extension (plan S15). `t_ceil = 2200 K` was the 0.1.0 ceiling
+    ("pre-ignition compression with headroom"); the S6 igniter mini-sims
+    measured that headroom as insufficient — blast-focused compression in a
+    confined ignition drives mid-transition (0 < c < 1) cells past it while
+    they still read the unburnt branch (OFFL-3 0.6.2). `t_ceil_ext` (0.2.0)
+    therefore appends nodes ABOVE the 0.1.0 axis — a **strict extension**
+    (the base `n_h` nodes are reproduced bit-exact; same spacing above), so
+    every in-old-envelope value is unchanged — up to the metastable-reactant
+    ceiling the ignition surface's T_u envelope covers (the two surfaces'
+    envelope-consistency contract: T_u(h_env_hi) must be inside the ignition
+    surface's T_u envelope, or a hot transition cell refuses on the closure
+    query instead). Reactants at ~2900 K "should have reacted" — which is
+    exactly what τ_ign(T_u) says (sub-µs there): the metastable branch is
+    self-consistently transient, never an equilibrium claim."""
     zs = np.linspace(0.10, 0.26, n_z)
+    t_ceil_ext = 2900.0
     h_env_lo = max(engine.enthalpy_at(t_floor, float(z)) for z in zs)
     h_env_hi = min(engine.enthalpy_at(t_ceil, float(z)) for z in zs)
     if not h_env_lo < h_env_hi:
@@ -478,12 +510,17 @@ def unburnt_reactant_grid(
         )
     span = h_env_hi - h_env_lo
     margin = 0.03 * span
+    base = np.linspace(h_env_lo - margin, h_env_hi + margin, n_h)  # the 0.1.0 axis, bit-exact
+    delta = (base[-1] - base[0]) / (n_h - 1)
+    h_env_ext = min(engine.enthalpy_at(t_ceil_ext, float(z)) for z in zs)
+    n_ext = int(np.ceil((h_env_ext + margin - base[-1]) / delta))
+    h_points = np.concatenate([base, base[-1] + delta * np.arange(1, n_ext + 1)])
     return EquilibriumGrid(
         p_points=tuple(np.geomspace(5.0, 8.0e6, n_p)),
-        h_points=tuple(np.linspace(h_env_lo - margin, h_env_hi + margin, n_h)),
+        h_points=tuple(h_points),
         z_points=tuple(zs),
         p_envelope=(10.0, 7.0e6),
-        h_envelope=(h_env_lo, h_env_hi),
+        h_envelope=(h_env_lo, h_env_ext),
         z_envelope=(1.0 / 9.0, 0.25),  # MR 8 … 3, the design-window class
     )
 

@@ -1,0 +1,10 @@
+# Table pins (FND-5 §3.2), consumed by the FND-4 §6-4 [tables] grammar
+# (the machine-written single pin owner).
+
+["/chem/lox_lh2/equilibrium"]
+data_version = "0.4.0"
+content_digest = "sha256:a2ec9569832f0c3890389fb71f54e9e092634d658714184f83dee0d47d1467b8"
+
+["/chem/lox_lh2/performance"]
+data_version = "0.4.0"
+content_digest = "sha256:b61669f18b7b9a92f0db877ad256a0c089258ed0d51cdf909a25078e35762e41"

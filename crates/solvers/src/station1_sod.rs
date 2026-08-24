@@ -211,6 +211,7 @@ fn closed_tube_op(eos: GammaLaw) -> Euler<'static> {
         },
         wall_normal: None,
         slip_wall_z_faces: true, // certified station behavior (slip everywhere)
+        combustion: None,
     }
 }
 
@@ -463,6 +464,7 @@ pub fn advection_order() -> AdvStudy {
             },
             wall_normal: None,
             slip_wall_z_faces: true, // certified station behavior (slip everywhere)
+            combustion: None,
         };
         march_to(&op, &mut g, &f, 0.0, ADV_T_FINAL).expect("march");
         let (rho, _, _, c_frac, _) = tube_profile_any(&g, &f);

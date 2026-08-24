@@ -1,5 +1,5 @@
 """OFFL-3 §3.3 / §6-4 (plan S5) — the UNBURNT-REACTANT production artifact
-`tables/chem/lox_lh2_unburnt_v0.1.0.h5`: the burn-progress c = 0 branch
+`tables/chem/lox_lh2_unburnt_v0.2.0.h5`: the burn-progress c = 0 branch
 (SOLV-4 §3.6), a gas-phase ideal-gas frozen reactant mixture on the same CEA
 enthalpy reference as the equilibrium surface.
 
@@ -40,7 +40,7 @@ from crucible_offl.surfaces import (
 )
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-PRODUCTION = REPO / "tables" / "chem" / "lox_lh2_unburnt_v0.1.0.h5"
+PRODUCTION = REPO / "tables" / "chem" / "lox_lh2_unburnt_v0.2.0.h5"
 GROUP = "/chem/lox_lh2/unburnt"
 
 

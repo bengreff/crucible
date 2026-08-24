@@ -1023,3 +1023,113 @@ the committed artifacts in `certificates/` are the living record.
   the 172-baseline undercount) and flagged the ε = 61 band figure as condition-specific (~3.7–4.8% over
   MR 5.0–5.5, ≈ 4.3% at the RP-1311 anchor — qualified in all three places). No finding survived to the
   commit unfixed.
+
+- Session 18 (2026-08-21 build / 2026-08-24 close — one commit): **plan S6, IGNITION.** The chemical
+  regime can now light: a cell carries the burn-progress field c (`NCOMP` 6→7, the fixed `+1` `ρc` slot —
+  inert by default, so every shifting station is untouched), its thermochemistry is the **energy-conserving
+  flamelet blend** of the S5 unburnt and the equilibrium surfaces (`BurnBlendEos`: both branches read at
+  the cell's own (p, h, Z) on S5's shared CEA reference — burning is the same conserved energy re-read as
+  hotter gas, no explicit heat-release term; density = mass-weighted specific volume, pressure = one
+  deterministic Illinois root; c = 1 recovers shifting mode bit-for-bit), and c evolves by the SOLV-4.4
+  **bistable (Nagumo) reaction-diffusion law** (`Combustion`): matched `(D_c, K)` give a **pushed front** at
+  exactly `S_T` with width Θ·Δ at every resolution — the FSD `|∇c|` form is analytically degenerate and
+  monostable KPP is a pulled front (grid-pathological + noise self-ignites), both rejected during the build.
+  Closures `S_L(p, T_u, Z)`/`τ_ign(p, T_u, Z)` are one offline Cantera surface (OFFL-3 §3.3, `h2o2.yaml`;
+  extinction = the columns' own values). All three rate terms explicit at this tier behind the loud
+  positivity guard; the stiff class-`R` implicit auto-ignition is the declared S7 hardening.
+
+  **The close found the v1.5 build's tables ignition-incompatible — the S6-close envelope set (OFFL-3
+  0.6.2; Ben ruling: expand the tables, never throttle the spark to fit them).** Two layers, both caught by
+  `spark_box`/`quench_box` halting mid-march. (1) **Envelope inversion:** the burnt ceiling (+4.0e6 J/kg,
+  sized for station transients) sat *below* the unburnt's (+5.0e6) — but the blend interrogates both
+  branches at one enthalpy, so an igniting kernel (auto-ignition wants T_u ~ 1000–1300 K ⇒ h ~ 2.5–4e6)
+  died on the *products* surface while still valid cold gas. (2) With that fixed, confined-ignition blast
+  compression drove mid-transition cells to h ≈ 5.3e6 — past the unburnt ceiling while still burning.
+  Cure: **burnt v0.4.0** to +1.225e7 J/kg (standing rule: burnt ≫ unburnt — a burning cell can never
+  refuse where the same cold gas was fine), **unburnt v0.2.0** to t_ceil 2900 K, **ignition v0.2.0** T_u
+  to ~3000 K under the new **envelope-consistency contract** (the ignition surface's T_u range must cover
+  T_u at the unburnt h-ceiling, or a legal blend state becomes a closure refusal), and **transport
+  v0.2.0** re-derived from the new equilibrium envelope — the engine's own armed transport↔EOS consistency
+  refusal caught that dependency, and the Cantera↔CEA two-fit c_p cross-check got a **measured** hot-side
+  tolerance (4% above 3500 K; measured max drift 2.44% at the 4276 K corner — equilibrium dissociation
+  buffers the hot edge to ~4300 K; the 2% mapping-bug gate stands below). Every extension is **strict** —
+  old nodes bit-exact, verified column-by-column at regeneration — so all five certificates are
+  byte-identical except station 1 (gains only the new ρc MMS column, order 1.92–2.17 — the widening's
+  passive-scalar proof made visible) and station 5 (provenance text). Transport bounds *tightened*
+  (N_H 37→59, spacing ~6 % finer than 0.1.0 over the widened span).
+
+  **Two code fixes the mini-sims forced.** (1) The blend's pure-limit threshold vs the reaction's burnt
+  fixed point: the source zeroes (domain guard) at c ≥ 1−BURN_COMPLETE, so c **asymptotes from below and
+  never crosses** (measured: pinned ~2e-7 under it) — the blend's old 1−1e-9 pure-burnt threshold left
+  every burnt cell interrogating the unburnt branch at ~1e-3 weight forever, refusing on hot states that
+  branch cannot describe. The cure is **asymmetric**
+  (SOLV-4 0.4.3, sharpened by the review wave): `EPS_B_PURE_BURNT = 2·BURN_COMPLETE` (one owner; the
+  pure-burnt region strictly contains the attractor) while `EPS_B_PURE_UNBURNT` stays at the original
+  1e-9 — the reaction pins an attractor only at the burnt end, and each skip's crossing step scales
+  with the *dropped branch's* specific volume: burnt-side `EPS·(v_u/v_b)` ≈ 2.6e-4 (dropping the dense
+  branch — fine), cold-side `EPS·(v_b/v_u)` ≈ 7.8·EPS (dropping the light one), so a symmetric 2e-3
+  cold threshold would have stepped density ~1.5 % — *outside* the unburnt density column's own 0.8 %
+  bound (the review wave measured this; the first fix had it symmetric and mis-declared). The same
+  domain guard added to the reacting-measure/consumption-rate diagnostics. (2) **The spark is a literal electrical energy deposit** (Ben ruling):
+  its one cited datum is the deposited energy — `spark-igniter-class` **pinned** (META-3 0.8.3: H₂ MIE
+  ≈ 0.017 mJ floor per Lewis & von Elbe; aerospace exciter class ~0.1–20 J/discharge; TM-107318: "the
+  ignition source is an electric spark", ASI at the injector-face center) — delivered as a **bounded pulse
+  ending ~at the ignition time** (battery: ~0.7–8 J in 20 µs; a sustained deposit into an already-burnt
+  kernel superheats mid-transition cells past the metastable-reactant validity edge — the hot ASI-torch
+  regime is S7 hardening territory). COUP-7 0.4.1: position/extent/window are config *placement*, not
+  sourced claims.
+
+  **Battery green (5/5, ~1 min release).** `flame_1d` — THE gate — S_c 5.738 (coarse) vs 5.625 (fine)
+  m/s = 2.0% with the front a fixed Θ-cells wide on both; `spark_box` lights (peak R = 7.4e-2 ≫ floor,
+  burned 0.999); `lean_no_light` refuses (peak R = 4.7e-12 — NEVER_IGNITED class); `ignition_delay`
+  fires on the surface timescale (t_ign/τ = 0.12 — thermal runaway *shortens* the naive (1−c)/τ clock,
+  as it should); and **`adiabatic_box_cannot_flame_out` pins the close's physics finding**: a lit closed
+  adiabatic box *must* burn to completion (one-cell kernel, ~0.7 J ⇒ burned 0.999) because quenching is a
+  heat-loss phenomenon — FLAMEOUT is unreachable without a loss channel, so the model refused to fake the
+  originally-drafted `quench_box`. That test rides **S7** as conductive loss to cold isothermal walls via
+  the blend↔class-D coupling S7's startup march builds regardless (the tube's 0.8 mm gap is at the
+  quench-distance scale, though H₂/O₂'s own quenching distance is a few× smaller than H₂/air's ~0.6 mm,
+  so the S7 box may need lower pressure or a narrower gap); its consumer — the COUP-4 FLAMEOUT verdict
+  object — is S7 too.
+
+  **Deferrals (owners named).** Config-grammar + `run.rs` igniter wiring → S7/◆C2 (no unconsumed
+  manifests); stiff class-`R` implicit auto-ignition → S7; `quench_box`/FLAMEOUT demonstration → S7 (above);
+  `turbulent-flame-speed` pin → S7 (first turbulent consumer; the battery is laminar, wrinkling = 1);
+  near-vacuum tangency acceptance for the blend projection → S7 (the RL10-plume feature, as `TableEos`);
+  **the cold-side/low-p closure-envelope guard → S7** (review-wave flag: `Combustion::accumulate` queries
+  `S_L`/`τ_ign` on every non-burnt gas cell, and the ignition surface floors at T_u ≈ 230 K / p ≈ 6.8 kPa —
+  a cryo-fill or near-vacuum RL10 cell will refuse-halt at S7 wiring unless the cold analogue of the
+  BURN_COMPLETE domain guard, or wider closure floors, lands with it);
+  N_θ > 1 combustion → S8. Session interrupted once by a machine restart (the first ignition-table regen
+  died silently to a laptop sleep; the generator now streams per-row progress — a 30-minute silent
+  pipeline is undiagnosable by design).
+
+  **Gates green: 184 Rust + 50 Python** (+5 each side: the `solv4_combustion` battery; the
+  `test_ignition_surface` VAL-2 anchor suite). Gate 5: certificates regenerate deterministically with
+  exactly two intended diffs committed this session — station 1 (+ the ρc MMS column, every old value
+  bit-identical) and station 5 (provenance text: the v0.4.0 strict-extension note). A two-agent review
+  wave (code/physics + doc-claims) ran before commit. **Code/physics:** no behavioral correctness bug in
+  the marched physics (audit-armed battery re-run independently; strict extensions re-verified
+  column-by-column; igniter arithmetic reproduced in exact f64; ledger-closure argument checked) — but it
+  caught the one real declaration bug: the first threshold fix was symmetric at 2e-3 and its declared
+  ≤1e-3 step neglected the v_b/v_u ≈ 7.8 volume-ratio scaling of the cold-side crossing (measured 1.55 %
+  at the flame state — outside the 0.81 % unburnt density bound). Fixed as the asymmetric-threshold
+  design above. Its hardenings, applied: the one-cell adiabatic kernel moved off an exact cell-face ulp
+  edge (half 0.5 → 0.6 cells); the regen-determinism ignition probe repointed to a measured dual-active
+  (flammable AND auto-ignitive) corner box — 50–100 bar × 1000–1100 K, all 8 corners measured — because
+  the dual-active region is a thin diagonal band in (p, T_u) that a naive probe box misses, and given
+  n_tu_ext=0 so it no longer inherits the production grid's appended rows; generator progress moved to
+  stderr (the probe's stdout is the digest contract); the stale transport-comment sentence handed the
+  >3500 K claim to the hot constant; the S7 cold-side envelope trap recorded above. **Doc-claims:**
+  verified the artifact numerology, strict extensions, envelope contract (2900.0 ≤ 2934.1 K measured),
+  battery numbers, pins, TM-107318 quotes verbatim, and META-3 mechanism facts against the bundled file;
+  confirmed four consistency defects (the owning-doc SOLV-4 0.4.3 row carrying the pre-fix threshold
+  wording; the §3.6 integration bullet still describing the retired FSD `|∇c|` term as the propagation
+  form; a stale ~1.6 J spark-energy floor; OFFL-3's certificate parenthetical contradicting the correct
+  PLAN/CLAUDE statements) — all fixed, plus the minor wording risks (quench-distance phrasing, spacing
+  claim, order range, wrinkling-in-fixtures). The final full gate-4 rerun then caught one more:
+  the VAL-2 fresh-holdout test filtered activity at the *point* (truth + estimate both active) while the
+  stored bound's declared domain is the builder's *fully-active-cell* criterion — on the extended surface
+  a ⅜-offset point landed in a τ-cap-straddling cell (est 3.1e-3 vs truth 8.1e-6 at 6.75 kPa / 2894 K,
+  the declared sharp feature, not covered interpolation) and correctly failed; the test now applies the
+  builder's own 8-corner mask. No finding survived to the commit unfixed.

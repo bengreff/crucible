@@ -28,10 +28,16 @@ from crucible_offl.chemistry import EquilibriumEngine
 from crucible_offl.surfaces import station5_envelope_grid
 from crucible_offl.transport import matched_transport_grid, write_transport_table
 
-DATA_VERSION = "0.1.0"
+DATA_VERSION = "0.2.0"
 #: Node counts (module doc). The grid itself is DERIVED from the
 #: equilibrium surface's declared envelope so the two cannot drift.
-N_P, N_H, N_Z = 57, 37, 7
+#: 0.2.0 (plan S6 close): the equilibrium envelope's h-ceiling rose
+#: +3.8e6 -> +1.2e7 (OFFL-3 0.6.2 ignition headroom), and this grid is
+#: derived from it, so the surface re-spans automatically; N_H 37 -> 59
+#: holds the h-spacing near its 0.1.0 value (~6% finer: 4.47e5 -> 4.19e5
+#: J/kg), preserving the measured rule-space bound's factor->=3 margin vs
+#: the declared 10-20% band (measured: every column's bound tightened).
+N_P, N_H, N_Z = 57, 59, 7
 
 
 def main() -> int:

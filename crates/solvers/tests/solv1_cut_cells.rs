@@ -14,7 +14,7 @@
 
 use crucible_grid::{CellGeom, Grid, GridSpec, Region};
 use crucible_solvers::euler::{
-    Cons, Euler, EulerFields, FlowBc, FlowBcs, GammaLaw, NCOMP, fill_from_prim, prim6,
+    Cons, EULER_FIELDS, Euler, EulerFields, FlowBc, FlowBcs, GammaLaw, NCOMP, fill_from_prim, prim6,
 };
 use crucible_solvers::sdc::{FlowClass, Sdc};
 
@@ -82,8 +82,7 @@ fn cone_grid(c0: f64, c1: f64, h: f64, n_r: usize, n_z: usize) -> Grid {
         n_theta_max: 1,
         axisymmetry_assertion: true,
     };
-    let names = ["rho", "mom_r", "mom_theta", "mom_z", "rho_e", "rho_c"];
-    Grid::build_with_geometry(spec, &names, |i_r, i_z| {
+    Grid::build_with_geometry(spec, EULER_FIELDS, |i_r, i_z| {
         let (r0, r1) = (i_r as f64 * h, (i_r + 1) as f64 * h);
         let (z0, z1) = (i_z as f64 * h, (i_z + 1) as f64 * h);
         let (kappa, aperture) = linear_wall_geom(c0, c1, r0, r1, z0, z1);
@@ -116,6 +115,7 @@ fn closed_cone_op<'a>(src: &'a (dyn Fn(f64, f64, f64, f64) -> Cons + Sync)) -> E
         },
         wall_normal: None,
         slip_wall_z_faces: false,
+        combustion: None,
     }
 }
 
@@ -286,8 +286,7 @@ fn an_enclosed_sliver_refuses_loudly() {
         n_theta_max: 1,
         axisymmetry_assertion: true,
     };
-    let names = ["rho", "mom_r", "mom_theta", "mom_z", "rho_e", "rho_c"];
-    let g = Grid::build_with_geometry(spec, &names, |i_r, i_z| {
+    let g = Grid::build_with_geometry(spec, EULER_FIELDS, |i_r, i_z| {
         if (i_r, i_z) == (2, 2) {
             CellGeom {
                 region: Region::Gas,

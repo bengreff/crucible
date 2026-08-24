@@ -1,5 +1,5 @@
 //! FND-7 §3.3 / OFFL-5 §3.1a — the spine's transport slot on the
-//! **production** artifact `tables/spine/lox_lh2_transport_v0.1.0.h5`
+//! **production** artifact `tables/spine/lox_lh2_transport_v0.2.0.h5`
 //! (regenerable via `offline/scripts/make_spine_transport_tables.py`),
 //! loaded through the full FND-5 §3.2 pin gate.
 //!
@@ -31,12 +31,12 @@ use crucible_units::{dynamic_viscosity_pa_s, specific_heat_capacity_j_per_kg_k};
 
 const FILE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../tables/spine/lox_lh2_transport_v0.1.0.h5"
+    "/../../tables/spine/lox_lh2_transport_v0.2.0.h5"
 );
 const GROUP: &str = "/spine/lox_lh2/transport";
 const PINS_TOML: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../tables/spine/lox_lh2_transport_v0.1.0.pins.toml"
+    "/../../tables/spine/lox_lh2_transport_v0.2.0.pins.toml"
 ));
 /// The Schmidt number the RL10 configs declare (META-3
 /// `schmidt-combustion-gas`).

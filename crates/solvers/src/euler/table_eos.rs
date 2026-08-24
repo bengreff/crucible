@@ -30,7 +30,7 @@
 //! δh (calibrated so delivered c\* = η_c\*·c\*_ideal at the anchor state);
 //! 0.0 = full equilibrium.
 
-use super::{Cons, EosLaw, FlowError, I_EI, I_EN, I_G1, I_MR, I_MT, I_MZ, I_RC, I_RHO, Prim};
+use super::{Cons, EosLaw, FlowError, I_EI, I_EN, I_G1, I_MR, I_MT, I_MZ, I_RB, I_RC, I_RHO, Prim};
 use crucible_tables::{BoundColumn, Table, TableError};
 
 /// Fixed maximum iteration count of the equilibrium pressure projection.
@@ -208,8 +208,9 @@ impl<'t> TableEos<'t> {
     }
 
     /// The deterministic Illinois regula-falsi over a sign-changing bracket
-    /// (shared by the cold and warm-started projections — one root finder).
-    fn illinois_root(
+    /// (shared by the cold and warm-started projections, and the SOLV-4 §3.6
+    /// blend projection in `blend_eos.rs` — one root finder).
+    pub(crate) fn illinois_root(
         mut a: f64,
         mut b: f64,
         mut ga: f64,
@@ -423,12 +424,33 @@ impl<'t> TableEos<'t> {
             rho * vel[2],
             rho * (e_true + ke),
             rho * z,
+            0.0, // burn progress: shifting-mode init is the inert b ≡ 0 corner
         ])
     }
 
     /// The declared (p, h, Z) envelopes (assembly-time sizing/refusals).
     pub fn envelopes(&self) -> [(f64, f64); 3] {
         [self.p_env, self.h_env, self.z_env]
+    }
+
+    // --- Raw column queries for the SOLV-4 §3.6 blended occupant ------------
+    // `BurnBlendEos` (blend_eos.rs) interrogates *this* surface as one of the
+    // two branches; it applies its own `h_offset` when forming the burnt
+    // coordinate, so these are RAW (no offset) queries. The blend's mass-
+    // weighted specific-volume projection composes the two branches' `ρ`.
+
+    /// Density [kg/m³] at `(p, h, Z)` on this surface (no `h_offset`).
+    pub(crate) fn rho_at(&self, p: f64, h: f64, z: f64) -> Result<f64, TableError> {
+        self.rho.interpolate(&[p, h, z])
+    }
+    /// Sound speed [m/s] at `(p, h, Z)` (no `h_offset`).
+    pub(crate) fn sound_at(&self, p: f64, h: f64, z: f64) -> Result<f64, TableError> {
+        self.sound.interpolate(&[p, h, z])
+    }
+    /// Temperature [K] at `(p, h, Z)` (no `h_offset`). The blend reads the
+    /// unburnt branch here for `T_u` (the SOLV-4 §3.6 rate-law coordinate).
+    pub(crate) fn temp_at(&self, p: f64, h: f64, z: f64) -> Result<f64, TableError> {
+        self.temperature.interpolate(&[p, h, z])
     }
 }
 
@@ -464,7 +486,15 @@ impl TableEos<'_> {
             .interpolate(&[p, h, z])
             .map_err(|_| "sound-speed query failed at the projected state")?;
         let g1 = rho * a * a / p;
-        Ok([rho, ur, ut, uz, p, z, e, g1])
+        // Burn progress advects as a passive scalar; the shifting occupant
+        // never reads it (a plain shifting run is the inert b ≡ 0 corner —
+        // the blended occupant SOLV-4 §3.6 reads it). Carried so the state
+        // width is uniform and the projection converts round-trip.
+        let b = u[I_RB] * inv;
+        if !b.is_finite() {
+            return Err("non-finite burn progress");
+        }
+        Ok([rho, ur, ut, uz, p, z, b, e, g1])
     }
 }
 
@@ -487,6 +517,7 @@ impl EosLaw for TableEos<'_> {
             rho * w[3],
             rho * (w[I_EI] + ke),
             rho * w[I_RC],
+            rho * w[I_RB],
         ]
     }
 
@@ -594,7 +625,9 @@ impl EosLaw for TableEos<'_> {
             .map_err(|_| off("injector inflow sound speed outside the table envelope"))?;
         let e_true = h_s - p_int / rho;
         let g1 = rho * a * a / p_int;
-        let mut m = [rho, 0.0, 0.0, 0.0, p_int, c_frac, e_true, g1];
+        // burn = 0: the injected propellant is unburnt (the blended occupant
+        // burns it in the chamber); the shifting occupant ignores the slot.
+        let mut m = [rho, 0.0, 0.0, 0.0, p_int, c_frac, 0.0, e_true, g1];
         m[normal] = sign * u;
         Ok(m)
     }

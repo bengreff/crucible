@@ -9,7 +9,7 @@
 //! its sound speeds (local and Roe-averaged, from the aux Γ₁ slot) without
 //! touching the wave algebra (SOLV-1 §3.2, Castro/PeleC treatment).
 
-use super::{EosLaw, I_EN, I_RC, I_RHO, NCOMP, Prim};
+use super::{EosLaw, I_EN, I_RB, I_RC, I_RHO, NCOMP, Prim};
 
 /// Physical (hyperbolic) flux of the conserved vector in direction `n`
 /// (component slot of the normal velocity: 1 = r, 2 = θ, 3 = z), from a
@@ -28,6 +28,9 @@ pub fn physical_flux<E: EosLaw>(w: &Prim, n: usize, eos: &E) -> [f64; NCOMP] {
     f[n] += p;
     f[I_EN] = u_n * (e_tot + p);
     f[I_RC] = m * c_frac;
+    // Burn progress advects with the contact, exactly like the composition
+    // scalar — flux = mass flux × the upwind value (SOLV-4 §3.6; the doc's c).
+    f[I_RB] = m * w[I_RB];
     f
 }
 
@@ -85,6 +88,7 @@ pub fn hllc_flux<E: EosLaw>(wl: &Prim, wr: &Prim, n: usize, eos: &E) -> [f64; NC
     u_k[3] = rho * w[3];
     u_k[I_EN] = e_tot;
     u_k[I_RC] = rho * w[I_RC];
+    u_k[I_RB] = rho * w[I_RB];
 
     // Star energy factored as `fac·E + (p*S_M − p·u_n)/(S_K − S_M)` — same
     // algebra as Toro eq. 10.73, but with `fac = (S_K−u_n)/(S_K−S_M)` shared
@@ -102,6 +106,7 @@ pub fn hllc_flux<E: EosLaw>(wl: &Prim, wr: &Prim, n: usize, eos: &E) -> [f64; NC
     u_star[n] = rho_star * s_m;
     u_star[I_EN] = fac * e_tot + (p_star * s_m - p * un) / (s_k - s_m);
     u_star[I_RC] = rho_star * w[I_RC];
+    u_star[I_RB] = rho_star * w[I_RB];
 
     let f_k = physical_flux(w, n, eos);
     let mut f = [0.0; NCOMP];

@@ -28,11 +28,14 @@ use crucible_grid::{Grid, GridSpec};
 // --- Named study constants (META-2 §4) --------------------------------------
 
 pub const MMS_GAMMA: f64 = 1.4;
-/// Base state and mode amplitude per primitive [ρ, u_r, u_θ, u_z, p, C]:
+/// Base state and mode amplitude per primitive [ρ, u_r, u_θ, u_z, p, C, b]:
 /// everything positive and subsonic over the whole run; swirl and radial
-/// flow both active.
-pub const MMS_BASE: Prim = [1.0, 0.0, 0.0, 0.1, 1.0, 0.5, 0.0, 0.0];
-pub const MMS_AMP: Prim = [0.2, 0.15, 0.2, 0.15, 0.3, 0.3, 0.0, 0.0];
+/// flow both active. Slot 6 is the S6 burn progress `b` — a second advected
+/// passive scalar (base 0.4, amp 0.2, in [0.2,0.6] over the run), so the
+/// order study measures its advection alongside the composition scalar. The
+/// two aux slots (7,8) stay zero (GammaLaw ignores them).
+pub const MMS_BASE: Prim = [1.0, 0.0, 0.0, 0.1, 1.0, 0.5, 0.4, 0.0, 0.0];
+pub const MMS_AMP: Prim = [0.2, 0.15, 0.2, 0.15, 0.3, 0.3, 0.2, 0.0, 0.0];
 /// Quarter-wave numbers over the unit r/z extents (monotone per pencil).
 pub const MMS_A: f64 = std::f64::consts::FRAC_PI_2;
 pub const MMS_B: f64 = std::f64::consts::FRAC_PI_2;
@@ -113,18 +116,19 @@ pub fn manufactured(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Manufacture
 #[allow(clippy::similar_names)]
 pub fn mms_source(r: f64, theta: f64, z: f64, t: f64, eps: f64, eos: &GammaLaw) -> Cons {
     let mf = manufactured(r, theta, z, t, eps);
-    let [rho, ur, ut, uz, p, c, _, _] = mf.w;
+    let [rho, ur, ut, uz, p, c, b, _, _] = mf.w;
     let gm1 = eos.gamma - 1.0;
 
     // Per-direction primitive derivative bundles.
     let d = [mf.dr, mf.dth, mf.dz, mf.dt];
-    let (rho_x, ur_x, ut_x, uz_x, p_x, c_x) = (
+    let (rho_x, ur_x, ut_x, uz_x, p_x, c_x, b_x) = (
         [d[0][0], d[1][0], d[2][0], d[3][0]],
         [d[0][1], d[1][1], d[2][1], d[3][1]],
         [d[0][2], d[1][2], d[2][2], d[3][2]],
         [d[0][3], d[1][3], d[2][3], d[3][3]],
         [d[0][4], d[1][4], d[2][4], d[3][4]],
         [d[0][5], d[1][5], d[2][5], d[3][5]],
+        [d[0][6], d[1][6], d[2][6], d[3][6]],
     );
 
     // Total energy and its derivatives.
@@ -200,7 +204,18 @@ pub fn mms_source(r: f64, theta: f64, z: f64, t: f64, eps: f64, eos: &GammaLaw) 
         + inv_r * (g_x(TH) * ut + g * ut_x[TH])
         + (g_x(Z) * uz + g * uz_x[Z]);
 
-    [s_rho, s_mr, s_mt, s_mz, s_en, s_rc]
+    // Burn progress: same passive-scalar advection form as the species scalar
+    // (∂t(ρb) + ∇·(ρb 𝐮)), with b in place of C — verifies the S6 slot
+    // advects at order 2 alongside the composition.
+    let gb = rho * b;
+    let gb_x = |x: usize| rho_x[x] * b + rho * b_x[x];
+    let s_rb = gb_x(T)
+        + gb * ur * inv_r
+        + (gb_x(R) * ur + gb * ur_x[R])
+        + inv_r * (gb_x(TH) * ut + gb * ut_x[TH])
+        + (gb_x(Z) * uz + gb * uz_x[Z]);
+
+    [s_rho, s_mr, s_mt, s_mz, s_en, s_rc, s_rb]
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -285,6 +300,7 @@ fn mms_run(label: &'static str, eps: f64, ns: &[usize]) -> MmsEulerStudy {
             },
             wall_normal: None,
             slip_wall_z_faces: true, // certified station behavior (slip everywhere)
+            combustion: None,
         };
         march_to(&op, &mut g, &f, 0.0, MMS_T_FINAL).expect("march");
 

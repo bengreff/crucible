@@ -17,13 +17,13 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-20 — session 17 = plan S5 complete)
+## State (2026-08-24 — session 18 = plan S6 complete)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
 closed 68/68-discharged and deleted 2026-08-19; findings live in doc change logs + git history).
-Seventeen sessions, every one gates-green and committed; three multi-agent code reviews
-(sessions 6, 10, 12) plus per-session review waves (14, 15, 16, 17) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
-(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **179 Rust + 45 Python
+Eighteen sessions, every one gates-green and committed; three multi-agent code reviews
+(sessions 6, 10, 12) plus per-session review waves (14, 15, 16, 17, 18) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
+(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **184 Rust + 50 Python
 tests.** **Blind rule v1.4.1**: blind = mechanical input-blindness; every certificate declares
 `development-observed: yes/no`; the RL10 campaign is declared **open development**.
 
@@ -139,6 +139,37 @@ config are untouched, so the shifting stations stay **byte-identical**. **Two fl
 settle budget grows as run length at S7 (ruling #4, not paid now); station-5 re-score left to the COUP-5
 wave (S18). A two-agent review wave (code/physics + doc-claims) ran before commit.
 
+**Session 18 = plan S6: IGNITION.** The chemical regime lights: `NCOMP` 6→7 (the fixed-`+1` burn-progress
+slot `ρc`, inert by default — shifting stations untouched); `BurnBlendEos` = the **energy-conserving
+flamelet blend** (both branches at the cell's own (p, h, Z) on S5's shared reference — heat release is
+EOS-implicit; c = 1 recovers shifting **bit-for-bit**); `Combustion` = the SOLV-4.4 **bistable-Nagumo
+pushed-front** rate law (matched (D_c, K) ⇒ front speed closure-set at S_T, width Θ·Δ — FSD |∇c| and
+Fisher-KPP rejected as degenerate/pulled); closures = ONE offline Cantera `S_L`/`τ_ign` (p, T_u, Z)
+surface. **The S6-close envelope set (OFFL-3 0.6.2 — Ben: expand the tables, never throttle the spark):**
+the build's tables were ignition-incompatible (burnt ceiling *below* unburnt = an inversion the blend trips
+mid-ignition; blast compression then drives mid-transition cells past the unburnt ceiling) — cured by
+**burnt v0.4.0** (h to +1.225e7; rule: burnt ≫ unburnt), **unburnt v0.2.0** (t_ceil 2900 K), **ignition
+v0.2.0** (T_u ~3000 K; **contract:** its T_u envelope covers T_u at the unburnt h-ceiling), **transport
+v0.2.0** (re-derived; the armed transport↔EOS refusal caught it; hot-side c_p two-fit tolerance 4% =
+measured 2.44% max ×1.6) — all **strict extensions** (old nodes bit-exact, verified) ⇒ certificates
+byte-identical (station 1 gains only the ρc MMS column at order 2; station 5 provenance text).
+**The igniter is a literal electrical spark** (`spark-igniter-class` PINNED, META-3 0.8.3: the one cited
+datum is deposited energy — H₂ MIE 0.017 mJ → exciter 0.1–20 J; COUP-7 0.4.1: placement is config), a
+**bounded pulse ending ~at ignition** (the S3 impulsive-drive discipline). Blend pure-limit
+thresholds **asymmetric** (SOLV-4 0.4.3): pure burnt from 1−2·`BURN_COMPLETE` (one owner — c pins
+~2e-7 *below* the reaction's fixed point; equal thresholds are a knife edge), pure unburnt at 1e-9
+(no cold-side attractor; the cold crossing step scales ×v_b/v_u ≈ 7.8 — review-wave finding).
+**Battery 5/5:** `flame_1d` THE gate 2.0% coarse-vs-fine; `spark_box` lights; `lean_no_light` refuses;
+`ignition_delay` t/τ = 0.12; **finding:** a lit closed **adiabatic** box cannot flame out (quench is a
+heat-loss phenomenon) — pinned as `adiabatic_box_cannot_flame_out`; the FLAMEOUT `quench_box` rides **S7**
+(cold-wall conduction via the blend↔class-D coupling S7 builds anyway; the 0.8 mm fixture is at the
+quench-distance scale — H₂/O₂'s own distance is a few× under H₂/air's ~0.6 mm, so lower p or a narrower
+gap may be needed). Deferrals → S7: igniter config-grammar/`run.rs` wiring (◆C2), stiff class-R
+implicit auto-ignition, near-vacuum blend tangency, `turbulent-flame-speed` pin, **the cold-side/low-p
+closure-envelope guard** (the ignition surface floors at T_u ≈ 230 K / p ≈ 6.8 kPa; a cryo-fill cell
+refuse-halts at S7 wiring without the cold analogue of the BURN_COMPLETE guard or wider floors);
+N_θ > 1 → S8.
+
 **Goal A ✓** — conduction convergence certificate (`certificates/convergence_certificate.md`).
 
 **Goal B — the BLIND RL10 (M2). Five certificate stations, ALL FIVE EARNED (session 12):**
@@ -200,7 +231,12 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   rule-space slow-path acceptance vs the density column's own log bound; **S18 `h_offset`
   knockdown FIXED session 12** — store true energy, interrogate at h+δ; measured slope −0.847%
   c\* per −3e5 J/kg; **also binds the S5 c = 0 unburnt-reactant surface with no new code** — same
-  (p, h, Z) schema, so the cold branch is a table, not an occupant); **`transport` = THE FND-7 §3.3 spine seam (S4)** — the ONE provider of
+  (p, h, Z) schema, so the cold branch is a table, not an occupant); **`BurnBlendEos` + `Combustion`
+  (S6)** — the burn-progress blend (energy-conserving flamelet: both branches at the cell's (p, h, Z);
+  pure-limit threshold = 2·`BURN_COMPLETE`, one owner) + the SOLV-4.4 bistable-Nagumo source riding
+  `Euler::eval_rhs` as class A, with `IgnitionColumns` on the (p, T_u, Z) closure surface and
+  `reacting_measure`/`consumption_rate` = the COUP-4 R-floor diagnostics (N_θ = 1; explicit tier —
+  stiff class-R and the blend↔class-D coupling are S7); **`transport` = THE FND-7 §3.3 spine seam (S4)** — the ONE provider of
   (μ, k, c_p, c_v, ρD, ∂h/∂Z, Pr) over the medium state, two occupants selected as config data
   (`transport_constant` = the declared set the stations use, bit-identical to sessions 7–15;
   `transport_table` = the OFFL-5 §3.1a surface on the local (p, h, Z) state); `wall_heat` = the
@@ -232,12 +268,19 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   review fix; fresh-holdout CI gates on BOTH pinned artifacts); **`FrozenReactantEngine` (S5)** =
   the gas-phase ideal-gas frozen reactant mixture (the c = 0 unburnt branch, same CEA enthalpy
   reference as the equilibrium surface); **`KineticEfficiencyBand` (S5)** = the shipped
-  frozen↔shifting model-form band. Production tables: `lox_lh2_v0.1.0.h5` (station-3 certificate —
-  untouched) + **`v0.3.2`** (station-5: gas-only metastable, Z narrowed to the premixed class
-  MR ≈ 4.4–5.5, p ∈ [10 Pa, 7 MPa], h ∈ [−1.23e7, +3.8e6] with transient-sized ceiling) +
-  **`lox_lh2_unburnt_v0.1.0.h5` (S5)** = the c = 0 unburnt-reactant (p, h, Z) surface, cryo-valid
-  to ~100 K, equilibrium-surface schema (so `TableEos` binds it); sidecars = single pin owners.
-  Regen ≈ 2 min (`make_station5_tables.py`) / ≈ 4 s (`make_unburnt_tables.py`).
+  frozen↔shifting model-form band; **`IgnitionEngine` (S6)** = the Cantera `FreeFlame`/const-`P`
+  reactor closure generator (`h2o2.yaml`). Production tables (S6-close versions — the OFFL-3 0.6.2
+  ignition-headroom envelope set, all strict extensions of their predecessors, old nodes bit-exact):
+  `lox_lh2_v0.1.0.h5` (station-3 certificate — untouched) + **`v0.4.0`** (station-5 + the blend's
+  burnt branch: gas-only metastable, Z ≈ MR 4.4–5.5, p ∈ [10 Pa, 7 MPa], h ∈ [−1.23e7, **+1.2e7**];
+  rule: burnt ceiling ≫ unburnt) + **`lox_lh2_unburnt_v0.2.0.h5`** = the c = 0 branch, cryo-~100 K
+  to **2900 K** + **`lox_lh2_ignition_v0.2.0.h5`** = `S_L`/`τ_ign` (p, T_u, Z), T_u 150–**3013 K**
+  (contract: covers T_u at the unburnt ceiling) + `tables/spine/lox_lh2_transport_v0.2.0.h5`
+  (re-derived from the v0.4.0 envelope; hot-side c_p two-fit tolerance 4% = measured ×1.6);
+  sidecars = single pin owners. Regen ≈ 3 min (`make_station5_tables.py`) / ≈ 8 s
+  (`make_unburnt_tables.py`) / **≈ 30 min** (`make_ignition_tables.py`, streams per-row progress;
+  NOT in the fast gate — only the tiny regen-determinism probe is) / ≈ 20 s
+  (`make_spine_transport_tables.py`).
 - `data/anchors/` — **TM-107318 cached** (sha256 2d25422c…, META-3 `rl10-tm107318`) + the
   **digitized geometry-of-record `rl10_contour.csv`** (Table E1 + Table 2.5.1 + Fig. E1 planes;
   closures declared in-header). **ERRATUM (session 11): Table 2.5.1's "Diameter" values are
@@ -258,14 +301,20 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   bound by the existing `TableEos` with no new code), the frozen↔shifting bracket shipped as a declared
   band; the frozen-mode `{ρX_k}` **field-advection** widening + the (p, h, {X_k}) advection surface +
   per-species diffusion (superseding the single Sc) split to **S5b** (may ride S8), no consumer before
-  S18. **NEXT = plan S6**: ignition — the burn-progress **c-field** + blended thermochemistry (the two
-  (p, h, Z) branches S5 shipped, blended by c); `S_L(p,T,Z)`/`τ_ign(p,T,Z)` surfaces generated +
-  VAL-2-anchored; flame-propagation + auto-ignition rate law (SOLV-4 §3.6, TFC form); igniter boundary
-  object; `flame_1d`/`spark_box`/`lean_no_light`/`quench_box` mini-sims. **S6 realizes** the establishment-
-  refusal cure S5 enabled (the c-blend routes transient cells to the cold branch). Read the plan's §5 S6
-  entry + SOLV-4 §3.6 before coding. Carry into S6: the settle budget must grow past the now-physical
-  liner clock (◆C1 finding); the cold branch's `T_u` is the coordinate `S_L`/`τ_ign` are keyed on
-  (SOLV-4 §3.6's unburnt-isentrope closure).
+  S18; **session 18 = plan S6 DONE** (ignition: the c-field + blended thermochemistry + the
+  bistable-Nagumo rate law + the pinned spark; the S6-close envelope set — burnt v0.4.0 / unburnt
+  v0.2.0 / ignition v0.2.0 / transport v0.2.0, all strict extensions; battery 5/5 with `flame_1d`
+  grid-independent at 2.3%; the adiabatic-flameout finding re-scoped `quench_box` to S7).
+  **NEXT = plan S7**: the first real startup + **◆C2** — a 2-D RL10 marched spark → ignition →
+  light-off → choke → settle with a **verdict object** (COUP-4 v1: EPS_WORKS/T_DWELL/T_S1_HORIZON +
+  the SOLV-6 v1 margin subset; NEVER_IGNITED/FLAMEOUT consume the reacting measure R). S7 build
+  list carried from S6: igniter config-grammar + `run.rs` wiring; the **blend↔class-D coupling**
+  (gas diffusion with `BurnBlendEos` — also delivers the real `quench_box`/FLAMEOUT mini-sim, cold
+  isothermal walls at the fixture's own 0.8 mm quench-scale gap); stiff class-`R` implicit
+  auto-ignition (knock-class end-gas); near-vacuum blend-projection tangency acceptance (the
+  RL10-plume feature); `turbulent-flame-speed` pin (first turbulent consumer); the settle budget
+  must grow past the ~37 ms liner clock (◆C1 finding, ruling #4 = run length). Read the plan's §5
+  S7 entry + COUP-4 §3.1–3.2 + SOLV-6 before coding.
 - The old per-item deferral list (station-4 fixture rewire; Bartz oracle scoring; digest v4;
   COUP-5 ensembles; FND-3 PLIC/slot class) is absorbed into the plan's phases: §4 maps each to
   its session.

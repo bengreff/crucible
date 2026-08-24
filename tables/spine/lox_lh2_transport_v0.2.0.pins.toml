@@ -1,0 +1,6 @@
+# Table pins (FND-5 §3.2), consumed by the FND-4 §6-4 [tables] grammar
+# (the machine-written single pin owner).
+
+["/spine/lox_lh2/transport"]
+data_version = "0.2.0"
+content_digest = "sha256:9e831e534bf3fccc5953525ef21d72f9b1216fe178064712222220a9c51172dd"

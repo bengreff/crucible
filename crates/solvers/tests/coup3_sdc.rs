@@ -52,6 +52,7 @@ fn smooth_tube() -> (Grid, EulerFields, Euler<'static>) {
         },
         wall_normal: None,
         slip_wall_z_faces: true,
+        combustion: None,
     };
     (g, f, op)
 }

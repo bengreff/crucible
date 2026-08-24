@@ -1,5 +1,5 @@
 """OFFL-3 §6-4 — the STATION-5 production artifact (session-12 review
-finding): `tables/chem/lox_lh2_v0.3.2.h5` is the artifact the RL10 engine
+finding): `tables/chem/lox_lh2_v0.4.0.h5` is the artifact the RL10 engine
 configs actually pin (`configs/rl10_coarse.toml` et al., group
 `/chem/lox_lh2/equilibrium`), but only the station-3 design-window artifact
 (`lox_lh2_v0.1.0.h5`, see test_station3_surfaces.py) carried a fresh-holdout
@@ -36,7 +36,7 @@ from crucible_offl.chemistry import EquilibriumEngine
 from crucible_offl.surfaces import _EQ_RULES, _edge_points, _eq_columns, _multilinear
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-PRODUCTION = REPO / "tables" / "chem" / "lox_lh2_v0.3.2.h5"
+PRODUCTION = REPO / "tables" / "chem" / "lox_lh2_v0.4.0.h5"
 
 
 @pytest.fixture(scope="module")

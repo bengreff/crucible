@@ -6,7 +6,7 @@
 | **Family** | VAL (Validation & test) |
 | **Status** | Reviewed (2026-08-14) — grows as anchors are added per wave |
 | **Depends on** | VAL-1, META-3 (anchor data), FND-1 |
-| **Version** | 0.2.4 (2026-08-19: H2/O2 flame-speed + ignition-delay unit anchors; prior: 0.2 review fixes N16, N17, N18/D-G, N19, D-C) |
+| **Version** | 0.2.5 (2026-08-21 plan S6: the two ignition-closure anchors' data **cached + the offline surfaces validated** — `h2-flame-speed`/`h2-ignition-delay` reference bands pinned in META-3 §6.9 and checked in `offline/tests/test_ignition_surface.py`). 0.2.4 (2026-08-19: H2/O2 flame-speed + ignition-delay unit anchors; prior: 0.2 review fixes N16, N17, N18/D-G, N19, D-C) |
 
 ---
 
@@ -161,6 +161,7 @@ META-3 keys: `rl10-cycle-data`, `rl10-tm107318`, `rl10-geometry` *(new)*, `cstar
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-21 | 0.2.5 | **Plan S6 — ignition anchors cached + surfaces validated (landed with the code).** The `h2-flame-speed` and `h2-ignition-delay` sources are **pinned + cached** (META-3 §6.9): the mechanism is pinned to the Cantera-bundled GRI-Mech 3.0 H₂/O₂ subset (`h2o2.yaml`), and the measured reference bands (stoichiometric H₂/air S_L ≈ 2.1 m/s and near-peak ≈ 3.0 m/s; H₂/O₂ shock-tube τ_ign magnitude + Arrhenius trend) are cached as declared bands in `offline/tests/test_ignition_surface.py`. The §3.3 anchor test now (a) checks the offline S_L/τ_ign surface reproduces a fresh Cantera solve within the FND-5 holdout bound (interpolation fidelity) and (b) checks the mechanism reproduces the cached measured anchors within the declared model-form band. |
 | 2026-08-19 | 0.2.4 | **VISION_SCOPE v1.5 / SOLV-4 §3.6:** §3.3 gains the two ignition-closure unit anchors — measured H₂/O₂ laminar flame speeds (`h2-flame-speed`) and shock-tube ignition delays (`h2-ignition-delay`); the offline S_L/τ_ign surfaces must reproduce them within declared bands before any startup run scores. Sources pinned in META-3 §6.9 (data cached per the archival rule at S6 build time). |
 | 2026-08-18 | 0.2.3 | Geometry erratum (station-5 digitization): TM-107318 Table 2.5.1's "Chamber/Throat **Diameter**" labels are **radii** — established by three independent cross-checks (the c\* identity closes only with A_t = π(2.47 in)²: 2381 m/s vs record 2385, where a Ø-reading gives 600 m/s, 4× off; ε = 61 then puts the exit at Ø 38.6 in ≈ the RL10's known ~40 in bell; Fig. E1's radius axis reads ~2.5/~19 in at throat/exit). §3.2's "throat Ø 2.47 in" is to be read as **throat radius 2.47 in**. Full derivation in `data/anchors/rl10_contour.csv` header + META-3 `rl10-geometry`. |
 | 2026-08-17 | 0.2.2 | **Developer-observation declaration (VISION_SCOPE §9 v1.4.1, Ben ruling).** §3.2: every reported score carries `development-observed: yes/no` next to its blind/calibrated label; blind = mechanical input property (envelope-enforced); RL10 station-5 campaign declared open development. No change to the input split or criterion. |

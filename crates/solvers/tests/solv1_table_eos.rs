@@ -58,6 +58,7 @@ fn closed_tube_op(eos: TableEos<'_>) -> Euler<'_, TableEos<'_>> {
         },
         wall_normal: None,
         slip_wall_z_faces: true, // certified station behavior (slip everywhere)
+        combustion: None,
     }
 }
 

@@ -1741,7 +1741,11 @@ impl Sdc {
             "momentum_z",
             "energy",
             "composition",
+            "burn_progress",
         ];
+        // Burn progress (k = I_RB) shares the composition floor scale
+        // (ref_scale[3]): both are density × a [0,1] fraction. The per-step
+        // throughput term S[q] already scales it independently.
         let ref_of = |k: usize| -> f64 {
             match k {
                 0 => spec.ref_scale[0],

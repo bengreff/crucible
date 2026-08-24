@@ -1,5 +1,5 @@
 """OFFL-5 §6 — the spine's chemical-regime transport surface
-(`tables/spine/lox_lh2_transport_v0.1.0.h5`), the artifact the RL10 configs
+(`tables/spine/lox_lh2_transport_v0.2.0.h5`), the artifact the RL10 configs
 pin for per-cell μ/k/c_p/c_v/∂h∂Z.
 
 Same fresh-holdout discipline as the station-5 equilibrium gate: ⅜-offset
@@ -33,7 +33,7 @@ from crucible_offl.surfaces import _edge_points, _multilinear, station5_envelope
 from crucible_offl.transport import _TR_COLUMNS, _TR_RULES, TransportEvaluator
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-PRODUCTION = REPO / "tables" / "spine" / "lox_lh2_transport_v0.1.0.h5"
+PRODUCTION = REPO / "tables" / "spine" / "lox_lh2_transport_v0.2.0.h5"
 GROUP = "/spine/lox_lh2/transport"
 #: FND-7 §3.3's declared band on this stage; the interpolation bound must
 #: stay a factor below it (module doc).

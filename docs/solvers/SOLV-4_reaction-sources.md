@@ -6,7 +6,7 @@
 | **Family** | SOLV (Runtime unified-grid operators) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, OFFL-1 (fission data), OFFL-4 (annihilation), COUP-3 (integration), SOLV-2/SOLV-3 (transport); FND-1 |
-| **Version** | 0.4.1 (2026-08-20: §3.6's **c = 0 unburnt-reactant surface dependency is now shipped** by OFFL-3 §3.3 — plan S5; no design change, the blend/rate-law spec is 0.4's) |
+| **Version** | 0.4.3 (2026-08-24 plan S6 close: the blend's pure-limit thresholds made **asymmetric** — pure burnt from `1 − 2·BURN_COMPLETE` (one owner; strictly contains the pinning attractor — `c` asymptotes ~2e-7 *below* the fixed point, so an equal threshold is a knife edge), pure unburnt at the original `1e-9` (no attractor on the cold side, and the cold-side crossing step scales by `v_b/v_u` ≈ 7.8×, so a 2e-3 threshold there would step density ~1.5 % — outside the unburnt density bound); the same domain guard added to the reacting-measure/consumption-rate diagnostics; igniter mini-sims obey the bounded-pulse spark discipline, COUP-7 0.4.1). 0.4.2 (2026-08-21: §3.6 **built — plan S6**; the blend is the energy-conserving flamelet form (both branches at the common `(p, h, Z)`, mass-weighted specific volume — the projection generalized; supersedes the injection-isentrope closure so the igniter's enthalpy deposit fires `τ_ign`), the SOLV-4.4 operator-class decomposition + S6-explicit/S7-class-`R` scoping stated, extinction pinned to the surfaces' own behaviour (`S_L→0`, `τ_ign` capped)) |
 
 ---
 
@@ -125,28 +125,64 @@ The chemical regime therefore carries a **burn-progress field c ∈ [0,1]** on `
 **burnt mass fraction** — sub-cell combustion state represented statistically, per the fidelity contract
 (`PLAN_CHEMICAL_SANDBOX.md` §2.2). Thermochemistry is the c-blend of two OFFL-3 branches: **unburnt**
 (frozen reactant mixture, valid to cryogenic temperatures) and **burnt** (the shifting-equilibrium surface).
-**Sub-cell partition (the blend rule):** the two sub-states share the cell pressure `p`; the cell's
-specific enthalpy splits mass-weighted, `h = (1−c)·h_u + c·h_b`. The **unburnt enthalpy closure** is the
-standard premixed-SGS assumption, declared: unburnt gas rides its injection-state isentrope to the local
-pressure (`h_u = h_u(p; h_inj, Z)` from the unburnt-reactant surface), giving `T_u(p, Z)` — the coordinate
-`S_L` and `τ_ign` are keyed on — without carrying a second energy field; `h_b` is then `(h − (1−c)h_u)/c`
-and the burnt branch is interrogated/projected at `(p, h_b, Z)` exactly as in pure shifting mode. `c = 1`
-recovers shifting mode identically; `c = 0` recovers the frozen reactant branch. The closure is data with a
-band (it neglects unburnt preheat by the flame — bounded at build against the offline 1-D flame solution),
-never a branch.
+**Sub-cell partition (the blend rule) — the energy-conserving flamelet form (v0.4.2, plan S6, made
+explicit).** Both sub-states share the cell pressure `p` **and the cell's actual static specific enthalpy**
+`h = e + p/ρ`. That the two share `h` is not an assumption but the **adiabatic constant-pressure combustion
+identity on S5's shared CEA formation reference**: burning at constant `p` with no heat loss conserves
+enthalpy, so `h_b = h_u = h` (the burnt products at the *same* absolute `h` as the reactants — this is the
+definition of the adiabatic flame temperature, and it is exactly why the shared reference S5 shipped is a
+correctness requirement). The mass-weighted split `h = (1−c)h_u + c·h_b` is then satisfied identically for
+every `c`, with **no `h_b = (…)/c` division and so no `c → 0` singularity**. The two sub-states differ only
+in *composition* — unburnt reactants vs equilibrium products — read from the two OFFL-3 branches at the
+**same** `(p, h, Z)`:
+- **Unburnt** `ρ_u, T_u = ` unburnt-reactant surface at `(p, h, Z)`; **burnt** `ρ_b, T_b = ` equilibrium
+  surface at `(p, h, Z)` (the latter *is* the pure shifting-mode interrogation).
+- **Density closure = mass-weighted specific volume:** `1/ρ = (1−c)/ρ_u(p, h, Z) + c/ρ_b(p, h, Z)`, and the
+  pressure `p` is the **root of this identity** over the admissible bracket — the SOLV-1 §3.4 equilibrium
+  projection **generalized to interrogate both branches** (the same deterministic root find). It recovers
+  the limits exactly: `c = 1` ⇒ `1/ρ = 1/ρ_b(p, h, Z)` (the pure burnt projection, **bit-for-bit** shifting
+  mode) and `c = 0` ⇒ `1/ρ = 1/ρ_u(p, h, Z)` (the pure unburnt projection).
+- **`T_u = T_unburnt(p, h, Z)` is the reaction coordinate for both `S_L` and `τ_ign`.** Because a flame is
+  energy-conserving, `h` is ≈ uniform across the front, so `T_unburnt(p, h, Z)` reads the **cold** reactant
+  temperature there (the flame consumes cold reactants — right for `S_L`); where an **igniter energy deposit
+  or adiabatic compression raises `h`**, `T_u` rises with it, so `τ_ign` drops and the induction term
+  fires — the igniter works **because** `T_u` sees the deposited enthalpy (the earlier injection-isentrope
+  phrasing `T_u(p, Z)` is the *unheated* special case `h = h_isentrope(p)` of this general
+  `h`-dependent form, and it could not fire on a non-isentropic deposit; superseded). No second energy field
+  is carried — `h` is the cell's own conserved enthalpy.
+- The **blended acoustic speed** is the mass-weighted `a² = (1−c)a_u² + c·a_b²`, and the diagnostic cell
+  temperature the mass-weighted `T = (1−c)T_u + c·T_b` (declared model-forms recovering each pure limit; the
+  front speed is set by `S_T`/`D_c`, not the acoustics, so the blend rides the closure band). The whole
+  partition is one continuous formula over `c ∈ [0,1]` — no regime branch (Rule 12).
 
-**The one continuous rate law (Rule 12 — no ignition `if`), TFC form:**
-- **(SOLV-4.4)** `∂(ρc)/∂t|_source = ρ_u·S_T·|∇c| + ρ·(1−c)/τ_ign(p, T_u, Z)` — the standard
-  turbulent-flame-closure **propagation term** (unburnt density × turbulent flame speed × progress-gradient
-  magnitude; `S_T` = laminar `S_L(p, T_u, Z)` from the OFFL-3 surface × the wrinkling factor,
-  `turbulent-flame-speed`) plus an **auto-ignition term** (induction-time surface `τ_ign`, Arrhenius-class
-  fits). **The grid-independence mechanism is the TFC pairing, stated explicitly:** the source is
-  accompanied by a **matched front-thickening diffusion of c** (`D_c` sized so the front spans a fixed
-  Θ ≈ 2–4 cells at every resolution; the KPP front-speed identity of the paired diffusion–source system
-  holds the propagation speed at `S_T`, not at whatever numerical diffusion provides) — a bare source with
-  no matched diffusion self-sharpens to the grid scale and its front speed becomes grid-set, which is
-  exactly what the `flame_1d` gate exists to catch. `D_c` is the front-carrier device (declared, like SRD),
-  not a physics claim about flame thickness. **On the two terms adding:** in the deflagration regime
+**The one continuous rate law (Rule 12 — no ignition `if`), the reaction-diffusion (thickened-flame) form:**
+- **(SOLV-4.4)** `∂(ρc)/∂t|_source = ∇·(ρ D_c ∇c) + ρ_u·K·c(1−c)(c−a) + ρ·(1−c)/τ_ign(p, T_u, Z)` — a
+  **matched front-thickening diffusion** `D_c`, a **bistable (Nagumo/Allen-Cahn) propagation reaction**
+  `ρ_u·K·c(1−c)(c−a)` (unburnt density × a rate coefficient `K` × the cubic progress shape with a declared
+  sub-cell **ignition threshold** `a ∈ (0, ½)`), and an **auto-ignition term** (induction-time surface
+  `τ_ign`, Arrhenius-class). **The grid-independence mechanism is the bistable pushed-front identity, sized
+  explicitly:** with `S_T = S_L(p, T_u, Z)·(`wrinkling`)`, a local cell length `Δ`, and a declared front
+  width `w = Θ·Δ` (`Θ` the width parameter in cells, ≈ 1.5), set `D_c = w·S_T/(1−2a)` and
+  `K = 2·S_T/((1−2a)·w)`. The Nagumo travelling wave `c(ξ) = [1 + exp(ξ/w)]⁻¹` of the paired `(D_c, K)`
+  system then travels at exactly `√(D_c·K/2)·(1−2a) = S_T` with width scale `√(2D_c/K) = w = Θ·Δ` (a fixed
+  `Θ` cells at **every** resolution — both coefficients scale with `Δ`, so the speed is `S_T` and the width
+  `Θ` cells independent of `Δ`). `D_c` (and `K`) are the front-carrier device (declared, like SRD), not a
+  physics claim about flame thickness — the *speed* is the closure, the *width* is numerical; the exact
+  `tanh` profile lets `flame_1d` initialize the settled front directly, so there is no pulled-front
+  relaxation transient. **Why bistable and not the monostable KPP `c(1−c)` or the FSD `ρ_u·S_T·|∇c|` form:**
+  (i) the FSD `|∇c|` source paired with *linear* diffusion is analytically degenerate — the linearized
+  travelling-wave `D c'' + (V−S_T)c' = 0` admits **no bounded front**, so the speed is not closure-set.
+  (ii) The monostable Fisher-KPP `c(1−c)` is a **pulled** front — its speed is set by the *unstable* `c → 0`
+  leading edge, which is both **numerically pathological** (grid-sensitive, slow-converging) and
+  **unphysical**: `c = 0` is linearly *unstable*, so any noise `c = ε` grows and the whole unburnt domain
+  self-ignites. The **bistable** cubic makes `c = 0` **metastable** (`c < a` decays back to unburnt —
+  physical: reactants do not spontaneously burn without a trigger) and gives a **pushed** front whose speed
+  is set by the front *core*, so it is robust and grid-independent. It is the artificially-thickened-flame
+  (ATF) realization of the 0.4 draft's "propagation speed at `S_T`" intent. A uniform unburnt region
+  (`c ≡ 0`) is a **stable** fixed point and **cannot self-ignite** by propagation (the auto-ignition term
+  seeds it where `τ_ign` is finite: the igniter kernel, compressed end-gas — pushing `c` past `a`); a uniform
+  burnt region (`c ≡ 1`) is the other stable fixed point. **On the two terms adding:** in the deflagration
+  regime
   `τ_ign` is orders longer than the flame's passage time, so the sum is propagation-dominated (no
   double-count in practice); where compressed end-gas approaches autoignitive states the added induction
   consumption **is** the physics (pre-ignition/knock class), and the two closures are anchored separately
@@ -168,11 +204,29 @@ never a branch.
   flame content). `NEVER_IGNITED` = igniter schedule exhausted and `R` never exceeded `EPS_IGNITED` (named
   constant, fixed at build); `FLAMEOUT` = `R` falls below `EPS_IGNITED` after having exceeded it, before the
   dwell completes (COUP-4 §3.2 consumes both).
-- **Integration & determinism:** `dc/dt` is a genuinely **cell-local class-`R` stiff source** (COUP-3 §3.1)
-  — fixed-order `M`-indexed lookups, no private integrator, bit-reproducible. **Runtime finite-rate
-  networks remain out of scope**: `S_L` and `τ_ign` are *offline-computed* surfaces (Cantera 1-D flames +
-  0-D reactors on a cited mechanism, OFFL-3 §3.3), validated at the unit tier against measured flame-speed
-  and shock-tube ignition-delay data (VAL-2 §3.3).
+- **Integration & determinism:** the three terms of SOLV-4.4 decompose across COUP-3's operator classes and
+  are all **fixed-order `M`-indexed lookups, no private integrator, bit-reproducible**. The **auto-ignition**
+  term `ρ(1−c)/τ_ign` and the **bistable propagation reaction** `ρ_u·K·c(1−c)(c−a)` are **cell-local**
+  (each reads only the cell's own state — the 0.4.2 recast retired the neighbour-reading FSD `|∇c|` form);
+  the **front-thickening diffusion** `∇·(ρ D_c∇c)` is the neighbour-coupled piece — all ride the explicit
+  advective composition (class `A` of the same step), which is why `∂(ρc)/∂t` as a whole is *not* purely
+  cell-local. **S6 treatment (mini-sim tier,
+  v0.4.2):** because `D_c` is a matched front-carrier (`D_c = Θ·Δ·S_T/(1−2a)` — non-stiff: its diffusion
+  time `~Δ/S_T` sits far above the acoustic Δt, since `S_T` is far below the sound speed) and the
+  deflagration `τ_ign` is long, **all three terms are advanced explicitly** with a **loud positivity guard**
+  (`c` leaving `[0,1]` beyond a round-off tolerance is a halt diagnosis — under-resolution, never a silent
+  clamp; the cure is a finer Δt or a gentler igniter ramp, the S3 impulsive-drive discipline). The
+  **class-`R` implicit** treatment of a genuinely stiff auto-ignition (the RL10 knock-class end-gas, where
+  `τ_ign` collapses below Δt) is a **declared S7 hardening**, landed when the full startup march needs it.
+  Only `ρc` is sourced — mass, momentum, and energy are untouched; the heat release is *implicit in the
+  blend* (as `c` rises the same conserved `h` reads hotter/higher-`p` off the burnt branch, the two branches
+  sharing one CEA formation reference, S5), so the conservation audit's energy row is unperturbed by the
+  reaction. **Runtime finite-rate networks remain out of scope**: `S_L` and `τ_ign` are *offline-computed*
+  surfaces (Cantera 1-D freely-propagating flames + 0-D constant-pressure reactors on the cited
+  `h2-kinetics-mech`, OFFL-3 §3.3), tabulated so extinction is the surfaces' **own** smooth behaviour
+  (`S_L → 0` at the flammability limits; `τ_ign` capped at a declared `τ_max` so the source vanishes at the
+  quench/low-`T` corner — no `τ_ign = ∞`), validated at the unit tier against measured flame-speed and
+  shock-tube ignition-delay data (VAL-2 §3.3).
 - **What c is not:** not a species (elements still advect exactly; Z is untouched), not an efficiency knob
   (η_c\* stays S18's separate, declared knockdown), and not resolved flame structure (a real H₂/O₂ front is
   ~10 μm; the model's front is the closure speed carried on grid scales — declared model form, banded).
@@ -207,9 +261,15 @@ flagged out-of-envelope; the remedy is the general mode (runtime Sₙ), never a 
 3. **Emit-not-transport:** Σ birth KE = Q; no product advected inside SOLV-4 (COUP-2 audit).
 4. **Determinism:** identical sources at 1 vs N threads.
 5. **Burn progress (§3.6):** `flame_1d` — front speed matches the closure and is **grid-independent**
-   (coarse vs fine, THE gate); `spark_box` lights; `lean_no_light` refuses (NEVER_IGNITED); `quench_box`
-   extinguishes (FLAMEOUT); τ_ign surface reproduces shock-tube ignition delays and S_L the measured flame
-   speeds within declared bands (VAL-2 §3.3 anchors).
+   (coarse vs fine, THE gate); `spark_box` lights; `lean_no_light` refuses (NEVER_IGNITED); τ_ign surface
+   reproduces shock-tube ignition delays and S_L the measured flame speeds within declared bands (VAL-2
+   §3.3 anchors). **`quench_box` (FLAMEOUT) — re-scoped to S7 (0.4.3 finding):** quenching is a
+   **heat-loss** phenomenon; a lit **closed adiabatic** box cannot flame out — the deposited energy has
+   nowhere to go, pressure-rise compression re-heats the reactants, and auto-ignition completes the burn
+   (the S6 battery asserts exactly this converse, `adiabatic_box_cannot_flame_out`). The honest flameout
+   demonstration is conductive loss to cold walls through the class-D gas-diffusion coupling — the same
+   blend+diffusion march S7's startup requires anyway — and the existing tube fixture's 0.8 mm gap is
+   already at the H₂/O₂ quenching-distance scale, so the S7 test is well-posed as-is.
 
 ## 7. References
 META-3 keys: `pke`, `quasi-static-kinetics` *(new)*, `precursor-advection`, `source-driven-pke`, `watt-spectrum`, `bosch-hale-1992`,
@@ -225,6 +285,8 @@ slowing-down `f`. Resolved 2026-07-21.)*
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-24 | 0.4.3 | **Plan S6 close — the burnt fixed point owns ONE threshold; the spark is a bounded pulse.** Three S6-close consistency fixes, found by the `spark_box`/`quench_box` mini-sims and landed with the code. (1) **The blend's pure-BURNT threshold is derived from the reaction's burnt fixed point** — `EPS_B_PURE_BURNT = 2·BURN_COMPLETE` (one owner, `BURN_COMPLETE` = 10⁻³). The reaction zeroes its source (and its `S_L`/`τ_ign` queries — the §3.6 domain guard: post-flame gas is not a reactant) at `c ≥ 1 − 10⁻³`, so `c` **asymptotes toward that point from below and never crosses it** (measured: pinned ~2×10⁻⁷ under it); the blend's pure-burnt skip sat at `1 − 10⁻⁹`, so every burnt cell kept interrogating the unburnt branch at ~10⁻³ weight forever — and hot burnt gas, whose enthalpy legitimately exceeds the unburnt surface's ceiling (the OFFL-3 0.6.2 headroom ruling's other face), refused on a branch describing 0.1 % of its mass, gas the reaction itself had declared complete. An **equal** threshold is a knife edge (the attractor lands epsilon on its wrong side — measured before the factor 2 was added), so the pure-burnt region **strictly contains** the attractor. **The pure-UNBURNT threshold stays at the original `1e-9` — deliberately asymmetric (review-wave finding):** the reaction pins an attractor only at the burnt end (the metastable fringe decays smoothly through every value to 0), and the crossing step of each skip scales with the *dropped branch's* specific volume — burnt-side `EPS·(v_u/v_b)` ≈ 2.6×10⁻⁴ (the dropped unburnt branch is dense: fine), but cold-side `EPS·(v_b/v_u)` ≈ 7.8·EPS at flame states, so a symmetric 2×10⁻³ threshold would step density ~1.5 % — *outside* the unburnt density column's own ~0.8 % bound. Both declared steps now sit far inside their columns' bounds. (2) The **reacting-measure and consumption-rate diagnostics carry the same domain guard** (they queried `T_u`/closures on fully-burnt cells; their `c(1−c)`-weighted contribution there is ≤ 10⁻³ and is now exactly 0). (3) **The igniter mini-sims obey the spark discipline** (COUP-7 0.4.1, Ben ruling): the deposit is a **bounded pulse ending at about the ignition time** (~0.7–8 J, 20 µs, `spark-igniter-class`) — a sustained deposit into an already-burnt kernel superheats the mid-transition cells past the unburnt/ignition envelopes (the metastable-reactant validity edge; the hot ASI-torch regime is declared S7 hardening territory, with the stiff class-`R` treatment it already owns). **(4) `quench_box` re-scoped to S7 (finding):** a lit **closed adiabatic** box cannot flame out — with no loss channel the pressure rise compression-heats the reactants and auto-ignition completes the burn, so the mini-sim as drafted asked for unphysical behavior and the model refused to fake it. §6.5 updated: S6 asserts the converse (`adiabatic_box_cannot_flame_out`); the flameout demonstration = conductive loss to cold walls via the **blend↔class-D coupling S7's startup march builds regardless** (the fixture's 0.8 mm gap is at the quench-distance scale — though H₂/O₂'s own quenching distance is a few× smaller than H₂/air's ~0.6 mm, so the S7 box may need lower pressure or a narrower gap to actually flame out). Until then no test exercises the FLAMEOUT (R-collapse-after-exceed) trajectory — its consumer, the COUP-4 verdict object, is also S7, so coverage lands with its consumer. |
+| 2026-08-21 | 0.4.2 | **Plan S6 — §3.6 built (blend + rate law + igniter + halts), landed with the code.** Three amendments, code-driven: (1) **the sub-cell partition is now the energy-conserving flamelet form** — both sub-states share the cell pressure `p` **and enthalpy** `h = e + p/ρ` (the adiabatic constant-`p` identity `h_b = h_u = h` on S5's shared CEA reference: burning conserves enthalpy, so the two branches are read at the *same* `(p, h, Z)`, differing only in composition), density partitioned by **mass-weighted specific volume** `1/ρ = (1−c)/ρ_u + c/ρ_b` — the SOLV-1 §3.4 projection generalized to both branches, recovering `c=1` (bit-for-bit shifting) and `c=0` (pure unburnt) exactly. This **supersedes the 0.4 injection-isentrope `h_u(p; h_inj, Z)` closure**, which is the *unheated* special case `h = h_isentrope(p)`: it could not fire `τ_ign` on a non-isentropic igniter deposit (the deposit raises `h` but not the isentrope). There is now **no `h_b = (…)/c` division and so no `c→0` singularity** (the earlier draft's `EPS_C_SPLIT` regularization is unnecessary and was dropped). `T_u = T_unburnt(p, h, Z)` sees the deposited enthalpy, so the igniter works; declared mass-weighted blended sound speed + diagnostic temperature. (2) **SOLV-4.4 operator-class decomposition + integration scoping** — the auto-ignition term is the cell-local class-`R` piece, propagation/diffusion are neighbour-coupled; **S6 advances all three explicitly** (matched non-stiff `D_c`, long deflagration `τ_ign`) behind a **loud positivity guard** (never a clamp), with the stiff class-`R` implicit auto-ignition a **declared S7 hardening**; only `ρc` is sourced (heat release EOS-implicit via S5's shared reference, energy audit unperturbed). (3) **extinction pinned to the surfaces** — `S_L→0` at flammability limits, `τ_ign` capped at a declared `τ_max` (no `∞`), so no-light/flameout are the closures' own smooth behaviour feeding the COUP-4 halts. The igniter is the existing scheduled `S(r,θ,z,t)` energy deposit (COUP-7 §3.3), ramped. **SOLV-4.4 also re-cast from the FSD `ρ_u·S_T·|∇c|` propagation form to the well-posed bistable (Nagumo) reaction `ρ_u·K·c(1−c)(c−a)` with the matched `(D_c, K)`** — the `|∇c|` form paired with linear diffusion is analytically degenerate (no bounded travelling-wave front ⇒ the speed is *not* closure-set, the exact failure `flame_1d` catches), and the **monostable Fisher-KPP `c(1−c)` is a pulled front** (speed set by the *unstable* `c→0` edge — grid-pathological AND unphysical, since noise self-ignites the whole unburnt domain). The **bistable cubic** makes unburnt `c=0` **metastable** (physical ignition threshold `a`) and gives a **pushed** front at `√(D_c·K/2)·(1−2a)=S_T`, width `Θ·Δ`, robust + **provably grid-independent** — the ATF realization of the 0.4 draft's "propagation speed at `S_T`" intent (initialized directly at its exact `tanh` profile, so no relaxation transient). |
 | 2026-08-20 | 0.4.1 | **Plan S5 — the c = 0 branch is shipped (dependency note, no design change).** §3.6's blend `h = (1−c)h_u + c·h_b` reads `h_u` from the **unburnt-reactant surface**, which OFFL-3 §3.3 now ships (a gas-phase ideal-gas frozen reactant mixture vs (p, h, Z), cryo-valid, on the equilibrium surface's FND-5 schema and enthalpy reference). The blend, the TFC rate law, the sub-cell partition, and the igniter object are unchanged and remain S6 build content; only the surface `h_u`/`T_u` are keyed on is now a real artifact rather than a contract row. |
 | 2026-07-21 | 0.1 | Initial draft. One `ReactionSource` (fission/fusion/annihilation differ only in rate law + birth spectrum). Advected-precursor fission kinetics with point kinetics as the static-fuel reduction + source-driven subcritical (NSWR/ICAN); no private integrator (COUP-3 owns it; CRAM≠PKE). Fusion ⟨σv⟩ sourcing emitting birth spectra (p-¹¹B 3α continuum, D-D secondaries as the one rate functional on SOLV-3's slowing-down f, thermal-broadened neutron peaks). Annihilation via OFFL-4 with the factor-of-several band. Emit-once/transport-once; no private transport. |
 | 2026-08-13 | 0.2 | R3 terminology: annihilation model-form reframed from a blanket "factor-of-several band" to OFFL-4's **per-quantity physics-list spread**; efficiency/waste-heat noted as computed downstream by SOLV-2/3 transport, not emitted here. |

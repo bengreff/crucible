@@ -1,5 +1,5 @@
 //! SOLV-1 §3.4 / SOLV-4 §3.6 (plan S5) — the **cold/unburnt branch** on the
-//! *production* artifact `tables/chem/lox_lh2_unburnt_v0.1.0.h5` (regenerable
+//! *production* artifact `tables/chem/lox_lh2_unburnt_v0.2.0.h5` (regenerable
 //! via `offline/scripts/make_unburnt_tables.py`), the burn-progress `c = 0`
 //! branch.
 //!
@@ -25,11 +25,11 @@ use crucible_tables::{Pin, Table};
 
 const FILE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../tables/chem/lox_lh2_unburnt_v0.1.0.h5"
+    "/../../tables/chem/lox_lh2_unburnt_v0.2.0.h5"
 );
 const PINS_TOML: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../tables/chem/lox_lh2_unburnt_v0.1.0.pins.toml"
+    "/../../tables/chem/lox_lh2_unburnt_v0.2.0.pins.toml"
 ));
 const GROUP: &str = "/chem/lox_lh2/unburnt";
 
@@ -64,6 +64,7 @@ fn closed_tube_op(eos: TableEos<'_>) -> Euler<'_, TableEos<'_>> {
         },
         wall_normal: None,
         slip_wall_z_faces: true,
+        combustion: None,
     }
 }
 

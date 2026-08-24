@@ -312,6 +312,7 @@ fn duct_flow_op(
         },
         wall_normal: None,       // straight duct: grid-aligned mirror is exact
         slip_wall_z_faces: true, // certified station behavior (slip everywhere)
+        combustion: None,
     }
 }
 
@@ -540,6 +541,7 @@ pub fn build_stepped_cavity() -> (Duct, Euler<'static>) {
         },
         wall_normal: None,       // grid-aligned stair mirror (exact for this test)
         slip_wall_z_faces: true, // certified station behavior (slip everywhere)
+        combustion: None,
     };
     let patches = build_wall_patches(&g).expect("box-world patches");
     (

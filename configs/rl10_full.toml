@@ -118,17 +118,17 @@ p_amb_floor_pa = 100.0 # declared altitude-cell floor (~1 mbar class): keeps the
 cfl = 0.4
 
 [tables.chem_equilibrium]
-file = "tables/chem/lox_lh2_v0.3.2.h5"
+file = "tables/chem/lox_lh2_v0.4.0.h5"
 group = "/chem/lox_lh2/equilibrium"
-pins = "tables/chem/lox_lh2_v0.3.2.pins.toml" # the machine-written single pin owner
+pins = "tables/chem/lox_lh2_v0.4.0.pins.toml" # the machine-written single pin owner
 
 [tables.spine_transport]
 # OFFL-5 §3.1a; its axes span exactly the equilibrium surface's declared
 # envelope, so the two surfaces refuse and accept on the same states (the
 # engine cross-checks that at assembly, before any march).
-file = "tables/spine/lox_lh2_transport_v0.1.0.h5"
+file = "tables/spine/lox_lh2_transport_v0.2.0.h5"
 group = "/spine/lox_lh2/transport"
-pins = "tables/spine/lox_lh2_transport_v0.1.0.pins.toml"
+pins = "tables/spine/lox_lh2_transport_v0.2.0.pins.toml"
 
 [determinism]
 mode = "fixed-order"

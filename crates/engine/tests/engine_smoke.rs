@@ -59,9 +59,9 @@ fn smoke_author() -> String {
         fill_p_pa = 3.0e6
         cfl = 0.4
         [tables.chem_equilibrium]
-        file = "tables/chem/lox_lh2_v0.3.2.h5"
+        file = "tables/chem/lox_lh2_v0.4.0.h5"
         group = "/chem/lox_lh2/equilibrium"
-        pins = "tables/chem/lox_lh2_v0.3.2.pins.toml"
+        pins = "tables/chem/lox_lh2_v0.4.0.pins.toml"
         [determinism]
         mode = "fixed-order"
         [rng]
@@ -140,12 +140,12 @@ fn s4_author() -> String {
         type = "gas_diffusion""#,
         )
         .replace(
-            r#"pins = "tables/chem/lox_lh2_v0.3.2.pins.toml""#,
-            r#"pins = "tables/chem/lox_lh2_v0.3.2.pins.toml"
+            r#"pins = "tables/chem/lox_lh2_v0.4.0.pins.toml""#,
+            r#"pins = "tables/chem/lox_lh2_v0.4.0.pins.toml"
         [tables.spine_transport]
-        file = "tables/spine/lox_lh2_transport_v0.1.0.h5"
+        file = "tables/spine/lox_lh2_transport_v0.2.0.h5"
         group = "/spine/lox_lh2/transport"
-        pins = "tables/spine/lox_lh2_transport_v0.1.0.pins.toml""#,
+        pins = "tables/spine/lox_lh2_transport_v0.2.0.pins.toml""#,
         )
 }
 
@@ -195,12 +195,12 @@ fn a_transport_surface_that_is_not_the_spine_surface_refuses_at_bind() {
     std::env::set_current_dir(ROOT).expect("repo root exists");
     let registry = crucible_engine::registry();
     let author = s4_author().replace(
-        r#"file = "tables/spine/lox_lh2_transport_v0.1.0.h5"
+        r#"file = "tables/spine/lox_lh2_transport_v0.2.0.h5"
         group = "/spine/lox_lh2/transport"
-        pins = "tables/spine/lox_lh2_transport_v0.1.0.pins.toml""#,
-        r#"file = "tables/chem/lox_lh2_v0.3.2.h5"
+        pins = "tables/spine/lox_lh2_transport_v0.2.0.pins.toml""#,
+        r#"file = "tables/chem/lox_lh2_v0.4.0.h5"
         group = "/chem/lox_lh2/equilibrium"
-        pins = "tables/chem/lox_lh2_v0.3.2.pins.toml""#,
+        pins = "tables/chem/lox_lh2_v0.4.0.pins.toml""#,
     );
     let loaded = load_str_with_sidecars(&author, &registry, &read_rel).expect("loads");
     let mut spec = crucible_engine::assembly::assemble(&loaded, &read_rel).expect("assembles");

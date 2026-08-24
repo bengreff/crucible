@@ -21,7 +21,11 @@ use std::fmt::Write as _;
 // readouts moved < 0.1% from the session-12 records), table lox_lh2_v0.3.2
 // (pins sidecar), dial 5 (cells_across_throat), 12 flow-throughs, the
 // committed engine tree. Bracket variants = the named base preset + the
-// stated overrides only.
+// stated overrides only. Plan-S6 note: the presets now pin lox_lh2_v0.4.0,
+// a STRICT h-ceiling extension of v0.3.2 (old 43 h-nodes bit-exact, nodes
+// appended above; verified all-columns bit-identical in the old region and
+// every interp bound unchanged — OFFL-3 0.6.2), so these recorded v0.3.2
+// readouts are exact for v0.4.0 marches too.
 
 #[derive(Clone, Copy)]
 #[allow(dead_code)] // full recorded readout of record; the scoring consumes a subset
@@ -352,7 +356,7 @@ fn render(w: &mut String) {
         w,
         "Goal-B station 5 (VAL-2 §3.1/§3.2; SOLV-7; COUP-3 §3.5; COUP-7 §3.2): the \
          RL10A-3-3A exists in this repository ONLY as data — the geometry-of-record \
-         contour CSV, the preset TOMLs, and the pinned `lox_lh2_v0.3.2` equilibrium \
+         contour CSV, the preset TOMLs, and the pinned `lox_lh2_v0.4.0` equilibrium \
          surface — assembled by the one config-driven engine path and marched to a \
          settled state at the coarse tier (`cells_across_throat = 5`, 41×119, 2667 gas \
          cells, 12 flow-throughs, ~155 s laptop wall clock per member on the S2 \
@@ -498,11 +502,14 @@ fn render(w: &mut String) {
          - **η_c\\* prior (COUP-7 §3.2.1):** blind = the coax-family band applied as the \
          S18 source-level knockdown (never output-side); realized η re-measured per \
          member and reported above. Calibrated = the anchor's fitted 0.9892.\n\
-         - **Equilibrium surface v0.3.2:** gas-only METASTABLE products (declared plume \
+         - **Equilibrium surface v0.4.0:** gas-only METASTABLE products (declared plume \
          model — real plumes supersaturate; deck-stamped), Z narrowed to the premixed \
-         operating class, h ∈ [−1.23×10⁷, +3.8×10⁶] J/kg with rule-space (relative) \
+         operating class, h ∈ [−1.23×10⁷, +1.2×10⁷] J/kg with rule-space (relative) \
          interp bounds incl. envelope-edge holdout (session-12 review fixes); the \
-         projection acceptance uses the density column's own log-space bound.\n\
+         projection acceptance uses the density column's own log-space bound. v0.4.0 \
+         is the plan-S6 ignition-headroom STRICT extension of v0.3.2 (OFFL-3 0.6.2): \
+         the recorded marches ran on v0.3.2, whose every in-envelope value and bound \
+         is bit-identical in v0.4.0 (verified column-by-column at regeneration).\n\
          - **Geometry:** FND-3 analytic partial fractions + apertures (zero sampling \
          error) with State Redistribution (κ < 0.5, Berger–Giuliani) — the session-11 \
          stair-transpiration/starvation class is retired; wall heat runs on the \

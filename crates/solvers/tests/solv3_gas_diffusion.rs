@@ -158,7 +158,7 @@ fn visc_channel_poiseuille_exact_profile_far_beyond_explicit_bound() {
     // the walls' declared-schedule discipline applies to drives too).
     let t_ramp = 5.0 * (2.6e-3f64 - 1.0e-3).powi(2) / (MU / (P0 / (R_GAS * T0)));
     let body = move |_: f64, _: f64, _: f64, t: f64| -> Cons {
-        [0.0, 0.0, 0.0, F_Z * (t / t_ramp).min(1.0), 0.0, 0.0]
+        [0.0, 0.0, 0.0, F_Z * (t / t_ramp).min(1.0), 0.0, 0.0, 0.0]
     };
     let op = Euler {
         eos,
@@ -171,6 +171,7 @@ fn visc_channel_poiseuille_exact_profile_far_beyond_explicit_bound() {
         },
         wall_normal: None,
         slip_wall_z_faces: true,
+        combustion: None,
     };
     let still = |_: f64, _: f64, _: f64, _: f64| (0.0, 0.0, 0.0);
     let wall_t = |_: f64, _: f64, _: f64, _: f64| T0;
@@ -286,6 +287,7 @@ fn visc_channel_taylor_couette_swirl_matches_exact_profile() {
         },
         wall_normal: None,
         slip_wall_z_faces: true,
+        combustion: None,
     };
     // Declared wall schedule: ramp the spin over ~5 viscous times — an
     // impulsive wall at ~50x stiffness rings the truncated sweeps past
@@ -398,6 +400,7 @@ fn recovery_couette_reproduces_the_exact_recovery_temperature() {
         },
         wall_normal: None,
         slip_wall_z_faces: true,
+        combustion: None,
     };
     let still = |_: f64, _: f64, _: f64, _: f64| (0.0, 0.0, 0.0);
     // Declared wall schedule (see the Taylor-Couette fixture).
@@ -515,6 +518,7 @@ fn thermal_bl_layer_growth_matches_erfc_and_species_spread() {
         },
         wall_normal: None,
         slip_wall_z_faces: true,
+        combustion: None,
     };
     let still = |_: f64, _: f64, _: f64, _: f64| (0.0, 0.0, 0.0);
     let hot = |_: f64, _: f64, _: f64, _: f64| T0 + DELTA_T;
@@ -673,7 +677,8 @@ fn mms_visc_residual(r: f64, z: f64, t: f64) -> Cons {
     let d_rc = rho_d * (d_r(5) / r + d_rr(5) + d_zz(5));
 
     let _ = c;
-    [0.0, -d_mr, -d_mt, -d_mz, -d_en, -d_rc]
+    // Burn slot carries no viscous residual (F_visc does not diffuse b).
+    [0.0, -d_mr, -d_mt, -d_mz, -d_en, -d_rc, 0.0]
 }
 
 #[test]
@@ -716,6 +721,7 @@ fn mms_with_all_viscous_terms_recovers_formal_order() {
             },
             wall_normal: None,
             slip_wall_z_faces: true,
+            combustion: None,
         };
         let wall_u = |r: f64, th: f64, z: f64, t: f64| -> (f64, f64, f64) {
             let w = emms::manufactured(r, th, z, t, 0.0).w;
@@ -868,6 +874,7 @@ fn gas_diffusion_without_flow_or_at_azimuthal_resolution_refuses() {
         },
         wall_normal: None,
         slip_wall_z_faces: true,
+        combustion: None,
     };
     let flow = FlowClass {
         op: &op,
@@ -920,6 +927,7 @@ fn coupled_step_with_gas_diffusion_is_bit_identical_across_threads() {
                 },
                 wall_normal: None,
                 slip_wall_z_faces: true,
+                combustion: None,
             };
             let still = |_: f64, _: f64, _: f64, _: f64| (0.0, 0.0, 0.0);
             let t_ramp = 5.0 * (6.6e-3f64 - 5.0e-3).powi(2) / (MU / (P0 / (R_GAS * T0)));
@@ -1048,6 +1056,7 @@ fn four_class_coupled_march_audits_closed_with_wall_ownership() {
         },
         wall_normal: None,
         slip_wall_z_faces: true,
+        combustion: None,
     };
     let tr_props = transport(MU);
     let tr_query = spine_query!(tr_props);

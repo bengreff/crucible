@@ -45,11 +45,18 @@
 //! geometry (κ + apertures + State Redistribution) is consumed since
 //! session 12; full-box worlds ride the arithmetic-identity defaults.
 
+mod blend_eos;
+mod combustion;
 mod exact;
 mod hllc;
 mod recon;
 mod table_eos;
 
+pub use blend_eos::{BurnBlendEos, EPS_B_PURE_BURNT, EPS_B_PURE_UNBURNT};
+pub use combustion::{
+    BURN_COMPLETE, Combustion, EPS_BURN_BOUND, EPS_IGNITED, IgnitionColumns, THETA_CELLS,
+    consumption_rate, reacting_measure,
+};
 pub use exact::{RiemannSide, RiemannSolution, solve as solve_riemann};
 pub use hllc::{hllc_flux, physical_flux};
 use recon::{NGHOST, ppm_faces};
@@ -131,33 +138,46 @@ fn neighborhood_cells(g: &Grid, i_r: usize, i_z: usize) -> Result<Vec<(usize, us
 }
 
 /// Components of `U` (SOLV-1 §3.1) and of the primitive view
-/// `W = (ρ, u_r, u_θ, u_z, p, C | e, Γ₁)`. Slots 1–3 are the velocity/
+/// `W = (ρ, u_r, u_θ, u_z, p, C, b | e, Γ₁)`. Slots 1–3 are the velocity/
 /// momentum directions, so a face's normal is named by its slot index.
 /// `W` carries `NPRIM − NCOMP = 2` auxiliary EOS slots (specific internal
 /// energy, effective Γ₁) with no conserved counterpart — filled by
 /// `EosLaw::prim_checked`, reconstructed componentwise, read only by the
 /// general-EOS face closures (`GammaLaw` ignores them).
-pub const NCOMP: usize = 6;
-pub const NPRIM: usize = 8;
+///
+/// **Slot 6 (`I_RB`) is the S6 burn-progress fixed `+1` widening** (SOLV-1
+/// §3.4, SOLV-4 §3.6): conserved `ρb`, `b ∈ [0,1]` the burnt mass fraction —
+/// **the doc's burn-progress `c`** (the code's `c`/`I_RC` slot is the
+/// composition element `Z`, a pre-existing name). It is advected as a passive
+/// scalar exactly like `Z` and is **inert (source-free) unless a combustion
+/// occupant is scheduled**, so a plain shifting run never reads it and the
+/// stations stay byte-for-byte (it defaults to 0 and 0 advects to 0). This is
+/// a single compile-time-fixed component — NOT the S5b config-variable
+/// `{ρX_k}` widening (SOLV-1 §3.4 change log).
+pub const NCOMP: usize = 7;
+pub const NPRIM: usize = 9;
 pub const I_RHO: usize = 0;
 pub const I_MR: usize = 1;
 pub const I_MT: usize = 2;
 pub const I_MZ: usize = 3;
 pub const I_EN: usize = 4;
 pub const I_RC: usize = 5;
+/// Conserved burn-progress slot `ρb` (SOLV-4 §3.6); see the module const doc.
+pub const I_RB: usize = 6;
 /// Aux primitive slot: specific internal energy `e` (J/kg).
-pub const I_EI: usize = 6;
+pub const I_EI: usize = 7;
 /// Aux primitive slot: effective adiabatic exponent `Γ₁ = ρa²/p`.
-pub const I_G1: usize = 7;
+pub const I_G1: usize = 8;
 
 pub type Cons = [f64; NCOMP];
 pub type Prim = [f64; NPRIM];
 
-/// Build a primitive state from the six physical slots, aux slots zero.
-/// Correct for `GammaLaw` (which never reads aux); a `TableEos` primitive
-/// must come from `TableEos::prim_checked` (which fills them).
+/// Build a primitive state from the physical slots, burn + aux slots zero
+/// (the inert default — `b = 0`). Correct for `GammaLaw` (which never reads
+/// burn or aux); a `TableEos`/blended primitive must come from its own
+/// `prim_checked` (which fills them). `c` here is the composition `Z`.
 pub const fn prim6(rho: f64, u_r: f64, u_t: f64, u_z: f64, p: f64, c: f64) -> Prim {
-    [rho, u_r, u_t, u_z, p, c, 0.0, 0.0]
+    [rho, u_r, u_t, u_z, p, c, 0.0, 0.0, 0.0]
 }
 
 /// SOLV-1 §3.4 — the constitutive closure the operator is generic over (the
@@ -231,8 +251,17 @@ pub trait EosLaw {
     }
 }
 
-/// Grid field names for `U`, in component order (FND-2 §3.4).
-pub const EULER_FIELDS: &[&str] = &["rho", "mom_r", "mom_theta", "mom_z", "rho_e", "rho_c"];
+/// Grid field names for `U`, in component order (FND-2 §3.4). `rho_b` is the
+/// S6 burn-progress `ρb` (SOLV-4 §3.6; the doc's `c`).
+pub const EULER_FIELDS: &[&str] = &[
+    "rho",
+    "mom_r",
+    "mom_theta",
+    "mom_z",
+    "rho_e",
+    "rho_c",
+    "rho_b",
+];
 
 /// Gamma-law EOS — the first, degenerate occupant of the FND-7 spine seam.
 /// γ is pure data (config parameter); nothing here reads a material label.
@@ -264,6 +293,7 @@ impl GammaLaw {
             rho * w[3],
             self.total_energy(w),
             rho * w[I_RC],
+            rho * w[I_RB],
         ]
     }
 
@@ -287,7 +317,13 @@ impl GammaLaw {
         if !c.is_finite() {
             return Err("non-finite composition");
         }
-        Ok([rho, ur, ut, uz, p, c, 0.0, 0.0])
+        // Burn progress advects as a passive scalar (inert under GammaLaw —
+        // never a combustion occupant; carried so the state width is uniform).
+        let b = u[I_RB] * inv;
+        if !b.is_finite() {
+            return Err("non-finite burn progress");
+        }
+        Ok([rho, ur, ut, uz, p, c, b, 0.0, 0.0])
     }
 }
 
@@ -545,6 +581,12 @@ pub struct Euler<'a, E: EosLaw = GammaLaw> {
     /// Numerics policy, pure data (Rule 13); retired with FND-3's cut cells
     /// + State Redistribution.
     pub slip_wall_z_faces: bool,
+    /// The SOLV-4 §3.6 burn-progress source (S6). `Some` ⇒ `eval_rhs`
+    /// accumulates the SOLV-4.4 rate law into the `ρb` slot at every node;
+    /// `None` ⇒ `ρb` is an inert passive scalar (the shifting stations). The
+    /// occupant carries the blended EOS + ignition closures (an occupant of
+    /// this operator, selected as config data — Rule 13).
+    pub combustion: Option<&'a Combustion<'a>>,
 }
 
 /// COUP-2 §3.1 per-evaluation ledger of one rhs evaluation, in conserved
@@ -728,7 +770,15 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
         t: f64,
     ) -> Result<(), FlowError> {
         let nt = self.validate(g)?;
-        self.rhs(g, f, nt, &mut ws.0, t)
+        self.rhs(g, f, nt, &mut ws.0, t)?;
+        // The burn-progress source (S6) rides the class-A rate: after `rhs`
+        // has filled the primitive cache, rate, and ledger, SOLV-4.4 adds its
+        // ρb source + source-ledger, so the SDC step composes and audits it
+        // exactly like the flow's own geometric source (no SDC-step change).
+        if let Some(comb) = self.combustion {
+            comb.accumulate(g, &f.ids(), &mut ws.0)?;
+        }
+        Ok(())
     }
 
     /// Apply the State-Redistribution pass to the CURRENT field state —

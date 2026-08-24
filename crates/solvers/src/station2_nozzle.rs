@@ -159,6 +159,7 @@ fn nozzle_op(eos: GammaLaw) -> Euler<'static> {
         },
         wall_normal: Some(&contour_normal),
         slip_wall_z_faces: true, // certified station behavior (slip everywhere)
+        combustion: None,
     }
 }
 
@@ -423,6 +424,7 @@ pub fn masked_uniform_fixed_point(slip_wall: bool) -> bool {
             None
         },
         slip_wall_z_faces: true, // certified station behavior (slip everywhere)
+        combustion: None,
     };
     let bits = |g: &Grid| -> Vec<u64> {
         g.bricks()

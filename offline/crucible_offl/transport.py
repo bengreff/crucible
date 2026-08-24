@@ -107,12 +107,25 @@ DZ_FD = 1.0e-4
 #: may carry before the mapping is refused as lossy.
 _X_UNMAPPED_MAX = 1.0e-6
 #: Largest relative disagreement tolerated between Cantera's and CEA's
-#: frozen c_p on the *same* composition and state. This is a genuine
-#: two-fit cross-check (NASA-7 in `h2o2.yaml` vs NASA-9 Glenn) and it is
-#: what bounds Cantera's above-3500 K extrapolation: 2% is ~5× the
-#: observed agreement in the chamber/throat class and still an order below
-#: the declared transport band.
+#: frozen c_p on the *same* composition and state, at or below `_CP_HOT_T`
+#: — where both fit families (NASA-7 in `h2o2.yaml`, NASA-9 Glenn) are
+#: inside their calibrated ranges: 2% is ~5× the observed agreement in the
+#: chamber/throat class and still an order below the declared transport
+#: band. It also fires on a composition mis-mapping (a wrong species moves
+#: c_p at the ~10%+ scale), which is why it stays tight here; the
+#: above-`_CP_HOT_T` extrapolation is bounded by `_CP_CROSSCHECK_HOT`.
 _CP_CROSSCHECK = 2.0e-2
+#: Above `_CP_HOT_T` the two fit families diverge by construction —
+#: `h2o2.yaml`'s NASA-7 coefficients extrapolate past their fit ceiling
+#: while Glenn NASA-9 remains calibrated — so the allowance there is the
+#: MEASURED divergence with margin, not the mapping-bug gate: the 0.2.0
+#: ignition-headroom envelope (OFFL-3 0.6.2; equilibrium h to +1.2e7,
+#: T ≤ ~4300 K — dissociation buffers the hot corner) sweeps a smooth,
+#: monotone-in-T drift peaking at 2.44% (p = 7e6 Pa, h = +1.2e7), so 4%
+#: is measured-max ×1.6 — still 2.5–5× below the declared 10–20% band,
+#: and far below the mapping-bug scale the check must keep catching.
+_CP_CROSSCHECK_HOT = 4.0e-2
+_CP_HOT_T = 3500.0
 
 
 @dataclass(frozen=True)
@@ -226,10 +239,12 @@ class TransportEvaluator:
         # is what bounds the >3500 K extrapolation, and it fires on the
         # composition mapping too — a mis-mapped species moves c_p first.
         rel = abs(self.gas.cp_mass - state.cp_fr) / state.cp_fr
-        if rel > _CP_CROSSCHECK:
+        tol = _CP_CROSSCHECK if state.T <= _CP_HOT_T else _CP_CROSSCHECK_HOT
+        if rel > tol:
             raise RuntimeError(
                 f"Cantera/CEA frozen c_p disagree by {rel:.2%} (> "
-                f"{_CP_CROSSCHECK:.0%}) at p={state.p} Pa, T={state.T} K: "
+                f"{tol:.0%} at T {'<=' if state.T <= _CP_HOT_T else '>'} "
+                f"{_CP_HOT_T:.0f} K) at p={state.p} Pa, T={state.T} K: "
                 f"{self.gas.cp_mass:.1f} vs {state.cp_fr:.1f} J/(kg·K) — the "
                 "transport evaluation is not on the state CEA solved"
             )

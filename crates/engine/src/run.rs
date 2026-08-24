@@ -393,6 +393,7 @@ pub fn run(
         // Mach (the FND-3 State-Redistribution deferral class), softened by
         // the quasi-static establishment below.
         slip_wall_z_faces: true,
+        combustion: None, // S6 combustion is wired per-config below (mini-sim tier)
     };
 
     let patches = if spec.wall_law.is_some() {

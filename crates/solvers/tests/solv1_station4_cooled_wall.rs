@@ -86,6 +86,7 @@ fn station4_uniform_rest_is_a_bitwise_fixed_point() {
         },
         wall_normal: None,
         slip_wall_z_faces: true, // certified station behavior (slip everywhere)
+        combustion: None,
     };
     // The fixture coolant is T_COOL already; the exchange at equal
     // temperatures is exactly 0 (unit-tested in wall_heat) — so the march
