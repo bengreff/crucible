@@ -6,7 +6,7 @@
 | **Family** | COUP (Coupling & orchestration) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | COUP-3, COUP-2, SOLV-6, SOLV-8; COUP-8 (`halts[]`), COUP-5 (§3.2.1 P(WORKS)) |
-| **Version** | 0.3 (2026-08-19: physical-march-only Stage 1; NEVER_IGNITED/FLAMEOUT halts — VISION_SCOPE v1.5) |
+| **Version** | 0.4 (2026-08-24 plan S7: the verdict object is **BUILT** (v1, `runs/<name>/verdict.txt`); the WORKS criterion is config grammar (`commanded_p_c_pa`/`commanded_thrust_n` arm it) with the slow-clock checks at the declared `PROBE_EVERY` = 200-step cadence; `NEVER_IGNITED`/`FLAMEOUT` wired with engine-tier floors + locations; melt/burst wired via SOLV-6 v1 on the PRIMARY stress state). 0.3 (2026-08-19: physical-march-only Stage 1; NEVER_IGNITED/FLAMEOUT halts — VISION_SCOPE v1.5) |
 
 ---
 
@@ -61,6 +61,13 @@ run.
   - `T_S1_HORIZON` — the **Stage-1 horizon** (config-required). Horizon expiry without a
     completed dwell ⇒ the **distinct `FAILED_TO_REACH` halt** (§3.2) — never a silent timeout, never
     conflated with a physical mechanism halt.
+
+  **The criterion constants are config grammar (v0.4, plan S7)** — `[operating_profile]`:
+  `commanded_p_c_pa` / `commanded_thrust_n` **arm** the criterion; `eps_works` default 0.02;
+  `t_dwell_flowthroughs` default 20; the profile's `flowthroughs` **IS** the declared `T_S1_HORIZON`.
+  The dwell/ignition/margin checks run at the declared **`PROBE_EVERY` = 200-step cadence** — the
+  slow-clock halt members evolve on thermal/flame timescales, orders above the acoustic step; the
+  per-step members (audit, positivity, non-finite) stay per-step inside the SDC step.
 - **Stage 2 — LIFETIME.** Runs **only after Stage 1 passes**; freezes the operating point and marches the slow
   degradation clocks (SOLV-8) with large deterministic timesteps, re-checking Stage-1 margins as geometry/
   materials degrade. First essential margin crossed ⇒ **lifetime estimate + limiting mechanism + CI**; nothing
@@ -94,6 +101,17 @@ members:
   milestone includes NTP; this deferral has a due date, not an open end. The nuclear mechanisms' COUP-8
   `halts[]` extension is noted there.)*
 
+**S7 wiring (v0.4, landed with the code).** `NEVER_IGNITED`/`FLAMEOUT` are live: the reacting-measure
+floor at engine tier is `max(EPS_IGNITED, EPS_IGNITED_FRAC × the delivered injector ṁ)` with
+**`EPS_IGNITED_FRAC` = 1e-4** — the mini-sim absolute floor does not transfer to engine scale; a settled
+front's `R` runs ~10⁻¹ of ṁ, three orders above the floor. `NEVER_IGNITED` location = the igniter
+kernel's nearest cell; `FLAMEOUT` location = the cell of max `c(1−c)` (the extinction front's remnant).
+The **melt/burst halt is wired via SOLV-6 v1** (see SOLV-6 0.3): halt inputs are **MELT** (liner surface
+≥ the declared solidus) and **BURST_MARGIN < 1 on the PRIMARY (pressure-difference) stress state**; the
+elastic thermal-stress (secondary, strain-controlled) margins are **reported diagnostics, not halts**.
+A step-failure halt is classified: `COUPLING_RESIDUAL` / audit violation / non-finite ⇒ **numerical**;
+everything else the operators refuse ⇒ **physical**.
+
 First trip → **halt immediately**, emit the verdict, stop. No subsequent-failure modeling.
 
 ### 3.3 The verdict object
@@ -102,6 +120,11 @@ numerical}, criterion { EPS_WORKS[q], T_DWELL, T_S1_HORIZON }, performance? (SOL
 lifetime? (SOLV-8 estimate + limiting mechanism + CI if Stage 2 ran) }` — the WORKS-criterion constants are
 **recorded in the verdict** (O12). Serialized by FND-6; pedigree-scored by COUP-6. Every field is
 deterministic and diagnosis-carrying (mechanism+location+time on a `DOESN'T WORK`).
+
+**BUILT (v1, plan S7):** a typed `Verdict { outcome ∈ {WORKS, DOESN'T-WORK}, mechanism, location (cell),
+time, diagnosis ∈ {physical, numerical}, criterion { eps_works, t_dwell_s, t_s1_horizon_s, commanded[] } }`
+attached to **every mid-march halt and to the WORKS report**; serialized to `runs/<name>/verdict.txt`
+(the FND-6 bundle wave will absorb it).
 
 **Ensemble level (D-F):** the ensemble verdict object records the **per-member verdicts**, and **P(WORKS) is
 a first-class reported result** — its estimator, epistemic interval bounds, and the conditional-on-WORKS rule
@@ -148,6 +171,7 @@ META-3 keys: `modelica-connector` (port starvation). Depends on COUP-3 (step), C
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-24 | 0.4 | **Plan S7 — the verdict object exists; the halts it reports are wired.** (1) §3.3: the verdict object is **BUILT (v1)** — a typed `Verdict {outcome WORKS/DOESN'T-WORK, mechanism, location (cell), time, diagnosis physical/numerical, criterion {eps_works, t_dwell_s, t_s1_horizon_s, commanded[]}}` attached to every mid-march halt **and** to the WORKS report, serialized to `runs/<name>/verdict.txt` (the FND-6 bundle wave will absorb it). (2) §3.1: the WORKS criterion constants are **config grammar** (`[operating_profile]`: `commanded_p_c_pa`/`commanded_thrust_n` arm the criterion; `eps_works` default 0.02; `t_dwell_flowthroughs` default 20; `flowthroughs` IS the declared `T_S1_HORIZON`); the dwell/ignition/margin checks run at the declared **`PROBE_EVERY` = 200-step cadence** (the slow-clock halt members evolve on thermal/flame timescales, orders above the acoustic step; the per-step members — audit, positivity, non-finite — stay per-step inside the SDC step). (3) §3.2: **`NEVER_IGNITED`/`FLAMEOUT` wired** — the engine-tier reacting-measure floor is `max(EPS_IGNITED, EPS_IGNITED_FRAC × delivered injector ṁ)`, `EPS_IGNITED_FRAC = 1e-4` (the mini-sim absolute floor does not transfer to engine scale; a settled front's `R` runs ~10⁻¹ of ṁ, three orders above the floor); `NEVER_IGNITED` locates at the igniter kernel's nearest cell, `FLAMEOUT` at the cell of max `c(1−c)`. **Melt/burst wired via SOLV-6 v1** (SOLV-6 0.3): MELT = liner surface ≥ declared solidus; BURST_MARGIN < 1 on the **PRIMARY** (pressure-difference) stress state; the elastic thermal-stress (secondary, strain-controlled) margins are reported diagnostics, not halts. Step-failure classification: `COUPLING_RESIDUAL`/audit/non-finite ⇒ numerical; operator refusals ⇒ physical. **Addendum (same session, ◆C2 shake-out):** `NEVER_IGNITED` is checked from `window_end + NEVER_IGNITED_GRACE_S` (1 ms declared): a just-lit kernel's reacting measure grows on the front-growth timescale (measured: 94% of the floor 38 µs after window end), and checking at the first post-window probe conflates never-lit with still-establishing; a light-then-die trajectory still verdicts NEVER_IGNITED after the grace, so no outcome is masked. |
 | 2026-08-19 | 0.3 | **VISION_SCOPE v1.5 (Ben).** §3.1: Stage 1 = **physical march only** (pseudo-transient references removed; dwell = the tail of the one march; compressed external schedules per COUP-7 §3.2.2). §3.2: chemical halt set gains **`NEVER_IGNITED`** and **`FLAMEOUT`** (physical diagnoses, thresholds owned by SOLV-4 §3.6). |
 | 2026-08-14 | 0.2 | **Review fix wave (O12, O4, O13, D-F).** §3.1: the WORKS criterion made concrete — named constants `EPS_WORKS[q]` (per-quantity relative tolerance on the commanded profile, default 0.02), `T_DWELL` (dwell window, default 20 flow-through times), `T_S1_HORIZON`; horizon expiry = the distinct `FAILED_TO_REACH` halt; constants recorded in the verdict (O12). §3.2: **`COUPLING_RESIDUAL`** halt variant added (diagnosis = numerical; acceptance test defined in COUP-3 §3.5) — never conflated with physical won't-bootstrap (O4); nuclear deferral upgraded to a **tracked obligation** — PKE-excursion halt spec + commanded-envelope source due before the nuclear coding wave, COUP-8 `halts[]` extension noted (O13). §3.3/§5: verdict object records **per-member verdicts** + criterion + physical/numerical diagnosis; **P(WORKS) is a first-class result** with estimator/bounds owned by COUP-5 §3.2.1; performance conditional-on-WORKS, labeled (D-F). §6 items 2, 5, 7 updated/added. |
 | 2026-07-21 | 0.1 | Initial draft. Stage-1 FUNCTION / Stage-2 LIFETIME control flow; the closed chemical-slice halt set (melt/vaporization, burst<1, choking/starvation incl. failed expander closure, conservation-audit failure, non-finite); halt = immediate structured verdict (mechanism/location/time), no cascading failure; ensemble verdict as a WORKS-fraction + dominant mechanism; deterministic control flow. |

@@ -49,7 +49,7 @@ from crucible_offl.surfaces import unburnt_reactant_grid, build_unburnt_surface
 from crucible_offl.tables import spec_digest
 
 eng = FrozenReactantEngine()
-grid = unburnt_reactant_grid(eng, n_p=3, n_h=5, n_z=3)
+grid = unburnt_reactant_grid(eng, n_p=3, n_h=5, n_z=3, cold_face=False)
 spec, _bounds = build_unburnt_surface(
     eng, grid, data_version="probe-0.0.0", generator_commit="regen-probe"
 )
@@ -63,7 +63,8 @@ print(spec_digest(spec))
 # reactor solves are bit-reproducible cross-process (a tiny 2×2×2 probe — 8
 # flame+reactor grid solves plus its holdouts per process, ~seconds;
 # n_tu_ext=0 keeps the probe's T_u axis 2 nodes, not the production grid's
-# appended auto-ignitive rows). The probe's (p, T_u, Z) box sits inside the
+# appended auto-ignitive rows; tu_cold=() likewise excludes the S7 prepended
+# cold rows). The probe's (p, T_u, Z) box sits inside the
 # MEASURED dual-active band — every corner both flammable (S_L > floor) and
 # auto-ignitive within the reactor horizon (tau < cap): 50-100 bar x
 # 1000-1100 K x Z 0.10-0.20, all 8 corners measured OK — because the
@@ -80,7 +81,7 @@ eng = IgnitionEngine()
 grid = ignition_grid(
     n_p=2, n_tu=2, n_z=2,
     p_lo=5.0e6, p_hi=1.0e7, tu_lo=1000.0, tu_hi=1100.0, z_lo=0.10, z_hi=0.20,
-    n_tu_ext=0,
+    n_tu_ext=0, tu_cold=(), p_refine_top=False,
 )
 spec, _bounds = build_ignition_surface(
     eng, grid, data_version="probe-0.0.0", generator_commit="regen-probe"

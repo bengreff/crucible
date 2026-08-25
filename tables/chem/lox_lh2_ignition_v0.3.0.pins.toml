@@ -1,0 +1,6 @@
+# Table pins (FND-5 §3.2), consumed by the FND-4 §6-4 [tables] grammar
+# (the machine-written single pin owner).
+
+["/chem/lox_lh2/ignition"]
+data_version = "0.3.0"
+content_digest = "sha256:7f319e7851ae8f49589e82372f0f3abcc539c245e1ce9ca4f66b30d8fb32dc47"

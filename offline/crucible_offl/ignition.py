@@ -214,6 +214,8 @@ def ignition_grid(
     z_lo: float = 0.06,
     z_hi: float = 0.30,
     n_tu_ext: int = 7,
+    tu_cold: tuple[float, ...] = (60.0, 90.0, 120.0),
+    p_refine_top: bool = True,
 ) -> IgnitionGrid:
     """A (p, T_u, Z) grid spanning the chemical-slice startup envelope: p from
     fill to chamber, T_u from cryo-adjacent to auto-ignitive, Z from lean to
@@ -231,22 +233,59 @@ def ignition_grid(
     are the auto-ignitive regime: `FreeFlame` no longer describes a
     propagating front there (S_L reads 0 via the ceiling guard) and τ_ign is
     sub-µs — the surface's own values say "burns essentially instantly",
-    which is the self-consistent statement about superheated reactants."""
+    which is the self-consistent statement about superheated reactants.
+
+    `tu_cold` (0.3.0, plan S7) **prepends** graded nodes BELOW the 0.1.0 T_u
+    floor — the cold face of the OFFL-3 0.6.2/0.6.3 envelope-consistency
+    contract: the marched flame front consumes injector-cold reactants at
+    T_u ≈ 150–230 K (real S_L territory — a flame's speed is defined into
+    unburnt gas at ITS temperature), and the blend can produce unburnt
+    temperatures down to the unburnt surface's own ~100 K validity floor.
+    Every pre-existing node stays bit-exact (strict extension; the FND-5
+    loader requires strictly-increasing axes, not uniform spacing), and the
+    envelope floor insets by half the LOCAL (cold) spacing, landing at ~75 K.
+    Below that declared envelope floor the runtime carries the declared
+    non-reactive floor (SOLV-4 §3.6 cold-side domain guard), so near-vacuum
+    fill states are no-burn by declaration, never a refusal.
+
+    `p_refine_top` (0.3.0, plan S7) **inserts the geometric midpoint of the
+    top p-cell** (~4.47 MPa for the production axis): the coarse 6-node log
+    axis put the declared p-envelope ceiling at 4.44 MPa purely through the
+    half-log-cell inset — below the RL10 chamber class (p_c ≈ 3.2 MPa plus
+    ignition transients), so a mid-transition cell compressed past it turned
+    a legal blend state into a closure refusal (the S7 stiff mini-sim caught
+    it). The inserted node is REAL Cantera data (the 100-bar row already
+    solves), every pre-existing node stays bit-exact, and the envelope
+    ceiling moves to ~6.69 MPa — comfortably above any querying (non-burnt)
+    cell an RL10-class startup produces. Refinement, not extension: values
+    interpolated inside the split cell legitimately improve."""
     p = np.geomspace(p_lo, p_hi, n_p)
+    if p_refine_top and n_p >= 2:
+        mid = float(np.sqrt(p[-2] * p[-1]))
+        p = np.concatenate([p[:-1], [mid], p[-1:]])
     tu_base = np.linspace(tu_lo, tu_hi, n_tu)  # the 0.1.0 axis, bit-exact
     dtu = (tu_base[1] - tu_base[0]) if n_tu > 1 else 0.0
-    tu = np.concatenate([tu_base, tu_hi + dtu * np.arange(1, n_tu_ext + 1)])
+    cold = np.asarray(sorted(tu_cold))
+    if cold.size and cold[-1] >= tu_lo:
+        raise ValueError("tu_cold nodes must sit strictly below the base T_u floor")
+    tu = np.concatenate([cold, tu_base, tu_hi + dtu * np.arange(1, n_tu_ext + 1)])
     z = np.linspace(z_lo, z_hi, n_z)
     # Overhang the rectangular envelope inside the grid extremes so an
     # envelope-edge runtime query is bracketed (never an extrapolation).
-    dp = (np.log(p[1]) - np.log(p[0])) if n_p > 1 else 0.0
+    # Each edge insets by half its LOCAL grid spacing (the axes are graded).
+    dp_lo = (np.log(p[1]) - np.log(p[0])) if len(p) > 1 else 0.0
+    dp_hi = (np.log(p[-1]) - np.log(p[-2])) if len(p) > 1 else 0.0
     dz = (z[1] - z[0]) if n_z > 1 else 0.0
+    dtu_floor = (tu[1] - tu[0]) if len(tu) > 1 else 0.0
     return IgnitionGrid(
         p_points=tuple(p),
         tu_points=tuple(tu),
         z_points=tuple(z),
-        p_envelope=(float(np.exp(np.log(p_lo) + 0.5 * dp)), float(np.exp(np.log(p_hi) - 0.5 * dp))),
-        tu_envelope=(float(tu_lo + 0.5 * dtu), float(tu[-1] - 0.5 * dtu)),
+        p_envelope=(
+            float(np.exp(np.log(p[0]) + 0.5 * dp_lo)),
+            float(np.exp(np.log(p[-1]) - 0.5 * dp_hi)),
+        ),
+        tu_envelope=(float(tu[0] + 0.5 * dtu_floor), float(tu[-1] - 0.5 * dtu)),
         z_envelope=(float(z_lo + 0.5 * dz), float(z_hi - 0.5 * dz)),
     )
 
@@ -278,6 +317,24 @@ def build_ignition_surface(
                 cols = engine.columns(float(p), float(t_u), float(z))
                 for name in _IGNITION_RULES:
                     grids[name][i, j, k] = cols[name]
+
+    # Isolated-zero refusal (0.3.0, plan S7): along the T_u axis, an S_L = 0
+    # node with flammable (nonzero) neighbors on BOTH sides is a failed solve
+    # masquerading as a flammability limit — extinction is contiguous from an
+    # axis edge (cold quench below, auto-ignitive ceiling above), never an
+    # interior hole. Refuse rather than record (OFFL-3 §3.3).
+    sl = grids["laminar_flame_speed"]
+    for i in range(len(p_ax)):
+        for k in range(len(z_ax)):
+            col = sl[i, :, k]
+            for j in range(1, len(tu_ax) - 1):
+                if col[j] == 0.0 and col[j - 1] > 0.0 and col[j + 1] > 0.0:
+                    raise RuntimeError(
+                        "isolated S_L = 0 hole along T_u at "
+                        f"p={p_ax[i]:.3e} Pa, T_u={tu_ax[j]:.0f} K, Z={z_ax[k]:.3f} — "
+                        "a failed flame solve, not a flammability limit; "
+                        "the surface is refused (OFFL-3 §3.3 isolated-zero refusal)"
+                    )
 
     # Holdout: fresh points (midpoint/quarter, subsampled) + envelope edges,
     # each disjoint from the tests' ⅜-offset gate. Measure in rule space.

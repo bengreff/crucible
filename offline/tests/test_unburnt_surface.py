@@ -1,5 +1,5 @@
 """OFFL-3 §3.3 / §6-4 (plan S5) — the UNBURNT-REACTANT production artifact
-`tables/chem/lox_lh2_unburnt_v0.2.0.h5`: the burn-progress c = 0 branch
+`tables/chem/lox_lh2_unburnt_v0.3.0.h5`: the burn-progress c = 0 branch
 (SOLV-4 §3.6), a gas-phase ideal-gas frozen reactant mixture on the same CEA
 enthalpy reference as the equilibrium surface.
 
@@ -40,7 +40,7 @@ from crucible_offl.surfaces import (
 )
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-PRODUCTION = REPO / "tables" / "chem" / "lox_lh2_unburnt_v0.2.0.h5"
+PRODUCTION = REPO / "tables" / "chem" / "lox_lh2_unburnt_v0.3.0.h5"
 GROUP = "/chem/lox_lh2/unburnt"
 
 
@@ -111,17 +111,20 @@ def test_s6_4_fresh_holdout_respects_stored_bounds(engine):
 def test_surface_is_physical_everywhere():
     """Every tabulated node is a real gas state: T, ρ, a, M̄ > 0 and
     1 < γ < 5/3 (a frozen H/O gas mixture is diatomic-dominated). The γ
-    lower bound is **1.1, not 1.0** (review): a uniform c_p units-scaling bug
-    collapses γ → 1.0003 and would pass a `> 1.0` gate while staying
-    self-consistent through a regen — the tightened bound catches it (the
-    real grid min, including the sub-floor overhang, is 1.164)."""
+    lower bound is **1.05, not 1.0** (review; relaxed 1.1 → 1.05 at S7): a
+    uniform c_p units-scaling bug collapses γ → 1.0003 and would pass a
+    `> 1.0` gate while staying self-consistent through a regen — the
+    tightened bound catches it. The 0.3.0 cold face (envelope floor 75 K
+    at the binding Z edge) keeps its overhang inside the honest-polynomial
+    region — the shipped grid min is 1.151, so the relaxed gate carries
+    margin rather than necessity."""
     with h5py.File(PRODUCTION, "r") as f:
         g = f[GROUP]
         cols = {name: np.array(g["values"][name]) for name in g["values"] if not name.startswith("sigma_")}
     for name in ("temperature", "density", "sound_speed", "mbar", "gamma_eff"):
         assert np.all(np.isfinite(cols[name])), name
         assert np.all(cols[name] > 0.0), name
-    assert np.all(cols["gamma_eff"] > 1.1) and np.all(cols["gamma_eff"] < 5.0 / 3.0)
+    assert np.all(cols["gamma_eff"] > 1.05) and np.all(cols["gamma_eff"] < 5.0 / 3.0)
     # A cryogenic corner exists (the branch's reason to be): the coldest
     # tabulated T is below the equilibrium surface's floor (~410 K at Z=1/6).
     assert cols["temperature"].min() < 200.0

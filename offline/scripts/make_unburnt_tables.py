@@ -32,7 +32,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from crucible_offl.chemistry import FrozenReactantEngine
 from crucible_offl.surfaces import unburnt_reactant_grid, write_unburnt_table
 
-DATA_VERSION = "0.2.0"
+DATA_VERSION = "0.3.0"
 
 
 def main() -> int:

@@ -46,6 +46,14 @@ pub const DEFAULT_P_AMB_FLOOR_PA: f64 = 100.0;
 /// Default injector start-ramp window (flow-through times): 0 = step start
 /// (backward-compatible; fine dials declare a window — see the schema note).
 pub const DEFAULT_INJECTOR_RAMP_FLOWTHROUGHS: f64 = 0.0;
+/// COUP-4 §3.1 `EPS_WORKS` default: per-quantity relative tolerance on the
+/// commanded profile (the S1 reported-target scale). Materialized only when
+/// a commanded quantity arms the WORKS criterion (S7).
+pub const DEFAULT_EPS_WORKS: f64 = 0.02;
+/// COUP-4 §3.1 `T_DWELL` default (flow-through times): the contiguous span
+/// every commanded quantity must hold inside `EPS_WORKS`, as the tail of the
+/// one physical march.
+pub const DEFAULT_T_DWELL_FLOWTHROUGHS: f64 = 20.0;
 /// Load-time sanity bounds (named per META-2 §4). Rationale: FND-2 §3.8 —
 /// 10⁹ distinct cells already exceeds a 128 GB box, so any axis beyond 2²⁴
 /// cells (or a ring beyond 2²⁴ wedges) describes a world that cannot exist;
@@ -490,6 +498,60 @@ pub fn load_str_with_sidecars(
                     "must be in (0, 0.9] (explicit SSP-RK2 stability with margin)",
                 );
             }
+            // COUP-7 §3.2.2 compression declaration (S7): declaration-only.
+            if let Some(v) = p.valve_cited_timeline_s
+                && (!v.is_finite() || v <= 0.0)
+            {
+                diags.push(
+                    "operating_profile.valve_cited_timeline_s",
+                    "must be finite and > 0 (the cited physical timeline being compressed)",
+                );
+            }
+            // COUP-4 §3.1 commanded profile (S7): the WORKS-criterion
+            // constants materialize iff a commanded quantity arms them.
+            for (name, v) in [
+                ("commanded_p_c_pa", p.commanded_p_c_pa),
+                ("commanded_thrust_n", p.commanded_thrust_n),
+            ] {
+                if let Some(v) = v
+                    && (!v.is_finite() || v <= 0.0)
+                {
+                    diags.push(
+                        format!("operating_profile.{name}"),
+                        "must be finite and > 0",
+                    );
+                }
+            }
+            let armed = p.commanded_p_c_pa.is_some() || p.commanded_thrust_n.is_some();
+            let (eps_works, t_dwell_flowthroughs) = if armed {
+                let eps = p.eps_works.unwrap_or(DEFAULT_EPS_WORKS);
+                if !eps.is_finite() || !(0.0..=0.5).contains(&eps) || eps == 0.0 {
+                    diags.push(
+                        "operating_profile.eps_works",
+                        "must be in (0, 0.5] (a relative tolerance on the commanded profile)",
+                    );
+                }
+                let dwell = p
+                    .t_dwell_flowthroughs
+                    .unwrap_or(DEFAULT_T_DWELL_FLOWTHROUGHS);
+                if !dwell.is_finite() || dwell <= 0.0 {
+                    diags.push(
+                        "operating_profile.t_dwell_flowthroughs",
+                        "must be finite and > 0",
+                    );
+                }
+                (Some(eps), Some(dwell))
+            } else {
+                if p.eps_works.is_some() || p.t_dwell_flowthroughs.is_some() {
+                    diags.push(
+                        "operating_profile",
+                        "eps_works/t_dwell_flowthroughs without a commanded quantity — \
+                         the WORKS criterion has nothing to hold to; declare \
+                         commanded_p_c_pa and/or commanded_thrust_n or remove them",
+                    );
+                }
+                (None, None)
+            };
             Some(crate::schema::ResolvedProfile {
                 mode: p.mode.clone(),
                 flowthroughs,
@@ -498,6 +560,11 @@ pub fn load_str_with_sidecars(
                 pumpdown_flowthroughs,
                 p_amb_floor_pa,
                 injector_ramp_flowthroughs,
+                valve_cited_timeline_s: p.valve_cited_timeline_s,
+                commanded_p_c_pa: p.commanded_p_c_pa,
+                commanded_thrust_n: p.commanded_thrust_n,
+                eps_works,
+                t_dwell_flowthroughs,
             })
         }
     };

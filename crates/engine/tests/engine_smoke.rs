@@ -91,7 +91,7 @@ fn config_driven_engine_assembles_marches_and_reads_out() {
     );
 
     let table = crucible_engine::run::open_pinned_table(&spec).expect("pinned table opens");
-    let report = crucible_engine::run::run(&mut spec, &table, None, &mut |_| {})
+    let report = crucible_engine::run::run(&mut spec, &table, None, None, &mut |_| {})
         .expect("short march completes");
 
     // Machinery truths, not steadiness claims (2 flow-throughs only):
@@ -169,7 +169,7 @@ fn s4_config_composes_the_spine_and_the_missing_forces() {
     let transport = crucible_engine::run::open_transport_table(&spec)
         .expect("spine transport table opens")
         .expect("the tabulated occupant needs one");
-    let report = crucible_engine::run::run(&mut spec, &table, Some(&transport), &mut |_| {})
+    let report = crucible_engine::run::run(&mut spec, &table, Some(&transport), None, &mut |_| {})
         .expect("short march completes with the missing forces on");
 
     assert!(report.mdot_exit_kg_per_s > 0.0, "gas leaves the nozzle");
@@ -208,7 +208,7 @@ fn a_transport_surface_that_is_not_the_spine_surface_refuses_at_bind() {
     let wrong = crucible_engine::run::open_transport_table(&spec)
         .expect("the equilibrium table opens under its own pin")
         .expect("present");
-    let halt = crucible_engine::run::run(&mut spec, &table, Some(&wrong), &mut |_| {})
+    let halt = crucible_engine::run::run(&mut spec, &table, Some(&wrong), None, &mut |_| {})
         .expect_err("a surface without the transport columns must refuse");
     assert!(
         halt.message.contains("spine transport bind"),

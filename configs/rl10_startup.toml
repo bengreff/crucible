@@ -1,0 +1,219 @@
+# RL10A-3-3A STARTUP — plan S7 / ◆C2: the first real spark-to-steady march.
+# 2-D axisymmetric, coarse tier (dial 5), OPEN mode: the declared compressed
+# valve schedule delivers propellant (COUP-7 §3.2.2 — the cited ~2 s RL10
+# start sequence compressed to the ramp window below, declared + manifest-
+# recorded); a spark-class igniter fires into the filling chamber; ignition,
+# light-off, choke, and settle are computed physics; the run ends in a
+# COUP-4 verdict object (WORKS = dwell held on the commanded profile).
+#
+# Declared limitations (S7 tier, recorded):
+#  * GAS-PHASE injection state: h_inj is a ~215 K premixed GH2/GOX state
+#    inside the unburnt surface's envelope — the real cryo-liquid injection
+#    (h = −1.083e6, two-phase) is the S15 drift-flux wave; the commanded
+#    profile below is therefore the S4-spine coarse readout ADJUSTED for
+#    this hotter injection state, not the liquid-state numbers.
+#  * The spark is a RING at N_θ = 1 (2-D limitation, plan §5 S7): its
+#    energy is sized to the one-cell ring kernel it must heat (still inside
+#    the exciter class); the true point spark is the S8/S11 3-D capability.
+#
+# Run from the repository root:
+#   cargo run --release -p crucible -- run configs/rl10_startup.toml
+schema_version = 1
+
+[meta]
+name = "rl10-startup"
+description = "RL10A-3-3A open-mode SPARK-TO-STEADY startup march with a COUP-4 verdict (plan S7 / ◆C2)"
+
+[geometry]
+n_theta_max = 1
+axisymmetric = true
+contour = "data/anchors/rl10_contour.csv"
+contour_units = "in"
+liner_thickness_m = 0.02 # grid-thickened ring (see rl10_coarse.toml notes)
+cells_across_throat = 5.0
+
+[mechanisms.flow]
+type = "flow_shifting"
+
+[mechanisms.combustion]
+# SOLV-4 §3.6 burn progress (S6 physics, S7 config face): the blend of the
+# chem_unburnt + chem_equilibrium surfaces with the chem_ignition closures.
+type = "combustion_blend"
+# Declared S_T/S_L (META-3 `turbulent-flame-speed`, Zimont/Peters class,
+# PINNED at S7). 1.0 = the LAMINAR tier, and that is what this certifying
+# run declares — MEASURED S7 finding: wrinkling > 1 multiplied into the
+# S_L crossover band (T_u ~ 1000–1300 K carries real 100–300 m/s laminar
+# values) drives the front-carrier S_T toward the sound speed, where the
+# explicit class-A carrier's stability premise (S_T ≪ a) breaks and the
+# positivity guard halts (the hot ASI-torch regime the S6 close deferred).
+# The engine-scale turbulent consumer therefore lands with the S_T-CFL
+# front-carrier guard (S8 hardening / S16 dynamic closure); the light-off
+# timeline scales with wrinkling, the settled point does not.
+wrinkling = 1.0
+
+[mechanisms.igniter]
+# COUP-7 §3.3 igniter, TORCH tier (S7 ◆C2 finding): a one-shot exciter
+# spark LIGHTS a kernel (measured: 8 J/40 µs → b = 0.91) but the front
+# CANNOT ANCHOR — the chamber is a ~170 m/s premixed stream during fill
+# and a laminar front propagates at ~5 m/s (blowoff; the prior tier's
+# uniform plane inflow has no resolved recirculation to hold a flame).
+# The real RL10's ASI is a propellant-fed TORCH burning continuously
+# through start into mainstage (TM-107318) — flame-holding is ITS job.
+# Declared here as the same scheduled-deposit object at the torch tier:
+# ~300 kW full power (post-ramp) over the Stage-1 window, ~21 kJ total —
+# the ASI-propellant-flow × heating-value class. Per-parcel heating at
+# steady chamber density is ~1e6 J/kg (a declared ~1–2% perturbation next
+# to the 10 MW jacket term).
+type = "spark_igniter"
+# Sizing (MEASURED, first ◆C2 attempt = a correct NEVER_IGNITED verdict):
+# during fill the whole chamber is a 200–400 m/s stream (uniform plane
+# inflow, prior tier — no recessed ASI cavity at this tier), so kernel
+# residence is ~50–65 µs and a deposit longer than that pays the full
+# ignition enthalpy once per gas replacement. The exciter answer: ONE
+# short discharge ~ the residence time, sized so one kernel volume takes
+# the full ignition enthalpy WITH runaway margin: 16 J into the innermost
+# one-cell ring at 3.0 ms (chamber ~0.9 bar, ρ ≈ 0.43 ⇒ Δh ≈ 5e6 J/kg,
+# kernel T_u ~ 1800 K, τ_ign ~ µs — in-window runaway; the second attempt's
+# measured miss: at 4 ms the chamber had already reached 0.154 MPa and 8 J
+# bought only ~850 K parcels, whose ms-class τ_ign lost the race to the
+# 150 m/s sweep). Same deposit-intensity class as the S6 spark_box.
+energy_j = 21000.0
+r_m = 0.0063      # innermost cell ring (the centered-ASI position class)
+z_m = -0.2823     # ~3 cells downstream of the injector face (z_min ≈ −0.326)
+half_width_m = 0.008
+# The torch runs from early fill through the whole Stage-1 window (the
+# real ASI never shuts off during start); the standard 0.3-window ramp
+# doubles as the torch's own light-off transient, so the early rarefied
+# fill sees gentle power and full power arrives with the denser chamber.
+window_start_s = 2.0e-3
+window_s = 8.2e-2
+
+[mechanisms.margins]
+# SOLV-6 v1 (S7): melt + primary-stress burst margins on the liner as the
+# annotated shell component — the COUP-4 halt inputs. The pressure shell of
+# the RL10 liner is the TUBE (brazed SS-347 tube bundle, TM-107318): cited
+# chamber-section tube radius ~3.5 mm, wall 0.33 mm (2R/t = 21.2, inside
+# the v1 thin-shell validity). Load = |p_gas − p_coolant| (the expander
+# jacket runs ABOVE chamber pressure; TM Table 2.4.1 class ~1000 psia).
+# Allowables: SS-347 A-basis class (`mmpds`): yield 205→125 MPa and UTS
+# 515→315 MPa over the cited range (linear; interrogation outside refuses);
+# solidus 1673 K (`ss347-liner-thermal`). The COLD anchor sits at 77 K with
+# the ROOM-TEMPERATURE strengths — a declared conservative flattening
+# (austenitic 347 only strengthens toward cryo, and the chilled liner at
+# start is cryogenic), costing ~12% under-statement mid-range.
+type = "structural_margins"
+t_real_m = 3.3e-4
+r_shell_m = 3.5e-3
+p_coolant_pa = 6.9e6
+e_pa = 1.93e11
+alpha_per_k = 1.7e-5
+nu = 0.30
+yield_cold_pa = 2.05e8
+yield_hot_pa = 1.25e8
+uts_cold_pa = 5.15e8
+uts_hot_pa = 3.15e8
+t_cold_k = 77.0
+t_hot_k = 800.0
+t_solidus_k = 1673.0
+
+[mechanisms.injector]
+type = "injector_prior"
+mdot_kg_per_s = 16.9465
+mixture_ratio = 5.0
+# GAS-PHASE declared injection state (~215 K premixed — see header): inside
+# the unburnt surface's h envelope (v0.3.0 floor −6.06e5). The liquid-injection
+# state rides S15.
+h_inj_j_per_kg = -2.5e5
+
+[mechanisms.liner]
+type = "conduction"
+kappa_w_per_m_k = 2000.0
+rho_cp_j_per_m3_k = 6.5175e4 # PHYSICAL capacitance-preserving areal mass (see rl10_coarse.toml)
+
+[mechanisms.wall]
+type = "wall_heat"
+
+[mechanisms.transport]
+type = "transport_table"
+schmidt = 0.40
+
+[mechanisms.gasvisc]
+type = "gas_diffusion"
+
+[mechanisms.jacket]
+type = "jacket_coolant"
+h_w_per_m2_k = 30000.0
+t_coolant_k = 120.0
+
+[engine.bindings]
+"flow.inflow" = "injector.combustion_inlet"
+
+[operating_profile]
+mode = "steady_march"
+# T_S1_HORIZON: spark (~1 ms) + light-off/choke (~10 ms) + the ~37 ms liner
+# clock (◆C1 finding; ruling #4 = run length, never schedule tuning) + the
+# ~20 ms dwell ⇒ 30 flow-throughs of the COLD-FILL acoustic span (measured
+# 2.8 ms each at the ~215 K fill state — 3× a hot chamber flow-through, so
+# these counts are NOT comparable to the dense-fill presets').
+flowthroughs = 30.0
+# REAL pre-start state: the chamber sits at the DECLARED altitude cell's
+# backpressure (10 mbar class — the ejector-held simulated-altitude test
+# cell of the RL10 record), not the steady-march establishment trick's high
+# fill. The declared cell backpressure also bounds the PRE-IGNITION cold
+# jet's expansion ratio: unburnt ~215 K gas below ~100 K static is the
+# reactant model's condensation edge (S15 two-phase territory), so the
+# spark (below) fires early in the fill — as a real start sequence does —
+# before the cold flow chokes hard.
+fill_p_pa = 1000.0
+pumpdown_flowthroughs = 0.0 # already at altitude — the valve opens into the cell
+p_amb_floor_pa = 1000.0
+# THE compressed valve schedule (COUP-7 §3.2.2): the injector ṁ ramps over
+# 4 flow-throughs (~3.7 ms), compressing the cited ~2 s RL10 start-sequence
+# timeline (`rl10-cycle-data`) — declared and manifest-recorded; nothing
+# inside the engine is compressed.
+injector_ramp_flowthroughs = 4.0
+valve_cited_timeline_s = 2.0
+# COUP-4 §3.1 commanded profile (arms the WORKS criterion; this file's
+# flowthroughs is then the declared horizon): the coarse-tier η = 1
+# operating point of record (station-5 recorded readout F 74163 N /
+# p_c 3.0933 MPa) adjusted ~+2% for the declared gas-phase injection state
+# (hotter than the liquid state by Δh ≈ 7.8e5 J/kg). eps_works 0.05 is the
+# DECLARED coarse-tier acceptance: it covers the adjustment estimate's own
+# uncertainty; the certified fine-tier criterion stays the COUP-4 default
+# 0.02 (plan S17/S19).
+commanded_p_c_pa = 3.15e6
+commanded_thrust_n = 75600.0
+eps_works = 0.05
+# ~20 ms of physical dwell: 7 COLD-FILL flow-throughs ≈ 20+ chamber
+# acoustic flow-throughs (the COUP-4 default's intent, restated on this
+# march's 2.8 ms span).
+t_dwell_flowthroughs = 7.0
+
+[tables.chem_equilibrium]
+file = "tables/chem/lox_lh2_v0.4.0.h5"
+group = "/chem/lox_lh2/equilibrium"
+pins = "tables/chem/lox_lh2_v0.4.0.pins.toml"
+
+[tables.chem_unburnt]
+file = "tables/chem/lox_lh2_unburnt_v0.3.0.h5"
+group = "/chem/lox_lh2/unburnt"
+pins = "tables/chem/lox_lh2_unburnt_v0.3.0.pins.toml"
+
+[tables.chem_ignition]
+# v0.3.0 (S7): the cold-extended + p-refined closure surface — envelope
+# floor T_u 75 K / ceiling p 6.67 MPa (the marched front's cold-reactant
+# queries and chamber-class mid-transition compressions both live inside).
+file = "tables/chem/lox_lh2_ignition_v0.3.0.h5"
+group = "/chem/lox_lh2/ignition"
+pins = "tables/chem/lox_lh2_ignition_v0.3.0.pins.toml"
+
+[tables.spine_transport]
+file = "tables/spine/lox_lh2_transport_v0.2.0.h5"
+group = "/spine/lox_lh2/transport"
+pins = "tables/spine/lox_lh2_transport_v0.2.0.pins.toml"
+
+[determinism]
+mode = "fixed-order"
+
+[rng]
+master_seed = 11

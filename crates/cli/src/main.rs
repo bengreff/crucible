@@ -92,16 +92,29 @@ fn run_config(path: &str) -> i32 {
             return 1;
         }
     };
+    let blend_tables = match crucible_engine::run::open_blend_tables(&spec) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("table error: {e}");
+            return 1;
+        }
+    };
     let started = std::time::Instant::now();
     let mut on_progress = |p: &crucible_engine::run::Progress| {
+        let r = if p.reacting_r.is_finite() {
+            format!("  R {:.2e}", p.reacting_r)
+        } else {
+            String::new()
+        };
         println!(
-            "  step {:>7}  t = {:>8.4} ms / {:.4} ms  resid {:.2e}  mdot_exit {:>7.3} kg/s  F {:>9.1} N",
+            "  step {:>7}  t = {:>8.4} ms / {:.4} ms  resid {:.2e}  mdot_exit {:>7.3} kg/s  F {:>9.1} N  p_c {:>9.4} MPa{r}",
             p.step,
             p.t * 1e3,
             p.t_final * 1e3,
             p.resid,
             p.mdot_exit,
             p.thrust_n,
+            p.p_c_pa / 1e6,
         );
         let _ = std::io::stdout().flush();
     };
@@ -109,11 +122,22 @@ fn run_config(path: &str) -> i32 {
         &mut spec,
         &table,
         transport_table.as_ref(),
+        blend_tables.as_ref(),
         &mut on_progress,
     ) {
         Ok(r) => r,
         Err(halt) => {
             eprintln!("run halted: {halt}");
+            if let Some(v) = &halt.verdict {
+                eprintln!("\n== COUP-4 VERDICT ==\n  {v}");
+                let dir = format!("runs/{name}");
+                let path = format!("{dir}/verdict.txt");
+                if std::fs::create_dir_all(&dir).is_ok()
+                    && std::fs::write(&path, format!("{v}\n")).is_ok()
+                {
+                    eprintln!("  verdict artifact: {path}");
+                }
+            }
             if !halt.crash_csv.is_empty() {
                 let dir = format!("runs/{name}");
                 let path = format!("{dir}/crash_fields.csv");
@@ -181,6 +205,15 @@ fn run_config(path: &str) -> i32 {
         report.active_gas_cells,
         wall,
     );
+    if report.peak_reacting_measure.is_finite() {
+        println!(
+            "  peak reacting measure R {:.3e} kg/s (COUP-4 ignition witness)",
+            report.peak_reacting_measure
+        );
+    }
+    if let Some(v) = &report.verdict {
+        println!("\n== COUP-4 VERDICT ==\n  {v}");
+    }
 
     // Run artifacts: fields CSV (the viz feed) + the FND-4 manifest.
     let dir = format!("runs/{name}");
@@ -195,6 +228,12 @@ fn run_config(path: &str) -> i32 {
     }
     if let Err(e) = std::fs::write(&manifest_path, loaded.manifest.to_toml()) {
         eprintln!("warning: {manifest_path}: {e}");
+    }
+    if let Some(v) = &report.verdict {
+        let vpath = format!("{dir}/verdict.txt");
+        if let Err(e) = std::fs::write(&vpath, format!("{v}\n")) {
+            eprintln!("warning: {vpath}: {e}");
+        }
     }
     println!("  artifacts: {fields_path}, {manifest_path}");
     0

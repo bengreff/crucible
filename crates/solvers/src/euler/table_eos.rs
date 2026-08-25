@@ -48,6 +48,11 @@ pub const EPS_P_PROJECTION: f64 = 1e-11;
 /// bracket so endpoint queries cannot fall an ulp outside the envelope.
 const H_BRACKET_MARGIN: f64 = 1e-12;
 
+/// Fixed bisection budget of the root finder's guaranteed closer (S7):
+/// enough to reach `EPS_P_PROJECTION` relative from any admissible
+/// bracket (2⁻⁶⁴ of even a seven-decade span is below one ulp).
+pub const N_P_BISECT: usize = 64;
+
 /// Fixed sign-change scan resolution of the projection's slow path (the
 /// near-vacuum non-monotone corner; see `project_pressure`). Sized by
 /// need, not tuned: 16 missed the shallow crossing of a dial-12 RL10
@@ -154,7 +159,9 @@ impl<'t> TableEos<'t> {
     /// Deterministic (data-dependent branch only); bit-reproducible at any
     /// thread count. Measured session 12: the full-bracket Illinois
     /// dominated the march (~70% of wall clock in surface interpolation).
-    fn project_pressure_hinted(
+    /// `pub(crate)`: the SOLV-4 §3.6 blend's pure-limit hinted projections
+    /// delegate here (S7), mirroring the cold-path delegation.
+    pub(crate) fn project_pressure_hinted(
         &self,
         rho: f64,
         e_q: f64,
@@ -250,14 +257,42 @@ impl<'t> TableEos<'t> {
         if (b - a).abs() <= EPS_P_PROJECTION * a.abs().max(b.abs()) * 10.0 {
             return Ok(0.5 * (a + b));
         }
-        Err("equilibrium pressure projection did not converge in the fixed iteration budget")
+        // Guaranteed closer (S7): the bracket is sign-changed by
+        // construction, so a fixed bisection CANNOT fail to reach the
+        // tolerance — regula-falsi is the fast path, this the deterministic
+        // backstop (measured need: a wide blend purge-state bracket where
+        // the secant iterate hugged the flat endpoint through the whole
+        // budget). Any projection that converged before is bit-unchanged
+        // (this path only runs where the old code refused).
+        let (mut a, mut b, mut ga) = if a < b { (a, b, ga) } else { (b, a, gb) };
+        for _ in 0..N_P_BISECT {
+            let m = 0.5 * (a + b);
+            if (b - a).abs() <= EPS_P_PROJECTION * a.abs().max(b.abs()) {
+                return Ok(m);
+            }
+            let gm = g(m)?;
+            if gm == 0.0 {
+                return Ok(m);
+            }
+            if ga * gm < 0.0 {
+                b = m;
+            } else {
+                a = m;
+                ga = gm;
+            }
+        }
+        Ok(0.5 * (a + b))
     }
 
     /// The equilibrium pressure projection: root of
     /// `ρ_tab(p, h(p), Z) − ρ` over the admissible bracket, where
     /// `h(p) = e_q + p/ρ`, `e_q = e + h_offset`. Deterministic Illinois
     /// regula-falsi (module header). Returns the located pressure.
-    fn project_pressure(&self, rho: f64, e_q: f64, z: f64) -> Result<f64, &'static str> {
+    /// `pub(crate)`: the SOLV-4 §3.6 blend delegates its pure-limit
+    /// projections here (S7), so `b = 0`/`b = 1` cells run THIS routine —
+    /// near-vacuum tangency acceptance included — exactly as a pure
+    /// single-surface occupant would.
+    pub(crate) fn project_pressure(&self, rho: f64, e_q: f64, z: f64) -> Result<f64, &'static str> {
         let inv = 1.0 / rho;
         // Closed-form admissible bracket: h(p) = e_q + p/ρ must lie in the
         // h envelope AND p in the p envelope; shrink the h-derived bounds
@@ -448,9 +483,16 @@ impl<'t> TableEos<'t> {
         self.sound.interpolate(&[p, h, z])
     }
     /// Temperature [K] at `(p, h, Z)` (no `h_offset`). The blend reads the
-    /// unburnt branch here for `T_u` (the SOLV-4 §3.6 rate-law coordinate).
+    /// unburnt branch here for `T_u` (the SOLV-4 §3.6 rate-law coordinate)
+    /// and both branches for its mass-weighted diagnostic temperature (S7).
     pub(crate) fn temp_at(&self, p: f64, h: f64, z: f64) -> Result<f64, TableError> {
         self.temperature.interpolate(&[p, h, z])
+    }
+    /// The density column's rule-space (log) interpolation bound, if the
+    /// producer stamped one — the blend's mid-transition tangency acceptance
+    /// composes the two branches' bounds mass-weighted (S7).
+    pub(crate) fn rho_bound_log(&self) -> Option<f64> {
+        self.rho_err_bound_log
     }
 }
 

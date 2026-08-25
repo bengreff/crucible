@@ -86,7 +86,7 @@ fn march(
     let mut dt_min = f64::INFINITY;
     while t < t_final {
         let dt = sdc.stable_dt(g, flow, cfl).expect("dt").min(t_final - t);
-        sdc.step(g, Some(flow), None, Some(gas), None, t, dt)
+        sdc.step(g, Some(flow), None, Some(gas), None, None, t, dt)
             .expect("step (audit armed)");
         dt_min = dt_min.min(dt);
         t += dt;
@@ -772,7 +772,7 @@ fn mms_with_all_viscous_terms_recovers_formal_order() {
                 .stable_dt(&g, &flow, 0.4)
                 .expect("dt")
                 .min(emms::MMS_T_FINAL - t);
-            sdc.step(&mut g, Some(&flow), None, Some(&gas), None, t, dt)
+            sdc.step(&mut g, Some(&flow), None, Some(&gas), None, None, t, dt)
                 .expect("step");
             t += dt;
         }
@@ -841,7 +841,7 @@ fn gas_diffusion_without_flow_or_at_azimuthal_resolution_refuses() {
         temperature: &temperature,
         transport: &tr_query,
     };
-    match Sdc::new().step::<GammaLaw>(&mut g, None, None, Some(&gas), None, 0.0, 1e-6) {
+    match Sdc::new().step::<GammaLaw>(&mut g, None, None, Some(&gas), None, None, 0.0, 1e-6) {
         Err(SdcError::Config(_)) => {}
         other => panic!("expected a Config refusal, got {other:?}"),
     }
@@ -880,7 +880,16 @@ fn gas_diffusion_without_flow_or_at_azimuthal_resolution_refuses() {
         op: &op,
         fields: &f4,
     };
-    match Sdc::new().step(&mut g4, Some(&flow), None, Some(&gas), None, 0.0, 1e-9) {
+    match Sdc::new().step(
+        &mut g4,
+        Some(&flow),
+        None,
+        Some(&gas),
+        None,
+        None,
+        0.0,
+        1e-9,
+    ) {
         Err(SdcError::Config(m)) => assert!(m.contains("N_θ"), "wrong refusal: {m}"),
         other => panic!("expected the N_θ refusal, got {other:?}"),
     }
@@ -971,7 +980,7 @@ fn coupled_step_with_gas_diffusion_is_bit_identical_across_threads() {
             let mut t = 0.0f64;
             for _ in 0..150 {
                 let dt = sdc.stable_dt(&g, &flow, 0.4).expect("dt");
-                sdc.step(&mut g, Some(&flow), None, Some(&gas), None, t, dt)
+                sdc.step(&mut g, Some(&flow), None, Some(&gas), None, None, t, dt)
                     .expect("step");
                 t += dt;
             }
@@ -1118,6 +1127,7 @@ fn four_class_coupled_march_audits_closed_with_wall_ownership() {
                 Some(&diffusion),
                 Some(&gas),
                 Some(&exchange),
+                None,
                 t,
                 dt,
             )

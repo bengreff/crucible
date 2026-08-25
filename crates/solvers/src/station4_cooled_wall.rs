@@ -378,6 +378,7 @@ pub fn coupled_step(
         Some(&diffusion),
         None,
         Some(&exchange),
+        None,
         t,
         dt,
     )?;
@@ -610,6 +611,7 @@ pub fn stepped_cavity_step(
         Some(&diffusion),
         None,
         Some(&exchange),
+        None,
         t,
         dt,
     )?;

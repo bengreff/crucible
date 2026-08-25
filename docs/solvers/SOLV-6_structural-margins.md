@@ -6,7 +6,7 @@
 | **Family** | SOLV (Runtime unified-grid operators) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, FND-3/FND-4 (structural annotation), FND-7 (allowables), COUP-4 (halt input); FND-1 |
-| **Version** | 0.2 (2026-08-14 review fixes: N8, N9, N10) |
+| **Version** | 0.3 (2026-08-24 plan S7: **BUILT** — `crates/solvers/src/structural_margins.rs`, SOLV-6.1–6.5 + `FS_YIELD`/`FS_ULT` as named constants, 7 closed-form unit tests; **primary/secondary categorization** — the COUP-4 halt input is the burst margin on the PRIMARY (pressure-difference) stress state + melt, the thermal-term combined margins are reported diagnostics; v1 annotation = the declared cited `r_shell_m` of the pressure-carrying member (RL10 tube radius ~3.5 mm), two-point A-basis allowables over a cited `[t_cold, t_hot]`). 0.2 (2026-08-14 review fixes: N8, N9, N10) |
 
 ---
 
@@ -52,6 +52,16 @@ bounding fluid cells), and **ΔT taken between the paired inner/outer surfaces o
 geometry/config machinery is FND-3/FND-4's; SOLV-6 consumes the annotation. A load-bearing component
 *without* an annotation is a config error (fail loud), not a guessed shell.
 
+**v1 annotation (0.3, plan S7).** The shell radius is the **DECLARED cited radius of the
+pressure-carrying member** (`r_shell_m`) — for the RL10's brazed tube-bundle liner that is the **TUBE**
+radius ~3.5 mm, wall 0.33 mm ⇒ `2R/t = 21.2`, inside validity; for a monocoque liner it is the chamber
+radius. The `R(z)`-from-CSG derivation above stands as the annotation *vision*, taken up when FND-3's
+CSG wave lands. A declared shell with `2R/t ≤ 20` **refuses at ASSEMBLY** (reported, never smeared —
+§5's rule). Allowables v1 = a **two-point linear A-basis pair over a cited `[t_cold, t_hot]`**;
+interrogation outside the pair's range **refuses** (no extrapolated strength). The S7 RL10 config
+anchors the cold point at 77 K with the room-temperature strengths — a declared conservative flattening
+(austenitic 347 only strengthens toward cryo; the chilled liner at start interrogates at ~120 K).
+
 ### 3.2 Stress state & margin (N8)
 Per-direction superposition of pressure and thermal terms — never a scalar sum of orthogonal components:
 - **(SOLV-6.1)** Hoop (thin shell, 2R/t > 20): `σ_hoop = p·R/t`.
@@ -73,9 +83,23 @@ Per-direction superposition of pressure and thermal terms — never a scalar sum
 - Material allowables (Inconel 625, SS, Cu alloys) are **T-dependent** from FND-7's static-limit table
   (A/B-basis), interrogated at the component's surface temperature.
 
+**Primary/secondary categorization (0.3, plan S7 — the ASME distinction).** The COUP-4 halt input is the
+**burst margin on the PRIMARY (load-controlled, pressure-difference) stress state**
+`σ_eq(σ_hoop, σ_long)` vs UTS/`FS_ULT`, plus **melt** (surface T ≥ solidus). The combined-stress margins
+including the thermal term (SOLV-6.3–6.5 as written) are **REPORTED diagnostics**: in a
+regeneratively-cooled liner the thermal stress is **strain-controlled** and legitimately exceeds elastic
+yield locally (plastic accommodation; every real cooled liner), so an elastic yield-margin halt would
+falsely kill working engines. The pressure operand is **`|p_gas − p_coolant|`** with a declared cited
+coolant backpressure — an expander jacket runs ABOVE chamber pressure, so the liner is loaded by the
+DIFFERENCE.
+
 The dominant uncertainty is **ΔT**, which rides the same **±20–30% wall-function band** as the wall heat
 flux (SOLV-1 §3.5, the one local wall-heat law; Bartz is a VAL-2 oracle only) — so the structural margin's
 band and the performance band share a source, and Sobol will show it.
+
+**BUILT (0.3, plan S7):** `crates/solvers/src/structural_margins.rs` — SOLV-6.1–6.5 with
+`FS_YIELD` = 1.1 / `FS_ULT` = 1.4 as named constants (`nasa-std-5012`), 7 closed-form unit tests; the
+engine's margin check runs at the COUP-4 §3.1 declared cadence.
 
 ## 4. Coupling relationships
 - **SOLV-1/conduction** provide wall p and T; **FND-3/FND-4** provide the structural annotation (§3.1);
@@ -111,5 +135,6 @@ annotation), FND-7 (allowables), COUP-4 (halt), SOLV-8 (stage-2 re-check).
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-24 | 0.3 | **Plan S7 — BUILT, with the primary/secondary line drawn where ASME draws it.** (1) §3.2: **primary/secondary categorization** — the COUP-4 halt input is the burst margin on the **PRIMARY (load-controlled, pressure-difference)** stress state `σ_eq(σ_hoop, σ_long)` vs UTS/`FS_ULT`, plus melt (surface T ≥ solidus); the combined-stress margins carrying the thermal term (SOLV-6.3–6.5 as written) become **reported diagnostics** — in a regeneratively-cooled liner the thermal stress is strain-controlled and legitimately exceeds elastic yield locally (plastic accommodation; every real cooled liner), so an elastic yield-margin halt would falsely kill working engines. The pressure operand is `\|p_gas − p_coolant\|` with a declared cited coolant backpressure (an expander jacket runs ABOVE chamber pressure — the liner is loaded by the difference). (2) §3.1 **v1 annotation**: the shell radius is the DECLARED cited radius of the pressure-carrying member (`r_shell_m` — RL10 brazed tube-bundle: TUBE radius ~3.5 mm, wall 0.33 mm ⇒ `2R/t = 21.2`, inside validity; monocoque: the chamber radius); the R(z)-from-CSG derivation stands as the annotation vision for FND-3's CSG wave; `2R/t ≤ 20` refuses at ASSEMBLY (§5's reported-never-smeared rule). Allowables v1 = two-point linear A-basis pair over a cited `[t_cold, t_hot]`, refusal outside (no extrapolated strength); the S7 RL10 config anchors the cold point at 77 K with RT strengths — a declared conservative flattening (austenitic 347 only strengthens toward cryo; the chilled liner at start interrogates at ~120 K). (3) **BUILT:** `crates/solvers/src/structural_margins.rs` (SOLV-6.1–6.5 + `FS_YIELD` = 1.1 / `FS_ULT` = 1.4 named constants, `nasa-std-5012`), 7 closed-form unit tests; the engine's check runs at the COUP-4 §3.1 declared `PROBE_EVERY` cadence. |
 | 2026-08-14 | 0.2 | Review fixes (N8, N9, N10). **N8:** uniaxial `E·α·ΔT` retired — biaxial constrained-liner `EαΔT/(1−ν)` + through-wall-gradient `EαΔT/(2(1−ν))` (Roark); per-direction superposition (σ_θ, σ_z); margin against the **stated von Mises equivalent-stress criterion** (§3.2). **N9:** config-time structural annotation — load-bearing components as shell primitives R(z), t(z) derived from the FND-3 CSG, member-cell mapping, ΔT between paired inner/outer surfaces of the same component (§3.1, §2). **N10:** safety factors as single sourced named constants `FS_YIELD` = 1.1 / `FS_ULT` = 1.4 (`nasa-std-5012`), replacing unsourced ranges. ΔT-band source updated Bartz → the one wall-function law (SOLV-1 §3.5, D-C). |
 | 2026-07-21 | 0.1 | Initial draft. Analytic quasi-static hoop/longitudinal/thermal/burst margins (Roark) → pass/fail + margin as a COUP-4 halt input; T-dependent A/B-basis allowables from FND-7; ΔT (Bartz) as the dominant band, shared with the performance spread; validity gated to thin-shell/elastic/quasi-static; stage-2 re-check hook. FEM/fatigue/fracture out of v1 (Failure-Mode Razor). |

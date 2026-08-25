@@ -29,8 +29,13 @@ use crucible_solvers::euler::{
     BurnBlendEos, Combustion, Cons, EPS_IGNITED, EosLaw, Euler, EulerFields, FlowBc, FlowBcs, I_RB,
     I_RHO, IgnitionColumns, NCOMP, THETA_CELLS, TableEos, consumption_rate, reacting_measure,
 };
-use crucible_solvers::sdc::{FlowClass, Sdc};
+use crucible_solvers::gas_diffusion::{
+    FaceGasBc, GasDiffBcs, GasDiffusion, SpeciesBc, ThermalBc, VelocityBc,
+};
+use crucible_solvers::sdc::{FlowClass, GasDiffusionClass, ReactionClass, Sdc};
+use crucible_solvers::transport::{ConstantTransport, TransportProps};
 use crucible_tables::{Pin, Table};
+use crucible_units::{dynamic_viscosity_pa_s, specific_heat_capacity_j_per_kg_k};
 
 fn open(file: &str, group: &str, pins_toml: &str) -> Table {
     let path = format!("{}/../../tables/chem/{file}", env!("CARGO_MANIFEST_DIR"));
@@ -48,11 +53,11 @@ fn open(file: &str, group: &str, pins_toml: &str) -> Table {
 
 fn unburnt() -> Table {
     open(
-        "lox_lh2_unburnt_v0.2.0.h5",
+        "lox_lh2_unburnt_v0.3.0.h5",
         "/chem/lox_lh2/unburnt",
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tables/chem/lox_lh2_unburnt_v0.2.0.pins.toml"
+            "/../../tables/chem/lox_lh2_unburnt_v0.3.0.pins.toml"
         )),
     )
 }
@@ -68,11 +73,11 @@ fn burnt() -> Table {
 }
 fn ignition() -> Table {
     open(
-        "lox_lh2_ignition_v0.2.0.h5",
+        "lox_lh2_ignition_v0.3.0.h5",
         "/chem/lox_lh2/ignition",
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tables/chem/lox_lh2_ignition_v0.2.0.pins.toml"
+            "/../../tables/chem/lox_lh2_ignition_v0.3.0.pins.toml"
         )),
     )
 }
@@ -147,13 +152,23 @@ fn consumption_speed(n_z: usize, h: f64, t_settle: f64) -> (f64, f64) {
         op: &op,
         fields: &f,
     };
+    let reaction = ReactionClass { op: &comb };
     let mut sdc = Sdc::new();
     let mut t = 0.0;
     let mut steps = 0usize;
     while t < t_settle {
         let dt = sdc.stable_dt(&g, &flow, 0.4).expect("dt").min(t_settle - t);
-        sdc.step(&mut g, Some(&flow), None, None, None, t, dt)
-            .expect("combustion step (audit armed)");
+        sdc.step(
+            &mut g,
+            Some(&flow),
+            None,
+            None,
+            None,
+            Some(&reaction),
+            t,
+            dt,
+        )
+        .expect("combustion step (audit armed)");
         t += dt;
         steps += 1;
         assert!(steps < 500_000, "runaway flame march");
@@ -303,12 +318,22 @@ fn ignition_delay_reproduces_the_tau_surface() {
         op: &op,
         fields: &f,
     };
+    let reaction = ReactionClass { op: &comb };
     let mut sdc = Sdc::new();
     let (mut t, mut t_ign) = (0.0f64, f64::NAN);
     while t < 5.0e-3 {
         let dt = sdc.stable_dt(&g, &flow, 0.4).unwrap();
-        sdc.step(&mut g, Some(&flow), None, None, None, t, dt)
-            .unwrap();
+        sdc.step(
+            &mut g,
+            Some(&flow),
+            None,
+            None,
+            None,
+            Some(&reaction),
+            t,
+            dt,
+        )
+        .unwrap();
         t += dt;
         if t_ign.is_nan() && mean_burn(&g, &f) >= 0.5 {
             t_ign = t;
@@ -390,13 +415,23 @@ fn igniter_run(
         op: &op,
         fields: &f,
     };
+    let reaction = ReactionClass { op: &comb };
     let mut sdc = Sdc::new();
     let (mut t, mut peak_r) = (0.0f64, 0.0f64);
     let ids = f.ids();
     while t < t_end {
         let dt = sdc.stable_dt(&g, &flow, 0.4).unwrap().min(t_end - t);
-        sdc.step(&mut g, Some(&flow), None, None, None, t, dt)
-            .unwrap();
+        sdc.step(
+            &mut g,
+            Some(&flow),
+            None,
+            None,
+            None,
+            Some(&reaction),
+            t,
+            dt,
+        )
+        .unwrap();
         t += dt;
         let r = reacting_measure(&g, &ids, &blend, &comb.ignition, 1.0, THETA_CELLS).unwrap();
         peak_r = peak_r.max(r);
@@ -468,5 +503,451 @@ fn adiabatic_box_cannot_flame_out() {
         burned > 0.9,
         "a lit closed ADIABATIC box must burn to completion — a partial burn \
          means a spurious loss channel has appeared (burned {burned:.3})"
+    );
+}
+
+/// March a uniform box at `(p, h, Z, b = 0)` with the reaction class
+/// scheduled, no igniter; return `(final mean burnt fraction, max b)`.
+fn uniform_reactive_march(p: f64, h_spec: f64, n_steps: usize) -> (f64, f64) {
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let ign = IgnitionColumns::bind(&it).unwrap();
+    let comb = Combustion {
+        blend: &blend,
+        ignition: ign,
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
+    let (mut g, f) = tube(8, 5.0e-4);
+    let ids = f.ids();
+    for (k, &id) in ids.iter().enumerate() {
+        g.fill_field(id, |_r, _th, _z| {
+            blend
+                .cons_from_phzb(p, h_spec, Z0, 0.0, [0.0, 0.0, 0.0])
+                .expect("valid uniform IC")[k]
+        });
+    }
+    let op = Euler {
+        eos: blend.clone(),
+        source: &ZERO_SRC,
+        bcs: FlowBcs {
+            r_inner: FlowBc::Reflecting,
+            r_outer: FlowBc::Reflecting,
+            z_lo: FlowBc::Reflecting,
+            z_hi: FlowBc::Reflecting,
+        },
+        wall_normal: None,
+        slip_wall_z_faces: true,
+        combustion: Some(&comb),
+    };
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let reaction = ReactionClass { op: &comb };
+    let mut sdc = Sdc::new();
+    let mut t = 0.0;
+    for _ in 0..n_steps {
+        let dt = sdc.stable_dt(&g, &flow, 0.4).unwrap();
+        sdc.step(
+            &mut g,
+            Some(&flow),
+            None,
+            None,
+            None,
+            Some(&reaction),
+            t,
+            dt,
+        )
+        .unwrap();
+        t += dt;
+    }
+    let mut b_max = 0.0f64;
+    for bi in 0..g.n_bricks() {
+        let br = g.brick(bi);
+        let mask = br.mask();
+        let (rho, rhob) = (br.field(ids[I_RHO]), br.field(ids[I_RB]));
+        for local in 0..64 {
+            if mask & (1u64 << local) != 0 {
+                let cell = br.cell_index(0, local);
+                b_max = b_max.max(rhob[cell] / rho[cell]);
+            }
+        }
+    }
+    (mean_burn(&g, &f), b_max)
+}
+
+#[test]
+fn stiff_auto_ignition_is_stable_past_the_explicit_bound() {
+    // THE class-R acceptance (COUP-3 §3.3, S7): superheated reactants at
+    // elevated pressure have τ_ign at/below the acoustic Δt — dt/τ ≳ 1,
+    // exactly where the S6 explicit advance overshot the positivity guard
+    // and halted (Δb = dt·(1−b)/τ > 1 in one step). The implicit node solve
+    // must march it: unconditionally stable, the burn completing on the
+    // guarded law's own fixed point (b parks at 1 − BURN_COMPLETE from
+    // below, never past). The tube is OPEN (constant-pressure outflow at the
+    // fill pressure) — an engine is open, so the fixture must not compress
+    // itself into confined-blast corners no chamber reaches.
+    const P_CHAMBER: f64 = 1.5e6; // 15 bar — τ_ign shrinks with p
+    const H_SUPER: f64 = 5.5e6; // superheated reactants (T_u ≈ 1890 K)
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let ign = IgnitionColumns::bind(&it).unwrap();
+    let comb = Combustion {
+        blend: &blend,
+        ignition: ign,
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
+    let (mut g, f) = tube(8, 4.0e-3);
+    let ids = f.ids();
+    for (k, &id) in ids.iter().enumerate() {
+        g.fill_field(id, |_r, _th, _z| {
+            blend
+                .cons_from_phzb(P_CHAMBER, H_SUPER, Z0, 0.0, [0.0, 0.0, 0.0])
+                .expect("valid superheated IC")[k]
+        });
+    }
+    let p_amb = |_t: f64| P_CHAMBER;
+    let op = Euler {
+        eos: blend.clone(),
+        source: &ZERO_SRC,
+        bcs: FlowBcs {
+            r_inner: FlowBc::Reflecting,
+            r_outer: FlowBc::Reflecting,
+            z_lo: FlowBc::Reflecting,
+            z_hi: FlowBc::PressureOutflow(&p_amb),
+        },
+        wall_normal: None,
+        slip_wall_z_faces: true,
+        combustion: Some(&comb),
+    };
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let reaction = ReactionClass { op: &comb };
+    let mut sdc = Sdc::new();
+    // Self-verify the stiffness claim: this fixture must genuinely sit past
+    // the explicit bound (dt/τ > 1 ⇒ the S6 explicit advance would halt).
+    let w0 = blend
+        .cons_from_phzb(P_CHAMBER, H_SUPER, Z0, 0.0, [0.0, 0.0, 0.0])
+        .and_then(|u| blend.prim_checked(&u))
+        .unwrap();
+    let t_u = blend.unburnt_temperature(&w0).unwrap();
+    let tau = comb.ignition.induction_time(P_CHAMBER, t_u, Z0).unwrap();
+    let dt0 = sdc.stable_dt(&g, &flow, 0.4).unwrap();
+    println!(
+        "stiff_auto_ignition: T_u={t_u:.0} K  τ={tau:.3e} s  dt={dt0:.3e} s  dt/τ={:.2}",
+        dt0 / tau
+    );
+    assert!(
+        dt0 / tau > 1.0,
+        "fixture not stiff enough to exercise the class-R claim (dt/τ = {:.2})",
+        dt0 / tau
+    );
+    let mut t = 0.0;
+    for _ in 0..12 {
+        let dt = sdc.stable_dt(&g, &flow, 0.4).unwrap();
+        sdc.step(
+            &mut g,
+            Some(&flow),
+            None,
+            None,
+            None,
+            Some(&reaction),
+            t,
+            dt,
+        )
+        .expect("stiff auto-ignition step (the S6 explicit tier halted here)");
+        t += dt;
+    }
+    let burned = mean_burn(&g, &f);
+    let mut b_max = 0.0f64;
+    for bi in 0..g.n_bricks() {
+        let br = g.brick(bi);
+        let mask = br.mask();
+        let (rho, rhob) = (br.field(ids[I_RHO]), br.field(ids[I_RB]));
+        for local in 0..64 {
+            if mask & (1u64 << local) != 0 {
+                let cell = br.cell_index(0, local);
+                b_max = b_max.max(rhob[cell] / rho[cell]);
+            }
+        }
+    }
+    println!("stiff_auto_ignition: burned={burned:.6}  b_max={b_max:.7}");
+    assert!(
+        burned > 0.95,
+        "a superheated tube must auto-ignite essentially instantly (burned {burned:.4})"
+    );
+    assert!(
+        b_max <= 1.0 - crucible_solvers::euler::BURN_COMPLETE + 1.0e-12,
+        "the implicit solve must park AT the guarded fixed point, never past it \
+         (b_max {b_max:.9})"
+    );
+}
+
+#[test]
+fn implicit_node_solve_parks_exactly_at_any_stiffness() {
+    // The class-R node solve as a pure function, at stiffness no march can
+    // reach (w/τ ~ 10⁶): the update must land EXACTLY on the guarded law's
+    // parking point ρ(1 − BURN_COMPLETE) — the exact integral of the
+    // declared discontinuous rate law — and the mild limit must reduce to
+    // the explicit rate to O((w/τ)²).
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let ign = IgnitionColumns::bind(&it).unwrap();
+    let comb = Combustion {
+        blend: &blend,
+        ignition: ign,
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
+    const H_HOT: f64 = 2.5e6; // T_u ≈ 1050 K: real finite τ_ign
+    let u = blend
+        .cons_from_phzb(P0, H_HOT, Z0, 0.0, [0.0, 0.0, 0.0])
+        .unwrap();
+    let w = blend.prim_checked(&u).unwrap();
+    let t_u = blend.unburnt_temperature(&w).unwrap();
+    let tau = comb.ignition.induction_time(P0, t_u, Z0).unwrap();
+    let rho = u[0];
+    let cap = rho * (1.0 - crucible_solvers::euler::BURN_COMPLETE);
+    // Extreme stiffness: parks exactly at the fixed point.
+    let (x, r) = comb.implicit_auto_update(&u, 0.0, 1.0e6 * tau).unwrap();
+    assert!(
+        x == cap,
+        "extreme-stiffness update must park exactly at ρ(1−BURN_COMPLETE): \
+         x = {x:.12e} vs cap = {cap:.12e}"
+    );
+    assert!(r > 0.0 && r.is_finite());
+    // Mild limit: reduces to the explicit rate. The residual deviation is
+    // NOT the BE factor (that is O(w/τ) ~ 1e-3 here) but the τ-refreeze
+    // evaluating τ at the advanced state — τ is Arrhenius-steep in the
+    // enthalpy rise the tiny burn causes (measured d(ln τ)/db ≈ 12 at this
+    // state), which is the backward-Euler semantics working as declared.
+    // Assert same-value-to-a-few-percent, which pins the reduction without
+    // faking a tighter identity than the scheme claims.
+    let w_mild = 1.0e-3 * tau;
+    let (x_mild, _) = comb.implicit_auto_update(&u, 0.0, w_mild).unwrap();
+    let explicit = w_mild * rho / tau;
+    let rel = ((x_mild - explicit) / explicit).abs();
+    assert!(
+        rel < 5.0e-2,
+        "mild-limit update must reduce to the explicit rate (rel dev {rel:.2e})"
+    );
+    // A base at/past the cap is a zero-source fixed point.
+    let (x_at, r_at) = comb.implicit_auto_update(&u, cap, tau).unwrap();
+    assert!(x_at == cap && r_at == 0.0);
+}
+
+/// March a lit flame tube WITH the class-D gas-diffusion coupling — the
+/// blend↔diffusion march S7's startup runs — under the given wall thermal
+/// condition; return `(R_initial, R_final, final mean burnt fraction)`.
+/// The tube's r-gap is the quench-scale dimension (n_r cells of `h`).
+fn quench_march(p_fill: f64, wall_t_k: Option<f64>, n_steps: usize) -> (f64, f64, f64) {
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let ign = IgnitionColumns::bind(&it).unwrap();
+    let comb = Combustion {
+        blend: &blend,
+        ignition: ign,
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
+    let (n_z, h) = (48, 2.0e-4); // r-gap = 4·h = 0.8 mm (the quench scale)
+    let (mut g, f) = tube(n_z, h);
+    let ids = f.ids();
+    for (k, &id) in ids.iter().enumerate() {
+        g.fill_field(id, |_r, _th, z| {
+            let b = 1.0 / (1.0 + ((z - 0.5 * (n_z as f64) * h) / (THETA_CELLS * h)).exp());
+            blend
+                .cons_from_phzb(p_fill, H0, Z0, b, [0.0, 0.0, 0.0])
+                .expect("valid flame IC")[k]
+        });
+    }
+    let op = Euler {
+        eos: blend.clone(),
+        source: &ZERO_SRC,
+        bcs: FlowBcs {
+            r_inner: FlowBc::Reflecting,
+            r_outer: FlowBc::Reflecting,
+            z_lo: FlowBc::Reflecting,
+            z_hi: FlowBc::Reflecting,
+        },
+        wall_normal: None,
+        slip_wall_z_faces: true,
+        combustion: Some(&comb),
+    };
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let reaction = ReactionClass { op: &comb };
+    // The class-D gas occupant: viscous walls at the r-gap faces carrying
+    // the declared wall thermal condition; closed adiabatic z ends.
+    let no_slip = |_r: f64, _th: f64, _z: f64, _t: f64| (0.0, 0.0, 0.0);
+    let t_wall = move |_r: f64, _th: f64, _z: f64, _t: f64| wall_t_k.unwrap_or(f64::NAN);
+    let thermal = |on: bool| -> ThermalBc<'_> {
+        if on {
+            ThermalBc::Isothermal(&t_wall)
+        } else {
+            ThermalBc::Adiabatic
+        }
+    };
+    let gas_op = GasDiffusion::new(GasDiffBcs {
+        r_inner: FaceGasBc {
+            velocity: VelocityBc::NoSlip(&no_slip),
+            thermal: thermal(wall_t_k.is_some()),
+            species: SpeciesBc::ZeroFlux,
+        },
+        r_outer: FaceGasBc {
+            velocity: VelocityBc::NoSlip(&no_slip),
+            thermal: thermal(wall_t_k.is_some()),
+            species: SpeciesBc::ZeroFlux,
+        },
+        z_lo: FaceGasBc {
+            velocity: VelocityBc::FreeSlip,
+            thermal: ThermalBc::Adiabatic,
+            species: SpeciesBc::ZeroFlux,
+        },
+        z_hi: FaceGasBc {
+            velocity: VelocityBc::FreeSlip,
+            thermal: ThermalBc::Adiabatic,
+            species: SpeciesBc::ZeroFlux,
+        },
+    });
+    // The blend↔class-D seam (S7): the gas operator reads the BLEND's
+    // mass-weighted temperature and the spine at the blend's own
+    // interrogation coordinate — here the declared-constant occupant with
+    // H₂/O₂-mixture-class values (a state-varying spine would not change
+    // what this fixture demonstrates: the loss channel).
+    let props: TransportProps = ConstantTransport::new(
+        specific_heat_capacity_j_per_kg_k(3.8e3),
+        dynamic_viscosity_pa_s(2.0e-5),
+        0.7, // Pr
+        1.4,
+        0.5, // Sc
+    )
+    .expect("transport set")
+    .into_props();
+    let temperature = |w: &crucible_solvers::euler::Prim| blend.temperature_w(w);
+    let transport =
+        move |_w: &crucible_solvers::euler::Prim| -> Result<TransportProps, &'static str> {
+            Ok(props)
+        };
+    let gas = GasDiffusionClass {
+        op: &gas_op,
+        temperature: &temperature,
+        transport: &transport,
+    };
+    let mut sdc = Sdc::new();
+    let r_initial = reacting_measure(&g, &ids, &blend, &comb.ignition, 1.0, THETA_CELLS).unwrap();
+    let mut t = 0.0;
+    for _step in 0..n_steps {
+        let dt = sdc.stable_dt(&g, &flow, 0.4).unwrap();
+        sdc.step(
+            &mut g,
+            Some(&flow),
+            None,
+            Some(&gas),
+            None,
+            Some(&reaction),
+            t,
+            dt,
+        )
+        .expect("blend + class-D quench march (audit armed)");
+        t += dt;
+    }
+    let r_final = reacting_measure(&g, &ids, &blend, &comb.ignition, 1.0, THETA_CELLS).unwrap();
+    (r_initial, r_final, mean_burn(&g, &f))
+}
+
+#[test]
+fn quench_box_flames_out_on_cold_walls() {
+    // THE FLAMEOUT demonstration (SOLV-4 §6.5, re-scoped S6→S7): quenching
+    // is a heat-loss phenomenon, so it needs the loss channel — conductive
+    // loss to cold isothermal walls through the class-D gas-diffusion
+    // coupling (the blend↔diffusion march the startup runs anyway). At
+    // 0.8 mm gap and reduced pressure (quenching distance ∝ 1/p: ~0.2 mm at
+    // 1 atm for H₂/O₂, ~the gap at ~0.25 atm), a lit front between cold
+    // walls must DIE: the reacting measure collapses after having exceeded
+    // the floor — the exact R-trajectory the COUP-4 FLAMEOUT verdict
+    // consumes. The adiabatic control on the same fixture keeps burning
+    // (the S6 converse), so the loss channel — not the fixture — is what
+    // kills the flame.
+    // 420 K walls at 0.1 atm: the coldest wall the GAS-PHASE model can
+    // honestly quench against — the products surface's declared envelope
+    // floor reads ~407 K at the fixture state (grid floor ~332 K; H2O
+    // condensation onset ~310 K — measured from the v0.4.0 artifact), so
+    // colder walls chase burnt gas off its own surface (ice — the S15
+    // two-phase wave's territory). Quenching needs no cold wall, only a
+    // loss rate the front cannot outrun: quenching distance ∝ 1/p, so
+    // 0.1 atm puts the H2/O2 quench scale well above the 0.8 mm gap.
+    let (r0, r_end, burned) = quench_march(1.0e4, Some(420.0), 2600);
+    println!("quench_box (cold walls): R {r0:.3e} -> {r_end:.3e} kg/s, burned {burned:.3}");
+    assert!(
+        r0 > EPS_IGNITED,
+        "the initialized front must start alive (R {r0:.2e})"
+    );
+    assert!(
+        r_end < EPS_IGNITED,
+        "cold walls at the quench gap must extinguish the front — R stayed at \
+         {r_end:.2e} (FLAMEOUT unreached)"
+    );
+    assert!(
+        burned < 0.8,
+        "the front must die before consuming the tube (burned {burned:.3})"
+    );
+
+    let (c0, c_end, c_burned) = quench_march(1.0e4, None, 2600);
+    println!(
+        "quench_box (adiabatic control): R {c0:.3e} -> {c_end:.3e} kg/s, burned {c_burned:.3}"
+    );
+    // The control discriminator is the reacting measure, not the burned
+    // fraction: at 0.1 atm the laminar front crosses ~half a cell in this
+    // march window, so consumption cannot separate the cases — but a LIVE
+    // front holds R at its initial scale while the quenched one collapsed
+    // to zero. Same fixture, same march, only the loss channel differs.
+    assert!(
+        c0 == r0,
+        "the two fixtures must start from the same state (R {c0:.3e} vs {r0:.3e})"
+    );
+    assert!(
+        c_end > 0.5 * c0,
+        "the adiabatic control's front must stay alive (R {c0:.3e} -> {c_end:.3e}) — \
+         otherwise the loss channel is not what killed the quenched flame"
+    );
+    assert!(
+        c_burned >= burned,
+        "the adiabatic control must burn at least as far as the quenched case \
+         (control {c_burned:.3} vs quenched {burned:.3})"
+    );
+}
+
+#[test]
+fn cold_floor_cell_is_declared_non_reactive() {
+    // The cold-side non-reactive floor (SOLV-4 §3.6 / OFFL-3 §3.3, S7): a
+    // cell below the ignition surface's declared p-envelope floor (here
+    // ~1 kPa — near-vacuum fill territory) is declared no-burn: the march
+    // neither refuses on the closure query (the S6 behavior this cures) nor
+    // burns anything. The real S_L down to the unburnt branch's own cold
+    // validity floor is carried by the surface's cold rows (ignition
+    // v0.3.0), not by this guard.
+    const P_FILL: f64 = 1.0e3; // below the ignition surface's p floor
+    const H_COLD: f64 = -1.0e5; // cold reactants (~250 K class)
+    let (burned, b_max) = uniform_reactive_march(P_FILL, H_COLD, 5);
+    println!("cold_floor: burned={burned:.3e}  b_max={b_max:.3e}");
+    assert!(
+        burned == 0.0 && b_max == 0.0,
+        "a below-floor cell must be exactly non-reactive (burned {burned:.2e}, \
+         b_max {b_max:.2e})"
     );
 }

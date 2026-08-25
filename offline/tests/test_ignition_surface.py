@@ -1,5 +1,5 @@
 """OFFL-3 §3.3 / VAL-2 §3.3 (plan S6) — the IGNITION closure production
-artifact `tables/chem/lox_lh2_ignition_v0.2.0.h5`: the SOLV-4 §3.6 rate law's
+artifact `tables/chem/lox_lh2_ignition_v0.3.0.h5`: the SOLV-4 §3.6 rate law's
 `S_L(p, T_u, Z)` and `τ_ign(p, T_u, Z)`, from Cantera 1-D flames + 0-D
 reactors on `h2o2.yaml`.
 
@@ -38,7 +38,7 @@ from crucible_offl.ignition import (
 from crucible_offl.surfaces import _edge_points, _multilinear
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-PRODUCTION = REPO / "tables" / "chem" / "lox_lh2_ignition_v0.2.0.h5"
+PRODUCTION = REPO / "tables" / "chem" / "lox_lh2_ignition_v0.3.0.h5"
 GROUP = "/chem/lox_lh2/ignition"
 
 

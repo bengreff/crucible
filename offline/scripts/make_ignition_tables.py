@@ -34,7 +34,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from crucible_offl.ignition import IgnitionEngine, ignition_grid, write_ignition_table
 
-DATA_VERSION = "0.2.0"
+DATA_VERSION = "0.3.0"
 
 
 def main() -> int:

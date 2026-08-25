@@ -52,6 +52,60 @@ pub struct JacketSpec {
     pub t_coolant_k: f64,
 }
 
+/// SOLV-4 §3.6 burn-progress combustion selection (S7): the two extra table
+/// pins the blend needs (the burnt branch is `table_pin` — the same
+/// equilibrium surface shifting mode runs on) + the declared wrinkling.
+#[derive(Debug, Clone)]
+pub struct BlendSpec {
+    /// The `chem_unburnt` pin: (file, group, data_version, digest).
+    pub unburnt_pin: (String, String, String, String),
+    /// The `chem_ignition` pin.
+    pub ignition_pin: (String, String, String, String),
+    /// Declared `S_T/S_L` (META-3 `turbulent-flame-speed`; 1.0 = laminar).
+    pub wrinkling: f64,
+}
+
+/// COUP-7 §3.3 spark-igniter placement + schedule (S7; the one cited datum
+/// is `energy_j` — see SPARK_IGNITER_MANIFEST).
+#[derive(Debug, Clone)]
+pub struct IgniterSpec {
+    pub energy_j: f64,
+    pub r_m: f64,
+    pub z_m: f64,
+    pub half_width_m: f64,
+    pub window_start_s: f64,
+    pub window_s: f64,
+}
+
+/// SOLV-6 v1 margin-check operands (S7; see STRUCTURAL_MARGINS_MANIFEST).
+#[derive(Debug, Clone)]
+pub struct MarginsSpec {
+    pub t_real_m: f64,
+    pub r_shell_m: f64,
+    pub p_coolant_pa: f64,
+    pub e_pa: f64,
+    pub alpha_per_k: f64,
+    pub nu: f64,
+    pub yield_cold_pa: f64,
+    pub yield_hot_pa: f64,
+    pub uts_cold_pa: f64,
+    pub uts_hot_pa: f64,
+    pub t_cold_k: f64,
+    pub t_hot_k: f64,
+    pub t_solidus_k: f64,
+}
+
+/// COUP-4 §3.1 Stage-1 WORKS criterion (S7), armed by commanded-profile
+/// quantities in `[operating_profile]`; `flowthroughs` is then the declared
+/// `T_S1_HORIZON`.
+#[derive(Debug, Clone)]
+pub struct VerdictSpec {
+    pub commanded_p_c_pa: Option<f64>,
+    pub commanded_thrust_n: Option<f64>,
+    pub eps_works: f64,
+    pub t_dwell_flowthroughs: f64,
+}
+
 #[derive(Debug, Clone)]
 pub struct LinerSpec {
     pub kappa_w_per_m_k: f64,
@@ -112,6 +166,19 @@ pub struct EngineSpec {
     /// selected in config. The operator itself is parameter-free; it is
     /// built inside `run` because it borrows its boundary closures.
     pub gas_diffusion: bool,
+    /// `Some` ⇔ `combustion_blend` selected: the EOS occupant is the
+    /// SOLV-4 §3.6 blend and the burn-progress source + class-R reaction
+    /// are scheduled (S7).
+    pub blend: Option<BlendSpec>,
+    /// `Some` ⇔ `spark_igniter` selected (requires `blend`).
+    pub igniter: Option<IgniterSpec>,
+    /// `Some` ⇔ `structural_margins` selected (requires the cooled wall).
+    pub margins: Option<MarginsSpec>,
+    /// `Some` ⇔ the profile declares commanded quantities (COUP-4 S7).
+    pub verdict: Option<VerdictSpec>,
+    /// COUP-7 §3.2.2 compression declaration (manifest-recorded; None =
+    /// no compression declared).
+    pub valve_cited_timeline_s: Option<f64>,
 }
 
 /// Assemble from a loaded config. `read_file` supplies the contour CSV
@@ -300,6 +367,116 @@ pub fn assemble(
         }
     };
 
+    // --- SOLV-4 §3.6 combustion selection (S7) -----------------------------
+    let blend = match r.mechanisms_of_type("combustion_blend").as_slice() {
+        [] => None,
+        [(_, cb)] => {
+            let get_pin = |name: &str| -> Result<(String, String, String, String), String> {
+                let pin = r.tables.get(name).ok_or(format!(
+                    "combustion_blend requires the `{name}` table pin ([tables] block)"
+                ))?;
+                Ok((
+                    pin.file.clone(),
+                    pin.group.clone(),
+                    pin.data_version.clone(),
+                    pin.content_digest.clone(),
+                ))
+            };
+            Some(BlendSpec {
+                unburnt_pin: get_pin("chem_unburnt")?,
+                ignition_pin: get_pin("chem_ignition")?,
+                wrinkling: ResolvedConfig::param_f64(cb, "wrinkling").expect("declared"),
+            })
+        }
+        many => {
+            return Err(format!(
+                "{} `combustion_blend` instances; there is one burn-progress field",
+                many.len()
+            ));
+        }
+    };
+    let igniter = match r.mechanisms_of_type("spark_igniter").as_slice() {
+        [] => None,
+        [(_, ib)] => {
+            if blend.is_none() {
+                return Err(
+                    "spark_igniter without combustion_blend: a spark with no burn-progress \
+                     field is an unconsumed deposit — select combustion_blend (with its \
+                     chem_unburnt/chem_ignition pins) or drop the igniter"
+                        .to_string(),
+                );
+            }
+            let f = |name: &str| ResolvedConfig::param_f64(ib, name).expect("declared");
+            Some(IgniterSpec {
+                energy_j: f("energy_j"),
+                r_m: f("r_m"),
+                z_m: f("z_m"),
+                half_width_m: f("half_width_m"),
+                window_start_s: f("window_start_s"),
+                window_s: f("window_s"),
+            })
+        }
+        many => {
+            return Err(format!(
+                "{} `spark_igniter` instances; this wave assembles at most one",
+                many.len()
+            ));
+        }
+    };
+    let margins = match r.mechanisms_of_type("structural_margins").as_slice() {
+        [] => None,
+        [(_, mb)] => {
+            if !cooled {
+                return Err(
+                    "structural_margins without a liner (liner_thickness_m = 0): there is \
+                     no annotated shell component to check — set a liner or drop the margins"
+                        .to_string(),
+                );
+            }
+            let f = |name: &str| ResolvedConfig::param_f64(mb, name).expect("declared");
+            let m = MarginsSpec {
+                t_real_m: f("t_real_m"),
+                r_shell_m: f("r_shell_m"),
+                p_coolant_pa: f("p_coolant_pa"),
+                e_pa: f("e_pa"),
+                alpha_per_k: f("alpha_per_k"),
+                nu: f("nu"),
+                yield_cold_pa: f("yield_cold_pa"),
+                yield_hot_pa: f("yield_hot_pa"),
+                uts_cold_pa: f("uts_cold_pa"),
+                uts_hot_pa: f("uts_hot_pa"),
+                t_cold_k: f("t_cold_k"),
+                t_hot_k: f("t_hot_k"),
+                t_solidus_k: f("t_solidus_k"),
+            };
+            if m.t_cold_k >= m.t_hot_k {
+                return Err(
+                    "structural_margins: t_cold_k must be below t_hot_k (the two cited \
+                     allowable temperatures)"
+                        .to_string(),
+                );
+            }
+            if 2.0 * m.r_shell_m / m.t_real_m <= 20.0 {
+                return Err(format!(
+                    "structural_margins: the declared shell (R = {} m, t = {} m) has \
+                     2R/t = {:.1} <= 20 — under-idealized for the v1 thin-shell subset \
+                     (SOLV-6 §5): reported, never smeared; declare the cited shell \
+                     radius of the pressure-carrying member or drop the margins",
+                    m.r_shell_m,
+                    m.t_real_m,
+                    2.0 * m.r_shell_m / m.t_real_m
+                ));
+            }
+            Some(m)
+        }
+        many => {
+            return Err(format!(
+                "{} `structural_margins` instances; the liner is one component",
+                many.len()
+            ));
+        }
+    };
+
     if turbopump.is_some() && wall_law.is_none() {
         return Err(
             "turbopump_expander (closed mode) needs the cooled wall path — the jacket \
@@ -312,6 +489,30 @@ pub fn assemble(
         .operating_profile
         .as_ref()
         .ok_or("engine assembly needs an [operating_profile] (mode = \"steady_march\")")?;
+    // COUP-4 §3.1 (S7): commanded quantities arm the WORKS criterion; the
+    // loader materialized the criterion constants iff armed.
+    let verdict = if profile.commanded_p_c_pa.is_some() || profile.commanded_thrust_n.is_some() {
+        Some(VerdictSpec {
+            commanded_p_c_pa: profile.commanded_p_c_pa,
+            commanded_thrust_n: profile.commanded_thrust_n,
+            eps_works: profile.eps_works.expect("materialized when armed"),
+            t_dwell_flowthroughs: profile
+                .t_dwell_flowthroughs
+                .expect("materialized when armed"),
+        })
+    } else {
+        None
+    };
+    if let Some(v) = &verdict
+        && v.t_dwell_flowthroughs >= profile.flowthroughs
+    {
+        return Err(format!(
+            "the dwell window ({} flow-throughs) does not fit inside the Stage-1 \
+             horizon (flowthroughs = {}): the WORKS criterion can never complete — \
+             raise flowthroughs or shrink t_dwell_flowthroughs (COUP-4 §3.1)",
+            v.t_dwell_flowthroughs, profile.flowthroughs
+        ));
+    }
     if turbopump.is_some() {
         // The closed loop engages after the establishment window (pump-down
         // + start ramp); a budget that ends inside it would silently run
@@ -407,6 +608,11 @@ pub fn assemble(
         table_pin,
         transport,
         gas_diffusion,
+        blend,
+        igniter,
+        margins,
+        verdict,
+        valve_cited_timeline_s: profile.valve_cited_timeline_s,
     })
 }
 

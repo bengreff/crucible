@@ -38,6 +38,7 @@ pub mod sdc;
 pub mod station1_sod;
 pub mod station2_nozzle;
 pub mod station4_cooled_wall;
+pub mod structural_margins;
 pub mod transport;
 pub mod wall_heat;
 

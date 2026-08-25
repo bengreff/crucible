@@ -19,16 +19,34 @@
 //! (SOLV-4 §3.6): as `b` rises the same conserved enthalpy reads hotter off
 //! the burnt branch.
 //!
-//! **Integration scope (S6, mini-sim tier):** all three terms are advanced
-//! **explicitly** (the matched `D_c` is non-stiff since `S_T ≪ a`, deflagration
-//! `τ_ign` is long) behind a **loud positivity guard** — `b` leaving `[0,1]`
-//! beyond [`EPS_BURN_BOUND`] is a halt (under-resolution: refine Δt or gentle
-//! the igniter ramp), never a clamp (META-1 P6). The stiff class-`R` implicit
-//! auto-ignition (RL10 knock-class end-gas) is a declared S7 hardening. The
-//! serial cell loop is bit-deterministic at any thread count; N_θ = 1 only
-//! (the 3-D re-key rides plan S8, like `gas_diffusion`).
+//! **Integration scope (S7 — the class split of record):** the propagation
+//! reaction and the front-thickening diffusion stay **explicit class A**
+//! (non-stiff by construction: the matched `D_c`/`K` clock is `Δ/S_T`, far
+//! above the acoustic Δt since `S_T ≪ a`) behind the **loud positivity
+//! guard** — `b` leaving `[0,1]` beyond [`EPS_BURN_BOUND`] is a halt (under-
+//! resolution), never a clamp (META-1 P6). The **auto-ignition term is the
+//! cell-local implicit class-`R` occupant** (COUP-3 §3.3, landed at S7 —
+//! the S6 explicit tier retired): at chamber pressure and `T_u ≳ 1300 K`
+//! `τ_ign` collapses below the acoustic Δt (`dt/τ → O(1)`), where an
+//! explicit advance overshoots the guard; the [`Self::implicit_auto_update`]
+//! node solve is unconditionally stable, exact in the stiff limit (the
+//! guarded law parks at its `1 − BURN_COMPLETE` fixed point), and reduces to
+//! the explicit value when mild — ONE treatment, no regime branch (Rule 12).
+//!
+//! **The cold-side non-reactive floor (S7, OFFL-3 §3.3):** where the cell's
+//! `p` or `T_u` sits below the ignition surface's own declared envelope
+//! floor, both rate terms read **zero by declaration** — the cold analogue
+//! of the [`BURN_COMPLETE`] domain guard. Near-vacuum fill (~10² Pa) and
+//! sub-cryo corners are declared no-burn (cm-scale flames genuinely cannot
+//! propagate there), never a refusal mid-march and never a clamp of a
+//! mid-range value; the surface's cold rows (ignition v0.3.0) carry the real
+//! `S_L` down to the unburnt branch's own validity floor, so the front's
+//! consumption of injector-cold reactants is data, not this guard.
+//!
+//! The serial cell loop is bit-deterministic at any thread count; N_θ = 1
+//! only (the 3-D re-key rides plan S8, like `gas_diffusion`).
 
-use super::{BurnBlendEos, EosLaw, FlowError, I_RB, I_RC, I_RHO, NCOMP, Prim, Scratch};
+use super::{BurnBlendEos, Cons, EosLaw, FlowError, I_RB, I_RC, I_RHO, NCOMP, Prim, Scratch};
 use crucible_grid::{BRICK, BRICK_CELLS, FaceDir, FieldId, Grid};
 use crucible_tables::{BoundColumn, Table};
 
@@ -82,9 +100,15 @@ fn propagation_rate(rho_u: f64, k: f64, b_c: f64) -> f64 {
 
 /// Loud-guard tolerance on the burn progress `b ∈ [0,1]`: a value beyond
 /// `[−EPS_BURN_BOUND, 1+EPS_BURN_BOUND]` after a step is under-resolved
-/// ignition and halts (never a silent clamp). Sized well above passive-scalar
-/// round-off and well below any physical excursion.
-pub const EPS_BURN_BOUND: f64 = 1.0e-6;
+/// ignition and halts (never a silent clamp). Widened 1e-6 → 1e-4 at S7:
+/// an engine-scale ignition BLAST advects `ρc` and `ρ` through the same
+/// captured front with independently flux-limited reconstructions, and the
+/// ratio `b = ρc/ρ` legitimately excurses at the 1e-5 scale there (the
+/// scalar-consistency property of conservative component-wise advection —
+/// a numerical fact about the shock, not an ignition pathology). 1e-4
+/// stays an order under `B_PARTITION_MIN` and three under any physical
+/// excursion, so a genuine source-side blowup still halts loudly.
+pub const EPS_BURN_BOUND: f64 = 1.0e-4;
 
 /// The **reacting-measure ignition floor** (SOLV-4 §3.6, the single owner of
 /// the COUP-4 `NEVER_IGNITED`/`FLAMEOUT` thresholds): a self-sustaining burn
@@ -104,6 +128,11 @@ pub const EPS_IGNITED: f64 = 1.0e-6;
 pub struct IgnitionColumns<'t> {
     flame_speed: BoundColumn<'t>,
     ignition_delay: BoundColumn<'t>,
+    /// The surface's own declared envelope floors in `p` [Pa] and `T_u` [K],
+    /// cached at bind — the single owner of the cold-side non-reactive floor
+    /// (module header): below either, the rate law is zero by declaration.
+    p_floor: f64,
+    tu_floor: f64,
 }
 
 impl<'t> IgnitionColumns<'t> {
@@ -127,9 +156,21 @@ impl<'t> IgnitionColumns<'t> {
             }
         }
         Ok(Self {
+            p_floor: flame_speed.axis_envelope(0).0,
+            tu_floor: flame_speed.axis_envelope(1).0,
             flame_speed,
             ignition_delay,
         })
+    }
+
+    /// The cold-side **non-reactive floor** (module header, OFFL-3 §3.3):
+    /// `true` when the state sits below the surface's own declared envelope
+    /// floor in `p` or `T_u` — declared no-burn, both rate terms zero. The
+    /// hot/rich edges stay hard refusals (the envelope-consistency contract
+    /// guarantees a legal blend state is covered there; an excursion is a
+    /// real defect, never declared away).
+    pub fn non_reactive_floor(&self, p: f64, t_u: f64) -> bool {
+        p < self.p_floor || t_u < self.tu_floor
     }
 
     fn s_l(&self, p: f64, t_u: f64, z: f64) -> Result<f64, &'static str> {
@@ -246,33 +287,37 @@ impl Combustion<'_> {
                 // quantity that does not apply — a domain guard on the burnt
                 // fixed point, not a physics regime branch (cf. the blend's
                 // pure-limit skip).
-                let (react, auto, rho_dc_here) = if b_c >= 1.0 - BURN_COMPLETE {
-                    (0.0, 0.0, 0.0)
-                } else {
-                    let t_u = self
-                        .blend
-                        .unburnt_temperature(w)
-                        .map_err(|what| nonphys(i_r, i_z, what))?;
-                    let rho_u = self
-                        .blend
-                        .unburnt_density(w)
-                        .map_err(|what| nonphys(i_r, i_z, what))?;
-                    let s_l = self
-                        .ignition
-                        .s_l(p, t_u, z)
-                        .map_err(|what| nonphys(i_r, i_z, what))?;
-                    let tau = self
-                        .ignition
-                        .tau_ign(p, t_u, z)
-                        .map_err(|what| nonphys(i_r, i_z, what))?;
-                    let s_t = (s_l * self.wrinkling).max(0.0);
-                    let (d_c, k) = front_coeffs(s_t, delta, self.theta);
-                    (
-                        propagation_rate(rho_u, k, b_c),
-                        rho * (1.0 - b_c) / tau,
-                        rho * d_c,
-                    )
-                };
+                // The auto-ignition term is the class-`R` implicit occupant
+                // (module header, S7) — accumulated by the SDC step's
+                // reaction class, NOT here; this class-A pass carries the
+                // propagation reaction + front diffusion only.
+                let (react, rho_dc_here) =
+                    if b_c >= 1.0 - BURN_COMPLETE || self.blend.below_unburnt_floor(w) {
+                        // Burnt fixed point, or colder than any representable
+                        // reactant (the floor's second face) — non-reactive.
+                        (0.0, 0.0)
+                    } else {
+                        let t_u = self
+                            .blend
+                            .unburnt_temperature(w)
+                            .map_err(|what| nonphys(i_r, i_z, what))?;
+                        if self.ignition.non_reactive_floor(p, t_u) {
+                            // Cold-side declared no-burn floor (module header).
+                            (0.0, 0.0)
+                        } else {
+                            let rho_u = self
+                                .blend
+                                .unburnt_density(w)
+                                .map_err(|what| nonphys(i_r, i_z, what))?;
+                            let s_l = self
+                                .ignition
+                                .s_l(p, t_u, z)
+                                .map_err(|what| nonphys(i_r, i_z, what))?;
+                            let s_t = (s_l * self.wrinkling).max(0.0);
+                            let (d_c, k) = front_coeffs(s_t, delta, self.theta);
+                            (propagation_rate(rho_u, k, b_c), rho * d_c)
+                        }
+                    };
 
                 // Front-thickening diffusion ∇·(ρ D_c ∇b) — symmetric two-point
                 // face fluxes so interior faces telescope (conservative). Each
@@ -324,12 +369,14 @@ impl Combustion<'_> {
                 }
                 let diff_div = if kv > 0.0 { diff / kv } else { 0.0 };
 
-                let src = react + auto + diff_div;
+                let src = react + diff_div;
                 rate[bi][local][I_RB] += src;
                 // Reaction + diffusion both go to the source ledger; the
                 // diffusion telescopes to the domain boundary (zero-flux ⇒ 0)
-                // in the global sum, so the audit balances against the stored
-                // Δ(ρb) exactly (COUP-2 §3.1.1).
+                // in the global sum to within the ulp-level asymmetry of the
+                // two sides' b reconstruction (prim-cache ρb·(1/ρ) vs direct
+                // ρb/ρ), inside TOL_AUDIT — the audit balances against the
+                // stored Δ(ρb) (COUP-2 §3.1.1).
                 ledger.src_net[I_RB] += kv * src;
                 ledger.src_abs[I_RB] += (kv * src).abs();
             }
@@ -355,16 +402,149 @@ impl Combustion<'_> {
         let local = (i_r % BRICK) * BRICK + i_z % BRICK;
         let w = &prim[bi][local];
         let (rho, p, z, b) = (w[I_RHO], w[4], w[I_RC], w[I_RB]);
-        if b.clamp(0.0, 1.0) >= 1.0 - BURN_COMPLETE {
-            return Ok(0.0); // burnt neighbour: no front-carrier (see accumulate)
+        if b.clamp(0.0, 1.0) >= 1.0 - BURN_COMPLETE || self.blend.below_unburnt_floor(w) {
+            return Ok(0.0); // burnt or sub-floor neighbour: no front-carrier
         }
         let t_u = self.blend.unburnt_temperature(w)?;
+        if self.ignition.non_reactive_floor(p, t_u) {
+            return Ok(0.0); // cold-side declared no-burn floor: no front-carrier
+        }
         let s_l = self.ignition.s_l(p, t_u, z)?;
         let s_t = (s_l * self.wrinkling).max(0.0);
         let (d_c, _k) = front_coeffs(s_t, delta, self.theta);
         Ok(rho * d_c)
     }
+
+    /// The auto-ignition rate `R = (ρ − ρb)/τ_ign` [kg/m³/s] at a projected
+    /// primitive — the class-`R` term's explicit evaluation (the SDC node-0
+    /// rate `R(U⁰)` of the trapezoid quadrature). Guarded exactly as the
+    /// implicit solve: zero at the burnt fixed point ([`BURN_COMPLETE`]) and
+    /// below the cold non-reactive floor. `(ρ − ρb)/τ` equals `ρ(1−b)/τ` on
+    /// the physical range and is the linear-in-`ρb` form the implicit node
+    /// solve inverts in closed form.
+    pub fn auto_rate(&self, w: &Prim) -> Result<f64, &'static str> {
+        let (rho, p, z, b) = (w[I_RHO], w[4], w[I_RC], w[I_RB]);
+        let b_c = b.clamp(0.0, 1.0);
+        if b_c >= 1.0 - BURN_COMPLETE || self.blend.below_unburnt_floor(w) {
+            return Ok(0.0);
+        }
+        let t_u = self.blend.unburnt_temperature(w)?;
+        if self.ignition.non_reactive_floor(p, t_u) {
+            return Ok(0.0);
+        }
+        let tau = self.ignition.tau_ign(p, t_u, z)?;
+        Ok(rho * (1.0 - b_c) / tau)
+    }
+
+    /// The class-`R` **node-0 quadrature rate**: [`Self::auto_rate`] capped at
+    /// the rate that exactly reaches the guarded law's parking point over the
+    /// step, `(ρ(1 − BURN_COMPLETE) − ρb)/Δt`. The trapezoid correction
+    /// composes `+Δt/2·R⁰` explicitly, and at extreme stiffness the raw rate
+    /// `ρ/τ` is orders beyond what the guarded trajectory can realize —
+    /// composing it would overshoot `ρb` past every bound the implicit solve
+    /// protects. The exact trajectory from `U⁰` parks within the step, so its
+    /// realizable node-0 rate IS the capped value — the applied-increments
+    /// doctrine (COUP-2) extended to the quadrature's explicit operand.
+    /// Inactive (bit-identical to `auto_rate`) in the mild regime.
+    pub fn auto_rate_node0(&self, w: &Prim, dt: f64) -> Result<f64, &'static str> {
+        let r = self.auto_rate(w)?;
+        if r <= 0.0 || dt <= 0.0 {
+            return Ok(r);
+        }
+        let rho = w[I_RHO];
+        let cap = rho * (1.0 - BURN_COMPLETE);
+        let rb = rho * w[I_RB].clamp(0.0, 1.0);
+        Ok(r.min(((cap - rb) / dt).max(0.0)))
+    }
+
+    /// The **class-`R` implicit node solve** (COUP-3 §3.3's cell-local slot,
+    /// chemical occupant, S7): advance `ρb` through the auto-ignition term
+    /// over a node weight `w_new`, backward-Euler —
+    /// `x = base + w_new·(ρ − x)/τ(state(x))` — by the **fixed-structure
+    /// τ-refreeze scheme**: the equation is linear in `x` at frozen `τ`
+    /// (closed form, unconditionally stable, no iteration to diverge), and
+    /// `τ`'s weak dependence on `x` (through the blend's projected `p`) is
+    /// converged by a fixed [`N_TAU_REFREEZE`] re-evaluations of `τ` at the
+    /// current iterate — a pure function of the cell state, bit-deterministic.
+    /// The guarded law's burnt fixed point is honored **exactly**: the source
+    /// vanishes at `ρb ≥ ρ(1 − BURN_COMPLETE)`, so when the unguarded update
+    /// crosses it the trajectory parks there — that cap is the exact integral
+    /// of the declared discontinuous rate law, not a clamp of an overshoot.
+    /// In the mild limit (`w_new ≪ τ`) the update reduces to the explicit
+    /// value to `O((w_new/τ)²)` — one treatment across the whole regime, no
+    /// stiffness branch (Rule 12). Returns `(ρb_new, realized rate)` where
+    /// the realized rate `(ρb_new − base)/w_new` is what the ledger and the
+    /// SDC quadrature carry (COUP-2: applied increments, never rate×Δt).
+    ///
+    /// `u` is the cell's composed conserved state EXCLUDING this term's new-
+    /// node contribution; `base` is its `ρb` slot plus the quadrature's
+    /// node-0/previous-sweep terms.
+    pub fn implicit_auto_update(
+        &self,
+        u: &Cons,
+        base: f64,
+        w_new: f64,
+    ) -> Result<(f64, f64), &'static str> {
+        if !base.is_finite() {
+            return Err("non-finite composed burn progress entering the class-R solve");
+        }
+        let rho = u[I_RHO];
+        let cap = rho * (1.0 - BURN_COMPLETE);
+        // The node result is PROJECTED onto the guarded law's invariant set
+        // [0, cap] (S7, the ◆C2 shake-out finding): [0, cap] is forward-
+        // invariant for the declared law (source ≥ 0, zero at the cap), so
+        // every exact trajectory from an admissible state stays inside —
+        // but the trapezoid QUADRATURE base mixes the node-0 rate (the
+        // pre-runaway state, small) with the previous sweep's realized rate
+        // (mid-runaway, large), and during a single-step thermal runaway
+        // that mismatch legitimately drives the composed base ~0.1·ρ
+        // OUTSIDE the set (measured: −0.08ρ at the ◆C2 spark kernel). The
+        // projection is the same exact-integral statement as the parked
+        // cap — the applied (realized) increment is what the ledger and
+        // the audit carry, so conservation bookkeeping is exact either
+        // way; a base inside the set is untouched.
+        let project = |x: f64| x.clamp(0.0, cap);
+        if base >= cap {
+            // At/past the burnt fixed point: the guarded source is zero;
+            // project the quadrature overshoot back to the fixed point.
+            let x = project(base);
+            return Ok((x, (x - base) / w_new));
+        }
+        let mut x = base;
+        for _ in 0..N_TAU_REFREEZE {
+            let mut ut = *u;
+            ut[I_RB] = x;
+            let w = self.blend.prim_checked(&ut)?;
+            if self.blend.below_unburnt_floor(&w) {
+                // Colder than any representable reactant: source zero;
+                // project the quadrature artifact into the invariant set.
+                let x = project(base);
+                return Ok((x, (x - base) / w_new));
+            }
+            let (p, z) = (w[4], w[I_RC]);
+            let t_u = self.blend.unburnt_temperature(&w)?;
+            if self.ignition.non_reactive_floor(p, t_u) {
+                let x = project(base);
+                return Ok((x, (x - base) / w_new));
+            }
+            let tau = self.ignition.tau_ign(p, t_u, z)?;
+            // BE at frozen τ: x = (base + w·ρ/τ)/(1 + w/τ), parked at the cap.
+            x = ((base + w_new * rho / tau) / (1.0 + w_new / tau)).min(cap);
+            if x == cap {
+                break; // parked: further τ refreshes cannot move it
+            }
+        }
+        let x = project(x);
+        Ok((x, (x - base) / w_new))
+    }
 }
+
+/// Fixed τ-refreeze count of the class-`R` implicit node solve
+/// ([`Combustion::implicit_auto_update`]): `τ_ign` depends on the unknown
+/// only through the blend's projected pressure (weak — `Δp/p` per node is
+/// CFL-bounded), so two refreezes converge the frozen-τ closed form far past
+/// the closure's own band. Fixed structure, never adaptive (COUP-3 §3.7).
+pub const N_TAU_REFREEZE: usize = 2;
 
 /// The **reacting measure** `R = ∫ b(1−b)·(the live burn rate) dV` (SOLV-4
 /// §3.6) — the run's flame content, the single owner of the COUP-4
@@ -402,12 +582,15 @@ pub fn reacting_measure(
             // cell's rate is 0 and its post-flame gas is not a reactant, so
             // the unburnt/ignition closures are not queried on it (its
             // c(1−c)-weighted contribution here is ≤ 1e-3 and exactly 0 now).
-            if b_c >= 1.0 - BURN_COMPLETE {
+            if b_c >= 1.0 - BURN_COMPLETE || blend.below_unburnt_floor(&w) {
                 continue;
             }
             let t_u = blend
                 .unburnt_temperature(&w)
                 .map_err(|what| nonphys(i_r, i_z, what))?;
+            if ignition.non_reactive_floor(p, t_u) {
+                continue; // cold-side declared no-burn floor: rate is 0 there
+            }
             let s_l = ignition
                 .s_l(p, t_u, z)
                 .map_err(|what| nonphys(i_r, i_z, what))?;
@@ -466,12 +649,15 @@ pub fn consumption_rate(
             let b_c = b.clamp(0.0, 1.0);
             // The BURN_COMPLETE domain guard (as `accumulate`): consumption of
             // the last ≤ 1e-3 is complete — no closure queries on post-flame gas.
-            if b_c >= 1.0 - BURN_COMPLETE {
+            if b_c >= 1.0 - BURN_COMPLETE || blend.below_unburnt_floor(&w) {
                 continue;
             }
             let t_u = blend
                 .unburnt_temperature(&w)
                 .map_err(|w2| nonphys(i_r, i_z, w2))?;
+            if ignition.non_reactive_floor(p, t_u) {
+                continue; // cold-side declared no-burn floor: rate is 0 there
+            }
             let rho_u = blend
                 .unburnt_density(&w)
                 .map_err(|w2| nonphys(i_r, i_z, w2))?;

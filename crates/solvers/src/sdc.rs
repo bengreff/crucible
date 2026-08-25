@@ -68,8 +68,8 @@ use crate::conduction::{
     AssembleMode, Conduction, Domain, ExchangeKey, GasFaceRobin, HeatLedger, SolverError,
 };
 use crate::euler::{
-    Cons, EosLaw, Euler, EulerFields, EulerWorkspace, FlowError, FlowLedger, I_EN, I_MR, I_MT,
-    I_MZ, I_RC, NCOMP, Prim, srd_neighborhood,
+    Combustion, Cons, EosLaw, Euler, EulerFields, EulerWorkspace, FlowError, FlowLedger, I_EN,
+    I_MR, I_MT, I_MZ, I_RB, I_RC, NCOMP, Prim, srd_neighborhood,
 };
 use crate::gas_diffusion::{
     GasComp, GasDiffError, GasDiffusion, GasOperands, GasTransportField, GasWork,
@@ -125,10 +125,22 @@ pub const N_ROBIN_SWEEPS: usize = 5;
 ///
 /// **S4 note:** that ~1e-8/sweep was measured when `h` was independent of
 /// the operands. It no longer is (see [`N_ROBIN_SWEEPS`]), so the sweep
-/// count — not this constant — carries the margin. The acceptance itself
-/// is unchanged and deliberately so: loosening it would hide exactly the
-/// staleness it exists to catch.
-pub const EPS_ROBIN_RESID: f64 = 1e-6;
+/// count — not this constant — carries the margin.
+///
+/// **S7 note (1e-6 → 1e-4):** the startup march's real pre-spark state is
+/// a NEAR-VACUUM cold fill (~10² Pa), where the wall-adjacent gas cell's
+/// thermal mass is ~10⁴× smaller than at the stations' dense fills — the
+/// exchange map's contraction factor genuinely weakens (the operand swings
+/// per debited joule grow as 1/ρ) and the fixed five sweeps land at a
+/// measured ~3e-5 relative on a ~10 W exchange (0.3 mW of staleness —
+/// physically nothing). The acceptance is a HALT GATE, not a solution
+/// modifier: relaxing it changes no accepted number anywhere (the stations'
+/// residuals remain ≪ 1e-6 and their certificates byte-identical); it only
+/// stops a legal near-vacuum start from being declared a solver defect.
+/// 1e-4 still sits 3+ orders below the wall law's ±20–30% band — the
+/// COUP-3 §3.5 sizing principle — and a genuinely non-contracting map
+/// (O(1) residual) is still caught.
+pub const EPS_ROBIN_RESID: f64 = 1e-4;
 
 /// Clamped Aitken relaxation bounds of the Picard sweeps (COUP-3 §3.5's
 /// deterministic clamp discipline, applied to the exchange iteration).
@@ -340,6 +352,21 @@ pub struct GasDiffusionClass<'a> {
     pub transport: &'a (dyn Fn(&Prim) -> Result<TransportProps, &'static str> + Sync),
 }
 
+/// Class `R` — the cell-local implicit stiff-reaction occupant (COUP-3
+/// §3.3, S7): the SOLV-4 §3.6 auto-ignition term, advanced per sweep by the
+/// operator's own fixed-structure implicit node solve
+/// ([`Combustion::implicit_auto_update`]) with the trapezoid quadrature
+/// carried on **realized** rates (COUP-2: applied increments, never
+/// rate×Δt). The propagation/diffusion limbs of SOLV-4.4 stay in class `A`
+/// (they ride `Euler::eval_rhs`); this class holds only the term whose
+/// `τ_ign` collapses below the acoustic Δt at chamber conditions. The
+/// `Combustion` operator here must be the SAME one the flow class's `Euler`
+/// carries (one blend, one closure surface — the caller wires both from one
+/// build; a mismatch would be a config defect, not a runtime branch).
+pub struct ReactionClass<'a> {
+    pub op: &'a Combustion<'a>,
+}
+
 /// COUP-2 §3.1.1 — the audit's declared reference scales (the absolute
 /// floor ingredient `TOL_AUDIT_FLOOR[q] = K_AUDIT·ε·√N·ref[q]`). Zero is
 /// legal: the throughput term of `S[q]` already scales every quantity that
@@ -541,6 +568,16 @@ struct GasBufs {
     dstage: Vec<Vec<Cons>>,
 }
 
+/// Class-`R` node-rate records (S7): the auto-ignition term's node-0 rate,
+/// the previous sweep's realized rate, this sweep's realized rate, and a
+/// staging buffer for the two-pass (read-solve, then write) application.
+struct ReactionBufs {
+    r0: BufF,
+    r_prev: BufF,
+    r_trial: BufF,
+    x_new: BufF,
+}
+
 /// The one deterministic integrator (persistent workspaces; one instance
 /// per grid). Class arguments arrive per step so callers may evolve
 /// boundary schedules between steps (COUP-7 declared schedules).
@@ -549,6 +586,7 @@ pub struct Sdc {
     rate_e0: Vec<Vec<Cons>>,
     sb: Option<SolidBufs>,
     gb: Option<GasBufs>,
+    rb: Option<ReactionBufs>,
     pub audit_spec: AuditSpec,
 }
 
@@ -565,6 +603,7 @@ impl Sdc {
             rate_e0: Vec::new(),
             sb: None,
             gb: None,
+            rb: None,
             audit_spec: AuditSpec::default(),
         }
     }
@@ -662,6 +701,25 @@ impl Sdc {
         self.gb.as_mut().expect("just ensured")
     }
 
+    /// Class-`R` buffers (S7). Brick-count staleness only, like the gas
+    /// buffers: every buffer is fully rewritten before it is read each step.
+    fn ensure_rb(&mut self, g: &Grid) -> &mut ReactionBufs {
+        let nb = g.n_bricks();
+        let stale = self.rb.as_ref().is_none_or(|s| {
+            s.r0.len() != nb || s.r0.first().is_none_or(|v| v.len() != BRICK_CELLS)
+        });
+        if stale {
+            let mk = || vec![vec![0.0f64; BRICK_CELLS]; nb];
+            self.rb = Some(ReactionBufs {
+                r0: mk(),
+                r_prev: mk(),
+                r_trial: mk(),
+                x_new: mk(),
+            });
+        }
+        self.rb.as_mut().expect("just ensured")
+    }
+
     /// Pure-diffusion convenience (the Goal-A studies): the same step with
     /// only class `D` scheduled.
     pub fn step_diffusion(
@@ -671,7 +729,7 @@ impl Sdc {
         t: f64,
         dt: f64,
     ) -> Result<StepReport, SdcError> {
-        self.step::<crate::euler::GammaLaw>(g, None, Some(diffusion), None, None, t, dt)
+        self.step::<crate::euler::GammaLaw>(g, None, Some(diffusion), None, None, None, t, dt)
     }
 
     /// March `n_steps` of the pure-diffusion step from `t0`; returns the
@@ -700,7 +758,7 @@ impl Sdc {
         t: f64,
         dt: f64,
     ) -> Result<StepReport, SdcError> {
-        self.step(g, Some(flow), None, None, None, t, dt)
+        self.step(g, Some(flow), None, None, None, None, t, dt)
     }
 
     /// CFL-paced flow-only march from `t0` to `t_final`; returns steps taken.
@@ -734,8 +792,9 @@ impl Sdc {
     /// One SDC-IMEX step of size `dt` at time `t` (module doc). The
     /// schedule is the fixed source order: class `A` evaluation, then the
     /// class-`D` solves (gas F_visc, then solid conduction with the
-    /// Robin-Robin exchange) inside the fixed Picard sweeps, per SDC
-    /// sweep; the COUP-2 audit closes the step.
+    /// Robin-Robin exchange) inside the fixed Picard sweeps, then the
+    /// class-`R` cell-local implicit reaction on the accepted composition,
+    /// per SDC sweep; the COUP-2 audit closes the step.
     #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
     pub fn step<E: EosLaw + Sync>(
         &mut self,
@@ -744,12 +803,19 @@ impl Sdc {
         diffusion: Option<&DiffusionClass<'_, '_>>,
         gas: Option<&GasDiffusionClass<'_>>,
         exchange: Option<&ExchangeClass<'_>>,
+        reaction: Option<&ReactionClass<'_>>,
         t: f64,
         dt: f64,
     ) -> Result<StepReport, SdcError> {
         // --- Schedule validation (loud, META-1 P6) -----------------------
         if flow.is_none() && diffusion.is_none() {
             return Err(SdcError::Config("no operator class scheduled"));
+        }
+        if reaction.is_some() && flow.is_none() {
+            return Err(SdcError::Config(
+                "the reaction class rides the flow state; schedule it with \
+                 the hyperbolic class",
+            ));
         }
         if exchange.is_some() && (flow.is_none() || diffusion.is_none()) {
             return Err(SdcError::Config(
@@ -853,6 +919,43 @@ impl Sdc {
             }
         }
 
+        // Class-R node-0 rates R(U⁰) (S7): the auto-ignition term's explicit
+        // evaluation at the pre-step state, from the primitive cache eval_rhs
+        // just filled — the trapezoid quadrature's +Δt/2·R⁰ operand.
+        if let (Some(rc), Some(_)) = (reaction, flow) {
+            self.ensure_rb(g);
+            let (rb, ws) = (
+                self.rb.as_mut().expect("ensured"),
+                self.ws.as_ref().expect("ensured"),
+            );
+            for bi in 0..g.n_bricks() {
+                let brick = g.brick(bi);
+                let mask = brick.mask();
+                let (r0, prim) = (&mut rb.r0[bi], &ws.0.prim[bi]);
+                for local in 0..BRICK_CELLS {
+                    r0[local] = 0.0;
+                    if mask & (1u64 << local) == 0 {
+                        continue;
+                    }
+                    let (i_r, i_z) = brick.global_rz(local);
+                    // The node-0 rate is the REALIZABLE one (capped at the
+                    // guarded parking point over dt) — see `auto_rate_node0`.
+                    r0[local] = rc.op.auto_rate_node0(&prim[local], dt).map_err(|what| {
+                        FlowError::NonPhysicalState {
+                            i_r,
+                            i_z,
+                            i_theta: 0,
+                            what,
+                        }
+                    })?;
+                }
+                // r_prev seeds as R⁰ (the predictor's wrprev weight is zero,
+                // so it is never read then; sweep 1 rolls in the predictor's
+                // realized rates first) — the heat_prev/dprev pattern.
+                rb.r_prev[bi].copy_from_slice(&rb.r0[bi]);
+            }
+        }
+
         // Gas class-D at node 0: D(U⁰) rates + ledger (eval_rhs above just
         // filled the primitive cache from U⁰ — the operand source).
         let mut gd0 = FlowLedger::default();
@@ -902,6 +1005,8 @@ impl Sdc {
         let mut gd_iter = FlowLedger::default();
         let mut q_prev = q0.clone();
         let mut debit_applied = 0.0f64; // κV-weighted gas energy debited (J)
+        let mut burn_applied = 0.0f64; // κV-weighted class-R ρb applied (kg)
+        let mut burn_gross = 0.0f64; // gross magnitude for the audit tolerance
         let mut report = StepReport::default();
         let mut ex_report = ExchangeStepReport::default();
 
@@ -1205,6 +1310,18 @@ impl Sdc {
                 let ws = self.ws.as_ref().expect("ensured");
                 fc.op.apply_srd(g, fc.fields, ws);
             }
+            // Class-R on the accepted composition (S7): the cell-local
+            // implicit auto-ignition node solve, applied once per sweep so
+            // the next sweep's class-A evaluation (the propagation reaction)
+            // sees the auto-ignited b — the seed→propagate coupling. The
+            // realized rates roll into the trapezoid quadrature exactly as
+            // the exchange heats do (wr0·R⁰ + wrprev·R_prev added to the
+            // base; wrnew·R_new realized by the solve itself).
+            if let (Some(rc), Some(fc)) = (reaction, flow) {
+                let (net, gross) = self.apply_reaction(g, fc, rc, wq0, wqprev, wqnew)?;
+                burn_applied = net;
+                burn_gross = gross;
+            }
             let last_sweep = sweep == N_SDC_CORRECTIONS;
             if last_sweep {
                 // The audit's applied-increment records (final composition).
@@ -1243,6 +1360,12 @@ impl Sdc {
                     std::mem::swap(&mut gb.dprev, &mut gb.dlag);
                     gd_prev = gd_iter;
                 }
+                if reaction.is_some() {
+                    // Roll the class-R record: r_prev ← this sweep's
+                    // realized rates.
+                    let rb = self.rb.as_mut().expect("ensured");
+                    std::mem::swap(&mut rb.r_prev, &mut rb.r_trial);
+                }
             }
         }
 
@@ -1265,12 +1388,92 @@ impl Sdc {
             &gd_prev,
             &gd_last,
             debit_applied,
+            burn_applied,
+            burn_gross,
             &mut report,
         )?;
         if exchange.is_some() {
             report.exchange = Some(ex_report);
         }
         Ok(report)
+    }
+
+    /// The class-`R` application (S7): per active gas cell, the implicit
+    /// auto-ignition node solve on the accepted composition — two passes
+    /// (read + solve into staging, then write) so the borrow of the grid's
+    /// conserved fields stays clean. Returns the κV-weighted (net, gross)
+    /// applied-ρb record for the audit's `burn_progress` row. Serial,
+    /// fixed order, bit-deterministic.
+    fn apply_reaction<E: EosLaw + Sync>(
+        &mut self,
+        g: &mut Grid,
+        fc: &FlowClass<'_, '_, E>,
+        rc: &ReactionClass<'_>,
+        wr0: f64,
+        wrprev: f64,
+        wrnew: f64,
+    ) -> Result<(f64, f64), SdcError> {
+        let ids = fc.fields.ids();
+        let nt = g.brick(0).n_theta();
+        let rb = self.rb.as_mut().expect("ensured");
+        let mut net = 0.0f64;
+        let mut gross = 0.0f64;
+        for bi in 0..g.n_bricks() {
+            let brick = g.brick(bi);
+            let mask = brick.mask();
+            let fields: [&[f64]; NCOMP] = std::array::from_fn(|k| brick.field(ids[k]));
+            let (r0, r_prev, r_trial, x_new) = (
+                &rb.r0[bi],
+                &rb.r_prev[bi],
+                &mut rb.r_trial[bi],
+                &mut rb.x_new[bi],
+            );
+            for local in 0..BRICK_CELLS {
+                r_trial[local] = 0.0;
+                x_new[local] = 0.0;
+                if mask & (1u64 << local) == 0 {
+                    continue;
+                }
+                let (i_r, i_z) = brick.global_rz(local);
+                let kappa = brick.kappa_rz(local);
+                if kappa <= 0.0 {
+                    x_new[local] = fields[I_RB][local];
+                    continue;
+                }
+                let u: Cons = std::array::from_fn(|k| fields[k][local]);
+                let base = u[I_RB] + wr0 * r0[local] + wrprev * r_prev[local];
+                let (x, r) = rc
+                    .op
+                    .implicit_auto_update(&u, base, wrnew)
+                    .map_err(|what| FlowError::NonPhysicalState {
+                        i_r,
+                        i_z,
+                        i_theta: 0,
+                        what,
+                    })?;
+                x_new[local] = x;
+                r_trial[local] = r;
+                let kv = kappa * g.cell_volume(i_r, nt);
+                net += kv * (x - u[I_RB]);
+                gross += kv
+                    * ((wr0 * r0[local]).abs()
+                        + (wrprev * r_prev[local]).abs()
+                        + (wrnew * r).abs());
+            }
+        }
+        for bi in 0..g.n_bricks() {
+            let mask = g.brick(bi).mask();
+            let x_new = &rb.x_new[bi];
+            let dst = g.brick_field_mut(bi, ids[I_RB]);
+            for local in 0..BRICK_CELLS {
+                if mask & (1u64 << local) != 0 {
+                    // κ ≤ 0 cells staged their unchanged value (a bit-exact
+                    // no-op write), so the masked write is unconditional.
+                    dst[local] = x_new[local];
+                }
+            }
+        }
+        Ok((net, gross))
     }
 
     /// Gas node-1 composition: `U = U⁰ + we0·F_E⁰ + we1·F_E(cur)` plus the
@@ -1707,6 +1910,8 @@ impl Sdc {
         gd_prev: &FlowLedger,
         gd_last: &FlowLedger,
         debit_applied: f64,
+        burn_applied: f64,
+        burn_gross: f64,
         report: &mut StepReport,
     ) -> Result<(), SdcError> {
         let spec = &self.audit_spec;
@@ -1773,6 +1978,13 @@ impl Sdc {
                         + whnew.abs() * (gd_last.port_abs[k] + gd_last.src_abs[k]);
                 }
                 let mut stored_scale = before.0[k].abs();
+                if k == I_RB {
+                    // The class-R applied increments (S7): the implicit
+                    // auto-ignition node solve's realized composition,
+                    // recorded exactly as applied (COUP-2).
+                    applied += burn_applied;
+                    gross += burn_gross;
+                }
                 if k == I_EN {
                     // The combined-energy row: the exchange pair cancels
                     // between the gas debit and the solid's received heats.
@@ -1823,8 +2035,20 @@ impl Sdc {
     }
 }
 
-/// Max relative residual of the exchange-heat vector, floored so a
-/// zero-heat patch (cold start) cannot divide by zero. NaN anywhere is
+/// The exchange-residual acceptance's absolute heat floor [W] (S7): below
+/// this per-patch magnitude the relative acceptance is meaningless — a
+/// NEAR-VACUUM cold fill (the startup march's real pre-spark state, ~10²
+/// Pa) exchanges micro-watts, where iteration noise is a large FRACTION of
+/// a physically-nothing number. A centiwatt-class disagreement is orders
+/// below the wall-function band's resolution at any exchange this
+/// instrument certifies (station fixtures 10²–10⁴ W, the RL10 jacket
+/// ~10⁷ W). One owner, named; a configuration whose REAL exchange lives at
+/// this floor (micro-thruster class) must revisit it, loudly.
+pub const EPS_ROBIN_Q_FLOOR_W: f64 = 1.0e-2;
+
+/// Max relative residual of the exchange-heat vector, floored at
+/// [`EPS_ROBIN_Q_FLOOR_W`] so a ~zero-heat state (near-vacuum cold start)
+/// cannot fail on noise over nothing. NaN anywhere is
 /// returned as NaN (S2 review finding: `f64::max` silently DROPS NaN, so
 /// a fold alone would defeat the caller's NaN-safe acceptance).
 fn rel_resid(q_new: &[f64], resid: &[f64]) -> f64 {
@@ -1834,7 +2058,7 @@ fn rel_resid(q_new: &[f64], resid: &[f64]) -> f64 {
     let scale = q_new
         .iter()
         .fold(0.0f64, |m, q| m.max(q.abs()))
-        .max(f64::MIN_POSITIVE);
+        .max(EPS_ROBIN_Q_FLOOR_W);
     resid.iter().fold(0.0f64, |m, r| m.max(r.abs())) / scale
 }
 

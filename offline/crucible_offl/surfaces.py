@@ -464,9 +464,10 @@ def unburnt_reactant_grid(
     engine: FrozenReactantEngine,
     n_p: int = 9,
     n_h: int = 121,
-    n_z: int = 15,
+    n_z: int = 11,
     t_floor: float = 100.0,
     t_ceil: float = 2200.0,
+    cold_face: bool = True,
 ) -> EquilibriumGrid:
     """The (p, h, Z) grid + envelope for the unburnt-reactant surface
     (OFFL-3 §3.3, plan S5), DERIVED from the engine so the rectangular
@@ -499,9 +500,35 @@ def unburnt_reactant_grid(
     query instead). Reactants at ~2900 K "should have reacted" — which is
     exactly what τ_ign(T_u) says (sub-µs there): the metastable branch is
     self-consistently transient, never an equilibrium claim."""
-    zs = np.linspace(0.10, 0.26, n_z)
+    # 0.3.0 (plan S7): the Z band NARROWS to the burnt surface's own grid
+    # band (0.145–0.195, envelope 0.155–0.185 — the premixed design-window
+    # class the blend intersects to anyway): the rectangular h-envelope's
+    # floor binds at the O2-rich Z edge, and the wide S5 band put the
+    # mid-Z effective floor ~60 K above the declared t_floor. The narrow
+    # band makes the rectangle nearly tight in Z, so the cold face reaches
+    # the wall-cooled startup states (120 K coolant class) the S7 march
+    # actually holds. A DECLARED re-gridded variant (OFFL-3 §3.3 R2: the
+    # envelope is a table-version setting), not a strict extension — no
+    # certificate consumes this surface's numbers; the wide-Z 0.2.0 grid
+    # remains on disk as the S5b species-work base.
+    zs = np.linspace(0.145, 0.195, n_z)
     t_ceil_ext = 2900.0
-    h_env_lo = max(engine.enthalpy_at(t_floor, float(z)) for z in zs)
+    # 0.3.0 (plan S7) — the COLD face. The rectangular h-envelope's floor
+    # binds at the H2-POOR Z edge, which put the mid-Z design line's
+    # effective floor at ~145 K while the S7 startup march holds REAL
+    # gas-phase states there: fill gas cooled by the 120 K coolant wall at
+    # 1–20 kPa sits 45+ K above its own O2 saturation (T_sat ≈ 61–82 K at
+    # the band's O2 partial pressures). `t_floor_ext = 75 K` re-derives the
+    # box floor so the mid-Z line is valid to ~108 K; at the binding
+    # H2-poor edge 75 K is honestly gas-phase for p ≲ 2 kPa and a DECLARED
+    # metastable (supersaturated-vapor) overhang toward the ~50 kPa+
+    # corner — the same declared-metastable discipline as the sub-floor
+    # grid overhang; real condensation is the S15 drift-flux wave. The
+    # cold nodes are PREPENDED at the same spacing (the 0.1.0 base axis is
+    # anchored to the old floor arithmetic and stays bit-exact — strict
+    # extension).
+    t_floor_ext = 75.0
+    h_env_lo = max(engine.enthalpy_at(t_floor, float(z)) for z in zs)  # the wide-Z anchor arithmetic
     h_env_hi = min(engine.enthalpy_at(t_ceil, float(z)) for z in zs)
     if not h_env_lo < h_env_hi:
         raise RuntimeError(
@@ -514,14 +541,33 @@ def unburnt_reactant_grid(
     delta = (base[-1] - base[0]) / (n_h - 1)
     h_env_ext = min(engine.enthalpy_at(t_ceil_ext, float(z)) for z in zs)
     n_ext = int(np.ceil((h_env_ext + margin - base[-1]) / delta))
-    h_points = np.concatenate([base, base[-1] + delta * np.arange(1, n_ext + 1)])
+    # Bracket the cold envelope edge: prepend cells only if the base axis's
+    # own 3% margin does not already cover it (for the SHIPPED narrow-Z
+    # grid the margin suffices — n_cold = 0, deepest node ~40 K equivalent,
+    # grid-min γ 1.151; the prepend machinery serves other
+    # parameterizations). `cold_face = False` (probe grids) keeps the base
+    # envelope: a probe-coarse delta would put an overhang cell below the
+    # engine's solvable bracket.
+    if cold_face:
+        h_env_lo_ext = max(engine.enthalpy_at(t_floor_ext, float(z)) for z in zs)
+        n_cold = max(0, int(np.ceil((base[0] - h_env_lo_ext) / delta)))
+    else:
+        h_env_lo_ext = h_env_lo
+        n_cold = 0
+    h_points = np.concatenate(
+        [
+            base[0] - delta * np.arange(n_cold, 0, -1),
+            base,
+            base[-1] + delta * np.arange(1, n_ext + 1),
+        ]
+    )
     return EquilibriumGrid(
         p_points=tuple(np.geomspace(5.0, 8.0e6, n_p)),
         h_points=tuple(h_points),
         z_points=tuple(zs),
         p_envelope=(10.0, 7.0e6),
-        h_envelope=(h_env_lo, h_env_ext),
-        z_envelope=(1.0 / 9.0, 0.25),  # MR 8 … 3, the design-window class
+        h_envelope=(h_env_lo_ext, h_env_ext),
+        z_envelope=(0.155, 0.185),  # the burnt surface's own band (MR 4.41–5.45)
     )
 
 

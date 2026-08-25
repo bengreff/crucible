@@ -28,6 +28,7 @@
 //! comments until COUP-7's registration machinery lands).
 
 pub mod assembly;
+pub mod eos_sel;
 pub mod geometry;
 pub mod run;
 
@@ -282,15 +283,249 @@ pub static JACKET_COOLANT_MANIFEST: Manifest = Manifest {
     ],
 };
 
-/// The full production registry: the three landed solver rows + this
-/// crate's boundary-object/assembly rows, sorted by id (COUP-8 §3.2).
-static MECHANISMS: [&Manifest; 10] = [
+/// SOLV-4 §3.6 burn-progress combustion (S7 config face of the S6 build):
+/// the blended thermochemistry (unburnt `chem_unburnt` ⊕ the shifting
+/// `chem_equilibrium` surface the flow row already pins) + the SOLV-4.4
+/// bistable-Nagumo rate law with the `S_L`/`τ_ign` closures (`chem_ignition`
+/// pin). Selecting this row turns the inert `ρc` slot live: the march can
+/// ignite, fail to ignite, and flame out (COUP-4 halts). `wrinkling` is the
+/// declared turbulent flame-speed factor `S_T/S_L` — citation META-3
+/// `turbulent-flame-speed` (Zimont 2000 / Peters 2000 correlation class,
+/// banded); 1.0 = laminar (the mini-sim tier). The dynamic SGS-consistent
+/// closure rides the resolved-injector wave (plan S16) — until then the
+/// factor is declared config data with its citation, exactly like the wall
+/// law's band.
+pub static COMBUSTION_BLEND_MANIFEST: Manifest = Manifest {
+    id: "combustion_blend",
+    interface_version: InterfaceVersion { major: 1, minor: 0 },
+    tables: &[
+        TableReq {
+            semantic_name: "chem_unburnt",
+            required: true,
+        },
+        TableReq {
+            semantic_name: "chem_ignition",
+            required: true,
+        },
+    ],
+    couplers: &[],
+    ports: &[],
+    chaotic_class: NON_CHAOTIC,
+    params: &[ParamSpec {
+        name: "wrinkling",
+        ty: ParamType::Float,
+        // Laminar (1.0) to the strong-wrinkling end of the Zimont/Peters
+        // correlation class at engine turbulence intensities.
+        range: Some((1.0, 30.0)),
+        default: None,
+    }],
+};
+
+/// COUP-7 §3.3 spark igniter (S7 config face; `spark-igniter-class` pinned
+/// META-3 0.8.3): a **literal electrical spark** — a scheduled, localized
+/// energy deposit whose ONE cited datum is the deposited energy (H₂ MIE
+/// 0.017 mJ floor → aerospace exciter class ~0.1–20 J/discharge; TM-107318:
+/// "the ignition source is an electric spark"). Position, extent, and firing
+/// window are config *placement* (§3.2.2 schedule class), not sourced
+/// claims. Not special-cased physics: the deposit raises the kernel's `h`,
+/// `T_u` sees it, and the SOLV-4 §3.6 induction term fires — ignition or
+/// no-light is the FIELD's outcome, never this object's claim. The pulse is
+/// **bounded** (a spark ends; sustained deposits into a burnt kernel
+/// superheat mid-transition cells past the metastable-reactant validity
+/// edge — the S6-close discipline).
+pub static SPARK_IGNITER_MANIFEST: Manifest = Manifest {
+    id: "spark_igniter",
+    interface_version: InterfaceVersion { major: 1, minor: 0 },
+    tables: &[],
+    couplers: &[],
+    ports: &[],
+    chaotic_class: NON_CHAOTIC,
+    params: &[
+        ParamSpec {
+            // The one cited datum: total deposited energy per firing
+            // window. The object spans TWO cited tiers of the same class
+            // (S7): the exciter SPARK (H₂ MIE ~1.7e-5 J floor → ~20 J
+            // exciter top, `spark-igniter-class`) and the ASI TORCH — the
+            // real RL10 augmented spark igniter is a propellant-fed torch
+            // that burns CONTINUOUSLY through start into mainstage
+            // (TM-107318), delivering kW-class power over the start window
+            // (kJ-class energy, cited from the ASI propellant flow ×
+            // heating value). The S7 ◆C2 finding that mandates the torch
+            // tier: a laminar flame cannot anchor in the ~170 m/s premixed
+            // fill stream (blowoff — the prior tier has no resolved
+            // recirculation to hold a front), so flame-holding IS the
+            // torch's job, exactly as on the real engine.
+            name: "energy_j",
+            ty: ParamType::Float,
+            range: Some((1.0e-5, 5.0e4)),
+            default: None,
+        },
+        ParamSpec {
+            name: "r_m",
+            ty: ParamType::Float,
+            range: Some((0.0, 100.0)),
+            default: None,
+        },
+        ParamSpec {
+            name: "z_m",
+            ty: ParamType::Float,
+            range: Some((-100.0, 100.0)),
+            default: None,
+        },
+        ParamSpec {
+            // Half-width of the square deposit kernel around (r_m, z_m); at
+            // N_θ = 1 this is a ring (the declared 2-D limitation — a true
+            // point spark is the S8/S11 3-D capability).
+            name: "half_width_m",
+            ty: ParamType::Float,
+            range: Some((1.0e-5, 1.0)),
+            default: None,
+        },
+        ParamSpec {
+            // Firing-window schedule [s] (COUP-7 §3.2.2 class): start time
+            // in march time, window length. The deposit ramps over the
+            // first `IGNITER_RAMP_FRAC` of the window (the S3
+            // impulsive-drive discipline) and ends at window close.
+            name: "window_start_s",
+            ty: ParamType::Float,
+            range: Some((0.0, 100.0)),
+            default: None,
+        },
+        ParamSpec {
+            name: "window_s",
+            ty: ParamType::Float,
+            range: Some((1.0e-9, 10.0)),
+            default: None,
+        },
+    ],
+};
+
+/// SOLV-6 v1 structural margins (S7): the analytic Roark thin-shell subset —
+/// hoop + longitudinal + through-wall-gradient thermal stress, von Mises,
+/// margins vs T-interpolated A/B-basis allowables with the NASA-STD-5012
+/// factors — evaluated on the liner as the one annotated shell component
+/// (R(z) from the contour of record, REAL wall thickness `t_real_m` — the
+/// grid-thickened ring is a thermal homogenization, never a stress operand).
+/// A constraint check, not a structural simulation (Failure-Mode Razor):
+/// margin < 1 or liner T ≥ solidus is a COUP-4 halt input (melt/burst).
+/// Citations: META-3 `roark` (formulas), `nasa-std-5012` (FS), `mmpds`
+/// (allowables class); the concrete allowable values are cited per config.
+pub static STRUCTURAL_MARGINS_MANIFEST: Manifest = Manifest {
+    id: "structural_margins",
+    interface_version: InterfaceVersion { major: 1, minor: 0 },
+    tables: &[],
+    couplers: &[],
+    ports: &[],
+    chaotic_class: NON_CHAOTIC,
+    params: &[
+        ParamSpec {
+            // REAL liner wall thickness [m] (the stress operand; the
+            // grid ring is thermal-only).
+            name: "t_real_m",
+            ty: ParamType::Float,
+            range: Some((1.0e-5, 0.1)),
+            default: None,
+        },
+        ParamSpec {
+            // The declared pressure-shell radius [m] of the annotated
+            // component — for a tube-bundle liner (RL10 class) the CITED
+            // tube radius, for a monocoque liner the chamber radius. The
+            // v1 thin-shell subset requires 2R/t > 20 (SOLV-6 §5); an
+            // under-idealized component refuses at assembly (reported,
+            // never smeared).
+            name: "r_shell_m",
+            ty: ParamType::Float,
+            range: Some((1.0e-4, 10.0)),
+            default: None,
+        },
+        ParamSpec {
+            // Declared coolant-side backpressure [Pa]: the pressure load
+            // on the liner shell is |p_gas − p_coolant| (a regen liner is
+            // loaded by the DIFFERENCE; the expander jacket typically
+            // exceeds chamber pressure). Cited per config.
+            name: "p_coolant_pa",
+            ty: ParamType::Float,
+            range: Some((0.0, 1.0e9)),
+            default: None,
+        },
+        ParamSpec {
+            name: "e_pa",
+            ty: ParamType::Float,
+            range: Some((1.0e9, 1.0e12)),
+            default: None,
+        },
+        ParamSpec {
+            name: "alpha_per_k",
+            ty: ParamType::Float,
+            range: Some((1.0e-7, 1.0e-4)),
+            default: None,
+        },
+        ParamSpec {
+            name: "nu",
+            ty: ParamType::Float,
+            range: Some((0.05, 0.49)),
+            default: None,
+        },
+        ParamSpec {
+            name: "yield_cold_pa",
+            ty: ParamType::Float,
+            range: Some((1.0e6, 5.0e9)),
+            default: None,
+        },
+        ParamSpec {
+            name: "yield_hot_pa",
+            ty: ParamType::Float,
+            range: Some((1.0e6, 5.0e9)),
+            default: None,
+        },
+        ParamSpec {
+            name: "uts_cold_pa",
+            ty: ParamType::Float,
+            range: Some((1.0e6, 5.0e9)),
+            default: None,
+        },
+        ParamSpec {
+            name: "uts_hot_pa",
+            ty: ParamType::Float,
+            range: Some((1.0e6, 5.0e9)),
+            default: None,
+        },
+        ParamSpec {
+            // The two cited temperatures the allowables are stated at;
+            // interrogation outside [t_cold, t_hot] refuses (no
+            // extrapolated strength).
+            name: "t_cold_k",
+            ty: ParamType::Float,
+            range: Some((4.0, 2000.0)),
+            default: None,
+        },
+        ParamSpec {
+            name: "t_hot_k",
+            ty: ParamType::Float,
+            range: Some((100.0, 3000.0)),
+            default: None,
+        },
+        ParamSpec {
+            name: "t_solidus_k",
+            ty: ParamType::Float,
+            range: Some((200.0, 4000.0)),
+            default: None,
+        },
+    ],
+};
+
+/// The full production registry: the landed solver rows + this crate's
+/// boundary-object/assembly rows, sorted by id (COUP-8 §3.2).
+static MECHANISMS: [&Manifest; 13] = [
+    &COMBUSTION_BLEND_MANIFEST,
     &crucible_solvers::CONDUCTION_MANIFEST,
     &crucible_solvers::FLOW_MANIFEST,
     &FLOW_SHIFTING_MANIFEST,
     &crucible_solvers::GAS_DIFFUSION_MANIFEST,
     &INJECTOR_PRIOR_MANIFEST,
     &JACKET_COOLANT_MANIFEST,
+    &SPARK_IGNITER_MANIFEST,
+    &STRUCTURAL_MARGINS_MANIFEST,
     &crucible_solvers::TRANSPORT_CONSTANT_MANIFEST,
     &crucible_solvers::TRANSPORT_TABLE_MANIFEST,
     &TURBOPUMP_EXPANDER_MANIFEST,

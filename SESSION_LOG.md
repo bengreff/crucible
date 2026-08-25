@@ -1133,3 +1133,164 @@ the committed artifacts in `certificates/` are the living record.
   a ⅜-offset point landed in a τ-cap-straddling cell (est 3.1e-3 vs truth 8.1e-6 at 6.75 kPa / 2894 K,
   the declared sharp feature, not covered interpolation) and correctly failed; the test now applies the
   builder's own 8-corner mask. No finding survived to the commit unfixed.
+
+- Session 19 (2026-08-24): **plan S7, FIRST STARTUP VERIFICATION + ◆C2.** "DOESN'T START" became a
+  computed outcome: the march now ends in a typed **COUP-4 verdict object** (WORKS / DOESN'T-WORK with
+  mechanism, location, time, physical-vs-numerical diagnosis, and the criterion it was judged against),
+  attached to every mid-march halt and to the WORKS report, written to `runs/<name>/verdict.txt`. The
+  WORKS criterion is config grammar (`[operating_profile]`: commanded p_c/thrust arm it; `eps_works`
+  default 0.02, `t_dwell_flowthroughs` default 20; `flowthroughs` IS the declared T_S1_HORIZON; horizon
+  expiry without a completed dwell = the distinct FAILED_TO_REACH halt naming the offending quantities).
+  NEVER_IGNITED/FLAMEOUT consume the reacting measure R against the **ṁ-scaled floor**
+  `max(EPS_IGNITED, 1e-4 × delivered ṁ)` (the mini-sim absolute floor does not transfer to engine scale);
+  ignition/margin/dwell checks run at the declared PROBE_EVERY = 200-step cadence (slow-clock members;
+  the per-step members — audit, positivity, non-finite — stay per-step).
+
+  **The class split of record (SOLV-4 0.4.4 / COUP-3 0.4.4):** the auto-ignition term moved from the S6
+  explicit tier (retired) to the **cell-local implicit class-R occupant** — a fixed-structure
+  backward-Euler node solve per SDC sweep (linear in ρc at frozen τ_ign; τ's weak state dependence
+  converged by N_TAU_REFREEZE = 2; realized applied-increment rates ride the trapezoid quadrature and the
+  audit's burn_progress row; the node-0 rate is capped at the realizable (cap−ρc)/Δt — the raw ρ/τ at
+  extreme stiffness overshoots the composition, a measured hazard). Applied after each sweep's accepted
+  composition + SRD, so the next sweep's class-A propagation sees the auto-ignited b (seed→propagate).
+  ONE treatment across the whole regime, no stiffness branch. Acceptance: a superheated 15-bar open tube
+  at T_u = 1888 K, τ = 1.758e-7 s, **dt/τ = 3.04** — past the explicit positivity bound where S6 halted —
+  marches to burned 0.999 with b parking **bit-exactly** at 1−BURN_COMPLETE; a unit test drives the node
+  solve at w/τ = 10⁶ (parks exactly) and the mild limit (reduces to the explicit rate within the measured
+  ~1% τ-drift of BE semantics).
+
+  **The real quench_box — FLAMEOUT demonstrated (SOLV-4 §6.5 realized):** a lit front in the 0.8 mm-gap
+  tube between cold NoSlip+isothermal walls, marched with the full blend↔class-D coupling (flow + gas
+  diffusion + class-R in one audited step — the S7 coupling built for the startup). At 0.1 atm / 400 K
+  walls the front DIES: R collapses 2.06e-4 → exactly 0 kg/s, burned 0.150 — the FLAMEOUT R-trajectory
+  the verdict consumes — while the adiabatic control on the same fixture holds R at 2.20e-4 (alive).
+  420 K walls are the coldest the GAS-PHASE model honestly supports: the products surface's own envelope
+  floor is ~407 K at the fixture state (declared envelope; grid floor ~332 K, H₂O condensation ~310 K — measured from the artifact); colder walls are
+  S15 two-phase territory. Getting here forced the **cold-side partition extension** (SOLV-4 0.4.4):
+  wall cooling breaks the adiabatic shared-h flamelet identity, so below the reactant branch's h-floor
+  the reactant sub-state pins AT the floor and the products absorb the balance (continuous, mass-
+  consistent, self-limiting at the burnt branch's own envelope; trace-weight floor B_PARTITION_MIN = 0.01
+  regularizes the 1/b amplification), plus the **below-unburnt-floor face of the non-reactive guard**
+  (cells colder than any representable reactant are declared no-burn — reached because b parks just under
+  the 1−BURN_COMPLETE fixed point and keeps closure queries live forever, the second knife-edge of the
+  S6-close class).
+
+  **The cold-side closure floor (OFFL-3 0.6.3/0.6.4) — the S6 review-wave flag cured as the composite:**
+  ignition v0.3.0 (strict extension, verified bit-exact column-by-column): graded cold T_u rows 60/90/120 K
+  (real Cantera solves — 120 K carries real S_L 0.5–4.3 m/s across the row; 60/90 K fail-to-zero across
+  the live envelope at the O₂ condensation edge, honest contiguous extinction) putting the envelope floor at 75 K, plus a p-axis top-cell midpoint
+  node at 4.443 MPa lifting the p-envelope ceiling 4.44 → 6.67 MPa — the S7 stiff mini-sim caught
+  mid-transition cells compressing past the old ceiling (a coarse-p-axis inset artifact, not physics; the
+  p-ceiling face of the envelope-consistency contract), and an armed **isolated-zero generation refusal**
+  (an interior S_L = 0 hole along T_u = a failed solve, refused not recorded). Runtime: the declared
+  non-reactive floor below the surface's own envelope floors (the cold analogue of the BURN_COMPLETE
+  domain guard; one owner — the bound artifact's envelope attrs). Unburnt v0.3.0 (a declared RE-GRIDDED
+  variant per the R2 envelope doctrine, NOT a strict extension — no certificate consumes it): Z narrowed
+  to the burnt surface's own band so the rectangular h-floor stops binding ~60 K hot of the design line;
+  cold face at a 75 K binding edge = mid-Z validity to ~96 K, covering the 120 K wall-cooled fill states
+  the startup march actually holds (45+ K above their real O₂ saturation); sub-floor overhang limited to
+  the base axis's own ~2-cell margin (deepest binding-corner node ~40 K, γ ≈ 1.15 — no deeper cold
+  prepends into the degraded-polynomial region); the wide-Z 0.2.0 grid stays as the S5b base.
+
+  **SOLV-6 v1 (0.3) + margins wiring:** `structural_margins.rs` (SOLV-6.1–6.5, FS_YIELD 1.1 / FS_ULT 1.4,
+  7 closed-form unit tests). The COUP-4 halt inputs are MELT (surface ≥ solidus) and **BURST_MARGIN on the
+  primary (pressure-difference) stress state** — the ASME primary/secondary categorization: a regen
+  liner's thermal stress is strain-controlled and legitimately exceeds elastic yield locally, so the
+  combined-stress elastic margins are reported diagnostics, never halts (an elastic yield-halt would kill
+  every real cooled liner). The shell is the DECLARED pressure-carrying member (the RL10's brazed tube:
+  r 3.5 mm / wall 0.33 mm, 2R/t = 21.2; loaded by |p_gas − p_coolant| with the declared ~6.9 MPa jacket
+  backpressure); 2R/t ≤ 20 refuses at assembly (reported, never smeared); allowables = two-point A-basis
+  pair, cold anchor at 77 K with RT strengths (declared conservative flattening — the chilled liner
+  interrogates at ~120 K at start).
+
+  **Config faces (FND-4 0.3 / COUP-7 0.4.2):** three new type-keyed mechanisms — `combustion_blend`
+  (chem_unburnt + chem_ignition pins + the declared wrinkling, now consuming the **pinned**
+  `turbulent-flame-speed` key: Zimont 2000 / Peters 2000 class; the startup config declares 1.0 — the
+  laminar tier — after the measured finding that wrinkling > 1 multiplied into the S_L crossover band
+  drives the front-carrier S_T toward the sound speed and trips the explicit class-A guard (the S_T-CFL
+  hardening rides S8/S16 with the dynamic closure), `spark_igniter` (energy_j = the ONE cited datum,
+  exciter-class range gate 1e-5–20 J; placement + §3.2.2 firing window; the deposit ramps over 0.3 of the
+  window and integrates to exactly energy_j over the kernel's measured κV volume; at N_θ = 1 the kernel
+  is a declared one-cell RING — the declared 10 J discharge heats it past auto-ignition at the measured
+  fill densities),
+  `structural_margins` (13 params). `valve_cited_timeline_s` records the compressed timeline's citation
+  (the ~2 s RL10 sequence) in the manifest. The engine grew the ONE config-selected EOS seam
+  (`ChemEos: Table | Blend` — the dispatch lives at the seam once), blend warm-started through the
+  pure-limit delegation (which also brought the near-vacuum tangency acceptance to b = 0/1 for free, one
+  owner; mid-transition gains its own mass-weighted-bound acceptance).
+
+  **Startup shake-out findings (each a recorded cure, found by the dial-3 probe marches):** (1) the
+  Robin-Robin exchange acceptance failed on the near-vacuum cold fill — the wall-adjacent gas cell's
+  thermal mass is ~10⁴× smaller than the stations' and the fixed sweeps land at ~3e-5 relative on a ~10 W exchange
+  (0.3 mW of staleness): EPS_ROBIN_RESID relaxed 1e-6 → 1e-4 (a halt-gate, not a solution modifier — no
+  accepted number moves, certificates byte-identical) + an absolute EPS_ROBIN_Q_FLOOR_W = 1e-2 W
+  (COUP-2 0.3). (2) The injector-face fixed point transiently dips below the reactant h-floor when
+  choking into vacuum (the first iterate evaluates sound speed at the total state) — cured by the
+  declared gas-phase injection state at −2.5e5 J/kg (~215 K premixed; the real cryo-liquid state is
+  S15's, recorded limitation). (3) The pre-ignition cold jet over-expands below the reactant model's
+  condensation edge at cell backpressures under ~10 mbar — the declared altitude cell is set at the
+  10–20 mbar ejector-cell class and the spark fires early in the fill (as a real sequence does; chamber
+  crosses the ignition surface's 6.8 kPa floor at a measured ~0.9 ms). (4) Margin allowables interrogated
+  at the 120 K chilled liner → the 77 K cold anchor. (5) An un-ignited fill march ends in the CORRECT
+  refusal: 14 ms of accumulating unlit propellant compresses off the reactant model — the hazard state a
+  real engine cannot sit in either.
+
+  **◆C2 — the certifying startup march (`configs/rl10_startup.toml`) and what it computed.** The
+  shake-out was the season's physics in miniature — thirteen attempts, every halt a distinct finding,
+  each cured and battery-verified before relaunch: (1–2) NEVER_IGNITED verdicts taught the spark's
+  form (the fill chamber is a 200–400 m/s stream; a deposit longer than the ~60 µs kernel residence
+  pays the ignition enthalpy once per gas replacement, and firing late into a densified chamber buys
+  only ms-class τ_ign parcels that advect out — the cure is the exciter's own short intense burst);
+  (3–4) the positivity blowup exposed the class-R quadrature-transient (the invariant-set projection
+  fix) and the S_T-CFL limit of the explicit front-carrier in the S_L crossover band (wrinkling > 1
+  there drives S_T toward the sound speed — the laminar tier certifies; the turbulent consumer rides
+  the S8 guard); (5–7) the blend's projection learned its full validity structure the hard way — the
+  two-sided partition (spark superheat past the reactant ceiling), the pulse-cut-at-light discipline
+  (the tail of a 50 µs window superheats the blast-rarefied kernel wisp ×100 faster than b escapes to
+  pure-burnt), and the establishment grace (a just-lit front at 94% of the ṁ-scaled floor 38 µs after
+  window end is establishing, not absent); (8–13) the TORCH pivot and its consequences — a lit kernel
+  CANNOT anchor as a flame in the fill stream (blowoff: laminar S_T ~5 m/s vs 170 m/s flow; the prior
+  tier's uniform plane inflow has no recirculation), so flame-holding is the ASI torch's job exactly
+  as on the real engine (TM-107318: the ASI burns continuously through start into mainstage) — the
+  igniter object gained the cited kJ-class torch tier — and the supersonic cold-purge exposed the
+  mid-transition projection's bracket (now the products branch's whole h-window, with a fixed
+  log-scan-first root isolation and a deterministic bisection backstop in the ONE root finder —
+  a strictly-fewer-halts change, previously-converging projections bit-unchanged).
+
+  **The certified march itself:** valve opens into the 10–20 mbar declared altitude cell at t = 0;
+  chamber crosses the ignition surface's 6.8 kPa floor at 0.9 ms; the torch (21 kJ declared window,
+  ~300 kW post-ramp) lights the kernel at ~3.04 ms; **chamber-scale light-off at ~24 ms** (R jumps
+  6.9e-7 → 1.3e-2 kg/s in ~4 ms; p_c through 0.86 MPa, full 16.9 kg/s delivered); the pre-light cold
+  bell gas purges supersonically (u_z ~ 1060 m/s — the projection-hardening states); then a stable
+  torch-anchored flame (R ≈ 1.6e-2, 10× the FLAMEOUT floor) with p_c PLATEAUED at ~0.90 MPa and
+  F ≈ 22 kN — implied c\* ≈ 660 m/s: **the chamber runs mostly cold.** The laminar front cannot
+  spread across a face swept at 100+ m/s; the spreading agents — turbulent flame speed, the 216
+  distributed coax elements, 3-D recirculation — are precisely the plan's S8/S16 physics.
+  **The verdict (55,658 steps, the full 84.06 ms horizon marched, audit clean throughout):**
+  `FAILED_TO_REACH: the Stage-1 horizon (8.4065e-2 s) expired without a completed dwell — p_c_pa
+  9.085571e5 vs commanded 3.150000e6 (−71.16%); thrust_n 2.206685e4 vs commanded 7.560000e4
+  (−70.81%)` — verdict object `DOESN'T WORK (FAILED_TO_REACH; diagnosis physical)`, written to
+  `runs/rl10-startup/verdict.txt` with the crash artifact beside it. Final state: R = 1.7e-2 kg/s
+  (the torch-held flame never wavered — 10× the FLAMEOUT floor for 60 ms), ṁ delivered 16.97 kg/s,
+  no margin/melt/audit trip over the whole march.
+  "DOESN'T START" is now a computed outcome with a true mechanism: at the laminar-coarse tier with a
+  single torch, the RL10 does not reach its commanded operating point — and the instrument says so,
+  names the shortfall, and the diagnosis maps one-to-one onto the physics the plan already schedules.
+
+  **Dial-16 establishment:** the cure is demonstrated in kind at dial 5 (the blend startup march IS
+  the establishment path the KNOWN LIMIT awaited); a dial-16 blend startup costs ~33× the dial-5
+  march (≈ 10⁵ s laptop) — recorded as the desktop-tier command (same config, dial 16), not run here.
+
+  **Gates: all five green.** fmt/clippy clean; gate 3 workspace tests pass (the battery grew to 9 —
+  stiff_auto_ignition, implicit_node_solve, cold_floor, quench_box joined the five — plus
+  structural_margins' 7 in-module tests); gate 4 offline suite green (unburnt/ignition suites
+  repointed to the v0.3.0 artifacts, regen probes parameterized); **gate 5: all six certificates
+  regenerate byte-identical** — the entire S7 surface (blend partition, class-R, the shared root
+  finder's bisection backstop) never moved a station number, exactly as designed (the backstop runs
+  only where the old code refused). Review wave: two agents (code/physics: NO confirmed correctness
+  bugs, three plausible findings all fixed — the diagnosis mislabel, the blend transport-gate
+  union, the volume-weighted tangency bound; doc-claims: ~15 number drifts corrected against the
+  artifacts, four flags all resolved incl. the 420 K quench-wall correction and the OFFL-3
+  rich-Z cold-corner KNOWN LIMIT). ◆C2's own shake-out then added the run.rs establishment grace,
+  the two-sided-plus-fallback partition, the products-window bracket + scan-first + bisection
+  backstop — each battery-verified before its relaunch.**

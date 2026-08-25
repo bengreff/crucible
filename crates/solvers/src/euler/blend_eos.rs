@@ -63,7 +63,22 @@ pub const EPS_B_PURE_UNBURNT: f64 = 1.0e-9;
 
 /// Inward relative shrink on the closed-form h-derived pressure bracket so
 /// endpoint queries cannot fall an ulp outside either surface's envelope.
-const H_BRACKET_MARGIN: f64 = 1.0e-12;
+/// Wider than `TableEos`'s 1e-12 (S7): the blend's partition arithmetic
+/// (the mass-weighted floor bound and the ÷b balance form) accumulates a
+/// few ulps between the bracket bound and the branch query coordinate, so
+/// an endpoint can land a rounding error outside the envelope; 1e-9
+/// relative on h is ~10⁻² J/kg — far below every declared bound.
+const H_BRACKET_MARGIN: f64 = 1.0e-9;
+
+/// The cold-side partition's **trace-product weight floor** (S7, see
+/// [`BurnBlendEos::partition_h`]): below this burnt mass fraction a
+/// sub-floor cell's products sub-state reads the cell enthalpy directly
+/// instead of the 1/b-amplified balance form. Sized just under the burnt
+/// fraction at which equilibrium cooling to the coldest wall states first
+/// drives the mixture under the reactant floor (~0.012 at 150 K walls), so
+/// the crossing lives in a thin transient sliver with a ≤ 1 %-weight
+/// declared step.
+pub const B_PARTITION_MIN: f64 = 0.01;
 
 /// Fixed log-scan resolution of the non-monotone fallback (mirrors
 /// [`TableEos`]'s `N_P_SCAN`); sized to match the tables' own p-axis density.
@@ -125,22 +140,92 @@ impl<'t> BurnBlendEos<'t> {
         ])
     }
 
+    /// The sub-state enthalpy partition `(h_u, h_b)` at a trial cell
+    /// enthalpy (SOLV-4 §3.6, extended S7). On the shared-`h` flamelet
+    /// domain (`h ≥` the unburnt branch's h-envelope floor) both branches
+    /// read the cell's own `h` — the adiabatic constant-`p` identity.
+    /// **Below the floor** that identity's premise (adiabatic burning) has
+    /// been broken by real heat loss — the quench trajectory: wall cooling
+    /// drives a mid-transition cell's mixture enthalpy under any
+    /// representable reactant state. The **declared cold-side extension**:
+    /// the reactant sub-state pins AT the floor (the coldest representable
+    /// reactant gas — physically its condensation edge) and the products
+    /// carry the balance, `h_b = (h − (1−b)·h_floor)/b` — continuous at the
+    /// floor (`h_b = h` there), mass-consistent by construction, and
+    /// self-limiting: as cooling continues `h_b` walks down the burnt
+    /// branch until ITS envelope refuses — the blend's true cold edge —
+    /// while a low-`b` sub-floor cell (mostly unrepresentably-cold
+    /// reactants) refuses through the same gate immediately (the huge
+    /// `1/b` deficit lands far off the burnt surface). No clamp: every
+    /// state either projects on declared physics or refuses loudly.
+    fn partition_h(&self, h: f64, b: f64) -> (f64, f64) {
+        let (hu_floor, hu_ceil) = self.unburnt.envelopes()[1];
+        if (h >= hu_floor && h <= hu_ceil) || b <= EPS_B_PURE_UNBURNT {
+            return (h, h);
+        }
+        // TWO-SIDED (S7 ◆C2 shake-out): the reactant sub-state pins at the
+        // NEAR edge of its envelope — the floor under heat loss (quench),
+        // the CEILING under spark/blast superheat (a mid-transition kernel
+        // cell whose h passed the metastable-reactant ceiling is sub-µs
+        // from burnt; pinning keeps the closures live at the ceiling values
+        // so the class-R reaction finishes it — the model self-heals
+        // through the reaction rather than refusing).
+        let hu_pin = h.clamp(hu_floor, hu_ceil);
+        // Third face (S7 ◆C2, the cold-purge finding): the balance form's
+        // 1/b amplification can throw h_b past the PRODUCTS surface's own
+        // envelope for small-but-not-trace b (measured: b = 0.010 in the
+        // pre-light bell gas being purged at ~105 K — a ×100 amplification
+        // of the sub-floor deficit). Where the balance is unrepresentable,
+        // the deficit is declared UNATTRIBUTED (the trace form): the
+        // bookkeeping error is bounded by reactant-weight × off-envelope
+        // depth — sub-percent of any chamber enthalpy scale, and only in
+        // transient purge states. A declared fallback preference, never a
+        // clamp of a representable value.
+        let (hb_lo, hb_hi) = {
+            let e = self.burnt.envelopes()[1];
+            (e.0 - self.h_offset, e.1 - self.h_offset)
+        };
+        if b < B_PARTITION_MIN {
+            // The balance form amplifies any off-envelope deficit by 1/b — at
+            // trace product weight a numerical-transient δ would land the
+            // burnt query absurdly off-surface. Below the declared weight
+            // floor the products read the cell h directly: their state is
+            // immaterial to the mixture density within the columns' own
+            // bounds (weight < 1 %, and the physical sub-floor depth of a
+            // trace-product mixture is itself ∝ b). Continuous in h at the
+            // floor; the b-crossing at B_PARTITION_MIN is a declared
+            // threshold step bounded by the trace weight (the
+            // EPS_B_PURE_* pattern).
+            (hu_pin, h)
+        } else {
+            let balance = (h - (1.0 - b) * hu_pin) / b;
+            if (hb_lo..=hb_hi).contains(&balance) {
+                (hu_pin, balance)
+            } else {
+                (hu_pin, h)
+            }
+        }
+    }
+
     /// `1/ρ` of the blend at a trial `(p, h, Z)` and burn fraction `b`: the
-    /// mass-weighted specific volume, skipping a branch of ~zero weight (so
-    /// the pure limits never query the other surface's envelope).
+    /// mass-weighted specific volume on the partitioned sub-state
+    /// enthalpies ([`Self::partition_h`]), skipping a branch of ~zero
+    /// weight (so the pure limits never query the other surface's
+    /// envelope).
     fn blend_inv_rho(&self, p: f64, h: f64, z: f64, b: f64) -> Result<f64, &'static str> {
+        let (h_u, h_b) = self.partition_h(h, b);
         let mut v = 0.0;
         if b < 1.0 - EPS_B_PURE_BURNT {
             let ru = self
                 .unburnt
-                .rho_at(p, h, z)
+                .rho_at(p, h_u, z)
                 .map_err(|_| "unburnt branch query failed inside the blend projection bracket")?;
             v += (1.0 - b) / ru;
         }
         if b > EPS_B_PURE_UNBURNT {
             let rb = self
                 .burnt
-                .rho_at(p, h + self.h_offset, z)
+                .rho_at(p, h_b + self.h_offset, z)
                 .map_err(|_| "burnt branch query failed inside the blend projection bracket")?;
             v += b / rb;
         }
@@ -150,28 +235,79 @@ impl<'t> BurnBlendEos<'t> {
     /// Project the pressure: root of `blend_inv_rho(p) − 1/ρ = 0` over the
     /// admissible bracket (the intersection of the *required* branches'
     /// envelopes). Deterministic Illinois; a mild non-monotone corner falls
-    /// back to a fixed log-scan for a sign change, and a genuinely off-surface
-    /// state refuses (META-1 P6 — the near-vacuum tangency-acceptance the pure
-    /// `TableEos` carries is an RL10-plume feature, deferred to S7).
-    fn project_pressure(&self, rho: f64, e: f64, z: f64, b: f64) -> Result<f64, &'static str> {
+    /// back to a fixed log-scan for a sign change, then (S7) a fixed-count
+    /// golden-section **tangency acceptance** in the branches' own
+    /// mass-weighted rule-space bound — the RL10-plume feature.
+    ///
+    /// **Pure limits delegate to the branch's own `TableEos` projection
+    /// (S7):** `b = 1` runs the burnt surface's projection (at the knocked
+    /// coordinate `e + h_offset`) and `b = 0` the unburnt's — so the pure
+    /// corners carry exactly the single-surface semantics, near-vacuum
+    /// tangency acceptance included, with one owner for that code path.
+    fn project_pressure(
+        &self,
+        rho: f64,
+        e: f64,
+        z: f64,
+        b: f64,
+        hint: Option<f64>,
+    ) -> Result<f64, &'static str> {
         let inv = 1.0 / rho;
         let need_u = b < 1.0 - EPS_B_PURE_BURNT;
         let need_b = b > EPS_B_PURE_UNBURNT;
+        if !need_b {
+            return match hint {
+                Some(ph) if ph.is_finite() && ph > 0.0 => {
+                    self.unburnt.project_pressure_hinted(rho, e, z, ph)
+                }
+                _ => self.unburnt.project_pressure(rho, e, z),
+            };
+        }
+        if !need_u {
+            let e_q = e + self.h_offset;
+            return match hint {
+                Some(ph) if ph.is_finite() && ph > 0.0 => {
+                    self.burnt.project_pressure_hinted(rho, e_q, z, ph)
+                }
+                _ => self.burnt.project_pressure(rho, e_q, z),
+            };
+        }
         let [(pu_lo, pu_hi), (hu_lo, hu_hi), _] = self.unburnt.envelopes();
         let [(pb_lo, pb_hi), (hb_lo, hb_hi), _] = self.burnt.envelopes();
 
-        // h-window (of h = e + p/ρ) and p-window, intersected over the
-        // required branches; the burnt window is shifted by −h_offset because
-        // that branch is queried at h + h_offset.
+        // h-window (of h = e + p/ρ) and p-window over the two branches (the
+        // mid-b path always needs both — the pure limits delegated above).
+        // The burnt window is shifted by −h_offset (that branch is queried
+        // at h_b + h_offset), and the LOWER bound carries the cold-side
+        // partition extension ([`Self::partition_h`]): the cell h may run
+        // down to the mass-weighted floor `(1−b)·hu_lo + b·(hb_lo − off)` —
+        // reactant sub-state pinned at its floor, products at theirs —
+        // which reduces to `max(hu_lo, hb_lo − off)`-style shared-h logic
+        // continuously at `b → 1⁻` and to `hu_lo` at `b → 0⁺`.
         let (mut h_lo, mut h_hi) = (f64::NEG_INFINITY, f64::INFINITY);
         let (mut p_lo_env, mut p_hi_env) = (0.0_f64, f64::INFINITY);
-        if need_u {
+        if need_u && need_b {
+            // The mid-b admissible h-window is the PRODUCTS branch's own
+            // (S7 ◆C2, the supersonic-purge finding): the partition's
+            // pin/balance/trace machinery makes every cell-h queryable
+            // wherever h_b lands inside the products window — the reactant
+            // sub-state pins at its near envelope edge outside its own
+            // band, the balance form attributes the difference where
+            // representable, the trace form where not. The products window
+            // strictly contains the reactant band, so it IS the window; a
+            // mass-weighted bracket floor excluded real roots (measured: a
+            // 1060 m/s nozzle purge cell at c ≈ 0.01 with e_int below the
+            // mass-weighted floor and its root at ~1e4–5e4 Pa).
+            h_lo = hb_lo - self.h_offset;
+            h_hi = hb_hi - self.h_offset;
+            p_lo_env = pu_lo.max(pb_lo);
+            p_hi_env = pu_hi.min(pb_hi);
+        } else if need_u {
             h_lo = h_lo.max(hu_lo);
             h_hi = h_hi.min(hu_hi);
             p_lo_env = p_lo_env.max(pu_lo);
             p_hi_env = p_hi_env.min(pu_hi);
-        }
-        if need_b {
+        } else if need_b {
             h_lo = h_lo.max(hb_lo - self.h_offset);
             h_hi = h_hi.min(hb_hi - self.h_offset);
             p_lo_env = p_lo_env.max(pb_lo);
@@ -199,18 +335,27 @@ impl<'t> BurnBlendEos<'t> {
         if gb0 == 0.0 {
             return Ok(hi);
         }
-        if ga0 * gb0 < 0.0 {
-            return TableEos::illinois_root(lo, hi, ga0, gb0, &g);
-        }
-        // Mild non-monotone corner: fixed log-scan for the first sign change.
+        // The mid-b bracket is the PRODUCTS branch's whole h-window (above)
+        // — up to five decades of p with wildly asymmetric endpoint
+        // magnitudes (a near-vacuum endpoint's specific volume dwarfs the
+        // dense end's), where regula-falsi creeps from the flat end and can
+        // exhaust its fixed budget (measured on the ◆C2 purge state). The
+        // fixed log-scan below therefore ALWAYS runs first: it brackets the
+        // first sign change to a single scan cell (~a fifth of a decade),
+        // where Illinois converges in a handful of iterations; no sign
+        // change anywhere falls through to the tangency acceptance.
         let ratio = hi / lo;
         let mut prev_p = lo;
         let mut prev_g = ga0;
+        let mut best = (lo, ga0.abs());
         for k in 1..=N_P_SCAN {
             let pk = lo * ratio.powf(k as f64 / N_P_SCAN as f64);
             let gk = g(pk)?;
             if gk == 0.0 {
                 return Ok(pk);
+            }
+            if gk.abs() < best.1 {
+                best = (pk, gk.abs());
             }
             if prev_g * gk < 0.0 {
                 return TableEos::illinois_root(prev_p, pk, prev_g, gk, &g);
@@ -218,10 +363,94 @@ impl<'t> BurnBlendEos<'t> {
             prev_p = pk;
             prev_g = gk;
         }
+        // Near-vacuum tangency acceptance (S7, mirroring `TableEos`): the
+        // constraint line h = e + p/ρ runs almost parallel to the blended
+        // ρ-contour in the deep plume, so the crossing can be a tangency the
+        // scan never sign-changes on. Golden-section minimize |g| around the
+        // best sample, then accept iff the blended surface is met within the
+        // branches' own MASS-WEIGHTED rule-space density bounds — the blend's
+        // declared interpolation error, data not a tunable (META-1 P6). Both
+        // production branches stamp log bounds; an artifact without one keeps
+        // the refusal (pre-0.3.2 behavior, preserved bit-for-bit).
+        let (Some(lb_u), Some(lb_b)) = (self.unburnt.rho_bound_log(), self.burnt.rho_bound_log())
+        else {
+            return Err(
+                "blended state off both surfaces over the admissible bracket — no sign \
+                 change and a branch carries no rule-space bound for tangency acceptance",
+            );
+        };
+        let phi = 0.618_033_988_749_894_9_f64;
+        let (mut x0, mut x3) = (
+            (best.0 / ratio.powf(1.0 / N_P_SCAN as f64)).max(lo),
+            (best.0 * ratio.powf(1.0 / N_P_SCAN as f64)).min(hi),
+        );
+        let mut x1 = x3 - phi * (x3 - x0);
+        let mut x2 = x0 + phi * (x3 - x0);
+        let mut g1 = g(x1)?; // signed: v_blend − 1/ρ
+        let mut g2 = g(x2)?;
+        for _ in 0..super::table_eos::N_P_ITER_MAX {
+            if g1.abs() < g2.abs() {
+                x3 = x2;
+                x2 = x1;
+                g2 = g1;
+                x1 = x3 - phi * (x3 - x0);
+                g1 = g(x1)?;
+            } else {
+                x0 = x1;
+                x1 = x2;
+                g1 = g2;
+                x2 = x0 + phi * (x3 - x0);
+                g2 = g(x2)?;
+            }
+        }
+        let (p_best, g_best) = if g1.abs() < g2.abs() {
+            (x1, g1)
+        } else {
+            (x2, g2)
+        };
+        // g is a specific-volume mismatch; ratio = v_blend/v_cell = 1 + g·ρ,
+        // so |ln ratio| is the same rule-space measure the branches' density
+        // bounds are stamped in. The bound composes VOLUME-weighted (review
+        // finding): v = (1−b)v_u + b·v_b is volume-additive, so the
+        // first-order sensitivity of ln v to each branch's own ln-ρ bound
+        // carries that branch's volume share — at flame states the light
+        // burnt branch dominates v long before b → 1.
+        let vratio = 1.0 + g_best * rho;
+        let h_best = e + p_best * inv;
+        let (h_u, h_b) = self.partition_h(h_best, b);
+        let vu = (1.0 - b)
+            / self
+                .unburnt
+                .rho_at(p_best, h_u, z)
+                .map_err(|_| "unburnt branch query failed at the tangency acceptance")?;
+        let vb = b / self
+            .burnt
+            .rho_at(p_best, h_b + self.h_offset, z)
+            .map_err(|_| "burnt branch query failed at the tangency acceptance")?;
+        let bound = (vu * lb_u + vb * lb_b) / (vu + vb);
+        if vratio > 0.0 && vratio.ln().abs() <= bound {
+            return Ok(p_best);
+        }
         Err(
-            "blended state off both surfaces over the admissible bracket — \
-             no sign change (S7 adds the near-vacuum tangency acceptance)",
+            "blended state off both surfaces beyond their volume-weighted declared \
+             interpolation-error bound — no admissible projection",
         )
+    }
+
+    /// `true` when the cell's enthalpy sits below the unburnt branch's own
+    /// h-envelope floor — **colder than any representable reactant** (the
+    /// gas-phase metastable model's condensation edge, ~100 K class). The
+    /// second face of the SOLV-4 §3.6 cold-side non-reactive floor (S7):
+    /// such a cell cannot be interrogated for `T_u` at all, and the honest
+    /// physical statement is that near-condensing reactants do not burn —
+    /// the rate law reads zero there by declaration, never a refusal.
+    /// (Reached in practice by strong wall cooling of nearly-burnt cells,
+    /// whose `b` parks just under the reaction's `1 − BURN_COMPLETE` fixed
+    /// point and therefore keeps its closure queries live — the quench_box
+    /// trajectory.)
+    pub fn below_unburnt_floor(&self, w: &Prim) -> bool {
+        let h = w[I_EI] + w[4] / w[I_RHO];
+        h < self.unburnt.envelopes()[1].0
     }
 
     /// The unburnt-branch temperature `T_u(p, h, Z)` at a projected primitive
@@ -231,8 +460,13 @@ impl<'t> BurnBlendEos<'t> {
     pub fn unburnt_temperature(&self, w: &Prim) -> Result<f64, &'static str> {
         let (rho, p, z) = (w[I_RHO], w[4], w[I_RC]);
         let h = w[I_EI] + p / rho;
+        // The rate-law coordinate reads the PINNED reactant sub-state (the
+        // two-sided partition): a superheated mid-transition cell's T_u is
+        // the ceiling temperature — its closures stay live (τ_ign sub-µs
+        // there) so the reaction can finish it.
+        let (h_u, _) = self.partition_h(h, w[I_RB].clamp(0.0, 1.0));
         self.unburnt
-            .temp_at(p, h, z)
+            .temp_at(p, h_u, z)
             .map_err(|_| "unburnt temperature query failed (T_u off the ignition-surface envelope)")
     }
 
@@ -241,12 +475,100 @@ impl<'t> BurnBlendEos<'t> {
     pub fn unburnt_density(&self, w: &Prim) -> Result<f64, &'static str> {
         let (rho, p, z) = (w[I_RHO], w[4], w[I_RC]);
         let h = w[I_EI] + p / rho;
+        let (h_u, _) = self.partition_h(h, w[I_RB].clamp(0.0, 1.0));
         self.unburnt
-            .rho_at(p, h, z)
+            .rho_at(p, h_u, z)
             .map_err(|_| "unburnt density query failed inside the blend")
     }
 
-    fn prim_checked_impl(&self, u: &Cons) -> Result<Prim, &'static str> {
+    /// The **blended diagnostic temperature** `T = (1−b)·T_u + b·T_b` at a
+    /// projected primitive — the SOLV-4 §3.6 declared mass-weighted model
+    /// form, recovering each pure limit. The blend↔class-D seam (S7): this is
+    /// the temperature the gas-diffusion operator and the wall law read on a
+    /// blended run (the same closure-injection seam as `TableEos`), so a
+    /// mid-transition cell conducts on its mixture temperature, not one
+    /// branch's. Skips a ~zero-weight branch exactly as the projection does.
+    pub fn temperature_w(&self, w: &Prim) -> Result<f64, &'static str> {
+        let (rho, p, z) = (w[I_RHO], w[4], w[I_RC]);
+        let b = w[I_RB].clamp(0.0, 1.0);
+        let h = w[I_EI] + p / rho;
+        let (h_u, h_b) = self.partition_h(h, b);
+        let mut t = 0.0;
+        if b < 1.0 - EPS_B_PURE_BURNT {
+            let tu = self
+                .unburnt
+                .temp_at(p, h_u, z)
+                .map_err(|_| "unburnt temperature query failed at the projected state")?;
+            t += (1.0 - b) * tu;
+        }
+        if b > EPS_B_PURE_UNBURNT {
+            let tb = self
+                .burnt
+                .temp_at(p, h_b + self.h_offset, z)
+                .map_err(|_| "burnt temperature query failed at the projected state")?;
+            t += b * tb;
+        }
+        Ok(t)
+    }
+
+    /// The FND-7 §3.3 spine interrogation coordinate at a blended primitive
+    /// (the `TableEos::interrogation_php` mirror, S7): `(p, h + b·h_offset,
+    /// Z)`. The knockdown offsets only the **burnt** branch's coordinate, so
+    /// the transport interrogation carries it mass-weighted — reducing to the
+    /// `TableEos` coordinate at `b = 1` and the true enthalpy at `b = 0`. The
+    /// spine's chemical-regime surface is generated on the EQUILIBRIUM
+    /// composition; reading it for unburnt/mid-transition cells is a
+    /// **declared model-form gap** (FND-7 0.5.3 — the unburnt-composition
+    /// transport rides S5b's per-species work), inside the spine's own
+    /// declared 10–20 % band for the states a startup march visits.
+    pub fn interrogation_php(&self, w: &Prim) -> crate::transport::MediumState {
+        let (rho, p, z) = (w[I_RHO], w[4], w[I_RC]);
+        let b = w[I_RB].clamp(0.0, 1.0);
+        crate::transport::MediumState {
+            p,
+            h: w[I_EI] + b * self.h_offset + p / rho,
+            z,
+        }
+    }
+
+    /// The declared (p, h, Z) envelope box of the BLEND: the intersection of
+    /// the two branches' envelopes (the burnt h-window shifted by
+    /// −`h_offset`, since that branch is interrogated at `h + h_offset`) —
+    /// the states a mid-transition cell can legally occupy. Assembly-time
+    /// sizing/refusals (the `TableEos::envelopes` mirror, S7).
+    pub fn envelopes(&self) -> [(f64, f64); 3] {
+        let u = self.unburnt.envelopes();
+        let b = self.burnt.envelopes();
+        [
+            (u[0].0.max(b[0].0), u[0].1.min(b[0].1)),
+            (
+                u[1].0.max(b[1].0 - self.h_offset),
+                u[1].1.min(b[1].1 - self.h_offset),
+            ),
+            (u[2].0.max(b[2].0), u[2].1.min(b[2].1)),
+        ]
+    }
+
+    /// The UNION of the two branches' (p, h, Z) envelopes (the burnt
+    /// h-window shifted by −`h_offset`) — the box this occupant may
+    /// interrogate a co-keyed surface (the FND-7 spine) over. Distinct from
+    /// [`Self::envelopes`] (the intersection — the mid-transition
+    /// PROJECTION's admissible box): a pure-burnt cell legally roams the
+    /// whole burnt envelope (S7 review finding).
+    pub fn interrogation_envelopes(&self) -> [(f64, f64); 3] {
+        let u = self.unburnt.envelopes();
+        let b = self.burnt.envelopes();
+        [
+            (u[0].0.min(b[0].0), u[0].1.max(b[0].1)),
+            (
+                u[1].0.min(b[1].0 - self.h_offset),
+                u[1].1.max(b[1].1 - self.h_offset),
+            ),
+            (u[2].0.min(b[2].0), u[2].1.max(b[2].1)),
+        ]
+    }
+
+    fn prim_checked_impl(&self, u: &Cons, hint: Option<f64>) -> Result<Prim, &'static str> {
         let rho = u[I_RHO];
         if !rho.is_finite() || rho <= 0.0 {
             return Err("non-positive or non-finite density");
@@ -271,22 +593,23 @@ impl<'t> BurnBlendEos<'t> {
         // true advected value, and the physical [0,1] violation guard belongs
         // to the combustion source (SOLV-4 §3.6), not this projection.
         let b = b_raw.clamp(0.0, 1.0);
-        let p = self.project_pressure(rho, e, z, b)?;
+        let p = self.project_pressure(rho, e, z, b, hint)?;
         let h = e + p * inv;
+        let (h_u, h_b) = self.partition_h(h, b);
         // Mass-weighted blended sound speed a² = (1−b)a_u² + b·a_b² (declared
         // model-form; skips a ~zero-weight branch, matching the projection).
         let mut a2 = 0.0;
         if b < 1.0 - EPS_B_PURE_BURNT {
             let au = self
                 .unburnt
-                .sound_at(p, h, z)
+                .sound_at(p, h_u, z)
                 .map_err(|_| "unburnt sound-speed query failed at the projected state")?;
             a2 += (1.0 - b) * au * au;
         }
         if b > EPS_B_PURE_UNBURNT {
             let ab = self
                 .burnt
-                .sound_at(p, h + self.h_offset, z)
+                .sound_at(p, h_b + self.h_offset, z)
                 .map_err(|_| "burnt sound-speed query failed at the projected state")?;
             a2 += b * ab * ab;
         }
@@ -297,7 +620,16 @@ impl<'t> BurnBlendEos<'t> {
 
 impl EosLaw for BurnBlendEos<'_> {
     fn prim_checked(&self, u: &Cons) -> Result<Prim, &'static str> {
-        self.prim_checked_impl(u)
+        self.prim_checked_impl(u, None)
+    }
+
+    /// Warm start (S7): the hint reaches the PURE-LIMIT delegated
+    /// projections (where `TableEos`'s root-uniqueness guard makes it a pure
+    /// acceleration); the mid-transition generalized projection ignores it —
+    /// front cells are a thin minority, so the pure limits are where the
+    /// march's cost lives.
+    fn prim_checked_hinted(&self, u: &Cons, hint: Option<f64>) -> Result<Prim, &'static str> {
+        self.prim_checked_impl(u, hint)
     }
 
     fn prim_to_cons(&self, w: &Prim) -> Cons {

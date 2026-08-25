@@ -185,6 +185,31 @@ pub(crate) struct ProfileBlock {
     /// start (the pre-session-12 behavior).
     #[serde(default)]
     pub injector_ramp_flowthroughs: Option<f64>,
+    /// COUP-7 §3.2.2 compressed-schedule declaration (S7): the CITED physical
+    /// valve/start-sequence timeline [s] the injector ramp window compresses
+    /// (e.g. the RL10 start sequence, `rl10-cycle-data`). Declaration-only —
+    /// manifest-recorded so the certificate can state the compression next
+    /// to its labels; absent = no compression declared (the ramp is not a
+    /// stand-in for a cited hardware sequence).
+    #[serde(default)]
+    pub valve_cited_timeline_s: Option<f64>,
+    /// COUP-4 §3.1 commanded-profile quantities (S7): declaring at least one
+    /// arms the Stage-1 WORKS criterion — the march must reach and HOLD every
+    /// commanded quantity within `eps_works` for `t_dwell_flowthroughs`, as
+    /// the tail of the one physical march; `flowthroughs` is then the
+    /// declared `T_S1_HORIZON`, and horizon expiry without a completed dwell
+    /// is the distinct FAILED_TO_REACH halt (never a silent timeout).
+    #[serde(default)]
+    pub commanded_p_c_pa: Option<f64>,
+    #[serde(default)]
+    pub commanded_thrust_n: Option<f64>,
+    /// COUP-4 `EPS_WORKS`: per-quantity relative tolerance on the commanded
+    /// profile (default 0.02).
+    #[serde(default)]
+    pub eps_works: Option<f64>,
+    /// COUP-4 `T_DWELL`: the dwell window in flow-through times (default 20).
+    #[serde(default)]
+    pub t_dwell_flowthroughs: Option<f64>,
 }
 
 /// `[determinism]` (O21) — the S6 regime→guarantee declaration surface.
@@ -242,6 +267,25 @@ pub struct ResolvedProfile {
     pub pumpdown_flowthroughs: f64,
     pub p_amb_floor_pa: f64,
     pub injector_ramp_flowthroughs: f64,
+    /// COUP-7 §3.2.2 compression declaration (S7); absent = undeclared.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub valve_cited_timeline_s: Option<f64>,
+    /// COUP-4 §3.1 commanded profile + WORKS criterion (S7); the criterion
+    /// constants materialize only when a commanded quantity arms them (the
+    /// resolved form stays absent-for-absent, like the profile itself).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub commanded_p_c_pa: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub commanded_thrust_n: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub eps_works: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub t_dwell_flowthroughs: Option<f64>,
 }
 
 /// A fully-resolved table pin — the §3.6 regeneration-key row. `pins`
