@@ -1294,3 +1294,133 @@ the committed artifacts in `certificates/` are the living record.
   rich-Z cold-corner KNOWN LIMIT). ◆C2's own shake-out then added the run.rs establishment grace,
   the two-sided-plus-fallback partition, the products-window bracket + scan-first + bisection
   backstop — each battery-verified before its relaunch.**
+
+- Session 20 (2026-08-25): **plan S8, AZIMUTHAL CAPABILITY — Phase 3 opens.** The flow operator went
+  genuinely 3-D: the r = 0 axis at N_θ > 1 and mixed per-brick N_θ marched, gated, and audited.
+
+  **Docs first** (the working rule): FND-2 0.5.2 (§3.4's "conservatively aggregated/subdivided" clause
+  made concrete — 2:1 ladder adjacency, THE FINE SIDE OWNS THE FLUX, aggregate applied coarse-side,
+  proper nesting ≥ NGHOST, cut geometry stays uniform; §3.2 axis parity pairing recorded as built);
+  COUP-2 0.3.1 (interface faces interior to the one ledger; the §3.1.1 S[q] stored term = the GROSS
+  Σκv|q| at both endpoints — the finding below); COUP-3 0.4.5 (the class-A wave-speed members stated:
+  meridional + per-brick azimuthal + SOLV-4's σ_front; the gas class-D θ-design fixed with the build
+  split to S9/S11); SOLV-1 0.4.6; SOLV-4 0.4.6 then 0.4.7 (the review wave); META-3 0.8.5.
+
+  **The axis crossing (FND-2 §3.2 as built):** the innermost ring's cross-axis ghosts gather from the
+  θ+π partner with u_r AND u_θ negated (the basis flip); at N_θ = 1 the partner is the cell itself, so
+  the certified axisymmetric corner is arithmetically identical (gate 5's byte-identity is the proof).
+  Gates: `axis_pulse_3d` — an off-axis 3-D pulse crosses the axis with the armed audit every step,
+  reaches the far side (θ ≈ π) through r = 0, preserves θ → −θ mirror symmetry to 1e-10, and conserves
+  mass/energy to 1e-12; the exact gate — an AXISYMMETRIC pulse at N_θ = 8 reproduces the N_θ = 1 march
+  **bitwise per θ-plane** (the metric factors differ by exact powers of two, so the arithmetic cancels
+  exactly); and the review-mandated sign discriminator — a uniform TRANSVERSE Cartesian flow
+  (u_r = U·cosθ, u_θ = −U·sinθ) holds steady through the axis (worst u_θ drift ≪ 0.05·U; axisymmetric
+  and mirror-symmetric gates are structurally blind to a wrong u_θ flip — this one is not).
+
+  **Mixed-N_θ refluxing (FND-2 §3.4 as built):** the r/z sweeps decompose each pencil into maximal
+  uniform-N_θ segments and process each run in TWO PASSES — reconstruct+flux everything (fine ghosts
+  prolonged piecewise-constant from the coarse side, coarse ghosts pair-mean-restricted from the fine
+  primitives), then replace each coarse side's jump-face entry with the exact aggregate of the fine
+  children (plain sum where af carries area; the exact ×½ area ratio in the z-sweep's metric-ratio
+  form), then accumulate as the SINGLE well-balanced difference (af[q]−af[q+1])/(κV). **The first cut
+  used push-style split accumulation and the gates caught it at step 0:** splitting the difference into
+  separate roundings breaks the exact cancellation against the geometric pressure source — the uniform
+  state stopped being a bitwise fixed point at the interface. The two-pass form restores it exactly.
+  Gates: uniform state bitwise fixed point on a mixed-N_θ axis world; an axisymmetric transient on a
+  mixed world reproduces the N_θ = 1 march bitwise (refluxing active every step, BOTH fix-up branches —
+  the right-finer and the review-flagged left-finer orientations — covered in r and z); genuinely-3-D
+  data across r- and z-interfaces conserves to 1e-12 with the audit armed; 1-vs-4-thread bit identity.
+  Typed refusals: ladder membership, 2:1 face adjacency, ≥ NGHOST proper nesting; combustion at mixed
+  N_θ → S11; cut geometry/SRD stay N_θ = 1 (FND-3 3-D wave).
+
+  **The audit-tolerance finding (COUP-2 0.3.1):** the first genuinely 3-D mirror-symmetric world halted
+  the audit on its own arithmetic — momentum_theta's stored total cancels to ~0 by symmetry, so the old
+  |net-total| term in S[q] collapsed the tolerance below the reduction's cancellation rounding
+  (measured: delta 4e-22 vs tol 7e-24 on a healthy step), and the θ-sweep's large equal-and-opposite
+  increments never enter the ledger's gross throughput (interior faces telescope, unledgered). Cure per
+  §3.1.1's own rationale ("scaled by what was actually summed"): S[q]'s stored term is the gross Σκv|q|
+  at BOTH step endpoints (`reduce_kappa_volume_weighted_abs`). Halt-gate only; certificates
+  byte-identical.
+
+  **θ-CFL + controller in anger:** the Δt rule's azimuthal member runs at each brick's own N_θ; the
+  plan-§3 gate holds (a coarse-inner N_θ(r) profile lifts Δt > 1.5× vs uniform-fine on an axis world).
+  The symmetry controller ran mid-march: an axisymmetric flow collapses every brick to N_θ^guard = 4
+  (ΔKE ledgered), a seeded m = 1 field re-expands to N_θ^max, the Euler workspace re-keying per brick
+  (staleness rebuild) with the audit armed throughout. Deferral: a production 2:1-enforcement pass over
+  controller decisions (bricks adapt independently; ladders spanning ≥ 3 levels can transiently violate
+  adjacency) rides S11 with the profile controller's first engine use.
+
+  **N_θ > 1 combustion (◆C3's prerequisite):** the whole SOLV-4 §3.6 operator re-keyed per θ-plane —
+  rate accumulation, the class-R node solve + quadrature buffers (per-brick plane sizes), the
+  diagnostics — and ∇·(ρD_c∇c) gained its θ-direction faces (periodic within-brick ring stencil,
+  face ρD_c = two-cell mean, exactly zero cost at N_θ = 1). Gate: a spark kernel that is a POINT in θ
+  (sector 2 of 8) lights its sector and the front reaches the ADJACENT sectors while the opposite
+  sector is still dark (ordering asserted at first adjacent light-off), through the real SDC step with
+  class R and the audit armed.
+
+  **The S_T-CFL (SOLV-4 0.4.6/0.4.7) — wrinkling > 1 becomes marchable:** the front-carrier's
+  stability is no longer a premise ("S_T ≪ a") but a Δt-rule member: σ_front = 2·D_c·Σ_d 1/Δ_d² +
+  C_NAGUMO_SLOPE·(ρ_u/ρ)·K joins the class-A wave-speed reduction wherever the rate law is live (both
+  matched coefficients scale with Δ, so σ_front ~ S_T/Δ is CFL-class, not parabolic). The
+  scale-separation guard is stated on MODEL-FORM quantities — S_T > (2/3)·c refuses, typed and
+  cell-named. That form is itself a review catch: the first cut compared mesh rates (σ_front vs the
+  acoustic signal), and the reviewer measured it resolution-dependent — the θ-arc's 1/arc² carrier
+  rate outgrows the 1/arc acoustic rate, so a rate-ratio guard tightens linearly in N_θ at the
+  innermost rings until it refuses mild flames the certified tier marches (S_T/c thresholds 0.41 →
+  0.043 from N_θ 8 → 64). Velocities are resolution-independent; mesh rates belong to the Δt member.
+  Gates: dt(wrinkling 8) < dt(1.0) on a mid-flame state; a sonic-class wrinkling refuses typed; a
+  mild flame near the axis at N_θ = 16 does NOT refuse.
+
+  **Review wave (three agents) + the fix wave — every CONFIRMED finding fixed in-session:**
+  *Axis/reflux math (the plan-§7 risk):* the mesh-rate guard above (CONFIRMED, fixed); left-finer
+  fix-up branch untested (fixed: two new gates); u_θ sign undiscriminated (fixed: the transverse-flow
+  gate); brick(0)-sampled N_θ guards panic on disconnected mixed worlds (fixed: all-brick scans);
+  stable_dt +inf on an empty active set (fixed: typed refusal); conservation bookkeeping at jumps,
+  ghost-index walks, θ-ring bitwise telescoping, determinism partitions all verified sound.
+  *S7-carry fresh-eyes (the mandated re-exam):* the blend partition's balance↔trace switch was
+  DISCONTINUOUS inside the projection's own scan bracket (a pseudo-root site) and the B_PARTITION_MIN
+  crossing stepped the mixture volume by (1−b)·δ·∂v_b/∂h — the 1/b amplification cancels the b weight,
+  so the step was NOT trace-bounded (the ◆C2 purge cells sat at the measured knife edge b = 0.010);
+  CURED by the continuous window form h_b = clamp(balance, products window) (SOLV-4 0.4.7) — the
+  trace form and B_PARTITION_MIN retired. The ONE root finder accepted on bracket width alone — a
+  pseudo-root could return with a finite unchecked density mismatch; CURED: the volume-weighted
+  rule-space acceptance is armed on EVERY accepted root, and the blend's true cold edge is enforced
+  there. The class-R base projection was asymmetric (negative quadrature artifacts integrated through
+  the BE) and shaved advected ρc ≥ cap excursions silently; CURED: symmetric [0, cap] base projection,
+  and advected at/past-cap content takes the zero-source exact trajectory (owned by the loud
+  EPS_BURN_BOUND guard). Also corrected: the S7 log's "previously-converging projections bit-unchanged"
+  claim was too broad — it holds for the bisection backstop itself, not for the mid-transition bracket
+  re-derivation that landed with it (recorded here; stations were never affected — they schedule no
+  blend). Recorded deferrals (owner: the S9 review wave): a class-R dt-Richardson order gate for the
+  w/τ ~ 1 mid-stiffness regime; a mid-transition root uniqueness/branch-residency guard (the scan
+  takes the first crossing); a measured N_TAU_REFREEZE convergence check in that band.
+  *Doc-claims:* five mismatches found and fixed (the "conservative restriction" overclaim → primitive
+  pair-mean stated; the S[q] both-endpoints wording; the META-3 consumer-provenance sentence — the
+  declared 2.0 is the pin's band factor, not the raw Zimont estimate ~6; a stale plan-S8 pointer; the
+  refusal-payload naming); everything else verified accurate against the code.
+
+  **SPLIT (improvisation rule, plan §8 v1.8):** the gas-diffusion F_visc θ-extension. The DESIGN is
+  fixed (COUP-3 0.4.5: θ-θ implicit cores — μ for u_r/u_z, (4/3)μ·r̄² for the ω angular-momentum form,
+  k for T, ρD for C — with the curvature/cross couplings on the same fixed Picard lag as the S3
+  cross-stress terms); the BUILD rides S9. Reason: a PARTIAL θ-stress tensor is wrong physics — the
+  θ-θ core alone spuriously damps m = 1 translation modes whose curvature-coupling partners are absent
+  (u_r = U cosθ, u_θ = −U sinθ has zero true stress; the partial operator sees −μU cosθ/r²) — and the
+  full tensor + total-energy θ-work bookkeeping + a θ-MMS order gate is a session-scale block that
+  would have crowded the §7-risk axis/reflux work this session exists to get right. The refusal stands
+  loud (N_θ > 1 gas diffusion names S9; mixed-N_θ class-D and per-θ wall patches name S11). S9/S10
+  must land the uniform θ-tensor before ◆C3 marches 3-D with diffusion.
+
+  **Gates: all five green** on the final reviewed code — fmt/clippy clean; gate 3 grew the Rust
+  battery 184 → 209 (the 11 azimuthal gates in `solv1_azimuthal.rs` + the point-spark, S_T-CFL,
+  and near-axis-guard gates in `solv4_combustion.rs`, plus review-wave additions); gate 4 = the
+  50 offline tests; **gate 5: every certificate regenerates byte-identical** — the axis parity
+  gather, the two-pass sweep restructure, the audit-tolerance change, and the blend/class-R review
+  cures never moved a certified bit (the N_θ = 1 arithmetic-identity claims, proven).
+
+  **The ◆C2 rerun (wrinkling 2.0) marches as this entry is written** — launched on the final
+  reviewed build (`runs/rl10-startup-s8`; the first launch was killed and restarted when the
+  review wave's blend/class-R cures landed — a rerun on a stale binary would not be reproducible
+  from this commit). Early trajectory vs S7's laminar march: kernel lights on the same ~3 ms
+  schedule; p_c at 9.2 ms already 0.50 MPa (the laminar run crossed ~0.5 MPa only after its
+  ~24 ms chamber-scale light-off) — the 2× front is spreading measurably faster. The verdict +
+  measured delta land in a follow-up commit when the ~3 h march completes.

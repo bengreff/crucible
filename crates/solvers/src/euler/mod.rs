@@ -39,11 +39,23 @@
 //! gamma-law path is arithmetically identical to the pre-seam operator
 //! (certificates byte-identical — asserted by gate 5).
 //!
-//! Deferred, loud (owners named): `r_min = 0` with `N_θ > 1` refuses (the
-//! cross-axis θ↔θ+π parity-pair gather, FND-2 §3.2 — plan S8); mixed
-//! per-brick N_θ refuses (conservative refluxing — plan S8). FND-3 cut
-//! geometry (κ + apertures + State Redistribution) is consumed since
-//! session 12; full-box worlds ride the arithmetic-identity defaults.
+//! Azimuthal capability (S8): the sweeps run at **each brick's own N_θ**.
+//! `r_min = 0` with `N_θ > 1` uses the FND-2 §3.2 **θ↔θ+π parity-pair
+//! gather** for the cross-axis ghosts (`u_r` and `u_θ` negated — the basis
+//! flip; at N_θ = 1 the partner is the cell itself, so the certified
+//! axisymmetric corner is arithmetically identical). Mixed per-brick N_θ
+//! marches by the FND-2 §3.4 **ring-interface rule**: r/z pencils decompose
+//! into maximal uniform-N_θ segments; at an N_θ jump the **fine side owns
+//! the interface flux** (its own reconstruction against piecewise-constant-
+//! prolonged coarse ghosts) and the coarse cell applies the area-weighted
+//! aggregate of the same numbers — bit-exact telescoping, interior to the
+//! COUP-2 ledger. Constraints (validated loudly): 2:1 ladder adjacency
+//! between face-adjacent bricks; ≥ NGHOST cells of uniform N_θ on each side
+//! of a jump (proper nesting); cut geometry + SRD stay N_θ = 1 (FND-3 3-D
+//! wave); combustion at mixed N_θ refuses → plan S11. The Δt rule carries
+//! the per-brick θ-CFL member and, when combustion is scheduled, the
+//! SOLV-4 §3.6 front-carrier signal `σ_front` with its `S_T_MACH_LIMIT`
+//! model-form scale-separation refusal (COUP-3 §3.4, S8).
 
 mod blend_eos;
 mod combustion;
@@ -54,8 +66,8 @@ mod table_eos;
 
 pub use blend_eos::{BurnBlendEos, EPS_B_PURE_BURNT, EPS_B_PURE_UNBURNT};
 pub use combustion::{
-    BURN_COMPLETE, Combustion, EPS_BURN_BOUND, EPS_IGNITED, IgnitionColumns, THETA_CELLS,
-    consumption_rate, reacting_measure,
+    BURN_COMPLETE, C_NAGUMO_SLOPE, Combustion, EPS_BURN_BOUND, EPS_IGNITED, IgnitionColumns,
+    S_T_MACH_LIMIT, THETA_CELLS, consumption_rate, reacting_measure,
 };
 pub use exact::{RiemannSide, RiemannSolution, solve as solve_riemann};
 pub use hllc::{hllc_flux, physical_flux};
@@ -101,6 +113,77 @@ pub fn srd_neighborhood(
             .map(|(r, z)| ((r, z), g.kappa(r, z) * g.cell_volume(r, nt)))
             .collect(),
     ))
+}
+
+/// θ-mapping of a neighbor segment's cell state for an N_θ-interface ghost
+/// (FND-2 §3.4, S8): piecewise-constant prolongation from a coarser
+/// neighbor (`j >> 1`), equal-volume pair-mean restriction from a finer
+/// one. `nt_nbr ∈ {nts/2, 2·nts}` by the 2:1 adjacency rule (equal
+/// resolutions never form an interface — segments are maximal).
+#[inline]
+fn theta_mapped(prim: &[Prim], local: usize, j: u32, nts: u32, nt_nbr: u32) -> Prim {
+    if nt_nbr < nts {
+        prim[(j >> 1) as usize * BRICK_CELLS + local]
+    } else {
+        let a = prim[2 * j as usize * BRICK_CELLS + local];
+        let b = prim[(2 * j as usize + 1) * BRICK_CELLS + local];
+        std::array::from_fn(|k| 0.5 * (a[k] + b[k]))
+    }
+}
+
+/// One uniform-N_θ span of a pencil run (S8): its stored per-θ face values
+/// (`af[j·(len+1) + fi]`) and per-cell κ, for the two-pass sweeps.
+struct SweepSeg {
+    start: usize,
+    len: usize,
+    nts: u32,
+    af: Vec<Cons>,
+    kap: Vec<f64>,
+}
+
+impl SweepSeg {
+    fn new(start: usize, len: usize, nts: u32) -> Self {
+        SweepSeg {
+            start,
+            len,
+            nts,
+            af: vec![[0.0; NCOMP]; nts as usize * (len + 1)],
+            kap: vec![1.0; len],
+        }
+    }
+}
+
+/// FND-2 §3.4 interface-flux fix-up: at each N_θ jump, replace the COARSE
+/// side's boundary face entry with `agg(child_a, child_b)` of the FINE
+/// side's two children — one computed number on both sides, so the
+/// interface telescopes exactly. `agg` is the plain sum where `af` carries
+/// area (the r sweep) and the ½-weighted sum in metric-ratio form (the z
+/// sweep, where `A_zf/A_zc = 1/2` exactly). Adjacent segments differ by
+/// exactly one ladder factor (`Euler::validate`).
+fn reflux_fixup(segs: &mut [SweepSeg], agg: impl Fn(&Cons, &Cons) -> Cons) {
+    for si in 1..segs.len() {
+        let (lhs, rhs) = segs.split_at_mut(si);
+        let left = &mut lhs[si - 1];
+        let right = &mut rhs[0];
+        let (ll, rl) = (left.len, right.len);
+        if left.nts == 2 * right.nts {
+            // Left finer: its high-face fluxes aggregate into the right
+            // (coarse) segment's low entries.
+            for jc in 0..right.nts {
+                let a = left.af[(2 * jc) as usize * (ll + 1) + ll];
+                let b = left.af[(2 * jc + 1) as usize * (ll + 1) + ll];
+                right.af[jc as usize * (rl + 1)] = agg(&a, &b);
+            }
+        } else {
+            // Right finer: its low-face fluxes aggregate into the left
+            // (coarse) segment's high entries.
+            for jc in 0..left.nts {
+                let a = right.af[(2 * jc) as usize * (rl + 1)];
+                let b = right.af[(2 * jc + 1) as usize * (rl + 1)];
+                left.af[jc as usize * (ll + 1) + ll] = agg(&a, &b);
+            }
+        }
+    }
 }
 
 /// The one neighborhood-construction rule (see [`srd_neighborhood`]).
@@ -444,13 +527,41 @@ pub struct FlowBcs<'a> {
     pub z_hi: FlowBc<'a>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FlowError {
-    /// Same session rule as conduction: refluxing across an N_θ jump
-    /// arrives with COUP-2/COUP-3; refuse rather than guess.
-    MixedThetaResolution,
-    /// Cross-axis parity-pair gather at N_θ > 1 is a deferred wave.
-    AxisWithAzimuthalResolution,
+    /// A brick's N_θ is off the ladder (`4·2^k`, or 1 under the recorded
+    /// axisymmetry assertion) — the ring-interface nesting premise fails.
+    ThetaOffLadder { brick: usize, n_theta: u32 },
+    /// Face-adjacent bricks differ by more than one ladder factor — the
+    /// FND-2 §3.4 2:1 adjacency rule; re-tile the N_θ profile.
+    ThetaAdjacency {
+        a: (u32, u32),
+        b: (u32, u32),
+        nt_a: u32,
+        nt_b: u32,
+    },
+    /// An N_θ jump sits within NGHOST cells of a run boundary or another
+    /// jump along a pencil — the interface reconstruction has no uniform
+    /// stencil (proper nesting, FND-2 §3.4); re-tile the N_θ profile.
+    ThetaNesting {
+        dir: &'static str,
+        line: usize,
+        at: usize,
+    },
+    /// A capability that requires uniform N_θ was scheduled on a mixed-N_θ
+    /// world (combustion → plan S11; cut geometry/SRD → FND-3 3-D wave).
+    MixedThetaUnsupported { what: &'static str },
+    /// SOLV-4 §3.6 (S8, 0.4.7): `S_T` crossed `S_T_MACH_LIMIT ×` the
+    /// cell's own sound speed — the quasi-isobaric flamelet premises are
+    /// broken (fast-deflagration/DDT class, out of the declared model
+    /// form). A model-form limit on velocities, never on mesh rates.
+    FrontCarrierScaleSeparation {
+        i_r: usize,
+        i_z: usize,
+        i_theta: u32,
+        s_t: f64,
+        sound_speed: f64,
+    },
     /// META-1 P6: halt with diagnosis (mechanism, location), never clamp.
     NonPhysicalState {
         i_r: usize,
@@ -476,15 +587,41 @@ pub enum FlowError {
 impl std::fmt::Display for FlowError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MixedThetaResolution => write!(
+            Self::ThetaOffLadder { brick, n_theta } => write!(
                 f,
-                "mixed per-brick N_θ in one flow sweep — conservative flux aggregation \
-                 across an N_θ jump arrives with COUP-2/COUP-3; refusing rather than guessing"
+                "brick {brick} carries N_θ = {n_theta}, off the ladder (4·2^k, or 1 under \
+                 the recorded axisymmetry assertion) — ring-interface nesting undefined"
             ),
-            Self::AxisWithAzimuthalResolution => write!(
+            Self::ThetaAdjacency { a, b, nt_a, nt_b } => write!(
                 f,
-                "r_min = 0 with N_θ > 1: the cross-axis θ↔θ+π parity-pair gather \
-                 (FND-2 §3.2) is a deferred wave; refusing rather than guessing"
+                "face-adjacent bricks {a:?} (N_θ = {nt_a}) and {b:?} (N_θ = {nt_b}) differ \
+                 by more than one ladder factor — FND-2 §3.4 2:1 adjacency; re-tile the \
+                 N_θ profile"
+            ),
+            Self::ThetaNesting { dir, line, at } => write!(
+                f,
+                "N_θ jump at {dir}-index {at} on pencil line {line} sits within NGHOST \
+                 cells of a run boundary or another jump — proper nesting (FND-2 §3.4); \
+                 re-tile the N_θ profile"
+            ),
+            Self::MixedThetaUnsupported { what } => write!(
+                f,
+                "{what} requires uniform N_θ — refusing on this mixed-N_θ world rather \
+                 than guessing"
+            ),
+            Self::FrontCarrierScaleSeparation {
+                i_r,
+                i_z,
+                i_theta,
+                s_t,
+                sound_speed,
+            } => write!(
+                f,
+                "front-carrier scale separation lost at (i_r={i_r}, i_z={i_z}, \
+                 i_θ={i_theta}): S_T = {s_t:.3e} m/s exceeds S_T_MACH_LIMIT × the local \
+                 sound speed {sound_speed:.3e} m/s — the quasi-isobaric flamelet model \
+                 form does not cover this fast-deflagration/DDT-class state \
+                 (SOLV-4 §3.6, S8)"
             ),
             Self::NonPhysicalState {
                 i_r,
@@ -660,19 +797,55 @@ struct CutScratch {
 }
 
 impl<E: EosLaw + Sync> Euler<'_, E> {
-    fn validate(&self, g: &Grid) -> Result<u32, FlowError> {
-        let nt = g.brick(0).n_theta();
-        if g.bricks().iter().any(|b| b.n_theta() != nt) {
-            return Err(FlowError::MixedThetaResolution);
+    /// S8 N_θ legality (module doc): per-brick ladder membership, 2:1
+    /// face-adjacency, uniform-N_θ-only capabilities (cut geometry/SRD;
+    /// combustion → S11). Pure structure checks — a pure function of the
+    /// grid, run before every evaluation (cheap: O(bricks)).
+    fn validate(&self, g: &Grid) -> Result<(), FlowError> {
+        let nt0 = g.brick(0).n_theta();
+        let mixed = g.bricks().iter().any(|b| b.n_theta() != nt0);
+        for (bi, b) in g.bricks().iter().enumerate() {
+            let nt = b.n_theta();
+            if nt != 1 && !crucible_grid::theta_ladder_aligned(nt) {
+                return Err(FlowError::ThetaOffLadder {
+                    brick: bi,
+                    n_theta: nt,
+                });
+            }
+            // 2:1 adjacency toward the high-side neighbors (each pair
+            // checked once).
+            for (dbr, dbz) in [(1u32, 0u32), (0, 1)] {
+                if let Some(ni) = g.brick_index_by_coords(b.br() + dbr, b.bz() + dbz) {
+                    let ntn = g.brick(ni).n_theta();
+                    let (lo, hi) = (nt.min(ntn), nt.max(ntn));
+                    if hi > 2 * lo {
+                        return Err(FlowError::ThetaAdjacency {
+                            a: (b.br(), b.bz()),
+                            b: (b.br() + dbr, b.bz() + dbz),
+                            nt_a: nt,
+                            nt_b: ntn,
+                        });
+                    }
+                }
+            }
         }
-        if g.spec().r_min == 0.0 && nt > 1 {
-            return Err(FlowError::AxisWithAzimuthalResolution);
+        if mixed {
+            if g.has_cut_geometry() {
+                return Err(FlowError::MixedThetaUnsupported {
+                    what: "cut geometry / State Redistribution (FND-3 3-D wave)",
+                });
+            }
+            if self.combustion.is_some() {
+                return Err(FlowError::MixedThetaUnsupported {
+                    what: "the SOLV-4 §3.6 combustion operator (ring-interface \
+                           c-diffusion rides plan S11)",
+                });
+            }
         }
-        Ok(nt)
+        Ok(())
     }
 
-    fn scratch(&self, g: &Grid, nt: u32) -> Result<Scratch, FlowError> {
-        let plane = nt as usize * BRICK_CELLS;
+    fn scratch(&self, g: &Grid) -> Result<Scratch, FlowError> {
         let nb = g.n_bricks();
         let (n_r, n_z) = (g.spec().n_r, g.spec().n_z);
         let nbr = n_r.div_ceil(BRICK);
@@ -693,6 +866,9 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
             }
         }
         let cut = if g.has_cut_geometry() {
+            // Uniform N_θ guaranteed by `validate` (cut ⇒ N_θ = 1 today,
+            // `Grid::build_with_geometry`); the SRD weights key on it.
+            let nt = g.brick(0).n_theta();
             let mut small = Vec::new();
             let mut counts = vec![1u32; nb * BRICK_CELLS];
             let to_bl = |(r, z): (usize, usize)| {
@@ -720,10 +896,13 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
         } else {
             None
         };
+        // Per-brick plane sizes (S8): each brick's buffers span its own
+        // N_θ × 64 cells.
+        let plane = |bi: usize| g.brick(bi).n_theta() as usize * BRICK_CELLS;
         Ok(Scratch {
-            prim: vec![vec![[0.0; NPRIM]; plane]; nb],
-            rate: vec![vec![[0.0; NCOMP]; plane]; nb],
-            u0: vec![vec![[0.0; NCOMP]; plane]; nb],
+            prim: (0..nb).map(|bi| vec![[0.0; NPRIM]; plane(bi)]).collect(),
+            rate: (0..nb).map(|bi| vec![[0.0; NCOMP]; plane(bi)]).collect(),
+            u0: (0..nb).map(|bi| vec![[0.0; NCOMP]; plane(bi)]).collect(),
             bmap,
             nbz,
             act,
@@ -739,8 +918,8 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     /// and retires the per-step scratch allocation churn. One-shot
     /// [`Euler::step`] builds a fresh (cold) one each call.
     pub fn workspace(&self, g: &Grid) -> Result<EulerWorkspace, FlowError> {
-        let nt = self.validate(g)?;
-        Ok(EulerWorkspace(self.scratch(g, nt)?))
+        self.validate(g)?;
+        Ok(EulerWorkspace(self.scratch(g)?))
     }
 
     /// Refresh the workspace's primitive cache from the CURRENT grid
@@ -753,8 +932,8 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
         f: &EulerFields,
         ws: &mut EulerWorkspace,
     ) -> Result<(), FlowError> {
-        let nt = self.validate(g)?;
-        self.fill_prims(g, f, nt, &mut ws.0)
+        self.validate(g)?;
+        self.fill_prims(g, f, &mut ws.0)
     }
 
     /// Evaluate `L(U)` — the flux-divergence + source contribution (SOLV-1
@@ -769,8 +948,8 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
         ws: &mut EulerWorkspace,
         t: f64,
     ) -> Result<(), FlowError> {
-        let nt = self.validate(g)?;
-        self.rhs(g, f, nt, &mut ws.0, t)?;
+        self.validate(g)?;
+        self.rhs(g, f, &mut ws.0, t)?;
         // The burn-progress source (S6) rides the class-A rate: after `rhs`
         // has filled the primitive cache, rate, and ledger, SOLV-4.4 adds its
         // ρb source + source-ledger, so the SDC step composes and audits it
@@ -900,14 +1079,20 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
         cfl: f64,
         hints: Option<&Vec<Vec<Prim>>>,
     ) -> Result<f64, FlowError> {
-        let nt = self.validate(g)?;
+        self.validate(g)?;
         let ids = f.ids();
-        let dtheta = std::f64::consts::TAU / f64::from(nt);
         let (dr, dz) = (g.spec().dr, g.spec().dz);
+        // The front-carrier member's operands (SOLV-4 §3.6, S8): the same Δ
+        // the rate law's matched coefficients use, and the meridional
+        // 1/Δ² sum of its explicit diffusion (the θ term is per cell).
+        let delta = (dr * dz).sqrt();
+        let inv_sq_rz = 1.0 / (dr * dr) + 1.0 / (dz * dz);
         let partials: Vec<Result<f64, FlowError>> = (0..g.n_bricks())
             .into_par_iter()
             .map(|bi| {
                 let b = g.brick(bi);
+                let nt = b.n_theta();
+                let dtheta = std::f64::consts::TAU / f64::from(nt);
                 let fields: [&[f64]; NCOMP] = std::array::from_fn(|k| b.field(ids[k]));
                 let mut max_sig = 0.0f64;
                 for j in 0..nt {
@@ -925,6 +1110,39 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                                 let mut sig = (w[1].abs() + c) / dr + (w[3].abs() + c) / dz;
                                 if nt > 1 {
                                     sig += (w[2].abs() + c) / (g.r_center(i_r) * dtheta);
+                                }
+                                // COUP-3 §3.4 (S8): the front-carrier signal
+                                // joins the reduction; SOLV-4's separation
+                                // guard refuses at the sonic end.
+                                if let Some(comb) = self.combustion {
+                                    let inv_sq = if nt > 1 {
+                                        let arc = g.r_center(i_r) * dtheta;
+                                        inv_sq_rz + 1.0 / (arc * arc)
+                                    } else {
+                                        inv_sq_rz
+                                    };
+                                    let (sf, s_t) = comb
+                                        .front_carrier_signal(&w, delta, inv_sq)
+                                        .map_err(|what| FlowError::NonPhysicalState {
+                                            i_r,
+                                            i_z,
+                                            i_theta: j,
+                                            what,
+                                        })?;
+                                    // The model-form guard compares
+                                    // VELOCITIES (S_T vs the local c) —
+                                    // mesh rates belong only to the Δt
+                                    // member (SOLV-4 0.4.7).
+                                    if s_t > S_T_MACH_LIMIT * c {
+                                        return Err(FlowError::FrontCarrierScaleSeparation {
+                                            i_r,
+                                            i_z,
+                                            i_theta: j,
+                                            s_t,
+                                            sound_speed: c,
+                                        });
+                                    }
+                                    sig += sf;
                                 }
                                 max_sig = max_sig.max(sig);
                             }
@@ -954,25 +1172,18 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     /// r/z sweeps' run boundaries; the θ sweep is periodic — its ring
     /// fluxes telescope exactly; sources from the geometric/closure/
     /// external pass).
-    fn rhs(
-        &self,
-        g: &Grid,
-        f: &EulerFields,
-        nt: u32,
-        s: &mut Scratch,
-        t: f64,
-    ) -> Result<(), FlowError> {
-        self.fill_prims(g, f, nt, s)?;
+    fn rhs(&self, g: &Grid, f: &EulerFields, s: &mut Scratch, t: f64) -> Result<(), FlowError> {
+        self.fill_prims(g, f, s)?;
         for rate in &mut s.rate {
             for cell in rate.iter_mut() {
                 *cell = [0.0; NCOMP];
             }
         }
         s.ledger = FlowLedger::default();
-        self.sweep_r(g, nt, s, t)?;
-        self.sweep_theta(g, nt, s);
-        self.sweep_z(g, nt, s, t)?;
-        self.add_sources(g, nt, s, t);
+        self.sweep_r(g, s, t)?;
+        self.sweep_theta(g, s);
+        self.sweep_z(g, s, t)?;
+        self.add_sources(g, s, t);
         Ok(())
     }
 
@@ -980,13 +1191,7 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     /// FND-2 §3.7: ownership partition, so results are thread-count-
     /// independent). Errors are gathered per brick and the FIRST in brick
     /// order is raised — the same diagnosis the serial sweep chose.
-    fn fill_prims(
-        &self,
-        g: &Grid,
-        f: &EulerFields,
-        nt: u32,
-        s: &mut Scratch,
-    ) -> Result<(), FlowError> {
+    fn fill_prims(&self, g: &Grid, f: &EulerFields, s: &mut Scratch) -> Result<(), FlowError> {
         let ids = f.ids();
         let primed = s.primed;
         let results: Vec<Result<(), FlowError>> = s
@@ -995,6 +1200,7 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
             .enumerate()
             .map(|(bi, prim)| {
                 let b = g.brick(bi);
+                let nt = b.n_theta();
                 let fields: [&[f64]; NCOMP] = std::array::from_fn(|k| b.field(ids[k]));
                 for j in 0..nt {
                     for local in 0..BRICK_CELLS {
@@ -1208,22 +1414,22 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     /// maximal active runs (`Scratch::act`): an interior run boundary is a
     /// stair-step wall face (reflecting mirror — the binary-aperture
     /// degenerate wall; FND-3 cut cells supersede), a domain-edge boundary
-    /// takes the configured BC.
-    fn sweep_r(&self, g: &Grid, nt: u32, s: &mut Scratch, t: f64) -> Result<(), FlowError> {
+    /// takes the configured BC. Each run further decomposes into maximal
+    /// **uniform-N_θ segments** (S8, module doc), processed in TWO passes:
+    /// pass 1 reconstructs and stores every segment's fluxes; the fix-up
+    /// replaces each coarse side's N_θ-jump face entry with the exact
+    /// aggregate of the fine side's children (the fine side owns the flux);
+    /// pass 2 accumulates rates as the SINGLE difference
+    /// `(af[q] − af[q+1])/(κV)` — the same one-rounding well-balanced form
+    /// as a uniform run, which is what keeps a uniform state a bitwise
+    /// fixed point across the interface (a split accumulation breaks the
+    /// exact cancellation against the geometric pressure source — measured,
+    /// the first cut of this sweep did exactly that).
+    fn sweep_r(&self, g: &Grid, s: &mut Scratch, t: f64) -> Result<(), FlowError> {
         let spec = g.spec();
         let (n, n_z) = (spec.n_r, spec.n_z);
         let (r0, dr) = (spec.r_min, spec.dr);
         let on_axis = r0 == 0.0;
-        let area: Vec<f64> = (0..=n)
-            .map(|fi| {
-                if fi < n {
-                    g.face_area_r(fi, false, nt)
-                } else {
-                    g.face_area_r(n - 1, true, nt)
-                }
-            })
-            .collect();
-        let vol: Vec<f64> = (0..n).map(|i| g.cell_volume(i, nt)).collect();
 
         // Parallel by brick z-row: a pencil at i_z only touches bricks with
         // bz = i_z/BRICK, so rows are an ownership partition of the rate
@@ -1245,109 +1451,232 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                 for (k, (bi, _)) in row.iter().enumerate() {
                     slot[g.brick(*bi).br() as usize] = Some(k);
                 }
+                // Metric caches per distinct N_θ in this row — the same
+                // function calls (same bits) as the former per-call vectors.
+                let mut metrics: std::collections::BTreeMap<u32, (Vec<f64>, Vec<f64>)> =
+                    std::collections::BTreeMap::new();
+                for (bi, _) in &row {
+                    let nt = g.brick(*bi).n_theta();
+                    metrics.entry(nt).or_insert_with(|| {
+                        let area = (0..=n)
+                            .map(|fi| {
+                                if fi < n {
+                                    g.face_area_r(fi, false, nt)
+                                } else {
+                                    g.face_area_r(n - 1, true, nt)
+                                }
+                            })
+                            .collect();
+                        let vol = (0..n).map(|i| g.cell_volume(i, nt)).collect();
+                        (area, vol)
+                    });
+                }
+                // Brick N_θ of an active cell in this row.
+                let nt_of = |ii: usize| -> u32 {
+                    let bi = bmap[(ii / BRICK) * nbz + bz].expect("active cell's brick");
+                    g.brick(bi).n_theta()
+                };
                 let mut w = vec![[0.0f64; NPRIM]; n + 2 * NGHOST];
                 let mut fl = vec![[0.0f64; NPRIM]; n + 1];
                 let mut fr = vec![[0.0f64; NPRIM]; n + 1];
-                let mut af = vec![[0.0f64; NCOMP]; n + 1];
                 let mut ap = vec![1.0f64; n + 1];
-                let mut kap = vec![1.0f64; n];
                 let mut port_net = [0.0f64; NCOMP];
                 let mut port_abs = [0.0f64; NCOMP];
                 for i_z in bz * BRICK..((bz + 1) * BRICK).min(n_z) {
                     let lz = i_z % BRICK;
                     let z = g.z_center(i_z);
-                    for j in 0..nt {
-                        let theta = Grid::theta_center(j, nt);
-                        let mut i = 0usize;
-                        while i < n {
-                            if !act[i * n_z + i_z] {
-                                i += 1;
-                                continue;
+                    let mut i = 0usize;
+                    while i < n {
+                        if !act[i * n_z + i_z] {
+                            i += 1;
+                            continue;
+                        }
+                        let start = i;
+                        while i < n && act[i * n_z + i_z] {
+                            i += 1;
+                        }
+                        let len = i - start;
+                        // Maximal uniform-N_θ segments of this run; proper
+                        // nesting: a segment owning an interface spans at
+                        // least NGHOST uniform cells (module doc).
+                        let mut segs: Vec<SweepSeg> = Vec::new();
+                        let mut seg_start = start;
+                        while seg_start < start + len {
+                            let nts = nt_of(seg_start);
+                            let mut seg_end = seg_start + 1;
+                            while seg_end < start + len && nt_of(seg_end) == nts {
+                                seg_end += 1;
                             }
-                            let start = i;
-                            while i < n && act[i * n_z + i_z] {
-                                i += 1;
+                            let seg_len = seg_end - seg_start;
+                            if (seg_start > start || seg_end < start + len) && seg_len < NGHOST {
+                                return Err(FlowError::ThetaNesting {
+                                    dir: "r",
+                                    line: i_z,
+                                    at: seg_start,
+                                });
                             }
-                            let len = i - start;
-                            for (q, ii) in (start..start + len).enumerate() {
+                            segs.push(SweepSeg::new(seg_start, seg_len, nts));
+                            seg_start = seg_end;
+                        }
+                        // Pass 1: reconstruct + flux every segment, stored.
+                        for si in 0..segs.len() {
+                            let (seg_start, seg_len, nts) =
+                                (segs[si].start, segs[si].len, segs[si].nts);
+                            let seg_end = seg_start + seg_len;
+                            let left_nt = (si > 0).then(|| segs[si - 1].nts);
+                            let right_nt = (si + 1 < segs.len()).then(|| segs[si + 1].nts);
+                            let area = &metrics[&nts].0;
+                            for (q, ii) in (seg_start..seg_end).enumerate() {
                                 let bi =
                                     bmap[(ii / BRICK) * nbz + bz].expect("active cell's brick");
-                                let local = (ii % BRICK) * BRICK + lz;
-                                w[NGHOST + q] = prim[bi][j as usize * BRICK_CELLS + local];
                                 let b = g.brick(bi);
-                                kap[q] = b.kappa_rz(local);
+                                let local = (ii % BRICK) * BRICK + lz;
+                                segs[si].kap[q] = b.kappa_rz(local);
                                 ap[q] = b.aperture_rz(FaceDir::RMinus, local);
-                                if q + 1 == len {
-                                    ap[len] = b.aperture_rz(FaceDir::RPlus, local);
+                                if q + 1 == seg_len {
+                                    ap[seg_len] = b.aperture_rz(FaceDir::RPlus, local);
                                 }
                             }
-                            if start == 0 && on_axis {
-                                // Through-axis mirror: ê_r and ê_θ both flip
-                                // (the N_θ=1 degenerate parity pairing).
-                                for k in 1..=NGHOST {
-                                    let mut m = w[NGHOST + (k - 1).min(len - 1)];
-                                    m[I_MR] = -m[I_MR];
-                                    m[I_MT] = -m[I_MT];
-                                    w[NGHOST - k] = m;
+                            for j in 0..nts {
+                                let theta = Grid::theta_center(j, nts);
+                                for (q, ii) in (seg_start..seg_end).enumerate() {
+                                    let bi =
+                                        bmap[(ii / BRICK) * nbz + bz].expect("active cell's brick");
+                                    let local = (ii % BRICK) * BRICK + lz;
+                                    w[NGHOST + q] = prim[bi][j as usize * BRICK_CELLS + local];
                                 }
-                            } else if start == 0 {
-                                self.fill_ghosts_low(
-                                    &mut w,
-                                    len,
-                                    &self.bcs.r_inner,
-                                    I_MR,
-                                    |k| (r0 - (k as f64 - 0.5) * dr, theta, z),
-                                    t,
-                                )?;
-                            } else {
-                                self.wall_ghosts_low(&mut w, len, I_MR, r0 + start as f64 * dr, z);
-                            }
-                            if start + len == n {
-                                self.fill_ghosts_high(
-                                    &mut w,
-                                    len,
-                                    &self.bcs.r_outer,
-                                    I_MR,
-                                    |k| (r0 + (n as f64 + k as f64 - 0.5) * dr, theta, z),
-                                    t,
-                                )?;
-                            } else {
-                                self.wall_ghosts_high(
-                                    &mut w,
-                                    len,
-                                    I_MR,
-                                    r0 + (start + len) as f64 * dr,
-                                    z,
-                                );
-                            }
-                            ppm_faces(&w[..len + 2 * NGHOST], len, &mut fl, &mut fr);
-                            for fi in 0..=len {
-                                let flux = hllc_flux(&fl[fi], &fr[fi], I_MR, &self.eos);
-                                // Aperture-weighted open area (FND-3 §3.3);
-                                // ap = 1.0 exactly on full-box worlds, so
-                                // `(A·1.0)·F ≡ A·F` bitwise — no mode branch.
-                                let aa = area[start + fi] * ap[fi];
-                                for k in 0..NCOMP {
-                                    af[fi][k] = aa * flux[k];
+                                // Low ghosts.
+                                if let Some(lnt) = left_nt {
+                                    // N_θ-interface ghosts from the left
+                                    // segment: prolong (coarser) / restrict
+                                    // (finer) — FND-2 §3.4.
+                                    for k in 1..=NGHOST {
+                                        let ii = seg_start - k;
+                                        let bi = bmap[(ii / BRICK) * nbz + bz]
+                                            .expect("active cell's brick");
+                                        let local = (ii % BRICK) * BRICK + lz;
+                                        w[NGHOST - k] = theta_mapped(&prim[bi], local, j, nts, lnt);
+                                    }
+                                } else if start == 0 && on_axis {
+                                    // FND-2 §3.2 θ↔θ+π parity-pair gather:
+                                    // ê_r and ê_θ both flip. At N_θ = 1 the
+                                    // partner is this cell — the identical
+                                    // mirror arithmetic.
+                                    let jp = Grid::axis_pair(j, nts) as usize;
+                                    for k in 1..=NGHOST {
+                                        let ii = start + (k - 1).min(seg_len - 1);
+                                        let bi = bmap[(ii / BRICK) * nbz + bz]
+                                            .expect("active cell's brick");
+                                        let local = (ii % BRICK) * BRICK + lz;
+                                        let mut m = prim[bi][jp * BRICK_CELLS + local];
+                                        m[I_MR] = -m[I_MR];
+                                        m[I_MT] = -m[I_MT];
+                                        w[NGHOST - k] = m;
+                                    }
+                                } else if start == 0 {
+                                    self.fill_ghosts_low(
+                                        &mut w,
+                                        seg_len,
+                                        &self.bcs.r_inner,
+                                        I_MR,
+                                        |k| (r0 - (k as f64 - 0.5) * dr, theta, z),
+                                        t,
+                                    )?;
+                                } else {
+                                    self.wall_ghosts_low(
+                                        &mut w,
+                                        seg_len,
+                                        I_MR,
+                                        r0 + start as f64 * dr,
+                                        z,
+                                    );
+                                }
+                                // High ghosts.
+                                if let Some(rnt) = right_nt {
+                                    for k in 1..=NGHOST {
+                                        let ii = seg_start + seg_len + k - 1;
+                                        let bi = bmap[(ii / BRICK) * nbz + bz]
+                                            .expect("active cell's brick");
+                                        let local = (ii % BRICK) * BRICK + lz;
+                                        w[NGHOST + seg_len - 1 + k] =
+                                            theta_mapped(&prim[bi], local, j, nts, rnt);
+                                    }
+                                } else if start + len == n {
+                                    self.fill_ghosts_high(
+                                        &mut w,
+                                        seg_len,
+                                        &self.bcs.r_outer,
+                                        I_MR,
+                                        |k| (r0 + (n as f64 + k as f64 - 0.5) * dr, theta, z),
+                                        t,
+                                    )?;
+                                } else {
+                                    self.wall_ghosts_high(
+                                        &mut w,
+                                        seg_len,
+                                        I_MR,
+                                        r0 + (start + len) as f64 * dr,
+                                        z,
+                                    );
+                                }
+                                ppm_faces(&w[..seg_len + 2 * NGHOST], seg_len, &mut fl, &mut fr);
+                                for fi in 0..=seg_len {
+                                    let flux = hllc_flux(&fl[fi], &fr[fi], I_MR, &self.eos);
+                                    // Aperture-weighted open area (FND-3
+                                    // §3.3); ap = 1.0 exactly on full-box
+                                    // worlds (`(A·1.0)·F ≡ A·F` bitwise).
+                                    let aa = area[seg_start + fi] * ap[fi];
+                                    let dst = &mut segs[si].af[j as usize * (seg_len + 1) + fi];
+                                    for k in 0..NCOMP {
+                                        dst[k] = aa * flux[k];
+                                    }
                                 }
                             }
-                            for q in 0..len {
-                                let ii = start + q;
-                                let k_slot = slot[ii / BRICK].expect("active brick in row");
-                                let idx = j as usize * BRICK_CELLS + (ii % BRICK) * BRICK + lz;
-                                let rate = &mut row[k_slot].1[idx];
-                                for k in 0..NCOMP {
-                                    rate[k] += (af[q][k] - af[q + 1][k]) / (kap[q] * vol[ii]);
+                        }
+                        // Fix-up (FND-2 §3.4): the FINE side owns each
+                        // N_θ-jump face's flux; the coarse side's boundary
+                        // entry becomes the aggregate of the fine children
+                        // (each fine af already carries its own area, so
+                        // the aggregate is the plain sum — exact where the
+                        // children agree, by the power-of-two metric split).
+                        reflux_fixup(&mut segs, |a, b| std::array::from_fn(|k| a[k] + b[k]));
+                        // Pass 2: accumulate rates as the SINGLE difference
+                        // (af[q] − af[q+1])/(κV) — the one-rounding
+                        // well-balanced form — plus the COUP-2 ledger
+                        // (run-boundary faces only; interfaces telescope).
+                        for (si, seg) in segs.iter().enumerate() {
+                            let vol = &metrics[&seg.nts].1;
+                            let first = si == 0;
+                            let last = si + 1 == segs.len();
+                            let stride = seg.len + 1;
+                            for j in 0..seg.nts as usize {
+                                let af = &seg.af[j * stride..(j + 1) * stride];
+                                for q in 0..seg.len {
+                                    let ii = seg.start + q;
+                                    let k_slot = slot[ii / BRICK].expect("active brick in row");
+                                    let idx = j * BRICK_CELLS + (ii % BRICK) * BRICK + lz;
+                                    let rate = &mut row[k_slot].1[idx];
+                                    for k in 0..NCOMP {
+                                        rate[k] +=
+                                            (af[q][k] - af[q + 1][k]) / (seg.kap[q] * vol[ii]);
+                                    }
                                 }
-                            }
-                            // COUP-2 ledger: the run's two boundary faces
-                            // are the only non-telescoping terms — domain
-                            // BCs and wall faces (incl. any declared stair
-                            // transpiration) alike. Σ κV·rate over the run
-                            // = af[0] − af[len] (+rounding, in TOL_AUDIT).
-                            for k in 0..NCOMP {
-                                port_net[k] += af[0][k] - af[len][k];
-                                port_abs[k] += af[0][k].abs() + af[len][k].abs();
+                                if first && last {
+                                    for k in 0..NCOMP {
+                                        port_net[k] += af[0][k] - af[seg.len][k];
+                                        port_abs[k] += af[0][k].abs() + af[seg.len][k].abs();
+                                    }
+                                } else if first {
+                                    for k in 0..NCOMP {
+                                        port_net[k] += af[0][k];
+                                        port_abs[k] += af[0][k].abs();
+                                    }
+                                } else if last {
+                                    for k in 0..NCOMP {
+                                        port_net[k] -= af[seg.len][k];
+                                        port_abs[k] += af[seg.len][k].abs();
+                                    }
+                                }
                             }
                         }
                     }
@@ -1365,19 +1694,20 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
         Ok(())
     }
 
-    /// Azimuthal sweep: periodic ring pencils, each inside one brick. At
-    /// N_θ = 1 both faces carry the same computed flux and cancel exactly —
-    /// geometry, not a code branch.
-    fn sweep_theta(&self, g: &Grid, nt: u32, s: &mut Scratch) {
-        let n = nt as usize;
+    /// Azimuthal sweep: periodic ring pencils, each inside one brick at its
+    /// own N_θ (S8). At N_θ = 1 both faces carry the same computed flux and
+    /// cancel exactly — geometry, not a code branch.
+    fn sweep_theta(&self, g: &Grid, s: &mut Scratch) {
         let a_th = g.face_area_theta();
-        let mut w = vec![[0.0f64; NPRIM]; n + 2 * NGHOST];
-        let mut fl = vec![[0.0f64; NPRIM]; n + 1];
-        let mut fr = vec![[0.0f64; NPRIM]; n + 1];
-        let mut af = vec![[0.0f64; NCOMP]; n + 1];
+        let n_max = g.bricks().iter().map(|b| b.n_theta()).max().unwrap_or(1) as usize;
+        let mut w = vec![[0.0f64; NPRIM]; n_max + 2 * NGHOST];
+        let mut fl = vec![[0.0f64; NPRIM]; n_max + 1];
+        let mut fr = vec![[0.0f64; NPRIM]; n_max + 1];
+        let mut af = vec![[0.0f64; NCOMP]; n_max + 1];
 
         for bi in 0..g.n_bricks() {
             let mask = g.brick(bi).mask();
+            let n = g.brick(bi).n_theta() as usize;
             for local in 0..BRICK_CELLS {
                 if mask & (1u64 << local) == 0 {
                     continue;
@@ -1386,15 +1716,15 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                 // One per-ring metric ratio `A_θ/V` (= 1/(r̄·Δθ) exactly),
                 // applied to the flux difference — the same conditioning
                 // rule as the z sweep.
-                let inv = a_th / g.cell_volume(i_r, nt);
+                let inv = a_th / g.cell_volume(i_r, g.brick(bi).n_theta());
                 // Periodic gather with wrapped ghosts: pencil index pi maps
                 // to ring cell (pi − NGHOST) mod n, offset by NGHOST·n so
                 // the subtraction cannot underflow at any n ≥ 1.
-                for (pi, cell) in w.iter_mut().enumerate() {
+                for (pi, cell) in w[..n + 2 * NGHOST].iter_mut().enumerate() {
                     let jj = (pi + NGHOST * n - NGHOST) % n;
                     *cell = s.prim[bi][jj * BRICK_CELLS + local];
                 }
-                ppm_faces(&w, n, &mut fl, &mut fr);
+                ppm_faces(&w[..n + 2 * NGHOST], n, &mut fl, &mut fr);
                 for fi in 0..=n {
                     af[fi] = hllc_flux(&fl[fi], &fr[fi], I_MT, &self.eos);
                 }
@@ -1414,7 +1744,10 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     /// also what keeps a radially-uniform state radially uniform **bitwise**:
     /// with per-ring `A_z·F` products, identical physics on different rings
     /// rounds differently by an ulp (found by the Station-1 certificate).
-    fn sweep_z(&self, g: &Grid, nt: u32, s: &mut Scratch, t: f64) -> Result<(), FlowError> {
+    /// Mixed N_θ (S8): pencils decompose into uniform-N_θ segments exactly
+    /// as in `sweep_r`; in this sweep's metric-ratio form the fine→coarse
+    /// aggregate carries the exact area ratio `A_zf/A_zc = 1/2`.
+    fn sweep_z(&self, g: &Grid, s: &mut Scratch, t: f64) -> Result<(), FlowError> {
         let spec = g.spec();
         let (n, n_r) = (spec.n_z, spec.n_r);
         let (z0, dz) = (spec.z_min, spec.dz);
@@ -1436,97 +1769,182 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                 for (k, (bi, _)) in col.iter().enumerate() {
                     slot[g.brick(*bi).bz() as usize] = Some(k);
                 }
+                let nt_of = |ii: usize| -> u32 {
+                    let bi = bmap[br * nbz + ii / BRICK].expect("active cell's brick");
+                    g.brick(bi).n_theta()
+                };
                 let mut w = vec![[0.0f64; NPRIM]; n + 2 * NGHOST];
                 let mut fl = vec![[0.0f64; NPRIM]; n + 1];
                 let mut fr = vec![[0.0f64; NPRIM]; n + 1];
-                let mut af = vec![[0.0f64; NCOMP]; n + 1];
                 let mut ap = vec![1.0f64; n + 1];
-                let mut kap = vec![1.0f64; n];
                 let mut port_net = [0.0f64; NCOMP];
                 let mut port_abs = [0.0f64; NCOMP];
                 for i_r in br * BRICK..((br + 1) * BRICK).min(n_r) {
                     let lr = i_r % BRICK;
                     let r = g.r_center(i_r);
-                    let a_z = g.face_area_z(i_r, nt);
-                    for j in 0..nt {
-                        let theta = Grid::theta_center(j, nt);
-                        let mut i = 0usize;
-                        while i < n {
-                            if !act[i_r * n + i] {
-                                i += 1;
-                                continue;
+                    let mut i = 0usize;
+                    while i < n {
+                        if !act[i_r * n + i] {
+                            i += 1;
+                            continue;
+                        }
+                        let start = i;
+                        while i < n && act[i_r * n + i] {
+                            i += 1;
+                        }
+                        let len = i - start;
+                        // Maximal uniform-N_θ segments (see sweep_r).
+                        let mut segs: Vec<SweepSeg> = Vec::new();
+                        let mut seg_start = start;
+                        while seg_start < start + len {
+                            let nts = nt_of(seg_start);
+                            let mut seg_end = seg_start + 1;
+                            while seg_end < start + len && nt_of(seg_end) == nts {
+                                seg_end += 1;
                             }
-                            let start = i;
-                            while i < n && act[i_r * n + i] {
-                                i += 1;
+                            let seg_len = seg_end - seg_start;
+                            if (seg_start > start || seg_end < start + len) && seg_len < NGHOST {
+                                return Err(FlowError::ThetaNesting {
+                                    dir: "z",
+                                    line: i_r,
+                                    at: seg_start,
+                                });
                             }
-                            let len = i - start;
-                            for (q, ii) in (start..start + len).enumerate() {
+                            segs.push(SweepSeg::new(seg_start, seg_len, nts));
+                            seg_start = seg_end;
+                        }
+                        // Pass 1: reconstruct + flux every segment, stored.
+                        for si in 0..segs.len() {
+                            let (seg_start, seg_len, nts) =
+                                (segs[si].start, segs[si].len, segs[si].nts);
+                            let seg_end = seg_start + seg_len;
+                            let left_nt = (si > 0).then(|| segs[si - 1].nts);
+                            let right_nt = (si + 1 < segs.len()).then(|| segs[si + 1].nts);
+                            for (q, ii) in (seg_start..seg_end).enumerate() {
                                 let bi = bmap[br * nbz + ii / BRICK].expect("active cell's brick");
-                                let local = lr * BRICK + (ii % BRICK);
-                                w[NGHOST + q] = prim[bi][j as usize * BRICK_CELLS + local];
                                 let b = g.brick(bi);
-                                kap[q] = b.kappa_rz(local);
+                                let local = lr * BRICK + (ii % BRICK);
+                                segs[si].kap[q] = b.kappa_rz(local);
                                 ap[q] = b.aperture_rz(FaceDir::ZMinus, local);
-                                if q + 1 == len {
-                                    ap[len] = b.aperture_rz(FaceDir::ZPlus, local);
+                                if q + 1 == seg_len {
+                                    ap[seg_len] = b.aperture_rz(FaceDir::ZPlus, local);
                                 }
                             }
-                            if start == 0 {
-                                self.fill_ghosts_low(
-                                    &mut w,
-                                    len,
-                                    &self.bcs.z_lo,
-                                    I_MZ,
-                                    |k| (r, theta, z0 - (k as f64 - 0.5) * dz),
-                                    t,
-                                )?;
-                            } else {
-                                self.wall_ghosts_low(&mut w, len, I_MZ, r, z0 + start as f64 * dz);
-                            }
-                            if start + len == n {
-                                self.fill_ghosts_high(
-                                    &mut w,
-                                    len,
-                                    &self.bcs.z_hi,
-                                    I_MZ,
-                                    |k| (r, theta, z0 + (n as f64 + k as f64 - 0.5) * dz),
-                                    t,
-                                )?;
-                            } else {
-                                self.wall_ghosts_high(
-                                    &mut w,
-                                    len,
-                                    I_MZ,
-                                    r,
-                                    z0 + (start + len) as f64 * dz,
-                                );
-                            }
-                            ppm_faces(&w[..len + 2 * NGHOST], len, &mut fl, &mut fr);
-                            for fi in 0..=len {
-                                let flux = hllc_flux(&fl[fi], &fr[fi], I_MZ, &self.eos);
-                                // ap = 1.0 exactly on full-box worlds
-                                // (`F·1.0 ≡ F`).
-                                for k in 0..NCOMP {
-                                    af[fi][k] = flux[k] * ap[fi];
+                            for j in 0..nts {
+                                let theta = Grid::theta_center(j, nts);
+                                for (q, ii) in (seg_start..seg_end).enumerate() {
+                                    let bi =
+                                        bmap[br * nbz + ii / BRICK].expect("active cell's brick");
+                                    let local = lr * BRICK + (ii % BRICK);
+                                    w[NGHOST + q] = prim[bi][j as usize * BRICK_CELLS + local];
+                                }
+                                if let Some(lnt) = left_nt {
+                                    for k in 1..=NGHOST {
+                                        let ii = seg_start - k;
+                                        let bi = bmap[br * nbz + ii / BRICK]
+                                            .expect("active cell's brick");
+                                        let local = lr * BRICK + (ii % BRICK);
+                                        w[NGHOST - k] = theta_mapped(&prim[bi], local, j, nts, lnt);
+                                    }
+                                } else if start == 0 {
+                                    self.fill_ghosts_low(
+                                        &mut w,
+                                        seg_len,
+                                        &self.bcs.z_lo,
+                                        I_MZ,
+                                        |k| (r, theta, z0 - (k as f64 - 0.5) * dz),
+                                        t,
+                                    )?;
+                                } else {
+                                    self.wall_ghosts_low(
+                                        &mut w,
+                                        seg_len,
+                                        I_MZ,
+                                        r,
+                                        z0 + start as f64 * dz,
+                                    );
+                                }
+                                if let Some(rnt) = right_nt {
+                                    for k in 1..=NGHOST {
+                                        let ii = seg_start + seg_len + k - 1;
+                                        let bi = bmap[br * nbz + ii / BRICK]
+                                            .expect("active cell's brick");
+                                        let local = lr * BRICK + (ii % BRICK);
+                                        w[NGHOST + seg_len - 1 + k] =
+                                            theta_mapped(&prim[bi], local, j, nts, rnt);
+                                    }
+                                } else if start + len == n {
+                                    self.fill_ghosts_high(
+                                        &mut w,
+                                        seg_len,
+                                        &self.bcs.z_hi,
+                                        I_MZ,
+                                        |k| (r, theta, z0 + (n as f64 + k as f64 - 0.5) * dz),
+                                        t,
+                                    )?;
+                                } else {
+                                    self.wall_ghosts_high(
+                                        &mut w,
+                                        seg_len,
+                                        I_MZ,
+                                        r,
+                                        z0 + (start + len) as f64 * dz,
+                                    );
+                                }
+                                ppm_faces(&w[..seg_len + 2 * NGHOST], seg_len, &mut fl, &mut fr);
+                                for fi in 0..=seg_len {
+                                    let flux = hllc_flux(&fl[fi], &fr[fi], I_MZ, &self.eos);
+                                    // ap = 1.0 exactly on full-box worlds
+                                    // (`F·1.0 ≡ F`).
+                                    let dst = &mut segs[si].af[j as usize * (seg_len + 1) + fi];
+                                    for k in 0..NCOMP {
+                                        dst[k] = flux[k] * ap[fi];
+                                    }
                                 }
                             }
-                            for q in 0..len {
-                                let ii = start + q;
-                                let k_slot = slot[ii / BRICK].expect("active brick in column");
-                                let idx = j as usize * BRICK_CELLS + lr * BRICK + (ii % BRICK);
-                                let rate = &mut col[k_slot].1[idx];
-                                for k in 0..NCOMP {
-                                    rate[k] += (af[q][k] - af[q + 1][k]) * inv_dz / kap[q];
+                        }
+                        // Fix-up (FND-2 §3.4): in this sweep's metric-ratio
+                        // form the fine→coarse aggregate carries the exact
+                        // area ratio A_zf/A_zc = 1/2.
+                        reflux_fixup(&mut segs, |a, b| {
+                            std::array::from_fn(|k| 0.5 * (a[k] + b[k]))
+                        });
+                        // Pass 2: single-difference accumulation + ledger
+                        // (see sweep_r); the segment's ring z-face area
+                        // restores conserved units on the ledger side.
+                        for (si, seg) in segs.iter().enumerate() {
+                            let a_z = g.face_area_z(i_r, seg.nts);
+                            let first = si == 0;
+                            let last = si + 1 == segs.len();
+                            let stride = seg.len + 1;
+                            for j in 0..seg.nts as usize {
+                                let af = &seg.af[j * stride..(j + 1) * stride];
+                                for q in 0..seg.len {
+                                    let ii = seg.start + q;
+                                    let k_slot = slot[ii / BRICK].expect("active brick in column");
+                                    let idx = j * BRICK_CELLS + lr * BRICK + (ii % BRICK);
+                                    let rate = &mut col[k_slot].1[idx];
+                                    for k in 0..NCOMP {
+                                        rate[k] += (af[q][k] - af[q + 1][k]) * inv_dz / seg.kap[q];
+                                    }
                                 }
-                            }
-                            // COUP-2 ledger (see sweep_r): this sweep's af
-                            // carries no area (metric-ratio form), so the
-                            // pencil's ring z-face area restores conserved
-                            // units — V·(1/dz) = A_z on this exact metric.
-                            for k in 0..NCOMP {
-                                port_net[k] += a_z * (af[0][k] - af[len][k]);
-                                port_abs[k] += a_z * (af[0][k].abs() + af[len][k].abs());
+                                if first && last {
+                                    for k in 0..NCOMP {
+                                        port_net[k] += a_z * (af[0][k] - af[seg.len][k]);
+                                        port_abs[k] +=
+                                            a_z * (af[0][k].abs() + af[seg.len][k].abs());
+                                    }
+                                } else if first {
+                                    for k in 0..NCOMP {
+                                        port_net[k] += a_z * af[0][k];
+                                        port_abs[k] += a_z * af[0][k].abs();
+                                    }
+                                } else if last {
+                                    for k in 0..NCOMP {
+                                        port_net[k] -= a_z * af[seg.len][k];
+                                        port_abs[k] += a_z * af[seg.len][k].abs();
+                                    }
+                                }
                             }
                         }
                     }
@@ -1551,7 +1969,7 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     /// preserved to round-off, no equilibrium drift. The centrifugal
     /// `ρu_θ²` term and the swirl-advection term `−ρu_ru_θ` use the
     /// metric-consistent `1/r̄ = (A_out−A_in)/V`.
-    fn add_sources(&self, g: &Grid, nt: u32, s: &mut Scratch, t: f64) {
+    fn add_sources(&self, g: &Grid, s: &mut Scratch, t: f64) {
         let prim = &s.prim;
         let partials: Vec<([f64; NCOMP], [f64; NCOMP])> = s
             .rate
@@ -1559,6 +1977,7 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
             .enumerate()
             .map(|(bi, rate_v)| {
                 let mask = g.brick(bi).mask();
+                let nt = g.brick(bi).n_theta();
                 // COUP-2 ledger partials: the exact κV-weighted increments
                 // applied here (geometric + wall-closure + external), net
                 // and gross — per brick, combined in fixed brick order.

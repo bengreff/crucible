@@ -951,3 +951,315 @@ fn cold_floor_cell_is_declared_non_reactive() {
          b_max {b_max:.2e})"
     );
 }
+
+// --- S8: the azimuthal re-key + the S_T-CFL --------------------------------
+
+/// A thin annulus whose θ-arcs are at the cell scale (r̄·Δθ ≈ h), so a
+/// point-in-θ kernel's azimuthal spread is resolved front physics, not a
+/// geometric artifact. Off-axis (r_min > 0): the axis machinery has its own
+/// gates (`solv1_azimuthal`).
+fn theta_tube(n_z: usize, h: f64, n_theta: u32) -> (Grid, EulerFields) {
+    let spec = GridSpec {
+        r_min: 0.5 * h,
+        dr: h,
+        n_r: 4,
+        z_min: 0.0,
+        dz: h,
+        n_z,
+        n_theta_max: n_theta,
+        axisymmetry_assertion: false,
+    };
+    let g = Grid::build(spec, crucible_solvers::euler::EULER_FIELDS).expect("grid");
+    let f = EulerFields::resolve(&g).expect("fields");
+    (g, f)
+}
+
+/// Mean burnt fraction per θ-sector: `∫ρb dV / ∫ρ dV` over each j.
+fn sector_burn(g: &Grid, f: &EulerFields) -> Vec<f64> {
+    let ids = f.ids();
+    let nt = g.brick(0).n_theta();
+    let (mut mb, mut m) = (vec![0.0f64; nt as usize], vec![0.0f64; nt as usize]);
+    for bi in 0..g.n_bricks() {
+        let br = g.brick(bi);
+        let mask = br.mask();
+        let (rho, rhob) = (br.field(ids[I_RHO]), br.field(ids[I_RB]));
+        for local in 0..64 {
+            if mask & (1u64 << local) == 0 {
+                continue;
+            }
+            let (i_r, _) = br.global_rz(local);
+            let v = g.cell_volume(i_r, nt);
+            for j in 0..nt {
+                let cell = br.cell_index(j, local);
+                mb[j as usize] += rhob[cell] * v;
+                m[j as usize] += rho[cell] * v;
+            }
+        }
+    }
+    mb.iter().zip(&m).map(|(a, b)| a / b).collect()
+}
+
+#[test]
+fn spark_point_in_theta_spreads_azimuthally() {
+    // SOLV-4 0.4.6 (plan S8): a spark kernel that is a POINT in θ — not the
+    // S7 ring — lights its sector, and the front's θ-direction D_c faces
+    // carry it to the ADJACENT sectors before the opposite one: azimuthal
+    // propagation is resolved front physics (◆C3's prerequisite). Marched
+    // through the real SDC step (class A + class R), audit armed.
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let ign = IgnitionColumns::bind(&it).unwrap();
+    let comb = Combustion {
+        blend: &blend,
+        ignition: ign,
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
+    // WARM reactants (T_u ~ 600 K class): S_L is tens of m/s there, so the
+    // sector-crossing time is ~50 acoustic steps, not ~800 — the same
+    // physics gate at fast-battery cost (VAL-3 §3.2 budget).
+    const H_WARM: f64 = 1.3e6;
+    let h = 1.0e-3;
+    let n_z = 6usize;
+    let nt = 8u32;
+    let (mut g, f) = theta_tube(n_z, h, nt);
+    let ids = f.ids();
+    for (k, &id) in ids.iter().enumerate() {
+        g.fill_field(id, |_r, _th, _z| {
+            blend
+                .cons_from_phzb(P0, H_WARM, Z0, 0.0, [0.0, 0.0, 0.0])
+                .expect("valid uniform IC")[k]
+        });
+    }
+    // The kernel: θ-sector 2 only, z middle ±2 cells, all r — a point in θ.
+    let z_c = 0.5 * (n_z as f64) * h;
+    let sector = std::f64::consts::TAU / f64::from(nt);
+    let igniter = move |_r: f64, th: f64, z: f64, t: f64| -> Cons {
+        let in_theta = (th / sector).floor() as i32 == 2;
+        let on = t < 1.2e-5 && in_theta && (z - z_c).abs() < 2.0 * h;
+        let q = if on {
+            5.0e10 * (t / 4.0e-6).min(1.0)
+        } else {
+            0.0
+        };
+        [0.0, 0.0, 0.0, 0.0, q, 0.0, 0.0]
+    };
+    let op = Euler {
+        eos: blend.clone(),
+        source: &igniter,
+        bcs: FlowBcs {
+            r_inner: FlowBc::Reflecting,
+            r_outer: FlowBc::Reflecting,
+            z_lo: FlowBc::Reflecting,
+            z_hi: FlowBc::Reflecting,
+        },
+        wall_normal: None,
+        slip_wall_z_faces: true,
+        combustion: Some(&comb),
+    };
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let reaction = ReactionClass { op: &comb };
+    let mut sdc = Sdc::new();
+    let (mut t, mut peak_r) = (0.0f64, 0.0f64);
+    let mut adjacency_checked = false;
+    let mut steps = 0usize;
+    while t < 1.5e-4 {
+        let dt = sdc
+            .stable_dt(&g, &flow, 0.4)
+            .expect("dt (σ_front member live)");
+        sdc.step(
+            &mut g,
+            Some(&flow),
+            None,
+            None,
+            None,
+            Some(&reaction),
+            t,
+            dt,
+        )
+        .expect("audited 3-D combustion step");
+        t += dt;
+        steps += 1;
+        assert!(steps < 60_000, "runaway spark-point march");
+        if !steps.is_multiple_of(4) {
+            continue; // probe cadence (slow-clock members — the S7 pattern)
+        }
+        let r = reacting_measure(&g, &ids, &blend, &comb.ignition, 1.0, THETA_CELLS).unwrap();
+        peak_r = peak_r.max(r);
+        if !adjacency_checked {
+            let s = sector_burn(&g, &f);
+            let adj = s[1].min(s[3]);
+            if adj >= 0.05 {
+                // THE ordering gate, taken at first adjacent light-off: the
+                // opposite sector must still be (relatively) dark — the
+                // spread is a propagating front, not a uniform volumetric
+                // ignition.
+                assert!(
+                    s[6] < 0.5 * adj,
+                    "opposite sector lit with the adjacent ones \
+                     (adj {adj:.3} vs opposite {:.3}) — no propagating θ-front",
+                    s[6]
+                );
+                adjacency_checked = true;
+            }
+        }
+    }
+    let s = sector_burn(&g, &f);
+    println!("spark_point sectors: {s:?}  peak_R={peak_r:.3e}");
+    assert!(
+        peak_r > EPS_IGNITED,
+        "the point spark must light (R {peak_r:.2e})"
+    );
+    assert!(
+        s[2] > 0.2,
+        "the sparked sector must burn substantially ({:.3})",
+        s[2]
+    );
+    assert!(
+        adjacency_checked,
+        "adjacent sectors never reached the light-off threshold — no azimuthal \
+         spread (sectors {s:?})"
+    );
+}
+
+#[test]
+fn front_carrier_joins_the_dt_rule_and_separation_guard_refuses() {
+    // SOLV-4 0.4.6 (plan S8), the S_T-CFL: (a) with the rate law live, a
+    // larger declared wrinkling shortens stable_dt (σ_front is a Δt-rule
+    // member — wrinkling > 1 marches honestly instead of tripping the
+    // positivity guard); (b) a wrinkling that drives S_T toward the sound
+    // speed trips the K_FRONT_SEP scale-separation refusal, typed and
+    // cell-named — the fast-deflagration/DDT class is out of the declared
+    // model form, never marched through silently.
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let dt_at = |wrinkling: f64| -> Result<f64, crucible_solvers::sdc::SdcError> {
+        let ign = IgnitionColumns::bind(&it).unwrap();
+        let comb = Combustion {
+            blend: &blend,
+            ignition: ign,
+            wrinkling,
+            theta: THETA_CELLS,
+        };
+        let (mut g, f) = tube(8, 2.0e-4);
+        // A half-burnt mid-flame state: the rate law is live (b well inside
+        // (0,1), T_u flammable), so σ_front is nonzero.
+        let ids = f.ids();
+        for (k, &id) in ids.iter().enumerate() {
+            g.fill_field(id, |_r, _th, _z| {
+                blend
+                    .cons_from_phzb(P0, H0, Z0, 0.5, [0.0, 0.0, 0.0])
+                    .expect("valid IC")[k]
+            });
+        }
+        let op = Euler {
+            eos: blend.clone(),
+            source: &ZERO_SRC,
+            bcs: FlowBcs {
+                r_inner: FlowBc::Reflecting,
+                r_outer: FlowBc::Reflecting,
+                z_lo: FlowBc::Reflecting,
+                z_hi: FlowBc::Reflecting,
+            },
+            wall_normal: None,
+            slip_wall_z_faces: true,
+            combustion: Some(&comb),
+        };
+        let flow = FlowClass {
+            op: &op,
+            fields: &f,
+        };
+        Sdc::new().stable_dt(&g, &flow, 0.4)
+    };
+    let dt_laminar = dt_at(1.0).expect("laminar dt");
+    let dt_wrinkled = dt_at(8.0).expect("wrinkling 8 must march (the Δt member absorbs it)");
+    println!("S_T-CFL: dt(w=1)={dt_laminar:.3e}  dt(w=8)={dt_wrinkled:.3e}");
+    assert!(
+        dt_wrinkled < dt_laminar,
+        "the front-carrier member must shorten Δt at wrinkling 8 \
+         ({dt_wrinkled:.3e} vs {dt_laminar:.3e})"
+    );
+    // (b) the sonic-end refusal: S_L ≈ 2.6 m/s here, so wrinkling 2e4 puts
+    // S_T in the 5e4 m/s class — far past any sound speed.
+    match dt_at(2.0e4) {
+        Err(e) => {
+            let msg = format!("{e}");
+            assert!(
+                msg.contains("scale separation") || msg.contains("front-carrier"),
+                "wrong refusal: {msg}"
+            );
+        }
+        Ok(dt) => panic!("sonic-class S_T must refuse, got dt = {dt:.3e}"),
+    }
+}
+
+#[test]
+fn near_axis_combustion_dt_does_not_spuriously_refuse() {
+    // S8 review finding (cured): the first guard compared MESH rates, and the
+    // θ-arc's 1/arc² carrier-diffusion rate outgrows the 1/arc acoustic rate —
+    // at fine N_θ near the axis it refused mild flames the certified tier
+    // marches. The model-form guard (S_T vs the LOCAL sound speed) is
+    // resolution-independent: a mid-flame state on an AXIS world at N_θ = 16
+    // must produce a finite Δt with no refusal (S_T/c ~ 1e-3 here), while the
+    // σ_front member still pays the honest near-axis θ-diffusion cost.
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let ign = IgnitionColumns::bind(&it).unwrap();
+    let comb = Combustion {
+        blend: &blend,
+        ignition: ign,
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
+    let h = 2.0e-4;
+    let spec = GridSpec {
+        r_min: 0.0,
+        dr: h,
+        n_r: 4,
+        z_min: 0.0,
+        dz: h,
+        n_z: 4,
+        n_theta_max: 16,
+        axisymmetry_assertion: false,
+    };
+    let mut g = Grid::build(spec, crucible_solvers::euler::EULER_FIELDS).expect("grid");
+    let f = EulerFields::resolve(&g).expect("fields");
+    let ids = f.ids();
+    for (k, &id) in ids.iter().enumerate() {
+        g.fill_field(id, |_r, _th, _z| {
+            blend
+                .cons_from_phzb(P0, H0, Z0, 0.5, [0.0, 0.0, 0.0])
+                .expect("valid IC")[k]
+        });
+    }
+    let op = Euler {
+        eos: blend.clone(),
+        source: &ZERO_SRC,
+        bcs: FlowBcs {
+            r_inner: FlowBc::Reflecting,
+            r_outer: FlowBc::Reflecting,
+            z_lo: FlowBc::Reflecting,
+            z_hi: FlowBc::Reflecting,
+        },
+        wall_normal: None,
+        slip_wall_z_faces: true,
+        combustion: Some(&comb),
+    };
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let dt = Sdc::new()
+        .stable_dt(&g, &flow, 0.4)
+        .expect("a mild flame near the axis at N_θ = 16 must not refuse");
+    assert!(dt.is_finite() && dt > 0.0);
+}

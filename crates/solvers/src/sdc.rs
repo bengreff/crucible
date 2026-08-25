@@ -235,13 +235,13 @@ fn face_key(face: &InterfaceFace) -> ExchangeKey {
 /// inside one cell; per-side reconstruction for genuine slots is the FND-3
 /// PLIC/CSG wave.
 pub fn build_wall_patches(g: &Grid) -> Result<Vec<WallPatch>, String> {
-    if g.brick(0).n_theta() != 1 {
+    if g.bricks().iter().any(|b| b.n_theta() != 1) {
         // The patch areas, closure vectors, debit κV sums, AND the
         // exchange-heat keying are per-full-ring (N_θ = 1) here; per-θ
-        // patches arrive with the 3-D wave (plan S8) — refuse rather than
+        // patches arrive with the coarse-3-D RL10 wave (plan S11) — refuse rather than
         // undercount (S2 review finding).
         return Err(
-            "wall patches at N_θ > 1 arrive with the 3-D wave (plan S8); \
+            "wall patches at N_θ > 1 arrive with the coarse-3-D RL10 wave (plan S11); \
              refusing rather than guessing"
                 .to_string(),
         );
@@ -636,12 +636,20 @@ impl Sdc {
         // Staleness guard (S2 review): a θ-refined or swapped grid must
         // rebuild the flow workspaces exactly as `ensure_sb` rebuilds the
         // solid ones — a stale `u0`/`rate_e0` would silently mis-snapshot.
-        let plane = g.brick(0).n_theta() as usize * BRICK_CELLS;
+        // Per-brick plane shapes (S8): every brick's own N_θ is compared,
+        // so a single brick's θ-collapse/refine rebuilds.
+        let plane = |bi: usize| g.brick(bi).n_theta() as usize * BRICK_CELLS;
         let stale = self.rate_e0.len() != g.n_bricks()
-            || self.rate_e0.first().is_none_or(|v| v.len() != plane);
+            || self
+                .rate_e0
+                .iter()
+                .enumerate()
+                .any(|(bi, v)| v.len() != plane(bi));
         if self.ws.is_none() || stale {
             self.ws = Some(flow.op.workspace(g)?);
-            self.rate_e0 = vec![vec![[0.0; NCOMP]; plane]; g.n_bricks()];
+            self.rate_e0 = (0..g.n_bricks())
+                .map(|bi| vec![[0.0; NCOMP]; plane(bi)])
+                .collect();
         }
         Ok(self.ws.as_mut().expect("just ensured"))
     }
@@ -701,15 +709,17 @@ impl Sdc {
         self.gb.as_mut().expect("just ensured")
     }
 
-    /// Class-`R` buffers (S7). Brick-count staleness only, like the gas
-    /// buffers: every buffer is fully rewritten before it is read each step.
+    /// Class-`R` buffers (S7; per-brick θ-plane sizes since S8). Shape
+    /// staleness only, like the gas buffers: every buffer is fully
+    /// rewritten before it is read each step.
     fn ensure_rb(&mut self, g: &Grid) -> &mut ReactionBufs {
         let nb = g.n_bricks();
+        let plane = |bi: usize| g.brick(bi).n_theta() as usize * BRICK_CELLS;
         let stale = self.rb.as_ref().is_none_or(|s| {
-            s.r0.len() != nb || s.r0.first().is_none_or(|v| v.len() != BRICK_CELLS)
+            s.r0.len() != nb || s.r0.iter().enumerate().any(|(bi, v)| v.len() != plane(bi))
         });
         if stale {
-            let mk = || vec![vec![0.0f64; BRICK_CELLS]; nb];
+            let mk = || -> Vec<Vec<f64>> { (0..nb).map(|bi| vec![0.0f64; plane(bi)]).collect() };
             self.rb = Some(ReactionBufs {
                 r0: mk(),
                 r_prev: mk(),
@@ -828,11 +838,21 @@ impl Sdc {
                  the hyperbolic class",
             ));
         }
-        if gas.is_some() && g.brick(0).n_theta() != 1 {
-            return Err(SdcError::Config(
-                "gas diffusion at N_θ > 1 arrives with the 3-D wave (plan S8); \
-                 refusing rather than guessing",
-            ));
+        if gas.is_some() {
+            let nt0 = g.brick(0).n_theta();
+            if g.bricks().iter().any(|b| b.n_theta() != nt0) {
+                return Err(SdcError::Config(
+                    "gas diffusion (class D) at mixed N_θ: the ring-interface coupling \
+                     of an implicit operator rides plan S11 (COUP-3 0.4.5); uniform N_θ \
+                     only — refusing rather than guessing",
+                ));
+            }
+            if nt0 != 1 {
+                return Err(SdcError::Config(
+                    "gas diffusion (class D) at N_θ > 1 rides plan S9 (the S8 split: a \
+                     partial θ-stress tensor is wrong physics); refusing rather than guessing",
+                ));
+            }
         }
         if let Some(dc) = diffusion
             && dc.t_field == dc.scratch_field
@@ -850,10 +870,14 @@ impl Sdc {
                      energy); this schedule couples flow to SOLID conduction only",
                 ));
             }
-            if g.brick(0).n_theta() != 1 {
+            if g.bricks().iter().any(|b| b.n_theta() != 1) {
+                // All-brick scan (S8 review): brick 0 is not representative
+                // on a disconnected mixed world — a partial check panics in
+                // the buffer sizing instead of refusing.
                 return Err(SdcError::Config(
-                    "coupled flow+conduction at N_θ > 1 arrives with the 3-D wave; \
-                     refusing rather than guessing",
+                    "coupled flow+conduction at N_θ > 1 rides the coarse-3-D RL10 wave \
+                     (plan S11: per-θ wall patches + exchange keying); refusing rather \
+                     than guessing",
                 ));
             }
         }
@@ -931,23 +955,27 @@ impl Sdc {
             for bi in 0..g.n_bricks() {
                 let brick = g.brick(bi);
                 let mask = brick.mask();
+                let nt = brick.n_theta();
                 let (r0, prim) = (&mut rb.r0[bi], &ws.0.prim[bi]);
-                for local in 0..BRICK_CELLS {
-                    r0[local] = 0.0;
-                    if mask & (1u64 << local) == 0 {
-                        continue;
-                    }
-                    let (i_r, i_z) = brick.global_rz(local);
-                    // The node-0 rate is the REALIZABLE one (capped at the
-                    // guarded parking point over dt) — see `auto_rate_node0`.
-                    r0[local] = rc.op.auto_rate_node0(&prim[local], dt).map_err(|what| {
-                        FlowError::NonPhysicalState {
-                            i_r,
-                            i_z,
-                            i_theta: 0,
-                            what,
+                for j in 0..nt {
+                    for local in 0..BRICK_CELLS {
+                        let idx = j as usize * BRICK_CELLS + local;
+                        r0[idx] = 0.0;
+                        if mask & (1u64 << local) == 0 {
+                            continue;
                         }
-                    })?;
+                        let (i_r, i_z) = brick.global_rz(local);
+                        // The node-0 rate is the REALIZABLE one (capped at the
+                        // guarded parking point over dt) — see `auto_rate_node0`.
+                        r0[idx] = rc.op.auto_rate_node0(&prim[idx], dt).map_err(|what| {
+                            FlowError::NonPhysicalState {
+                                i_r,
+                                i_z,
+                                i_theta: j,
+                                what,
+                            }
+                        })?;
+                    }
                 }
                 // r_prev seeds as R⁰ (the predictor's wrprev weight is zero,
                 // so it is never read then; sweep 1 rolls in the predictor's
@@ -1414,13 +1442,13 @@ impl Sdc {
         wrnew: f64,
     ) -> Result<(f64, f64), SdcError> {
         let ids = fc.fields.ids();
-        let nt = g.brick(0).n_theta();
         let rb = self.rb.as_mut().expect("ensured");
         let mut net = 0.0f64;
         let mut gross = 0.0f64;
         for bi in 0..g.n_bricks() {
             let brick = g.brick(bi);
             let mask = brick.mask();
+            let nt = brick.n_theta();
             let fields: [&[f64]; NCOMP] = std::array::from_fn(|k| brick.field(ids[k]));
             let (r0, r_prev, r_trial, x_new) = (
                 &rb.r0[bi],
@@ -1428,48 +1456,54 @@ impl Sdc {
                 &mut rb.r_trial[bi],
                 &mut rb.x_new[bi],
             );
-            for local in 0..BRICK_CELLS {
-                r_trial[local] = 0.0;
-                x_new[local] = 0.0;
-                if mask & (1u64 << local) == 0 {
-                    continue;
+            for j in 0..nt {
+                for local in 0..BRICK_CELLS {
+                    let idx = j as usize * BRICK_CELLS + local;
+                    r_trial[idx] = 0.0;
+                    x_new[idx] = 0.0;
+                    if mask & (1u64 << local) == 0 {
+                        continue;
+                    }
+                    let (i_r, i_z) = brick.global_rz(local);
+                    let kappa = brick.kappa_rz(local);
+                    if kappa <= 0.0 {
+                        x_new[idx] = fields[I_RB][idx];
+                        continue;
+                    }
+                    let u: Cons = std::array::from_fn(|k| fields[k][idx]);
+                    let base = u[I_RB] + wr0 * r0[idx] + wrprev * r_prev[idx];
+                    let (x, r) = rc
+                        .op
+                        .implicit_auto_update(&u, base, wrnew)
+                        .map_err(|what| FlowError::NonPhysicalState {
+                            i_r,
+                            i_z,
+                            i_theta: j,
+                            what,
+                        })?;
+                    x_new[idx] = x;
+                    r_trial[idx] = r;
+                    let kv = kappa * g.cell_volume(i_r, nt);
+                    net += kv * (x - u[I_RB]);
+                    gross += kv
+                        * ((wr0 * r0[idx]).abs()
+                            + (wrprev * r_prev[idx]).abs()
+                            + (wrnew * r).abs());
                 }
-                let (i_r, i_z) = brick.global_rz(local);
-                let kappa = brick.kappa_rz(local);
-                if kappa <= 0.0 {
-                    x_new[local] = fields[I_RB][local];
-                    continue;
-                }
-                let u: Cons = std::array::from_fn(|k| fields[k][local]);
-                let base = u[I_RB] + wr0 * r0[local] + wrprev * r_prev[local];
-                let (x, r) = rc
-                    .op
-                    .implicit_auto_update(&u, base, wrnew)
-                    .map_err(|what| FlowError::NonPhysicalState {
-                        i_r,
-                        i_z,
-                        i_theta: 0,
-                        what,
-                    })?;
-                x_new[local] = x;
-                r_trial[local] = r;
-                let kv = kappa * g.cell_volume(i_r, nt);
-                net += kv * (x - u[I_RB]);
-                gross += kv
-                    * ((wr0 * r0[local]).abs()
-                        + (wrprev * r_prev[local]).abs()
-                        + (wrnew * r).abs());
             }
         }
         for bi in 0..g.n_bricks() {
-            let mask = g.brick(bi).mask();
+            let (mask, nt) = (g.brick(bi).mask(), g.brick(bi).n_theta());
             let x_new = &rb.x_new[bi];
             let dst = g.brick_field_mut(bi, ids[I_RB]);
-            for local in 0..BRICK_CELLS {
-                if mask & (1u64 << local) != 0 {
-                    // κ ≤ 0 cells staged their unchanged value (a bit-exact
-                    // no-op write), so the masked write is unconditional.
-                    dst[local] = x_new[local];
+            for j in 0..nt {
+                for local in 0..BRICK_CELLS {
+                    if mask & (1u64 << local) != 0 {
+                        // κ ≤ 0 cells staged their unchanged value (a bit-exact
+                        // no-op write), so the masked write is unconditional.
+                        let idx = j as usize * BRICK_CELLS + local;
+                        dst[idx] = x_new[idx];
+                    }
                 }
             }
         }
@@ -1865,16 +1899,22 @@ impl Sdc {
 
     /// Stored totals for the audit rows: gas κV·U per component (when flow
     /// is scheduled) and the diffusion domain's ρc_p·V·T (when scheduled).
+    /// The middle array is the GROSS magnitude `Σ κV·|q|` — the §3.1.1
+    /// scale of what the reduction actually summed (S8: a cancelling
+    /// stored total, e.g. mirror-symmetric θ-momentum, must not collapse
+    /// the tolerance below the reduction's own rounding).
     fn audit_stored<E: EosLaw>(
         &self,
         g: &Grid,
         flow: Option<&FlowClass<'_, '_, E>>,
         diffusion: Option<&DiffusionClass<'_, '_>>,
-    ) -> ([f64; NCOMP], f64) {
+    ) -> ([f64; NCOMP], [f64; NCOMP], f64) {
         let mut gas = [0.0f64; NCOMP];
+        let mut gas_gross = [0.0f64; NCOMP];
         if let Some(fc) = flow {
             for (k, &id) in fc.fields.ids().iter().enumerate() {
                 gas[k] = g.reduce_kappa_volume_weighted(id);
+                gas_gross[k] = g.reduce_kappa_volume_weighted_abs(id);
             }
         }
         let mut solid = 0.0f64;
@@ -1885,7 +1925,7 @@ impl Sdc {
                     Domain::FlowActive => g.reduce_volume_weighted(dc.t_field),
                 };
         }
-        (gas, solid)
+        (gas, gas_gross, solid)
     }
 
     /// The COUP-2 §3.1 identity per audited quantity, at the §3.1.1
@@ -1899,8 +1939,8 @@ impl Sdc {
         has_diffusion: bool,
         has_gas: bool,
         dt: f64,
-        before: &([f64; NCOMP], f64),
-        after: &([f64; NCOMP], f64),
+        before: &([f64; NCOMP], [f64; NCOMP], f64),
+        after: &([f64; NCOMP], [f64; NCOMP], f64),
         l0: &FlowLedger,
         l_last: &FlowLedger,
         hl0: &HeatLedger,
@@ -1977,7 +2017,14 @@ impl Sdc {
                         + whprev.abs() * (gd_prev.port_abs[k] + gd_prev.src_abs[k])
                         + whnew.abs() * (gd_last.port_abs[k] + gd_last.src_abs[k]);
                 }
-                let mut stored_scale = before.0[k].abs();
+                // S8: the GROSS stored magnitude, both endpoints — a
+                // cancelling net total must not collapse the tolerance
+                // below the reduction's (and the per-cell composition's)
+                // own rounding (COUP-2 §3.1.1: scaled by what was actually
+                // summed; interior telescoping fluxes — the θ sweep — are
+                // never ledgered, so their composed magnitudes appear only
+                // through the after-state's gross content).
+                let mut stored_scale = before.1[k] + after.1[k];
                 if k == I_RB {
                     // The class-R applied increments (S7): the implicit
                     // auto-ignition node solve's realized composition,
@@ -1990,10 +2037,10 @@ impl Sdc {
                     // between the gas debit and the solid's received heats.
                     applied += debit_applied;
                     if has_diffusion {
-                        delta += after.1 - before.1;
+                        delta += after.2 - before.2;
                         applied += solid_applied;
                         gross += debit_applied.abs() + solid_gross;
-                        stored_scale += before.1.abs();
+                        stored_scale += before.2.abs();
                     }
                 }
                 let s = stored_scale + gross;
@@ -2007,8 +2054,8 @@ impl Sdc {
                 });
             }
         } else if has_diffusion {
-            let delta = after.1 - before.1;
-            let s = before.1.abs() + solid_gross;
+            let delta = after.2 - before.2;
+            let s = before.2.abs() + solid_gross;
             let tol = (spec.k_audit * eps * sqrt_n * s)
                 .max(spec.k_audit * eps * sqrt_n * spec.ref_scale[2]);
             rows.push(AuditRow {

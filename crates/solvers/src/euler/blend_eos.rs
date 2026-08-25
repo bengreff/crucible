@@ -32,8 +32,9 @@ use super::{
 /// branch is skipped). **Derived from the one owner,
 /// [`super::BURN_COMPLETE`] (SOLV-4 0.4.3):** the combustion source zeroes
 /// its rate (and its closure queries: post-flame gas is not a reactant, the
-/// §3.6 domain guard) at `b ≥ 1 − BURN_COMPLETE`, so `b` **asymptotes
-/// toward that fixed point from below and never crosses it** (measured:
+/// §3.6 domain guard) at `b ≥ 1 − BURN_COMPLETE`; the S6 explicit tier
+/// **asymptoted toward that fixed point from below**, and the S7 class-`R`
+/// implicit solve **parks exactly AT it** (SOLV-4 0.4.4) (S6 measured:
 /// cells park ~2e-7 under it). The blend's pure-burnt region must therefore
 /// *strictly contain* that pinning attractor — an equal threshold is a
 /// knife edge on whose wrong side every burnt cell keeps interrogating the
@@ -69,16 +70,6 @@ pub const EPS_B_PURE_UNBURNT: f64 = 1.0e-9;
 /// an endpoint can land a rounding error outside the envelope; 1e-9
 /// relative on h is ~10⁻² J/kg — far below every declared bound.
 const H_BRACKET_MARGIN: f64 = 1.0e-9;
-
-/// The cold-side partition's **trace-product weight floor** (S7, see
-/// [`BurnBlendEos::partition_h`]): below this burnt mass fraction a
-/// sub-floor cell's products sub-state reads the cell enthalpy directly
-/// instead of the 1/b-amplified balance form. Sized just under the burnt
-/// fraction at which equilibrium cooling to the coldest wall states first
-/// drives the mixture under the reactant floor (~0.012 at 150 K walls), so
-/// the crossing lives in a thin transient sliver with a ≤ 1 %-weight
-/// declared step.
-pub const B_PARTITION_MIN: f64 = 0.01;
 
 /// Fixed log-scan resolution of the non-monotone fallback (mirrors
 /// [`TableEos`]'s `N_P_SCAN`); sized to match the tables' own p-axis density.
@@ -171,40 +162,26 @@ impl<'t> BurnBlendEos<'t> {
         // so the class-R reaction finishes it — the model self-heals
         // through the reaction rather than refusing).
         let hu_pin = h.clamp(hu_floor, hu_ceil);
-        // Third face (S7 ◆C2, the cold-purge finding): the balance form's
-        // 1/b amplification can throw h_b past the PRODUCTS surface's own
-        // envelope for small-but-not-trace b (measured: b = 0.010 in the
-        // pre-light bell gas being purged at ~105 K — a ×100 amplification
-        // of the sub-floor deficit). Where the balance is unrepresentable,
-        // the deficit is declared UNATTRIBUTED (the trace form): the
-        // bookkeeping error is bounded by reactant-weight × off-envelope
-        // depth — sub-percent of any chamber enthalpy scale, and only in
-        // transient purge states. A declared fallback preference, never a
-        // clamp of a representable value.
+        // The WINDOW form (S8 review wave, SOLV-4 0.4.7 — supersedes the S7
+        // balance↔trace two-form fallback): the products carry the balance,
+        // taken into their own h-window by a declared clamp. Continuous in
+        // BOTH h and b — the S7 switch was measured discontinuous inside
+        // the projection's own scan bracket (a pseudo-root site), and its
+        // B_PARTITION_MIN crossing stepped the mixture volume by
+        // (1−b)·δ·∂v_b/∂h: the 1/b amplification cancels the b weight
+        // exactly, so the step was NOT trace-bounded (the ◆C2 purge cells
+        // sat at the measured knife edge b = 0.010). Where the clamp
+        // engages, the residual mixture deficit is declared UNATTRIBUTED —
+        // it is exactly the state's distance beyond every representable
+        // mixture at this b — and the projection's root-residual acceptance
+        // refuses when it exceeds the declared interpolation error (the
+        // blend's true cold edge, enforced at the acceptance).
         let (hb_lo, hb_hi) = {
             let e = self.burnt.envelopes()[1];
             (e.0 - self.h_offset, e.1 - self.h_offset)
         };
-        if b < B_PARTITION_MIN {
-            // The balance form amplifies any off-envelope deficit by 1/b — at
-            // trace product weight a numerical-transient δ would land the
-            // burnt query absurdly off-surface. Below the declared weight
-            // floor the products read the cell h directly: their state is
-            // immaterial to the mixture density within the columns' own
-            // bounds (weight < 1 %, and the physical sub-floor depth of a
-            // trace-product mixture is itself ∝ b). Continuous in h at the
-            // floor; the b-crossing at B_PARTITION_MIN is a declared
-            // threshold step bounded by the trace weight (the
-            // EPS_B_PURE_* pattern).
-            (hu_pin, h)
-        } else {
-            let balance = (h - (1.0 - b) * hu_pin) / b;
-            if (hb_lo..=hb_hi).contains(&balance) {
-                (hu_pin, balance)
-            } else {
-                (hu_pin, h)
-            }
-        }
+        let balance = (h - (1.0 - b) * hu_pin) / b;
+        (hu_pin, balance.clamp(hb_lo, hb_hi))
     }
 
     /// `1/ρ` of the blend at a trial `(p, h, Z)` and burn fraction `b`: the
@@ -358,7 +335,25 @@ impl<'t> BurnBlendEos<'t> {
                 best = (pk, gk.abs());
             }
             if prev_g * gk < 0.0 {
-                return TableEos::illinois_root(prev_p, pk, prev_g, gk, &g);
+                // Root-residual acceptance (S8 review wave, SOLV-4 0.4.7):
+                // Illinois/bisection accepts on BRACKET WIDTH, so a fold or
+                // residual partition corner could hand back a pseudo-root
+                // with a finite density mismatch. Every accepted root must
+                // meet the blended surface within the branches' own
+                // volume-weighted rule-space bound — the same acceptance
+                // the tangency path applies. (An artifact without stamped
+                // bounds keeps the bracket-width acceptance — the pre-S8
+                // semantics; every production surface stamps them.)
+                let p_root = TableEos::illinois_root(prev_p, pk, prev_g, gk, &g)?;
+                let g_root = g(p_root)?;
+                return match self.root_within_bound(p_root, g_root, rho, e, z, b)? {
+                    None | Some(true) => Ok(p_root),
+                    Some(false) => Err(
+                        "blend root fails the volume-weighted rule-space acceptance — \
+                         pseudo-root or a state beyond the declared interpolation error \
+                         (the blend's cold edge refuses here)",
+                    ),
+                };
             }
             prev_p = pk;
             prev_g = gk;
@@ -435,6 +430,46 @@ impl<'t> BurnBlendEos<'t> {
             "blended state off both surfaces beyond their volume-weighted declared \
              interpolation-error bound — no admissible projection",
         )
+    }
+
+    /// The S8 root-residual test (SOLV-4 0.4.7): is the accepted root's
+    /// specific-volume mismatch within the branches' volume-weighted
+    /// rule-space density bounds? `Ok(None)` when a branch carries no
+    /// stamped bound (non-production artifact — the caller keeps the
+    /// bracket-width acceptance, the pre-S8 semantics).
+    fn root_within_bound(
+        &self,
+        p: f64,
+        g_val: f64,
+        rho: f64,
+        e: f64,
+        z: f64,
+        b: f64,
+    ) -> Result<Option<bool>, &'static str> {
+        if g_val == 0.0 {
+            return Ok(Some(true));
+        }
+        let (Some(lb_u), Some(lb_b)) = (self.unburnt.rho_bound_log(), self.burnt.rho_bound_log())
+        else {
+            return Ok(None);
+        };
+        let vratio = 1.0 + g_val * rho;
+        if vratio <= 0.0 {
+            return Ok(Some(false));
+        }
+        let h_p = e + p / rho;
+        let (h_u, h_b) = self.partition_h(h_p, b);
+        let vu = (1.0 - b)
+            / self
+                .unburnt
+                .rho_at(p, h_u, z)
+                .map_err(|_| "unburnt branch query failed at the root acceptance")?;
+        let vb = b / self
+            .burnt
+            .rho_at(p, h_b + self.h_offset, z)
+            .map_err(|_| "burnt branch query failed at the root acceptance")?;
+        let bound = (vu * lb_u + vb * lb_b) / (vu + vb);
+        Ok(Some(vratio.ln().abs() <= bound))
     }
 
     /// `true` when the cell's enthalpy sits below the unburnt branch's own

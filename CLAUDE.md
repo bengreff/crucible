@@ -17,7 +17,7 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-24 — session 19 = plan S7 complete)
+## State (2026-08-25 — session 20 = plan S8 complete)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
 closed 68/68-discharged and deleted 2026-08-19; findings live in doc change logs + git history).
@@ -218,6 +218,37 @@ consumer, S16 distributed injection). Dial-16: cure demonstrated
 in kind at dial 5; the 33×-cost dial-16 blend startup is a desktop command. Deferrals → S8+: N_θ > 1 combustion; establishment-grace
 constant if a young kernel needs it; S5b species work; dataviz gate unchanged.
 
+**Session 20 = plan S8: AZIMUTHAL CAPABILITY (Phase 3 opens).** The flow operator is genuinely 3-D:
+**r = 0 axis at N_θ > 1** (FND-2 §3.2 θ↔θ+π parity-pair gather, u_r AND u_θ negated — arithmetically
+identical to the mirror at N_θ = 1, certified corner unmoved) and **mixed per-brick N_θ** (FND-2 §3.4
+made concrete: 2:1 ladder adjacency + ≥ NGHOST proper nesting validated loudly; maximal uniform-N_θ
+pencil segments, TWO-pass sweeps — the fine side owns each jump face's flux, the coarse side applies
+the exact aggregate, accumulation stays the single well-balanced difference — the push-style first cut
+broke the uniform bitwise fixed point at the interface and the gates caught it at step 0). Gate battery
+(solv1_azimuthal, 11 gates): axisymmetric N_θ = 8 ≡ N_θ = 1 **bitwise per plane** through axis AND
+active refluxing (both fix-up orientations); mixed-world uniform bitwise fixed point; 3-D pulse crosses
+the axis (conservation 1e-12, mirror symmetry 1e-10, far-side signal); transverse-flow u_θ-sign
+discriminator; thread-count bit identity; Δt-vs-N_θ-profile gate; controller collapse/expand mid-march.
+**Audit finding:** mirror-symmetric swirl collapses the momentum_theta tolerance (net stored cancels;
+θ-sweep increments unledgered) → S[q]'s stored term = gross Σκv|q| both endpoints (COUP-2 0.3.1,
+halt-gate only). **N_θ > 1 combustion** (◆C3 prerequisite): per-θ-plane re-key + θ-direction D_c faces;
+a point-in-θ spark spreads to adjacent sectors first (gated). **The S_T-CFL** (SOLV-4 0.4.6/0.4.7):
+σ_front joins the class-A Δt reduction (wrinkling > 1 marches honestly); the scale-separation guard is
+the MODEL-FORM limit S_T > (2/3)·c (the mesh-rate form was measured resolution-dependent and cured in
+review). **Review wave** (axis/reflux math + S7-carry fresh-eyes + doc-claims): every CONFIRMED finding
+fixed in-session — headline: the S7 blend partition's balance↔trace fallback was discontinuous inside
+its own scan bracket and B_PARTITION_MIN was not trace-bounded → superseded by the continuous window
+form `h_b = clamp(balance, products window)` with the volume-weighted rule-space acceptance armed on
+EVERY accepted root (the blend's true cold edge enforced there); class-R base projection symmetric,
+advected content never shaved. **First turbulent consumer:** the ◆C2 rerun (`configs/rl10_startup_s8.toml`,
+declared wrinkling 2.0 = the pin's band factor; raw Zimont estimate ~6 exceeds the single-constant tier)
+— result in SESSION_LOG session 20. **SPLIT (improvisation rule, plan §8 v1.8):** the F_visc
+θ-extension — design fixed (COUP-3 0.4.5), build → **S9** (a partial θ-stress tensor is wrong physics;
+refusal stands loud); mixed-N_θ class-D + per-θ wall patches + mixed-N_θ combustion → **S11**; S9/S10
+must land the uniform θ-tensor before ◆C3. Deferrals also recorded: controller 2:1-enforcement pass
+(S11); class-R dt-Richardson gate, mid-transition root uniqueness guard, N_TAU_REFREEZE mid-band check
+(S9 review wave).
+
 **Goal A ✓** — conduction convergence certificate (`certificates/convergence_certificate.md`).
 
 **Goal B — the BLIND RL10 (M2). Five certificate stations, ALL FIVE EARNED (session 12):**
@@ -353,16 +384,15 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   bistable-Nagumo rate law + the pinned spark; the S6-close envelope set — burnt v0.4.0 / unburnt
   v0.2.0 / ignition v0.2.0 / transport v0.2.0, all strict extensions; battery 5/5 with `flame_1d`
   grid-independent at 2.3%; the adiabatic-flameout finding re-scoped `quench_box` to S7).
-  **NEXT = plan S7**: the first real startup + **◆C2** — a 2-D RL10 marched spark → ignition →
-  light-off → choke → settle with a **verdict object** (COUP-4 v1: EPS_WORKS/T_DWELL/T_S1_HORIZON +
-  the SOLV-6 v1 margin subset; NEVER_IGNITED/FLAMEOUT consume the reacting measure R). S7 build
-  list carried from S6: igniter config-grammar + `run.rs` wiring; the **blend↔class-D coupling**
-  (gas diffusion with `BurnBlendEos` — also delivers the real `quench_box`/FLAMEOUT mini-sim, cold
-  isothermal walls at the fixture's own 0.8 mm quench-scale gap); stiff class-`R` implicit
-  auto-ignition (knock-class end-gas); near-vacuum blend-projection tangency acceptance (the
-  RL10-plume feature); `turbulent-flame-speed` pin (first turbulent consumer); the settle budget
-  must grow past the ~37 ms liner clock (◆C1 finding, ruling #4 = run length). Read the plan's §5
-  S7 entry + COUP-4 §3.1–3.2 + SOLV-6 before coding.
+  **Session 20 = plan S8 DONE** (azimuthal capability — axis crossing, mixed-N_θ reflux, θ-CFL +
+  controller, N_θ > 1 combustion, the S_T-CFL + first turbulent consumer; the F_visc θ-extension
+  split → S9 by the improvisation rule, recorded in §8 v1.8).
+  **NEXT = plan S9**: full geometry — CSG shape-tree evaluation + voxelization (jittered-stratified
+  fractions with the derived error bound, FND-3 §3.1); STL import via generalized winding number;
+  PLIC interface reconstruction (retires the single-valued-wall restriction); 3-D apertures incl.
+  θ-faces. **Plus the S8 splits riding S9:** the gas-diffusion F_visc θ-extension (design fixed in
+  COUP-3 0.4.5 — build it before ◆C3) and the S9 review-wave carries (class-R dt-Richardson gate,
+  mid-transition root uniqueness guard, N_TAU_REFREEZE mid-band check). Read FND-3 §3 before coding.
 - The old per-item deferral list (station-4 fixture rewire; Bartz oracle scoring; digest v4;
   COUP-5 ensembles; FND-3 PLIC/slot class) is absorbed into the plan's phases: §4 maps each to
   its session.

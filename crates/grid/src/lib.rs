@@ -969,6 +969,34 @@ impl Grid {
         tree_combine(&partials)
     }
 
+    /// Gas-volume-weighted global sum of MAGNITUDES `Σ κV·|q|` — the
+    /// COUP-2 §3.1.1 audit's stored-side scale operand (S8): for a
+    /// quantity whose stored total cancels (e.g. the θ-momentum of a
+    /// mirror-symmetric flow), the net total under-states what the
+    /// reduction actually summed, and the tolerance must scale with the
+    /// summed magnitudes, not the small net.
+    pub fn reduce_kappa_volume_weighted_abs(&self, f: FieldId) -> f64 {
+        let partials: Vec<f64> = self
+            .bricks
+            .iter()
+            .map(|b| {
+                let data = b.field(f);
+                let mut acc = 0.0f64;
+                for i_theta in 0..b.n_theta {
+                    for local in 0..BRICK_CELLS {
+                        if b.mask & (1u64 << local) != 0 {
+                            let i_r = b.br as usize * BRICK + local / BRICK;
+                            let v = b.kappa_rz(local) * self.cell_volume(i_r, b.n_theta);
+                            acc += (v * data[b.cell_index(i_theta, local)]).abs();
+                        }
+                    }
+                }
+                acc
+            })
+            .collect();
+        tree_combine(&partials)
+    }
+
     /// Volume-weighted global sum `Σ V·q` over the SOLID region — the
     /// solid-side stored total of the COUP-2 ledger (solid cells are uncut
     /// in the current geometry class; the full cell volume is theirs).

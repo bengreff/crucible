@@ -846,7 +846,7 @@ fn gas_diffusion_without_flow_or_at_azimuthal_resolution_refuses() {
         other => panic!("expected a Config refusal, got {other:?}"),
     }
 
-    // At N_θ > 1 (plan S8 owns the θ re-keying).
+    // At N_θ > 1 (plan S9 owns the θ re-keying — the S8 split).
     let spec_theta = GridSpec {
         r_min: 0.5,
         dr: 0.1,

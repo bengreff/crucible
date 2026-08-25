@@ -6,7 +6,7 @@
 | **Family** | FND (Foundations / spine) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-1, COUP-3 (time integration), SOLV-1 (field operator) |
-| **Version** | 0.5.1 (2026-08-19 plan-of-record note; prior: 0.5 v1.4 review fix wave) |
+| **Version** | 0.5.2 (2026-08-25 plan S8: §3.4 ring-interface exchange as built — 2:1 adjacency, fine side owns the flux, aggregate applied coarse-side, axis parity pairing as built). 0.5.1 (2026-08-19 plan-of-record note; prior: 0.5 v1.4 review fix wave) |
 
 ---
 
@@ -238,6 +238,26 @@ finite-volume **ring cells**, refined/coarsened in θ per region:
   (AMR-refluxing-style), so the audit telescopes as before. Zonal 1-D/2-D/3-D stitching remains
   **rejected** — this is one uniform law on fewer θ-cells, not a stitched dimensional interface.
   [META-3: `adaptive-theta-coarsening`, `dim-hetero-coupling`]
+- **The ring-interface exchange, as built (S8, 0.5.2) — the "conservatively aggregated/subdivided"
+  clause made concrete.** (i) **Adjacency is 2:1**: face-adjacent bricks may differ by at most one
+  ladder factor (the θ-ladder's alignment then nests every fine sector exactly inside its coarse
+  parent `j_c = ⌊j_f/2⌋`); a steeper jump refuses at operator validation — the same 2:1 balance the
+  (r,z) refinement already enforces (§3.6). (ii) **The fine side owns the interface flux**: at an
+  N_θ-jump face the flux is computed once per fine sub-face — the fine pencil's own reconstruction
+  against ghost states **prolonged piecewise-constant** from the coarse neighbor — and the coarse
+  cell receives the **area-weighted aggregate `Σ A_f·F_f`** of its children's fluxes. One computed
+  number on both sides ⇒ the interface telescopes exactly and the COUP-2 audit sees an interior
+  face, not a port. (iii) Ghosts for the coarse side's own reconstruction are the
+  **equal-volume pair mean of the fine cells' states** (primitive operands — ghosts feed
+  reconstruction only; the conservation statement is carried entirely by the flux ownership of (ii)). Piecewise-constant prolongation is
+  locally first-order at the jump — declared, exactly like the one-sided lagged stencils at
+  boundaries (the composed order is owned by the order gates); the *conservation* statement is
+  exact regardless. (iv) **Cut-geometry worlds stay uniform-N_θ** until FND-3's 3-D aperture wave
+  (a cut θ-face needs the sampled azimuthal-fraction path; `build_with_geometry` already refuses
+  N_θ > 1). (v) The **r = 0 axis at N_θ > 1** is the §3.2 parity pairing as built: the innermost
+  ring's cross-axis ghosts gather from the **θ+π partner** cells with `u_r` and `u_θ` negated (the
+  basis flip); at N_θ = 1 the partner is the cell itself and the gather is arithmetically identical
+  to the reflecting mirror, so the axisymmetric corner is bit-unchanged.
 - **Coarsening/refinement are conservative projections of `U` (S6).** Coarsen = volume-weighted
   averaging of conserved variables over merged θ-cells (ring integrals of mass, species, momentum,
   energy preserved **exactly**); refine = conservative prolongation (limited piecewise-linear in θ —
@@ -465,6 +485,7 @@ SOLV-1 (field operator), FND-7 (constitutive spine).
 ## 9. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-25 | 0.5.2 | **Plan S8 (landed with the code): §3.4's ring-interface exchange made concrete.** The "conservatively aggregated/subdivided (AMR-refluxing-style)" clause is specified as built: 2:1 ladder adjacency (steeper refuses); **the fine side owns the interface flux** (computed once per fine sub-face from the fine reconstruction against piecewise-constant-prolonged coarse ghosts; the coarse cell applies the area-weighted aggregate — one number both sides, so the interface telescopes exactly and is an interior face to the COUP-2 audit, never a port); coarse-side ghosts = equal-volume pair mean of the fine states (primitive operands; conservation carried by the flux ownership); prolongation locally first-order at the jump (declared, like one-sided boundary stencils — order owned by the order gates, conservation exact regardless); cut-geometry worlds uniform-N_θ until FND-3's 3-D aperture wave. The §3.2 axis parity pairing recorded as built: cross-axis ghosts = θ+π partner with `u_r`/`u_θ` negated, arithmetically identical to the reflecting mirror at N_θ = 1. |
 | 2026-08-19 | 0.5.1 | **Plan-of-record note (VISION_SCOPE v1.5, `PLAN_CHEMICAL_SANDBOX.md`).** Refinement is staged: **static declared (r,z,θ) refinement zones** (the §3.5 tile machinery — walls, injector face, throat; build wave S10) land first, inside the frozen-finest-topology contract (§3.2); **dynamic front-tracking refinement** is a measured go/no-go at S10 and, if taken, requires amending the static-topology ruling here first. GPU execution note: §3.9's "GPU as a declared relaxed-reduction path" is superseded by META-1 §2.5 — the GPU build is **bit-exact per device** (Ben 2026-08-19). No other contract change. |
 | 2026-07-14 | 0.1 | Initial draft. Backbone/one-matter-representation principle (Rules 12/13); full segregated multi-material cells at reacting interfaces (no magic interfaces — only reaction-decoupled components abstracted); f64 coordinates & state; uniform grouping into variable-size tiles; explicit grid-cells-vs-reduced-solver-meshes resolution distinction; static-topology sparse brick tree; deterministic Morton traversal. |
 | 2026-07-14 | 0.2 | Added §3.4.1 (sub-cell reaction scales: scale separation & homogenization — reactions carried as continuum rate densities, fine physics done offline and homogenized, cell size set by continuum gradients, deposition by range). Fixed a stale §3.9 recession reference. |

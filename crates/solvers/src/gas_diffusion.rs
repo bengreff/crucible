@@ -1,8 +1,12 @@
 //! SOLV-1 §3.1 — **`F_visc`, the missing forces (plan S3)**: compressible
 //! viscous stress + Fourier heat conduction + Fickian species diffusion on
 //! the exact cylindrical metric, axisymmetric-with-swirl (N_θ = 1; the θ
-//! diffusion fluxes and per-θ re-keying arrive with the 3-D wave, plan S8
-//! — refused, never guessed). One flux-form operator over the gas state —
+//! diffusion fluxes and per-θ re-keying ride **plan S9** — the S8 split:
+//! the design is fixed in COUP-3 0.4.5 (θ-θ implicit cores + lagged
+//! curvature couplings), and a PARTIAL θ-stress tensor is wrong physics
+//! (it damps m = 1 translation modes whose curvature-coupling partners
+//! are absent), so N_θ > 1 refuses loudly rather than shipping an
+//! inconsistent tensor; mixed-N_θ class-D rides plan S11). One flux-form operator over the gas state —
 //! no material or regime branch; transport (μ, k, c_v, ρD, ∂h/∂Z) is a
 //! **per-cell query on the FND-7 §3.3 spine** ([`crate::transport`], S4),
 //! the same one provider the wall law next door reads. This operator holds
@@ -90,8 +94,8 @@
 //!   heat law (SOLV-1 §3.5); its tangential-force leg rides the COUP-2
 //!   §3.1.2 mount-reaction ledger (the verdict wave). Until then wall-law
 //!   faces are momentum-slip, declared.
-//! - θ-diffusion fluxes and per-θ operand keying (plan S8) — refused, not
-//!   guessed.
+//! - θ-diffusion fluxes and per-θ operand keying (plan S9; the S8 split) —
+//!   refused, not guessed.
 //! - Near-wall/boundary lagged-cross stencils are one-sided (first-order
 //!   locally — the MMS battery verifies the composed order).
 //!
@@ -109,8 +113,8 @@ pub(crate) type BufF = Vec<Vec<f64>>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum GasDiffError {
-    /// Gas diffusion at N_θ > 1 arrives with the 3-D wave (plan S8):
-    /// θ-direction diffusion fluxes + per-θ operand keying. Refuse.
+    /// Gas diffusion at N_θ > 1 rides plan S9 (the S8 split — module
+    /// doc): θ-direction fluxes + per-θ operand keying. Refuse.
     AzimuthalResolution,
     /// Non-finite operand in the assembly — halt with diagnosis.
     NonFinite {
@@ -128,8 +132,8 @@ impl std::fmt::Display for GasDiffError {
         match self {
             Self::AzimuthalResolution => write!(
                 f,
-                "gas diffusion at N_θ > 1 arrives with the 3-D wave (plan S8); \
-                 refusing rather than guessing"
+                "gas diffusion at N_θ > 1 rides plan S9 (the S8 split: a partial \
+                 θ-stress tensor is wrong physics); refusing rather than guessing"
             ),
             Self::NonFinite { i_r, i_z, what } => write!(
                 f,

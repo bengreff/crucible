@@ -6,7 +6,7 @@
 | **Family** | COUP (Coupling & orchestration) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-2, COUP-3; FND-1, COUP-8 |
-| **Version** | 0.3 (2026-08-24 plan S7: Robin-Robin acceptance `EPS_ROBIN_RESID` relaxed 1e-6 → 1e-4 for the near-vacuum cold-fill startup regime + new absolute floor `EPS_ROBIN_Q_FLOOR_W` = 1e-2 W on the residual's relative scale; the audit's `burn_progress` row carries the class-`R` applied increments). 0.2 (2026-08-14 review fix wave) |
+| **Version** | 0.3.1 (2026-08-25 plan S8: mixed-N_θ ring-interface faces are interior to the one flux ledger — computed once, bit-exact telescoping, no new row). 0.3 (2026-08-24 plan S7: Robin-Robin acceptance `EPS_ROBIN_RESID` relaxed 1e-6 → 1e-4 for the near-vacuum cold-fill startup regime + new absolute floor `EPS_ROBIN_Q_FLOOR_W` = 1e-2 W on the residual's relative scale; the audit's `burn_progress` row carries the class-`R` applied increments). 0.2 (2026-08-14 review fix wave) |
 
 ---
 
@@ -59,6 +59,13 @@ integrator-applied increments; it is **never** an independent `rate × Δt` reco
 disagreement with the SDC splitting structure would swamp any usable tolerance. What the audit certifies is
 that *no increment escaped the ledger*, not that a re-derived rate matches.
 
+**Mixed-N_θ ring-interface faces are interior faces (S8, 0.3.1).** Where bricks of differing azimuthal
+resolution meet (FND-2 §3.4), the interface flux is computed **once** at the fine resolution and the coarse
+cell applies the area-weighted aggregate of the same numbers — so the exchange telescopes **exactly** (to
+the bit, not to a tolerance) and contributes nothing to the port ledger. The audit needs no new row and no
+widened tolerance for a mixed-N_θ world; a scheme that computed the two sides independently would be a
+defect this section forbids, not a tolerance to absorb.
+
 **Precomputed-kernel deposition (the E-1 kernel mode):** the fraction of a kernel's source that deposits
 outside the domain is an **explicit boundary-ledger (escape) term** per step, so kernel deposition closes the
 identity exactly. Kernel **normalization** (deposit + escape = source, per kernel) is verified **offline** in
@@ -69,8 +76,11 @@ Per conserved quantity `q`, per step:
 `TOL_AUDIT[q] = max( K_AUDIT · ε_machine · √N_cells · S[q] , TOL_AUDIT_FLOOR[q] )`, where
 - `ε_machine` = f64 unit roundoff (~2.2e-16); `√N_cells` is the stochastic accumulation scaling of the
   fixed-shape tree reduction over the active cells (Higham) [META-3: `higham-rounding`, `repro-sum`];
-- `S[q]` = the per-quantity magnitude scale: stored total of `q` plus cumulative gross port/source throughput
-  of `q` this step (so cancellation-heavy balances are scaled by what was actually summed, not the small net);
+- `S[q]` = the per-quantity magnitude scale: the **gross stored magnitude `Σ κV·|q|`, summed at both step endpoints** (the after-state's gross content carries the never-ledgered interior telescoping fluxes' composed magnitudes — the θ sweep's, above all), plus cumulative gross
+  port/source throughput of `q` this step (so cancellation-heavy balances are scaled by what was actually
+  summed, not the small net — on BOTH sides of the identity: the stored term was the |net total| until S8,
+  when the first mirror-symmetric-swirl world measured the net θ-momentum cancelling to ~0 while the stored
+  reduction's own rounding did not, collapsing the tolerance below round-off);
 - `K_AUDIT` = named safety factor (default 100 — headroom for flux-aggregation and ledger arithmetic beyond
   the bare reduction);
 - `TOL_AUDIT_FLOOR[q]` = per-quantity absolute floor (default: `K_AUDIT · ε_machine · √N_cells ×` a declared
@@ -176,6 +186,7 @@ cross-check).
 ## 8. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-25 | 0.3.1 | **Plan S8 (landed with the code).** (1) **Mixed-N_θ interface faces stated interior to the one flux ledger** (§3.1 note): the FND-2 §3.4 ring-interface exchange computes each N_θ-jump face's flux once (fine side) and applies the aggregate coarse-side — bit-exact telescoping, no port term, no new audit row. (2) **§3.1.1 `S[q]`'s stored term is the gross magnitude `Σ κV·|q|`**, not the |net total|: the first mirror-symmetric-swirl world (the S8 `axis_pulse_3d` gate) measured net θ-momentum cancelling to ~0 while the stored reduction's cancellation rounding did not — the net-scaled tolerance collapsed below round-off and the audit halted on its own arithmetic. The gross form is what §3.1.1's own rationale ("scaled by what was actually summed") always meant; a tolerance change only (halt-gate), no accepted number moves. |
 | 2026-08-24 | 0.3 | **Plan S7 (landed with the code): the Robin-Robin acceptance meets the cold start.** (1) **`EPS_ROBIN_RESID` relaxed 1e-6 → 1e-4** (measured: the startup march's near-vacuum cold fill (~10² Pa) weakens the exchange map's contraction — the wall-adjacent gas cell's thermal mass is ~10⁴× smaller than the stations' dense fills, and the fixed five sweeps land at ~3e-5 relative on a ~10 W exchange = 0.3 mW of staleness). The acceptance is a **halt-gate, not a solution modifier**, so no accepted number moves anywhere and the stations' certificates stay **byte-identical**; 1e-4 still sits 3+ orders below the wall law's ±20–30 % band — the COUP-3 §3.5 sizing principle. (2) New **absolute floor `EPS_ROBIN_Q_FLOOR_W` = 1e-2 W** on the residual's relative scale: a ~zero-heat cold start cannot fail on noise over nothing; a micro-thruster-class config whose *real* exchange lives at that floor must revisit the constant, loudly. (3) The audit's **`burn_progress` row now carries the class-`R` applied increments** (net + gross) exactly as applied — the §3.1 integrator-applied-increment rule extended to the new implicit occupant (COUP-3 0.4.4). |
 | 2026-08-14 | 0.2 | **Review fix wave (O7, O8, O9, O10/D-C, O11).** §3.1: `Σ(sources)` defined as the **integrator-applied increments** (SDC commit-time ledger; never a rate×Δt recomputation); kernel-mode **escape fraction** as an explicit boundary-ledger term, normalization verified offline (O8). New §3.1.1: **`TOL_AUDIT[q]`** — derived named tolerance (`K_AUDIT·ε_machine·√N_cells·S[q]`, absolute floor), manifest-recorded; §6.2's "~1e-10 relative" reconciled as the same number at RL10 scale, binding form absolute (O7). New §3.1.2: **momentum audit** — anchored-solid rule + per-step mount-reaction impulse ledger term + SOLV-7 thrust cross-check (O9). §3.3: declared-or-forbidden **enforcement mechanism** split into test-time property checks / debug-build write asserts / release Manifest-granted typed field access (O11). §3.5: wall-exchange **delineation** — SOLV-1 evaluates the one wall-function `h` at config-time geometric wall faces with `F_visc` suppressed (closure stated in SOLV-1 §3.5 only); COUP-2 owns Robin-Robin placement inside the SDC class-`D` solve (COUP-3 §3.1), feeding COUP-3 §3.5; COUP-7 owns coolant side only (O10/D-C). §2/§5/§6 aligned; validation items 7–8 added. |
 | 2026-07-21 | 0.1 | Initial draft. Flux-telescoping every-step conservation audit (Δstored = Σ port fluxes) with Modelica across/through ports; operator-coupling declared-or-forbidden contract over closed enums (seven couplers, unchanged); radiation-partition invariant (emit-once/transport-once); Robin-Robin wall-exchange CHT coupling with deterministic fixed-sweep Aitken/IQN acceleration (produces the expander jacket ΔH); fixed-order-reduction determinism. |
