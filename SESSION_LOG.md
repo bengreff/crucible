@@ -1587,3 +1587,18 @@ the committed artifacts in `certificates/` are the living record.
   face-order unification → the S9 review wave's cleanup list. **The ◆C2-rerun verdict
   (wrinkling 2.0, S8's follow-up) has NOT landed as of this entry** — the parked S8 session owns
   that follow-up commit; this entry deliberately does not restate its early trajectory.
+  **◆C2-rerun appendix (the follow-up commit; the march outlived the session commit):** the full
+  84.06 ms horizon marched clean — 90,656 steps (vs S7's 55,658: the σ_front Δt member + the hotter
+  held flame buy ~1.6× more steps for the same horizon), audit green throughout, verdict
+  `DOESN'T WORK (FAILED_TO_REACH; diagnosis physical)` at `runs/rl10-startup-s8/verdict.txt`:
+  p_c 0.9218 MPa vs 3.15 commanded (**−70.74%**, vs S7's −71.16%); F 22.06 kN vs 75.6 (**−70.82%**,
+  vs −70.81%). THE MEASURED DELTA of the first turbulent consumer: a 2.0× front holds **2.2× the
+  flame content** (R steady at 3.8e-2 vs the laminar 1.7e-2, both ~an order above the FLAMEOUT
+  floor) and deepens the torch-anchored burning zone — p_c +1.5% relative — but the settled point
+  is otherwise THE SAME plateau: light-off timing is schedule-set (~25 vs ~24 ms), and a ~10 m/s
+  wrinkled front against a 100+ m/s swept face still cannot spread laterally, so the chamber still
+  runs mostly cold. Reported as measured, not tuned (the plan's own instruction): the mechanism
+  named by the verdict is unchanged, and the spreading agents remain exactly the scheduled physics —
+  S11's 3-D recirculation and S16's distributed elements + dynamic S_T. The laminar-vs-wrinkled
+  pair now brackets the tier honestly: front speed alone, even doubled, is not the RL10's missing
+  starter.
