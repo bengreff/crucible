@@ -6,7 +6,7 @@
 | **Family** | FND (Foundations / spine) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-1, COUP-3 (time integration), SOLV-1 (field operator) |
-| **Version** | 0.5.3 (2026-08-25 plan S9: §3.4(iv) superseded — cut geometry legal at **uniform** N_θ ≥ 1 (per-θ-plane six-aperture cell geometry, wall-closure θ-limb, FND-3 S9 geometry floor); mixed-N_θ cut worlds still refuse → S11). 0.5.2 (2026-08-25 plan S8: §3.4 ring-interface exchange as built — 2:1 adjacency, fine side owns the flux, aggregate applied coarse-side, axis parity pairing as built). 0.5.1 (2026-08-19 plan-of-record note; prior: 0.5 v1.4 review fix wave) |
+| **Version** | 0.5.4 (2026-08-26 plan S10: §3.6.1 — static (r,z) refinement level interfaces (the meridional sibling of §3.4's ring rule: fine-owns-flux aggregate, annular-metric single-difference well-balance) + the AMR gate's MEASURED NO-GO on dynamic front-tracking; the conservative primitive built/gated, the cross-pencil flux-register integration → S11). 0.5.3 (2026-08-25 plan S9: §3.4(iv) superseded — cut geometry legal at **uniform** N_θ ≥ 1 (per-θ-plane six-aperture cell geometry, wall-closure θ-limb, FND-3 S9 geometry floor); mixed-N_θ cut worlds still refuse → S11). 0.5.2 (2026-08-25 plan S8: §3.4 ring-interface exchange as built — 2:1 adjacency, fine side owns the flux, aggregate applied coarse-side, axis parity pairing as built). 0.5.1 (2026-08-19 plan-of-record note; prior: 0.5 v1.4 review fix wave) |
 
 ---
 
@@ -255,8 +255,9 @@ finite-volume **ring cells**, refined/coarsened in θ per region:
   exact regardless. (iv) **Cut-geometry worlds are legal at uniform N_θ ≥ 1 as of S9 (0.5.3 — the
   FND-3 3-D aperture wave, built):** cell geometry is stored **per θ-plane** with the **six**-face
   aperture set of §3.3(1) (grid storage order is the FaceDir index order {r−, r+, z−, z+, θ−, θ+};
-  the FND-3 voxelizer emits §3.3(1)'s {r−, r+, θ−, θ+, z−, z+} and the one ingest seam maps
-  explicitly); at N_θ = 1 every (r,z) value is bit-identical to the prior (r,z)-shaped form (the
+  as of S10 the FND-3 voxelizer **emits in this same FaceDir order** — the single face-order owner —
+  so the ingest seam is a plain identity copy, the S9 {r,θ,z}-emit permutation wart retired,
+  FND-3 0.5); at N_θ = 1 every (r,z) value is bit-identical to the prior (r,z)-shaped form (the
   storage additionally carries the two θ-aperture arrays, κ-filled on the revolved path and
   provably not load-bearing there), and full-box worlds keep the no-geometry
   arithmetic-identity defaults. The discrete wall-closure identity gains its θ-limb
@@ -380,6 +381,54 @@ Built once, then frozen:
 3. **Buffer** tags, enforce **2:1 balance** and **proper nesting**, cluster into bricks, group uniform
    regions into tiles (§3.5), and **freeze** the topology.
 
+### 3.6.1 Static (r,z) refinement level interfaces *(S10 — the meridional sibling of §3.4's ring rule)*
+A declared refinement zone (walls, injector face, throat — ruling #7) is a region held at a finer (r,z)
+cell size than its surroundings; **tiles are the value representation, never a topology change** (§3.5) —
+the finest resolution is fixed at config time and a coarse region is a super-cell of it. Where a coarse
+region (cell size 2h) meets a fine region (size h) they share a **level interface**, and the conservative
+exchange across it is the **exact meridional analogue of the §3.4 ring-interface rule**:
+
+- **2:1 adjacency + proper nesting.** Face-adjacent (r,z) levels differ by at most one factor of two (the
+  §3.6 balance already enforced), and a level owning an interface spans ≥ `NGHOST` uniform cells (the same
+  nesting the θ-ladder carries) — a steeper jump refuses at operator validation.
+- **The fine side owns the interface flux; the coarse cell applies the area-weighted aggregate.** A coarse
+  face abutting two fine sub-faces takes the aggregate `Σ A_f·F_f` of its children's fluxes — **one computed
+  number on both sides**, so the interface **telescopes exactly** (to the bit) and is an **interior face to
+  the COUP-2 audit, never a port** (COUP-2 §3.1). The coarse side's own reconstruction reads ghosts prolonged
+  piecewise-constant from across the jump (locally first-order at the interface — declared, order owned by the
+  order gates; conservation exact regardless), exactly as §3.4(ii)–(iii).
+- **The metric is the new content.** Unlike the θ-ladder, where every sub-sector has equal arc, an (r,z)
+  **z-interface**'s fine children carry *unequal* **annular** z-face areas `½(r²_{k+1} − r²_k)·Δθ`; the
+  aggregation weights are those annular ratios (an **r-interface**'s children share a radius, so they are
+  equal-area — the θ-like case, exact). The **well-balanced uniform fixed point turns on the single-difference
+  form**: the coarse cell reconstructs its interface-face area as the **children-sum**, not an independently
+  metricked `½(r²_hi − r²_lo)·Δθ` — split accumulation / an independent coarse area breaks the fixed point
+  (the trap the S8 gates caught, restated for the meridional metric). The annular reconstruction is in fact
+  **bitwise-exact on a 2:1 off-axis interface** (the r²-band differences are Sterbenz-exact — measured 0 on
+  the gate); the **S12 round-off class** (≤ ~1e-14 relative) is the declared *safety bound* for the general /
+  near-axis case where Sterbenz can fail, reported like the S9 θ-varying well-balance, never a widened
+  conservation tolerance.
+- **Scope, as built (S10):** the conservative level-interface **primitive** (fine-owns-flux telescoping, the
+  annular aggregation, the well-balanced fixed point) is built and gated on the real HLLC flux + the real
+  cylindrical metric at N_θ = 1, class-A hydro, uncut. The build that threads it through the parallel-pencil
+  `sweep_r`/`sweep_z` and the brick-arena refinement topology — a **cross-pencil flux register** (Berger–
+  Colella), genuinely more than the within-pencil ring reflux — is recorded to **plan S11**, landing with its
+  consumer (a refined 3-D RL10). This staging is not a shortcut but the **measured** disposition of the AMR
+  gate below: mixed level × N_θ, level × cut geometry, and level × class-D all refuse there, typed.
+
+**The AMR gate (ruling #7 — a MEASURED go/no-go on *dynamic* front-tracking refinement, not an assumption).**
+The closure-set pushed front (SOLV-4 §3.6) travels at `S_T` with a width of a fixed `Θ` cells at every
+resolution, so refinement sharpens *where* but not *when*. The S10 smeared-vs-sharp study marched the same
+flame at coarse `h` and fine `h/2`: the front **timeline** (position vs time) agreed to **< 0.5 coarse
+cells** over the march (a bounded sub-cell registration offset that *shrinks* as the march proceeds,
+0.50 → 0.25 cells — the closure-set front carries the same speed on both grids; the separate `flame_1d`
+gate pins the consumption speed grid-independent to ~2%), while refinement bought only a **1.93× sharper**
+front at **4.0× cost per level**. **Verdict:
+NO-GO** — dynamic front-tracking cannot move the timeline-driven COUP-4 verdict, so the plan's declared
+fallback (**static refinement + closure-set speed = blurry front, correct timeline**; §7) stands *measured*,
+and dynamic front-tracking (which would require amending the frozen-topology contract, §3.2/§0.5.1) is not
+built. Static refinement's purpose is genuine geometry/wall/throat gradient resolution, never front-chasing.
+
 ### 3.7 Determinism (Tier-1 bit-exact, any thread count — META-1 §2)
 - **Canonical iteration:** every sweep/audit walks the **Morton-ordered active-brick array**; never a hash
   map (Rust `HashMap` iteration is randomly seeded → non-deterministic). Hash maps are used only at
@@ -496,6 +545,7 @@ SOLV-1 (field operator), FND-7 (constitutive spine).
 ## 9. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-26 | 0.5.4 | **Plan S10 (landed with the code): §3.6.1 — static (r,z) refinement level interfaces + the AMR gate.** The §0.5.1-staged static-refinement design is concretized as the **meridional sibling of §3.4's ring rule**: 2:1 (r,z) adjacency + proper nesting; the fine side owns the interface flux, the coarse cell applies the area-weighted aggregate (one number, telescopes to the bit, interior to the COUP-2 audit); tiles are value representation, never topology (§3.5). The **new content is the metric** — a z-interface's fine children carry unequal **annular** z-face areas, so the well-balanced uniform fixed point turns on the **single-difference form** (the coarse face area is the children-sum, not independently metricked — the S8 trap restated; the annular reconstruction residual is the S12 round-off class ≤ ~1e-14). **Built + gated (S10):** the conservative level-interface primitive on the real HLLC flux + real cylindrical metric (fine-owns-flux bitwise telescoping; the naive coarse-owns-flux leak mutation-proven load-bearing; the annular aggregation; the r-interface equal-area fixed point bitwise), N_θ = 1 / class-A / uncut. The **cross-pencil flux-register integration** through `sweep_r`/`sweep_z` + the arena refinement topology → **plan S11** (with its consumer, a refined 3-D RL10). **The AMR gate is MEASURED (ruling #7): NO-GO on dynamic front-tracking** — the smeared-vs-sharp study measured the front timeline grid-independent (< 0.5 coarse cells, non-growing) while refinement buys only 1.93× sharpness at 4.0× cost/level, so the §7 static-refinement-plus-closure-set-front fallback stands measured and dynamic front-tracking (a frozen-topology amendment) is not built. |
 | 2026-08-25 | 0.5.3 | **Plan S9 (landed with the code): §3.4(iv) superseded — the FND-3 3-D aperture wave, uniform-N_θ tier.** Cell geometry is stored per θ-plane with **six** face apertures (the §3.3(1) face set, finally carried in full); `build_with_geometry`'s N_θ > 1 refusal is retired for **uniform** N_θ (mixed-N_θ cut worlds still refuse — a cut jump face's reflux is S11 content with mixed-N_θ class-D). At N_θ = 1 the storage layout and every value are bit-identical to the prior (r,z)-shaped form (gate 5's proof); full-box worlds keep the no-geometry arithmetic-identity defaults. The wall-closure identity gains `W_θ = (a_θ₊ − a_θ₋)·A_θ` (θ-face areas θ-independent ⇒ uncut cells cancel bitwise). EVERY geometry-bearing brick pins its floor at the built N_θ (the hard S9 form — stricter than the θ-varying-only minimum the FND-3 kernel computes; coarsen/refine/assert refuse), so adaptive θ-resolution on cut worlds is wholly deferred to S11. |
 | 2026-08-25 | 0.5.2 | **Plan S8 (landed with the code): §3.4's ring-interface exchange made concrete.** The "conservatively aggregated/subdivided (AMR-refluxing-style)" clause is specified as built: 2:1 ladder adjacency (steeper refuses); **the fine side owns the interface flux** (computed once per fine sub-face from the fine reconstruction against piecewise-constant-prolonged coarse ghosts; the coarse cell applies the area-weighted aggregate — one number both sides, so the interface telescopes exactly and is an interior face to the COUP-2 audit, never a port); coarse-side ghosts = equal-volume pair mean of the fine states (primitive operands; conservation carried by the flux ownership); prolongation locally first-order at the jump (declared, like one-sided boundary stencils — order owned by the order gates, conservation exact regardless); cut-geometry worlds uniform-N_θ until FND-3's 3-D aperture wave. The §3.2 axis parity pairing recorded as built: cross-axis ghosts = θ+π partner with `u_r`/`u_θ` negated, arithmetically identical to the reflecting mirror at N_θ = 1. |
 | 2026-08-19 | 0.5.1 | **Plan-of-record note (VISION_SCOPE v1.5, `PLAN_CHEMICAL_SANDBOX.md`).** Refinement is staged: **static declared (r,z,θ) refinement zones** (the §3.5 tile machinery — walls, injector face, throat; build wave S10) land first, inside the frozen-finest-topology contract (§3.2); **dynamic front-tracking refinement** is a measured go/no-go at S10 and, if taken, requires amending the static-topology ruling here first. GPU execution note: §3.9's "GPU as a declared relaxed-reduction path" is superseded by META-1 §2.5 — the GPU build is **bit-exact per device** (Ben 2026-08-19). No other contract change. |

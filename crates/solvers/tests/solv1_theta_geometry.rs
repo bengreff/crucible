@@ -740,11 +740,10 @@ fn fnd3_s31_toy_chamber_cold_flow_analytic_supplier() {
 /// coverage scope rule — must ACCEPT the sampled output as-is), and
 /// marched 50+ audited cold-flow steps.
 ///
-/// Face-order seam (documented): the voxelizer emits FND-2 §3.3(1) order
-/// `[r−, r+, θ−, θ+, z−, z+]`; the grid's `CellGeomTheta` uses
-/// `FaceDir::index` order `[r−, r+, z−, z+, θ−, θ+]` — mapped explicitly
-/// here (the one place the two conventions meet; flagged to the review
-/// wave for a future unification).
+/// Face order (S10 unification): the voxelizer now emits in the grid's
+/// `FaceDir::index` order `[r−, r+, z−, z+, θ−, θ+]` — the single owner —
+/// so the `CellCut → CellGeomTheta` ingest below is a plain identity copy
+/// (the S9 seam wart is retired; no permutation to get wrong).
 #[test]
 fn fnd3_s33_stl_toy_chamber_cold_flow_via_the_voxelizer() {
     use crucible_grid::geom3d::{Sdf, Solid, VoxelSpec, voxelize};
@@ -816,11 +815,11 @@ fn fnd3_s33_stl_toy_chamber_cold_flow_via_the_voxelizer() {
         EULER_FIELDS,
         |i_r, j, i_z| {
             let c = &world.cells[world.cell_index(i_r, j as usize, i_z)];
-            // FND-2 §3.3(1) order → FaceDir::index order (see the doc note).
-            let a = c.aperture;
+            // S10 face-order unification: the voxelizer now emits in
+            // FaceDir::index order, so the ingest is a plain copy.
             CellGeomTheta {
                 kappa: c.kappa,
-                aperture: [a[0], a[1], a[4], a[5], a[2], a[3]],
+                aperture: c.aperture,
             }
         },
         |_, _| Region::Exterior,

@@ -386,18 +386,20 @@ fn revolved_profile_matches_exact_ring_forms() {
                     cell.aperture[slot]
                 );
             }
-            // θ-faces: PLANAR (r, z) measure — linear r overlap.
+            // θ-faces: PLANAR (r, z) measure — linear r overlap. FaceDir
+            // order (S10): θ± are slots 4, 5.
             let frac_r_lin = (r_hi - r_lo).max(0.0) / spec.dr;
             let th_exact = 1.0 - frac_r_lin * frac_z;
-            for slot in [2usize, 3] {
+            for slot in [4usize, 5] {
                 assert!(
                     (cell.aperture[slot] - th_exact).abs() <= tol_ap,
                     "cell ({i_r},{i_z}) θ-face {slot} {} vs exact {th_exact}",
                     cell.aperture[slot]
                 );
             }
-            // z-faces: annular (r²) measure at the face height.
-            for (slot, zf) in [(4usize, z0), (5usize, z1)] {
+            // z-faces: annular (r²) measure at the face height. FaceDir order
+            // (S10): z± are slots 2, 3.
+            for (slot, zf) in [(2usize, z0), (3usize, z1)] {
                 let exact = if zf > ZA && zf < ZB {
                     1.0 - frac_r2
                 } else {
@@ -696,24 +698,53 @@ fn axisymmetric_solid_has_zero_theta_variance_and_no_floor() {
         "axisymmetric solid must impose no floor"
     );
 
-    // Off-axis sphere: the rows it cuts demand the full N_θ.
+    // Off-axis sphere (S10 coarsest-reproducing form): the rows it cuts earn
+    // a floor equal to the COARSEST N_θ whose θ-coarsening still reproduces
+    // their fractions within ε_α — not the blanket N_θ the S9 binary form
+    // pinned on any variation. A near-axis row where the sphere localizes
+    // into ~one sector needs the full 8; a row it grazes may reproduce at a
+    // coarser ladder rung. Every floor is a valid ladder value ≤ N_θ, a
+    // θ-uniform row stays floor-free, and a strongly-cut row demands θ.
     let off = Solid::Csg(Sdf::Sphere {
         center: [0.3, 0.0, 0.4],
         radius: 0.15,
     });
     let w2 = voxelize(&off, &spec).expect("voxelizes");
     let floors2 = theta_geom_floor(&w2);
-    assert_eq!(
-        floors2[2 * spec.n_z + 3],
-        8,
-        "a cut (r,z) row must floor at N_θ"
+    let cut_row = floors2[2 * spec.n_z + 3];
+    println!(
+        "coarsest-reproducing floors (off-axis sphere): cut row (2,3) = {cut_row}, \
+         distinct = {:?}",
+        {
+            let mut v: Vec<u32> = floors2.to_vec();
+            v.sort_unstable();
+            v.dedup();
+            v
+        }
+    );
+    assert!(
+        cut_row >= 2,
+        "a strongly-cut (r,z) row must floor above 1 (got {cut_row})"
     );
     assert_eq!(
         floors2[7 * spec.n_z + 9],
         1,
         "a far row must stay floor-free"
     );
-    assert!(floors2.iter().all(|&f| f == 1 || f == 8));
+    // Every floor is a power-of-two ladder value in [1, N_θ] (never 3, 5, …,
+    // never above the sampled resolution).
+    assert!(
+        floors2
+            .iter()
+            .all(|&f| f >= 1 && f <= spec.n_theta && f.is_power_of_two()),
+        "a floor escaped the θ-ladder: {floors2:?}"
+    );
+    // The coarsest-reproducing search is a refinement of (never coarser than
+    // "no floor", never finer than) the S9 binary form: 1 ≤ f ≤ 8.
+    assert!(
+        floors2.iter().any(|&f| f > 1),
+        "the sphere must floor SOMETHING"
+    );
 }
 
 /// §3.2 import: one tetrahedron authored as binary STL bytes (with a

@@ -1602,3 +1602,100 @@ the committed artifacts in `certificates/` are the living record.
   S11's 3-D recirculation and S16's distributed elements + dynamic S_T. The laminar-vs-wrinkled
   pair now brackets the tier honestly: front speed alone, even doubled, is not the RL10's missing
   starter.
+
+- Session 22 (2026-08-26): **plan S10, REFINEMENT + THE AMR GATE (+ two S9 carries).** The headline is
+  a **measurement, not an assumption**: the AMR go/no-go (ruling #7 / plan §5 / §7's "dynamic AMR
+  complexity spiral") is **NO-GO on dynamic front-tracking**, measured. The conservative static (r,z)
+  level-interface primitive is built and gated (the meridional sibling of the S8 ring reflux), two S9
+  carries are repaid, and the heavy production integration is recorded to S11 — **justified by the
+  measurement**, not by budget.
+
+  **Docs first** (the working rule): FND-2 0.5.4 (new §3.6.1 — static (r,z) refinement level interfaces:
+  the fine-owns-flux area-weighted aggregate as the meridional sibling of §3.4's ring rule, 2:1 (r,z)
+  balance + proper nesting, tiles = value representation; the annular-metric single-difference
+  well-balance; the AMR-gate MEASURED NO-GO recorded); COUP-2 0.3.2 (§3.1 (r,z) level-interface faces are
+  interior to the one flux ledger — the S8 mixed-N_θ clause's sibling); FND-3 0.5 (§3.4 the
+  coarsest-reproducing-N_θ floor built; the face-order seam wart retired — FaceDir is the single owner).
+
+  **THE AMR GATE — a measured go/no-go (`solv10_amr_front_study`).** The closure-set pushed front
+  (SOLV-4 §3.6) travels at S_T with a width of a fixed Θ cells at every resolution — coarse ⇒ physically
+  WIDE (smeared), fine ⇒ SHARP — so refinement sharpens *where*, not *when*. The startup mission's COUP-4
+  verdict is **timeline-driven** (when the chamber fills / pressure rises / the flame reaches a plane), so
+  the operative question is whether sharpening the front moves the timeline. The study marched the same
+  flame tube at coarse h = 2e-4 m and fine h/2, tracking the front position (b = ½ crossing) at three
+  instants. **Measured:** the front timeline agreed to **< 0.5 coarse cells**, a bounded sub-cell
+  registration offset that *shrinks* over the march (0.50 → 0.25 cells) — the closure-set front carries
+  the same speed on both grids (the separate `flame_1d` gate pins the consumption speed grid-independent
+  to ~2%), while refinement bought only a **1.93× sharper** front (thickness ratio, ≈ the
+  fixed-Θ-cells prediction) at **4.0× cost per level** (2× cells × 2× steps from the halved CFL Δt).
+  **VERDICT — NO-GO:** dynamic front-tracking cannot move the timeline-driven verdict; the uniform-coarse
+  vs uniform-fine pair *brackets* static front refinement from above and bounds dynamic front-tracking
+  (which can buy at most what uniform-fine buys, paying fine cost only in the band), so both are measured
+  not-worth-it for the front. The plan's declared fallback — **static refinement + closure-set speed =
+  blurry front, correct timeline (§7)** — stands *measured*. Static refinement's purpose is genuine
+  geometry/wall/throat gradient resolution, never front-chasing. **Ben-visible call:** dynamic
+  front-tracking (an S10b/S10c that would need a frozen-topology amendment, FND-2 §3.2/§0.5.1) is **NOT
+  inserted** — the measurement says the sharpness it buys is invisible to the verdict.
+
+  **The conservative (r,z) level-interface primitive (`solv10_rz_level_interface`, the meridional sibling
+  of the S8 θ reflux).** Ruling #7 wants static declared refinement zones first, and the conservative
+  level interface is the reusable machinery they ride. Built + gated on the **real HLLC flux + real
+  cylindrical `Grid` metric** at N_θ = 1, class-A, uncut: (a) **fine-owns-flux telescopes BITWISE** — the
+  conserved flux leaving a coarse cell equals the sum entering its two fine children, to the bit; (b) the
+  naive **coarse-owns-flux scheme leaks** (measured 0.8% relative — mutation-proof that fine-owns-flux is
+  load-bearing); (c) the **new content vs the θ sibling is the metric** — a z-interface's fine children
+  carry *unequal ANNULAR* z-face areas ½(r²_{k+1}−r²_k)·Δθ, so the well-balanced uniform fixed point turns
+  on the **single-difference form** (the coarse interface area is the children-sum, not an independently
+  metricked ½(r²_hi−r²_lo)·Δθ — the S8 trap restated for the cylindrical metric); the annular
+  reconstruction residual is the S12 round-off class (≤ 1e-14, measured 0 on the gate fixture), and the
+  **r-interface** (equal-area children) holds the fixed point BITWISE. **Scope, recorded to S11 (the
+  improvisation-split pattern, exactly as S8 split the F_visc θ-tensor):** threading this primitive through
+  the parallel-pencil `sweep_r`/`sweep_z` + the brick-arena refinement topology is a **cross-pencil flux
+  register** (Berger–Colella — genuinely more than the within-pencil ring reflux), and it lands with its
+  consumer (a refined 3-D RL10). This is not a budget deferral: the measured NO-GO means front-refinement
+  is not the RUN's need, so the primitive is built and proven while the heavy integration waits for a real
+  consumer. Mixed level × N_θ, level × cut geometry, level × class-D refuse there, typed.
+
+  **Two S9 carries repaid (both safe — no certified path touched).**
+  - *The coarsest-reproducing-N_θ geometry floor (FND-3 §3.4, `voxel.rs`):* the S9 binary form pinned
+    `N_θ^geom = N_θ^max` on ANY θ-variation; the built S10 form returns the **coarsest power-of-two ladder
+    rung whose θ-coarsening reproduces the cell's κ and all six apertures within ε_α** (per-group mean
+    deviation ≤ ε_α) — 1 for θ-uniform, N_θ^max for a sharply localized feature, an intermediate rung for
+    gentle variation. Unit-gated at every rung (`coarsest_reproducing_finds_the_ladder_rung`: uniform→1,
+    half/half→2, quadrants→4, single sector→8, sub-ε ripple→1); the existing off-axis-sphere floor test
+    updated to assert ladder-validity + the strongly-cut row still needs θ (it floors at 8 for that sharp
+    fixture — the form is a refinement, not a weakening). `theta_geom_floor` has no production consumer, so
+    certificates are untouched.
+  - *The voxelizer↔grid face-order unification (the recorded S9 seam wart):* the voxelizer now emits
+    `CellCut.aperture` in the grid's **`FaceDir::index` order** {r−,r+,z−,z+,θ−,θ+} (was §3.3(1)'s
+    {r,θ,z}), so FaceDir is the single face-order owner and the `CellCut → CellGeomTheta` ingest is a plain
+    identity copy — no permutation to get wrong. The two order-dependent consumers updated (the fnd3_geom3d
+    slot test's θ↔z swap; the `stl_toy_chamber` bridge → identity); the toy chamber still marches 55 audited
+    steps with drift < 1e-12.
+
+  **Review wave (two agents: level-interface conservation math + AMR-study methodology; doc-claims).**
+  Both confirmed the load-bearing math sound — the level-interface *design* telescopes by construction, the
+  naive-coarse-owns-flux mutation genuinely leaks (0.8%, load-bearing), the coarsest-reproducing floor is a
+  genuine safe floor (a level that truly needs 8 cannot falsely pass at 2), the face-order reorder is
+  consistent across every consumer, and the AMR bracketing argument (uniform-fine upper-bounds any
+  front-only refinement) is valid. Every CONFIRMED finding fixed in-session: (1) **two vacuous `x == x`
+  assertions** in the level-interface gate whose comments overclaimed (a `af_coarse == af0+af1` "telescoping"
+  check and a `(a0+a1)·f == (a0+a1)·f` "fixed point" check) — rewritten to the honest discriminator
+  (conservation-by-aggregate is stated as the by-construction theorem; the *load-bearing* assertion is that
+  the naive scheme leaks under the SAME measure while the aggregate conserves; the fixed-point test now
+  measures the independent-area residual the single-difference form eliminates). (2) **The "annular is
+  ulp-not-bitwise" narrative was asserted but never observed** — the residual is bitwise 0 on the tested 2:1
+  off-axis interface; corrected everywhere to the honest form: **the r²-band differences are Sterbenz-exact
+  on a 2:1 off-axis interface, so the annular reconstruction is BITWISE (measured 0), and ≤ 1e-14 is the
+  declared *safety bound* for the general/near-axis case** (test header + §3.6.1 + COUP-2). (3) The AMR
+  "fronts travel at the same speed to ~2%" overclaim (the sampled tracks imply ~7% lab-frame window speed;
+  the ~2% is the separate `flame_1d` consumption-speed gate) — restated as the measured **shrinking sub-cell
+  offset (0.50 → 0.25 cells)**; the "1.96×" sharpness corrected to the measured **1.93×**. (4) Two **stale
+  face-order references** surviving the seam-wart retirement (a `stl_toy_chamber` comment and FND-2 §3.4(iv),
+  which had begun to contradict the sibling FND-3 0.5) — both updated to the FaceDir-single-owner truth.
+
+  **Recorded to S11 (owners named):** the CSG/STL **config grammar + engine 3-D assembly** (the geom3d
+  kernel's first production consumer — the schema slot exists, FND-4 §6-4; rides ◆C3's refined 3-D RL10);
+  the **cross-pencil (r,z) flux-register production integration** + dynamic-AMR-if-ever (needs a
+  frozen-topology amendment first, and the measurement says it isn't needed for the front); per-sector
+  activity masks; mixed level × N_θ / cut / class-D (all typed refusals when they arrive).

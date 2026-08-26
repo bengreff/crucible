@@ -17,13 +17,13 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-25 — session 21 = plan S9 complete)
+## State (2026-08-26 — session 22 = plan S10 complete)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
 closed 68/68-discharged and deleted 2026-08-19; findings live in doc change logs + git history).
 Eighteen sessions, every one gates-green and committed; three multi-agent code reviews
 (sessions 6, 10, 12) plus per-session review waves (14, 15, 16, 17, 18) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
-(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **243 Rust + 50 Python
+(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **248 Rust + 50 Python
 tests.** **Blind rule v1.4.1**: blind = mechanical input-blindness; every certificate declares
 `development-observed: yes/no`; the RL10 campaign is declared **open development**.
 
@@ -279,6 +279,33 @@ witness armed as a measured-envelope pin), never by widening a tolerance. Still 
 N_θ on cut worlds, combustion on cut θ > 1 worlds. CSG/STL config grammar + engine 3-D assembly
 ride S10/S11 (the kernel's first config consumer). Certificates byte-identical (gate 5).
 
+**Session 22 = plan S10: REFINEMENT + THE AMR GATE (+ two S9 carries).** The headline is a
+**measurement**: the AMR go/no-go (ruling #7) is **NO-GO on dynamic front-tracking**. The
+smeared-vs-sharp study (`solv10_amr_front_study`) marched the same closure-set flame at coarse h
+and fine h/2 and measured the front **timeline grid-independent** (the position offset stays
+sub-cell and *shrinks* over the march, 0.50 → 0.25 coarse cells) while refinement buys only a
+**1.93× sharper** front at **4.0× cost per level** —
+and since the COUP-4 startup verdict is timeline-driven, and uniform-coarse-vs-fine *brackets* static
+front refinement and bounds dynamic front-tracking from above, dynamic front-tracking cannot move the
+verdict. **S10b/S10c NOT inserted** (they need the FND-2 frozen-topology amendment); the §7 fallback
+(**static refinement + closure-set speed = blurry front, correct timeline**) stands *measured*. **The
+conservative static (r,z) level-interface primitive is built + gated** (`solv10_rz_level_interface`,
+FND-2 §3.6.1) — the meridional sibling of the S8 ring reflux on the real HLLC flux + real cylindrical
+metric: fine-owns-flux **bitwise telescoping**, the naive coarse-owns-flux leak (0.8%) mutation-proven
+load-bearing, and the genuinely new content — the **annular z-face metric** forces the single-difference
+well-balanced form (coarse area = children-sum; annular residual = the S12 round-off class ≤ 1e-14;
+r-interface equal-area fixed point bitwise). The **cross-pencil flux-register production integration**
+(threading it through `sweep_r`/`sweep_z` + the arena refinement topology — Berger–Colella, genuinely
+more than the within-pencil ring reflux) is recorded to **S11**, landing with its consumer (a refined
+3-D RL10) — justified by the NO-GO, not budget; mixed level × N_θ / cut / class-D refuse there, typed.
+**Two S9 carries repaid** (no certified path touched): the **coarsest-reproducing-N_θ geometry floor**
+built (FND-3 §3.4 — the coarsest ladder rung reproducing κ + apertures within ε_α, superseding the S9
+blanket form; unit-gated at every rung) and the **voxelizer↔grid face-order seam wart retired** (the
+voxelizer emits FaceDir order {r−,r+,z−,z+,θ−,θ+}, the ingest is an identity copy — FaceDir the one
+owner). **Recorded to S11:** the CSG/STL config grammar + engine 3-D assembly (the geom3d kernel's
+first production consumer, with ◆C3); the flux-register integration + dynamic-AMR-if-ever; per-sector
+activity masks. Certificates byte-identical (gate 5).
+
 **Goal A ✓** — conduction convergence certificate (`certificates/convergence_certificate.md`).
 
 **Goal B — the BLIND RL10 (M2). Five certificate stations, ALL FIVE EARNED (session 12):**
@@ -422,14 +449,20 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   θ-faces at uniform N_θ with per-sector SRD and the `stl_toy_chamber` end-to-end gate; the
   F_visc θ-stress tensor completed at uniform N_θ — ◆C3 unblocked; the three S8 carries incl.
   the N_TAU_REFREEZE finding and its restated contract; plan §8 v1.9).
-  **NEXT = plan S10**: refinement + the AMR gate — static (r,z,θ) refinement tiles with
-  conservative level interfaces (declared zones: walls, injector face, throat); the 2-D
-  smeared-vs-sharp front study → the measured **go/no-go on dynamic front-tracking refinement**
-  (if go: insert S10b/S10c; requires an FND-2 static-topology amendment). Candidates riding S10:
-  the CSG/STL config grammar + engine assembly ingest (the kernel's first config consumer —
-  or S11 with ◆C3), per-sector activity masks, the FND-3 §3.4 coarsest-reproducing-N_θ floor
-  search, the voxelizer↔grid face-order unification. Read FND-2 §3.5/§3.6 + the S10 §5 entry
-  before coding.
+  **Session 22 = plan S10 DONE** (refinement + the AMR gate: the conservative static (r,z)
+  level-interface primitive built + gated — the meridional sibling of the ring reflux, annular-metric
+  single-difference well-balance, FND-2 §3.6.1; the AMR go/no-go **measured NO-GO** on dynamic
+  front-tracking — timeline grid-independent, refinement buys 1.93× sharpness at 4× cost/level, so
+  S10b/S10c not inserted and the static-plus-closure-set-front fallback stands measured; two S9
+  carries — the coarsest-reproducing-N_θ floor + the face-order unification; plan §8 v1.10).
+  **NEXT = plan S11 (◆C3 + review wave A)**: coarse full-3-D RL10 (N_θ ≤ 32, ~10⁵ cells) — true
+  point spark, asymmetric light-off, start-to-settle; the F_visc θ-tensor unblocked it at S9. S11
+  also owns: the **cross-pencil (r,z) flux-register production integration** (threading the S10
+  level-interface primitive through `sweep_r`/`sweep_z` + arena refinement — its consumer is a
+  refined 3-D RL10); the **CSG/STL config grammar + engine 3-D assembly** (the geom3d kernel's first
+  production consumer); per-sector activity masks; and the typed S9/S10 refusals (mixed-N_θ cut,
+  mixed-N_θ class-D, cut-θ class-D, per-θ wall patches, mixed level × N_θ / cut / class-D). Read the
+  S11 §5 entry + FND-2 §3.4/§3.6.1 + the owning docs' §3 before coding.
 - The old per-item deferral list (station-4 fixture rewire; Bartz oracle scoring; digest v4;
   COUP-5 ensembles; FND-3 PLIC/slot class) is absorbed into the plan's phases: §4 maps each to
   its session.

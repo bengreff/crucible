@@ -30,9 +30,10 @@
 //!
 //! Cell order (documented, fixed): `i_r`-major, then `i_theta`, then
 //! `i_z` — `index = (i_r·n_theta + i_theta)·n_z + i_z`. Face order per
-//! cell: `[r−, r+, θ−, θ+, z−, z+]` — FND-2 §3.3(1)'s six-face order (the
-//! grid's `FaceDir` today carries only the four (r,z) faces; the 6-face
-//! order here is the FND-2 doc's, ready for the θ-face ingest).
+//! cell: `[r−, r+, z−, z+, θ−, θ+]` — the grid's **`FaceDir::index` order**,
+//! the single face-order owner (S10 unification: the S9 seam wart, where the
+//! voxelizer emitted §3.3(1)'s {r,θ,z} order and the ingest permuted, is
+//! retired — the `CellCut → CellGeomTheta` copy is now identity).
 //!
 //! κ is the GAS fraction (1 − solid fraction), matching the grid's
 //! `CellGeom` convention.
@@ -111,9 +112,10 @@ impl VoxelSpec {
     }
 }
 
-/// One cell's cut geometry: gas fraction κ, the six face apertures in the
-/// documented `[r−, r+, θ−, θ+, z−, z+]` order, and the PLIC plane for
-/// sampled-cut cells (0 < κ < 1).
+/// One cell's cut geometry: gas fraction κ, the six face apertures in
+/// **`FaceDir::index` order** `[r−, r+, z−, z+, θ−, θ+]` (the single
+/// face-order owner, S10), and the PLIC plane for sampled-cut cells
+/// (0 < κ < 1).
 #[derive(Debug, Clone, PartialEq)]
 pub struct CellCut {
     pub kappa: f64,
@@ -564,13 +566,18 @@ pub fn voxelize_with_samples(
                 } else {
                     None
                 };
+                // Emitted in **FaceDir::index order** {r−, r+, z−, z+, θ−, θ+}
+                // — the single face-order owner (FND-2 §3.3(1)/lib.rs). The
+                // S9 seam wart (the voxelizer once emitted {r,θ,z}) is retired
+                // here (S10): the grid ingest is now a plain field-by-field
+                // copy, no permutation to get wrong.
                 let aperture = [
                     r_ap[(i_r * nt + i_t) * n_z + i_z],
                     r_ap[((i_r + 1) * nt + i_t) * n_z + i_z],
-                    th_ap[(i_r * nt + i_t) * n_z + i_z],
-                    th_ap[(i_r * nt + (i_t + 1) % nt) * n_z + i_z],
                     z_ap[(i_r * nt + i_t) * (n_z + 1) + i_z],
                     z_ap[(i_r * nt + i_t) * (n_z + 1) + i_z + 1],
+                    th_ap[(i_r * nt + i_t) * n_z + i_z],
+                    th_ap[(i_r * nt + (i_t + 1) % nt) * n_z + i_z],
                 ];
                 cells.push(CellCut {
                     kappa,
@@ -589,41 +596,120 @@ pub fn voxelize_with_samples(
     })
 }
 
-/// FND-3 §3.4, S9 form: the per-(r,z) azimuthal geometry floor. Returns
-/// one `u32` per (i_r, i_z) — indexed `i_r·n_z + i_z` — equal to the
-/// world's `n_theta` where the cell's κ or ANY of its six apertures varies
-/// over θ beyond the declared ε_α, else 1 (meaning "no floor"). Reducing
-/// per-region floors to per-BRICK floors (max over the brick's cells) is
-/// the FND-2 consumer's job, as is the coarsest-reproducing-N_θ refinement
-/// of the full §3.4 form.
+/// The coarsest azimuthal resolution `N_θ' ∈ {n_theta, n_theta/2, …}` (the
+/// power-of-two ladder down from the sampled `n_theta`) whose piecewise-
+/// constant θ-coarsening **reproduces** the per-sector `values` within
+/// `eps`: for the tested `N_θ'`, every fine sector's value differs from its
+/// coarse group's mean by ≤ `eps`. Searches coarse→fine and returns the
+/// FIRST (coarsest) level that passes — 1 when the quantity is θ-uniform,
+/// `nt` when even the second-coarsest level cannot represent the variation.
+/// Only halving factors that divide `nt` are considered (a non-power-of-two
+/// sampled `n_theta`, never produced by the FND-4 θ-ladder, stops at its odd
+/// base — conservative, never coarser than it can halve).
+fn coarsest_reproducing(values: &[f64], nt: usize, eps: f64) -> u32 {
+    // Candidate levels, coarsest first: 1, 2, 4, … up to nt, keeping only
+    // those that divide nt evenly (so each group is a contiguous equal split).
+    let mut level = 1usize;
+    let mut candidates = Vec::new();
+    while level <= nt {
+        if nt.is_multiple_of(level) {
+            candidates.push(level);
+        }
+        level *= 2;
+    }
+    for &nth in &candidates {
+        let group = nt / nth; // fine sectors per coarse sector
+        let mut ok = true;
+        'grp: for g in 0..nth {
+            let base = g * group;
+            let mut mean = 0.0f64;
+            for k in 0..group {
+                mean += values[base + k];
+            }
+            mean /= group as f64;
+            for k in 0..group {
+                if (values[base + k] - mean).abs() > eps {
+                    ok = false;
+                    break 'grp;
+                }
+            }
+        }
+        if ok {
+            return nth as u32;
+        }
+    }
+    nt as u32
+}
+
+/// FND-3 §3.4, **S10 coarsest-reproducing form**: the per-(r,z) azimuthal
+/// geometry floor. Returns one `u32` per (i_r, i_z) — indexed `i_r·n_z + i_z`
+/// — equal to the **coarsest N_θ that reproduces the cell's κ and all six
+/// face apertures within the declared ε_α** (the max over the seven
+/// quantities of [`coarsest_reproducing`]): 1 for a θ-uniform (axisymmetric)
+/// cell, and only as fine as the geometry's own azimuthal structure demands
+/// — never the blanket `n_theta` the S9 conservative form pinned on ANY
+/// variation. The θ-coarsening projection this needs is the plan-S10
+/// refinement machinery (FND-2 §3.5); the result holds independent of the
+/// flow state and is a FLOOR (the FND-2 consumer takes `max(N_θ^geom,
+/// N_θ^guard)` for adaptive decisions). Reducing per-region floors to
+/// per-BRICK floors (max over the brick's cells) remains the FND-2
+/// consumer's job.
 pub fn theta_geom_floor(world: &VoxelWorld) -> Vec<u32> {
     let s = &world.spec;
     let nt = s.n_theta as usize;
     let mut out = vec![1u32; s.n_r * s.n_z];
+    let mut scratch = vec![0.0f64; nt];
     for i_r in 0..s.n_r {
         for i_z in 0..s.n_z {
-            let mut varies = false;
+            let mut floor = 1u32;
             for q in 0..7usize {
-                let mut mn = f64::INFINITY;
-                let mut mx = f64::NEG_INFINITY;
-                for i_t in 0..nt {
+                for (i_t, v) in scratch.iter_mut().enumerate() {
                     let cell = &world.cells[(i_r * nt + i_t) * s.n_z + i_z];
-                    let v = if q == 0 {
+                    *v = if q == 0 {
                         cell.kappa
                     } else {
                         cell.aperture[q - 1]
                     };
-                    mn = mn.min(v);
-                    mx = mx.max(v);
                 }
-                if mx - mn > world.eps_alpha {
-                    varies = true;
-                }
+                floor = floor.max(coarsest_reproducing(&scratch, nt, world.eps_alpha));
             }
-            if varies {
-                out[i_r * s.n_z + i_z] = s.n_theta;
-            }
+            out[i_r * s.n_z + i_z] = floor;
         }
     }
     out
+}
+
+#[cfg(test)]
+mod floor_tests {
+    use super::coarsest_reproducing;
+
+    // The coarsest-reproducing search (S10) over the power-of-two θ-ladder.
+    #[test]
+    fn coarsest_reproducing_finds_the_ladder_rung() {
+        let eps = 1e-3;
+        // θ-uniform ⇒ no floor.
+        assert_eq!(coarsest_reproducing(&[0.5; 8], 8, eps), 1);
+        // A pure m=1 half/half split reproduces at N_θ = 2 (each half is
+        // internally uniform), never coarser (the two halves differ).
+        assert_eq!(
+            coarsest_reproducing(&[0.2, 0.2, 0.2, 0.2, 0.9, 0.9, 0.9, 0.9], 8, eps),
+            2
+        );
+        // Four distinct quadrant values ⇒ N_θ = 4.
+        assert_eq!(
+            coarsest_reproducing(&[0.1, 0.1, 0.4, 0.4, 0.7, 0.7, 0.95, 0.95], 8, eps),
+            4
+        );
+        // A single localized sector (the sharp-feature case) ⇒ the full 8.
+        assert_eq!(
+            coarsest_reproducing(&[0.0, 0.0, 0.0, 0.9, 0.0, 0.0, 0.0, 0.0], 8, eps),
+            8
+        );
+        // Within-tolerance ripple below ε_α is reproduced at the coarse rung
+        // (the fixed-count projection absorbs it — never a spurious floor).
+        assert_eq!(
+            coarsest_reproducing(&[0.5, 0.5 + 5e-4, 0.5 - 5e-4, 0.5], 4, eps),
+            1
+        );
+    }
 }
