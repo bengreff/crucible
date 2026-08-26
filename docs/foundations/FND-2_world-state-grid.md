@@ -6,7 +6,7 @@
 | **Family** | FND (Foundations / spine) |
 | **Status** | Reviewed (2026-08-14) |
 | **Depends on** | FND-1, COUP-3 (time integration), SOLV-1 (field operator) |
-| **Version** | 0.5.2 (2026-08-25 plan S8: §3.4 ring-interface exchange as built — 2:1 adjacency, fine side owns the flux, aggregate applied coarse-side, axis parity pairing as built). 0.5.1 (2026-08-19 plan-of-record note; prior: 0.5 v1.4 review fix wave) |
+| **Version** | 0.5.3 (2026-08-25 plan S9: §3.4(iv) superseded — cut geometry legal at **uniform** N_θ ≥ 1 (per-θ-plane six-aperture cell geometry, wall-closure θ-limb, FND-3 S9 geometry floor); mixed-N_θ cut worlds still refuse → S11). 0.5.2 (2026-08-25 plan S8: §3.4 ring-interface exchange as built — 2:1 adjacency, fine side owns the flux, aggregate applied coarse-side, axis parity pairing as built). 0.5.1 (2026-08-19 plan-of-record note; prior: 0.5 v1.4 review fix wave) |
 
 ---
 
@@ -252,9 +252,20 @@ finite-volume **ring cells**, refined/coarsened in θ per region:
   reconstruction only; the conservation statement is carried entirely by the flux ownership of (ii)). Piecewise-constant prolongation is
   locally first-order at the jump — declared, exactly like the one-sided lagged stencils at
   boundaries (the composed order is owned by the order gates); the *conservation* statement is
-  exact regardless. (iv) **Cut-geometry worlds stay uniform-N_θ** until FND-3's 3-D aperture wave
-  (a cut θ-face needs the sampled azimuthal-fraction path; `build_with_geometry` already refuses
-  N_θ > 1). (v) The **r = 0 axis at N_θ > 1** is the §3.2 parity pairing as built: the innermost
+  exact regardless. (iv) **Cut-geometry worlds are legal at uniform N_θ ≥ 1 as of S9 (0.5.3 — the
+  FND-3 3-D aperture wave, built):** cell geometry is stored **per θ-plane** with the **six**-face
+  aperture set of §3.3(1) (grid storage order is the FaceDir index order {r−, r+, z−, z+, θ−, θ+};
+  the FND-3 voxelizer emits §3.3(1)'s {r−, r+, θ−, θ+, z−, z+} and the one ingest seam maps
+  explicitly); at N_θ = 1 every (r,z) value is bit-identical to the prior (r,z)-shaped form (the
+  storage additionally carries the two θ-aperture arrays, κ-filled on the revolved path and
+  provably not load-bearing there), and full-box worlds keep the no-geometry
+  arithmetic-identity defaults. The discrete wall-closure identity gains its θ-limb
+  `W_θ = (a_θ₊ − a_θ₋)·A_θ` (θ-face areas are θ-independent, so uncut cells still cancel
+  bitwise). **Mixed-N_θ cut worlds still refuse** (the reflux of a *cut* jump face is S11 content,
+  with mixed-N_θ class-D); EVERY geometry-bearing brick pins `n_theta_geom_floor` at the built N_θ (the hard S9 form —
+  stricter than the θ-varying-only minimum FND-3's kernel computes; coarsen/refine/assert refuse
+  on such bricks), so adaptive θ-resolution on cut worlds is wholly deferred to S11.
+  (v) The **r = 0 axis at N_θ > 1** is the §3.2 parity pairing as built: the innermost
   ring's cross-axis ghosts gather from the **θ+π partner** cells with `u_r` and `u_θ` negated (the
   basis flip); at N_θ = 1 the partner is the cell itself and the gather is arithmetically identical
   to the reflecting mirror, so the axisymmetric corner is bit-unchanged.
@@ -485,6 +496,7 @@ SOLV-1 (field operator), FND-7 (constitutive spine).
 ## 9. Change log
 | Date | Version | Change |
 |---|---|---|
+| 2026-08-25 | 0.5.3 | **Plan S9 (landed with the code): §3.4(iv) superseded — the FND-3 3-D aperture wave, uniform-N_θ tier.** Cell geometry is stored per θ-plane with **six** face apertures (the §3.3(1) face set, finally carried in full); `build_with_geometry`'s N_θ > 1 refusal is retired for **uniform** N_θ (mixed-N_θ cut worlds still refuse — a cut jump face's reflux is S11 content with mixed-N_θ class-D). At N_θ = 1 the storage layout and every value are bit-identical to the prior (r,z)-shaped form (gate 5's proof); full-box worlds keep the no-geometry arithmetic-identity defaults. The wall-closure identity gains `W_θ = (a_θ₊ − a_θ₋)·A_θ` (θ-face areas θ-independent ⇒ uncut cells cancel bitwise). EVERY geometry-bearing brick pins its floor at the built N_θ (the hard S9 form — stricter than the θ-varying-only minimum the FND-3 kernel computes; coarsen/refine/assert refuse), so adaptive θ-resolution on cut worlds is wholly deferred to S11. |
 | 2026-08-25 | 0.5.2 | **Plan S8 (landed with the code): §3.4's ring-interface exchange made concrete.** The "conservatively aggregated/subdivided (AMR-refluxing-style)" clause is specified as built: 2:1 ladder adjacency (steeper refuses); **the fine side owns the interface flux** (computed once per fine sub-face from the fine reconstruction against piecewise-constant-prolonged coarse ghosts; the coarse cell applies the area-weighted aggregate — one number both sides, so the interface telescopes exactly and is an interior face to the COUP-2 audit, never a port); coarse-side ghosts = equal-volume pair mean of the fine states (primitive operands; conservation carried by the flux ownership); prolongation locally first-order at the jump (declared, like one-sided boundary stencils — order owned by the order gates, conservation exact regardless); cut-geometry worlds uniform-N_θ until FND-3's 3-D aperture wave. The §3.2 axis parity pairing recorded as built: cross-axis ghosts = θ+π partner with `u_r`/`u_θ` negated, arithmetically identical to the reflecting mirror at N_θ = 1. |
 | 2026-08-19 | 0.5.1 | **Plan-of-record note (VISION_SCOPE v1.5, `PLAN_CHEMICAL_SANDBOX.md`).** Refinement is staged: **static declared (r,z,θ) refinement zones** (the §3.5 tile machinery — walls, injector face, throat; build wave S10) land first, inside the frozen-finest-topology contract (§3.2); **dynamic front-tracking refinement** is a measured go/no-go at S10 and, if taken, requires amending the static-topology ruling here first. GPU execution note: §3.9's "GPU as a declared relaxed-reduction path" is superseded by META-1 §2.5 — the GPU build is **bit-exact per device** (Ben 2026-08-19). No other contract change. |
 | 2026-07-14 | 0.1 | Initial draft. Backbone/one-matter-representation principle (Rules 12/13); full segregated multi-material cells at reacting interfaces (no magic interfaces — only reaction-decoupled components abstracted); f64 coordinates & state; uniform grouping into variable-size tiles; explicit grid-cells-vs-reduced-solver-meshes resolution distinction; static-topology sparse brick tree; deterministic Morton traversal. |

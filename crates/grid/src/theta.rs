@@ -54,6 +54,7 @@ impl Grid {
         bi: usize,
         momentum: Option<MomentumFields>,
     ) -> Result<CollapseLog, GridError> {
+        self.refuse_theta_regrid_on_geometry(bi)?;
         let floor = self.bricks[bi].n_theta_geom_floor.max(N_THETA_GUARD);
         let from = self.bricks[bi].n_theta;
         let to = from / 2;
@@ -94,6 +95,12 @@ impl Grid {
             });
         }
         let from = self.bricks[bi].n_theta;
+        if from > 1 {
+            // A collapsing assertion would have to re-grid the θ-plane-major
+            // geometry storage too — refused with the same rule as the
+            // adaptive ops (a no-op assertion at N_θ = 1 stays legal).
+            self.refuse_theta_regrid_on_geometry(bi)?;
+        }
         let mut dke = 0.0f64;
         while self.bricks[bi].n_theta > 1 {
             dke += self.merge_theta_pairs(bi, momentum)?;
@@ -105,6 +112,23 @@ impl Grid {
             thermalized_ke: dke,
             by_assertion: true,
         })
+    }
+
+    /// FND-3 §3.4 geometry floor, hard form (S9): a brick carrying cut
+    /// geometry pins its ring at the built resolution — its θ-plane-major
+    /// κ/aperture storage is per-sector data no conservative field
+    /// projection can re-grid. Adaptive N_θ on cut worlds rides plan S11.
+    fn refuse_theta_regrid_on_geometry(&self, bi: usize) -> Result<(), GridError> {
+        if self.bricks[bi].has_geom() {
+            return Err(GridError::BadThetaResolution {
+                requested: self.bricks[bi].n_theta,
+                reason: "brick carries FND-3 cut geometry — its N_θ is pinned at the built \
+                         resolution (the FND-3 §3.4 geometry floor, S9); adaptive θ-resolution \
+                         on cut worlds rides plan S11"
+                    .into(),
+            });
+        }
+        Ok(())
     }
 
     /// Merge θ-pairs (2j, 2j+1) → j for every field; returns the resolved
@@ -180,6 +204,7 @@ impl Grid {
     /// introduces no new extrema), children `q_j ∓ σ_j/4`, whose mean is
     /// exactly `q_j` ⇒ ring integrals preserved to round-off (§3.4).
     pub fn refine_theta(&mut self, bi: usize) -> Result<(), GridError> {
+        self.refuse_theta_regrid_on_geometry(bi)?;
         let from = self.bricks[bi].n_theta;
         if from == 1 {
             return Err(GridError::BadThetaResolution {

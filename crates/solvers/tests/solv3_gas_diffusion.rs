@@ -810,6 +810,366 @@ fn mms_with_all_viscous_terms_recovers_formal_order() {
     }
 }
 
+/// −D_visc(W_mms) with EVERY θ term live (the S9 full θ-stress tensor,
+/// COUP-3 0.4.5): the exact continuous viscous/conductive/species residual
+/// at a θ-dependent state — an independent formulation of the same
+/// operator the code discretizes. Reduces to `mms_visc_residual` exactly
+/// at eps = 0 (every ∂θ bundle vanishes).
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn mms_visc_residual_theta(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Cons {
+    let mf = emms::manufactured(r, theta, z, t, eps);
+    let k_gas = MMS_MU * MMS_CP / MMS_PR;
+    let rho_d = MMS_MU / MMS_SC;
+    let rg = MMS_CP - MMS_CV;
+    let mu = MMS_MU;
+
+    let v = |k: usize| mf.w[k];
+    let d_r = |k: usize| mf.dr[k];
+    let d_th = |k: usize| mf.dth[k];
+    let d_z = |k: usize| mf.dz[k];
+    let d_rr = |k: usize| mf.drr[k];
+    let d_rz = |k: usize| mf.drz[k];
+    let d_zz = |k: usize| mf.dzz[k];
+    let d_thth = |k: usize| mf.dthth[k];
+    let d_rth = |k: usize| mf.drth[k];
+    let d_zth = |k: usize| mf.dzth[k];
+
+    let (rho, ur, ut, uz, p) = (v(0), v(1), v(2), v(3), v(4));
+    let (rho_r, ur_r, ut_r, uz_r, p_r) = (d_r(0), d_r(1), d_r(2), d_r(3), d_r(4));
+    let (rho_th, ur_th, ut_th, uz_th, p_th) = (d_th(0), d_th(1), d_th(2), d_th(3), d_th(4));
+    let (rho_z, ur_z, ut_z, uz_z, p_z) = (d_z(0), d_z(1), d_z(2), d_z(3), d_z(4));
+    let (rho_rr, ur_rr, ut_rr, uz_rr, p_rr) = (d_rr(0), d_rr(1), d_rr(2), d_rr(3), d_rr(4));
+    let (ur_rz, _ut_rz, uz_rz) = (d_rz(1), d_rz(2), d_rz(3));
+    let (rho_zz, ur_zz, ut_zz, uz_zz, p_zz) = (d_zz(0), d_zz(1), d_zz(2), d_zz(3), d_zz(4));
+    let (rho_thth, ur_thth, ut_thth, uz_thth, p_thth) =
+        (d_thth(0), d_thth(1), d_thth(2), d_thth(3), d_thth(4));
+    // τ_rz's θ-derivative appears in no divergence (d_mr needs ∂τ_rθ/∂θ,
+    // not ∂τ_rz/∂θ), so the mixed rθ/zθ bundles of u_z/u_r go unused here.
+    let (ur_rth, ut_rth, _uz_rth) = (d_rth(1), d_rth(2), d_rth(3));
+    let (_ur_zth, ut_zth, uz_zth) = (d_zth(1), d_zth(2), d_zth(3));
+
+    // Dilatation and its derivatives.
+    let div = ur_r + ur / r + ut_th / r + uz_z;
+    let div_r = ur_rr + ur_r / r - ur / (r * r) + ut_rth / r - ut_th / (r * r) + uz_rz;
+    let div_th = ur_rth + ur_th / r + ut_thth / r + uz_zth;
+    let div_z = ur_rz + ur_z / r + ut_zth / r + uz_zz;
+
+    // The full stress tensor.
+    let tau_rr = mu * (2.0 * ur_r - (2.0 / 3.0) * div);
+    let tau_thth = mu * (2.0 * (ut_th / r + ur / r) - (2.0 / 3.0) * div);
+    let tau_zz = mu * (2.0 * uz_z - (2.0 / 3.0) * div);
+    let tau_rth = mu * (ur_th / r + ut_r - ut / r);
+    let tau_rz = mu * (ur_z + uz_r);
+    let tau_thz = mu * (ut_z + uz_th / r);
+
+    // Stress derivatives feeding the divergences.
+    let tau_rr_r = mu * (2.0 * ur_rr - (2.0 / 3.0) * div_r);
+    let tau_rth_th = mu * (ur_thth / r + ut_rth - ut_th / r);
+    let tau_rz_z = mu * (ur_zz + uz_rz);
+    let tau_rth_r = mu * (ur_rth / r - ur_th / (r * r) + ut_rr - ut_r / r + ut / (r * r));
+    let tau_thth_th = mu * (2.0 * (ut_thth / r + ur_th / r) - (2.0 / 3.0) * div_th);
+    let tau_thz_z = mu * (ut_zz + uz_zth / r);
+    let tau_rz_r = mu * (ur_rz + uz_rr);
+    let tau_thz_th = mu * (ut_zth + uz_thth / r);
+    let tau_zz_z = mu * (2.0 * uz_zz - (2.0 / 3.0) * div_z);
+
+    // Momentum divergences (conservative cylindrical form).
+    let d_mr = tau_rr / r + tau_rr_r + tau_rth_th / r + tau_rz_z - tau_thth / r;
+    let d_mt = 2.0 * tau_rth / r + tau_rth_r + tau_thth_th / r + tau_thz_z;
+    let d_mz = tau_rz / r + tau_rz_r + tau_thz_th / r + tau_zz_z;
+
+    // T = p/(R·ρ) and its derivatives.
+    let t_of = |px: f64, rx: f64| (px / rho - p * rx / (rho * rho)) / rg;
+    let t_r = t_of(p_r, rho_r);
+    let t_th = t_of(p_th, rho_th);
+    // g_th/g_z are never formed whole — only their divergence limbs — so
+    // t_th/t_z as VALUES go unused (their second derivatives are what enter).
+    let _t_z = t_of(p_z, rho_z);
+    let t_2 = |pxx: f64, px: f64, rxx: f64, rx: f64| {
+        (pxx / rho - 2.0 * px * rx / (rho * rho) - p * rxx / (rho * rho)
+            + 2.0 * p * rx * rx / (rho * rho * rho))
+            / rg
+    };
+    let t_rr = t_2(p_rr, p_r, rho_rr, rho_r);
+    let t_thth = t_2(p_thth, p_th, rho_thth, rho_th);
+    let t_zz = t_2(p_zz, p_z, rho_zz, rho_z);
+
+    // Energy flux vector g = u·τ + k∇T and its divergence.
+    let g_r = ur * tau_rr + ut * tau_rth + uz * tau_rz + k_gas * t_r;
+    let g_r_r = ur_r * tau_rr
+        + ur * tau_rr_r
+        + ut_r * tau_rth
+        + ut * tau_rth_r
+        + uz_r * tau_rz
+        + uz * tau_rz_r
+        + k_gas * t_rr;
+    let g_th_th = ur_th * tau_rth
+        + ur * tau_rth_th
+        + ut_th * tau_thth
+        + ut * tau_thth_th
+        + uz_th * tau_thz
+        + uz * tau_thz_th
+        + k_gas * t_thth / r;
+    let g_z_z = ur_z * tau_rz
+        + ur * tau_rz_z
+        + ut_z * tau_thz
+        + ut * tau_thz_z
+        + uz_z * tau_zz
+        + uz * tau_zz_z
+        + k_gas * t_zz;
+    let _ = t_th;
+    let d_en = g_r / r + g_r_r + g_th_th / r + g_z_z;
+
+    // Species Laplacian with the θ limb.
+    let d_rc = rho_d * (d_r(5) / r + d_rr(5) + d_thth(5) / (r * r) + d_zz(5));
+
+    [0.0, -d_mr, -d_mt, -d_mz, -d_en, -d_rc, 0.0]
+}
+
+/// The S9 θ-MMS order gate (COUP-3 0.4.5's build acceptance): the whole
+/// coupled operator — Euler θ-fluxes + the FULL θ-stress tensor (θ-θ
+/// implicit cores, lagged curvature/cross limbs, θ work/conduction/species
+/// fluxes) — recovers formal order on the m = 2 θ-mode at N_θ = n. Every
+/// solved component is scored. Levels 8/16/32 (θ-ladder-aligned); the
+/// fine-pair band matches the axisymmetric gate's.
+#[test]
+fn theta_mms_with_the_full_theta_stress_tensor_recovers_formal_order() {
+    let eos = GammaLaw {
+        gamma: emms::MMS_GAMMA,
+    };
+    let eps = emms::MMS_EPS;
+    let run = |n: usize| -> [f64; NCOMP] {
+        let spec = GridSpec {
+            r_min: emms::MMS_R_MIN,
+            dr: 1.0 / n as f64,
+            n_r: n,
+            z_min: 0.0,
+            dz: 1.0 / n as f64,
+            n_z: n,
+            n_theta_max: n as u32,
+            axisymmetry_assertion: false,
+        };
+        let mut g = Grid::build(spec, FIELDS).expect("grid");
+        let f = EulerFields::resolve(&g).expect("fields");
+        fill_from_prim(&mut g, &f, &eos, |r, th, z| {
+            emms::manufactured(r, th, z, 0.0, eps).w
+        });
+
+        let source = move |r: f64, th: f64, z: f64, t: f64| -> Cons {
+            let euler = emms::mms_source(r, th, z, t, eps, &eos);
+            let visc = mms_visc_residual_theta(r, th, z, t, eps);
+            std::array::from_fn(|k| euler[k] + visc[k])
+        };
+        let exact_bc =
+            move |r: f64, th: f64, z: f64, t: f64| emms::manufactured(r, th, z, t, eps).w;
+        let op = Euler {
+            eos,
+            source: &source,
+            bcs: FlowBcs {
+                r_inner: FlowBc::Prescribed(&exact_bc),
+                r_outer: FlowBc::Prescribed(&exact_bc),
+                z_lo: FlowBc::Prescribed(&exact_bc),
+                z_hi: FlowBc::Prescribed(&exact_bc),
+            },
+            wall_normal: None,
+            slip_wall_z_faces: true,
+            combustion: None,
+        };
+        let wall_u = |r: f64, th: f64, z: f64, t: f64| -> (f64, f64, f64) {
+            let w = emms::manufactured(r, th, z, t, eps).w;
+            (w[1], w[2], w[3])
+        };
+        let wall_t = |r: f64, th: f64, z: f64, t: f64| -> f64 {
+            let w = emms::manufactured(r, th, z, t, eps).w;
+            w[4] / (w[0] * (MMS_CP - MMS_CV))
+        };
+        let wall_c =
+            |r: f64, th: f64, z: f64, t: f64| -> f64 { emms::manufactured(r, th, z, t, eps).w[5] };
+        let face = || FaceGasBc {
+            velocity: VelocityBc::NoSlip(&wall_u),
+            thermal: ThermalBc::Isothermal(&wall_t),
+            species: SpeciesBc::Prescribed(&wall_c),
+        };
+        let tr_props = ConstantTransport::new(
+            specific_heat_capacity_j_per_kg_k(MMS_CP),
+            dynamic_viscosity_pa_s(MMS_MU),
+            MMS_PR,
+            emms::MMS_GAMMA,
+            MMS_SC,
+        )
+        .expect("transport")
+        .into_props();
+        let tr_query = spine_query!(tr_props);
+        let gas_op = GasDiffusion::new(GasDiffBcs {
+            r_inner: face(),
+            r_outer: face(),
+            z_lo: face(),
+            z_hi: face(),
+        });
+        let mms_temp =
+            |w: &Prim| -> Result<f64, &'static str> { Ok(w[4] / (w[0] * (MMS_CP - MMS_CV))) };
+        let flow = FlowClass {
+            op: &op,
+            fields: &f,
+        };
+        let gas = GasDiffusionClass {
+            op: &gas_op,
+            temperature: &mms_temp,
+            transport: &tr_query,
+        };
+        let mut sdc = Sdc::new();
+        let mut t = 0.0f64;
+        while t < emms::MMS_T_FINAL {
+            let dt = sdc
+                .stable_dt(&g, &flow, 0.4)
+                .expect("dt")
+                .min(emms::MMS_T_FINAL - t);
+            sdc.step(&mut g, Some(&flow), None, Some(&gas), None, None, t, dt)
+                .expect("step (audit armed)");
+            t += dt;
+        }
+
+        let ids = f.ids();
+        let mut num = [0.0f64; NCOMP];
+        let mut den = 0.0f64;
+        g.for_each_active_cell(|cell| {
+            let b = g.brick(cell.bi);
+            let vol = g.cell_volume(cell.i_r, b.n_theta());
+            let ue = eos.prim_to_cons(
+                &emms::manufactured(cell.r, cell.theta, cell.z, emms::MMS_T_FINAL, eps).w,
+            );
+            for k in 0..NCOMP {
+                num[k] += vol * (b.field(ids[k])[cell.idx] - ue[k]).abs();
+            }
+            den += vol;
+        });
+        std::array::from_fn(|k| num[k] / den)
+    };
+
+    let (a, b, c) = (run(8), run(16), run(32));
+    for k in 0..NCOMP {
+        let o1 = (a[k] / b[k]).log2();
+        let o2 = (b[k] / c[k]).log2();
+        println!(
+            "θ-MMS component {k}: L1 {:.3e} → {:.3e} → {:.3e}, orders {o1:.2}, {o2:.2}",
+            a[k], b[k], c[k]
+        );
+        assert!(
+            (1.6..=2.8).contains(&o2),
+            "component {k} fine-pair order {o2:.2} outside [1.6, 2.8]"
+        );
+    }
+}
+
+/// The S9 azimuthal-symmetry gate for the gas class: an axisymmetric
+/// no-swirl state marched with flow + the full gas class at N_θ = 8 must
+/// reproduce the N_θ = 1 march **bitwise per θ-plane** (the metric factors
+/// are exact powers of two; the CG's per-(brick,plane) tree makes the
+/// reductions scale exactly — `cg_solve` doc). This is the arithmetic
+/// proof that the θ terms are structurally silent on symmetric data, the
+/// same claim the Euler operator's S8 gate makes.
+#[test]
+fn axisymmetric_gas_diffusion_at_n_theta_8_matches_n_theta_1_bitwise_per_plane() {
+    let eos = GammaLaw { gamma: GAMMA };
+    let rho0 = P0 / (R_GAS * T0);
+    // A no-swirl axisymmetric state with real (r,z) structure: every
+    // meridional stress limb active, ω ≡ 0 (a swirl state's θ-face
+    // τ_θθ pair cancels only to accumulator rounding — the bitwise claim
+    // holds on the no-swirl class; swirl symmetry is covered to 1e-12 by
+    // the θ-MMS above).
+    let init = |r: f64, _th: f64, z: f64| -> Prim {
+        let u_r = 2.0 * (r - 0.5) * (1.5 - r);
+        let u_z = 5.0 + 3.0 * (std::f64::consts::PI * z).sin() * (r - 0.5);
+        let p = P0 * (1.0 + 0.05 * (r - 1.0) + 0.02 * z);
+        prim6(
+            rho0 * (1.0 + 0.1 * (r - 1.0)),
+            u_r,
+            0.0,
+            u_z,
+            p,
+            0.4 + 0.1 * z,
+        )
+    };
+    let run = |nt: u32| -> Grid {
+        let spec = GridSpec {
+            r_min: 0.5,
+            dr: 1.0 / 16.0,
+            n_r: 16,
+            z_min: 0.0,
+            dz: 1.0 / 16.0,
+            n_z: 16,
+            n_theta_max: nt,
+            axisymmetry_assertion: nt == 1,
+        };
+        let mut g = Grid::build(spec, FIELDS).expect("grid");
+        let f = EulerFields::resolve(&g).expect("fields");
+        fill_from_prim(&mut g, &f, &eos, init);
+        let op = Euler {
+            eos,
+            source: &ZERO_SRC,
+            bcs: FlowBcs {
+                r_inner: FlowBc::Reflecting,
+                r_outer: FlowBc::Reflecting,
+                z_lo: FlowBc::Reflecting,
+                z_hi: FlowBc::Reflecting,
+            },
+            wall_normal: None,
+            slip_wall_z_faces: true,
+            combustion: None,
+        };
+        let tr_props = transport(0.02);
+        let tr_query = spine_query!(tr_props);
+        let gas_op = GasDiffusion::new(GasDiffBcs {
+            r_inner: FaceGasBc::free(),
+            r_outer: FaceGasBc::free(),
+            z_lo: FaceGasBc::free(),
+            z_hi: FaceGasBc::free(),
+        });
+        let flow = FlowClass {
+            op: &op,
+            fields: &f,
+        };
+        let gas = GasDiffusionClass {
+            op: &gas_op,
+            temperature: &temperature,
+            transport: &tr_query,
+        };
+        let mut sdc = Sdc::new();
+        let dt = 2.0e-5; // fixed: the θ-CFL member must not steer dt
+        for step in 0..24 {
+            let t = step as f64 * dt;
+            sdc.step(&mut g, Some(&flow), None, Some(&gas), None, None, t, dt)
+                .expect("step (audit armed)");
+        }
+        g
+    };
+
+    let g1 = run(1);
+    let g8 = run(8);
+    let f1 = EulerFields::resolve(&g1).expect("fields");
+    let ids = f1.ids();
+    let mut cells = 0usize;
+    for bi in 0..g1.n_bricks() {
+        let (b1, b8) = (g1.brick(bi), g8.brick(bi));
+        for (k, id) in ids.iter().enumerate() {
+            let (v1, v8) = (b1.field(*id), b8.field(*id));
+            for jt in 0..8usize {
+                for local in 0..crucible_grid::BRICK_CELLS {
+                    let x1 = v1[local];
+                    let x8 = v8[jt * crucible_grid::BRICK_CELLS + local];
+                    assert_eq!(
+                        x1.to_bits(),
+                        x8.to_bits(),
+                        "plane {jt} slot {k} local {local} brick {bi}: {x1:e} vs {x8:e}"
+                    );
+                    cells += 1;
+                }
+            }
+        }
+    }
+    assert!(cells > 0, "empty comparison");
+}
+
 // =============================================================================
 // Schedule refusals + determinism.
 // =============================================================================
@@ -846,18 +1206,21 @@ fn gas_diffusion_without_flow_or_at_azimuthal_resolution_refuses() {
         other => panic!("expected a Config refusal, got {other:?}"),
     }
 
-    // At N_θ > 1 (plan S9 owns the θ re-keying — the S8 split).
+    // At MIXED per-brick N_θ (uniform N_θ > 1 is legal since plan S9;
+    // the mixed class-D solve rides plan S11 — the ring-interface
+    // coupling of an implicit operator).
     let spec_theta = GridSpec {
         r_min: 0.5,
         dr: 0.1,
-        n_r: 8,
+        n_r: 16,
         z_min: 0.0,
         dz: 0.1,
         n_z: 8,
-        n_theta_max: 4,
+        n_theta_max: 8,
         axisymmetry_assertion: false,
     };
     let mut g4 = Grid::build(spec_theta, FIELDS).expect("grid");
+    g4.coarsen_theta(1, None).expect("8 → 4 on the outer brick");
     let f4 = EulerFields::resolve(&g4).expect("fields");
     let eos = GammaLaw { gamma: GAMMA };
     fill_from_prim(&mut g4, &f4, &eos, |_, _, _| {
@@ -890,8 +1253,11 @@ fn gas_diffusion_without_flow_or_at_azimuthal_resolution_refuses() {
         0.0,
         1e-9,
     ) {
-        Err(SdcError::Config(m)) => assert!(m.contains("N_θ"), "wrong refusal: {m}"),
-        other => panic!("expected the N_θ refusal, got {other:?}"),
+        Err(SdcError::Config(m)) => assert!(
+            m.contains("MIXED") && m.contains("N_θ"),
+            "wrong refusal: {m}"
+        ),
+        other => panic!("expected the mixed-N_θ refusal, got {other:?}"),
     }
 }
 

@@ -17,13 +17,13 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-25 — session 20 = plan S8 complete)
+## State (2026-08-25 — session 21 = plan S9 complete)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
 closed 68/68-discharged and deleted 2026-08-19; findings live in doc change logs + git history).
 Eighteen sessions, every one gates-green and committed; three multi-agent code reviews
 (sessions 6, 10, 12) plus per-session review waves (14, 15, 16, 17, 18) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
-(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **184 Rust + 50 Python
+(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **243 Rust + 50 Python
 tests.** **Blind rule v1.4.1**: blind = mechanical input-blindness; every certificate declares
 `development-observed: yes/no`; the RL10 campaign is declared **open development**.
 
@@ -249,6 +249,36 @@ must land the uniform θ-tensor before ◆C3. Deferrals also recorded: controlle
 (S11); class-R dt-Richardson gate, mid-transition root uniqueness guard, N_TAU_REFREEZE mid-band check
 (S9 review wave).
 
+**Session 21 = plan S9: FULL GEOMETRY (+ the S8 carries).** **The FND-3 kernel exists**
+(`crucible_grid::geom3d`): the CSG analytic SDF tree (sphere/box/cylinder/cone/torus + the
+revolved-profile leaf; 1-Lipschitz ⇒ sound pure-cell bound tests), STL import via the **exact**
+van Oosterom–Strackee winding number (Barnes-Hut = a recorded perf deferral, FND-3 0.4),
+jittered-stratified voxelization in the cylindrical measure (SplitMix64 counter keys excluding
+the θ-sector ⇒ sectors are exact rotations; measured C_jitter 0.907 → declared 1.4; rate
+exponent −0.723 vs the derived −2/3), and PLIC (normal from the authored geometry — the
+winding number of a watertight mesh is piecewise constant, a build finding; volume-exact S-Z
+offset by fixed-count bisection; area = dV/dd exact). **The S8 carry repaid (◆C3 unblocked):
+F_visc carries the full θ-stress tensor at uniform N_θ** (COUP-3 0.4.6) — θ-θ implicit cores on
+periodic ring stencils, curvature/cross limbs on the S3 Picard lag, θ work fluxes in the
+total-energy bookkeeping; the CG dot nests per-(brick,θ-plane) partials so axisymmetric
+N_θ = 2^k reduces bit-exactly like N_θ = 1 (gated bitwise per plane); θ-MMS orders 2.03–2.61 on
+all seven components; the transverse-flow trap gate measures the m = 1 damping at 0.9% → 0.09%
+(N_θ 8 → 32) of the partial-tensor scale. **Cut geometry is legal at uniform N_θ > 1**
+(FND-2 0.5.3): six-aperture per-θ-sector `BrickGeom`, `build_with_geometry_theta` with per-sector
+validation, the wall-closure θ-limb, aperture-weighted θ-faces in the sweeps, per-sector SRD with
+θ-neighbor candidates — mutation-proven load-bearing; `stl_toy_chamber` marches END TO END on the
+real sampled path (voxelize → ingest-as-is → 55 audited steps, drift < 1e-12). **Scope rule:**
+every gas ring keeps κ > 0 in every sector (per-sector activity masks → S10/S11). **The carries
+landed with a FINDING** (SOLV-4 0.4.8): the blend scan counts crossings (>1 = typed multi-root
+refusal); class-R dt-Richardson order 1.80 at dt/τ ≈ 0.4–3; the N_TAU_REFREEZE witness
+**falsified the 0.4.4 weak-τ-dependence premise** (reaction-driven compression: τ ×1/93 within
+one node solve, lag 3.0e-1 at w/τ = 0.3) — cured by RESTATING the contract to the S3
+truncated-Picard split (fixed count = structure, accuracy owned by the composed-order gate, the
+witness armed as a measured-envelope pin), never by widening a tolerance. Still refused, typed
+(→ S11): mixed-N_θ cut worlds, mixed-N_θ class-D, cut-θ class-D, per-θ wall patches, adaptive
+N_θ on cut worlds, combustion on cut θ > 1 worlds. CSG/STL config grammar + engine 3-D assembly
+ride S10/S11 (the kernel's first config consumer). Certificates byte-identical (gate 5).
+
 **Goal A ✓** — conduction convergence certificate (`certificates/convergence_certificate.md`).
 
 **Goal B — the BLIND RL10 (M2). Five certificate stations, ALL FIVE EARNED (session 12):**
@@ -387,12 +417,19 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   **Session 20 = plan S8 DONE** (azimuthal capability — axis crossing, mixed-N_θ reflux, θ-CFL +
   controller, N_θ > 1 combustion, the S_T-CFL + first turbulent consumer; the F_visc θ-extension
   split → S9 by the improvisation rule, recorded in §8 v1.8).
-  **NEXT = plan S9**: full geometry — CSG shape-tree evaluation + voxelization (jittered-stratified
-  fractions with the derived error bound, FND-3 §3.1); STL import via generalized winding number;
-  PLIC interface reconstruction (retires the single-valued-wall restriction); 3-D apertures incl.
-  θ-faces. **Plus the S8 splits riding S9:** the gas-diffusion F_visc θ-extension (design fixed in
-  COUP-3 0.4.5 — build it before ◆C3) and the S9 review-wave carries (class-R dt-Richardson gate,
-  mid-transition root uniqueness guard, N_TAU_REFREEZE mid-band check). Read FND-3 §3 before coding.
+  **Session 21 = plan S9 DONE** (full geometry: the geom3d kernel — CSG SDF trees, exact-winding
+  STL import, jittered voxelization with the measured C_jitter bound, PLIC; 3-D apertures incl.
+  θ-faces at uniform N_θ with per-sector SRD and the `stl_toy_chamber` end-to-end gate; the
+  F_visc θ-stress tensor completed at uniform N_θ — ◆C3 unblocked; the three S8 carries incl.
+  the N_TAU_REFREEZE finding and its restated contract; plan §8 v1.9).
+  **NEXT = plan S10**: refinement + the AMR gate — static (r,z,θ) refinement tiles with
+  conservative level interfaces (declared zones: walls, injector face, throat); the 2-D
+  smeared-vs-sharp front study → the measured **go/no-go on dynamic front-tracking refinement**
+  (if go: insert S10b/S10c; requires an FND-2 static-topology amendment). Candidates riding S10:
+  the CSG/STL config grammar + engine assembly ingest (the kernel's first config consumer —
+  or S11 with ◆C3), per-sector activity masks, the FND-3 §3.4 coarsest-reproducing-N_θ floor
+  search, the voxelizer↔grid face-order unification. Read FND-2 §3.5/§3.6 + the S10 §5 entry
+  before coding.
 - The old per-item deferral list (station-4 fixture rewire; Bartz oracle scoring; digest v4;
   COUP-5 ensembles; FND-3 PLIC/slot class) is absorbed into the plan's phases: §4 maps each to
   its session.

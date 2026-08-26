@@ -27,7 +27,7 @@
 use crucible_grid::{Grid, GridSpec};
 use crucible_solvers::euler::{
     BurnBlendEos, Combustion, Cons, EPS_IGNITED, EosLaw, Euler, EulerFields, FlowBc, FlowBcs, I_RB,
-    I_RHO, IgnitionColumns, NCOMP, THETA_CELLS, TableEos, consumption_rate, reacting_measure,
+    I_RC, I_RHO, IgnitionColumns, NCOMP, THETA_CELLS, TableEos, consumption_rate, reacting_measure,
 };
 use crucible_solvers::gas_diffusion::{
     FaceGasBc, GasDiffBcs, GasDiffusion, SpeciesBc, ThermalBc, VelocityBc,
@@ -691,6 +691,192 @@ fn stiff_auto_ignition_is_stable_past_the_explicit_bound() {
     );
 }
 
+/// Run-to-run L2 differencer over all conserved fields (the COUP-3 §6.1
+/// dt-Richardson pattern, copied in from coup3_sdc.rs — same-layout grids).
+fn field_l2_diff(a: &Grid, b: &Grid, f: &EulerFields) -> f64 {
+    let mut acc = 0.0f64;
+    for (ba, bb) in a.bricks().iter().zip(b.bricks()) {
+        for id in f.ids() {
+            for (x, y) in ba.field(id).iter().zip(bb.field(id)) {
+                acc += (x - y) * (x - y);
+            }
+        }
+    }
+    acc.sqrt()
+}
+
+#[test]
+fn class_r_temporal_order_holds_at_mid_stiffness() {
+    // SOLV-4 §3.6 v0.4.8 (the recorded S8 carry) + COUP-3 §6.1: the class-R
+    // dt-Richardson temporal-order gate at MID stiffness (dt/τ ~ 1) — the
+    // band where the backward-Euler truncation is the OBSERVABLE error. The
+    // parking test (extreme stiffness, exact fixed point) and the mild-limit
+    // test (explicit reduction) bracket the ends; both are blind to the
+    // middle, where the composed SDC step (predictor + 2 trapezoid sweeps)
+    // must lift the BE node solve to 2nd order. Fixed grid, one fixed
+    // t_final, three step counts (N, 2N, 4N): the run-to-run differences
+    // cancel the identical spatial error and isolate the temporal one —
+    // order = log2(e1/e2).
+    //
+    // Fixture: the stiff test's open superheated tube held in-band by dt
+    // sizing (fixed dt = t_final/n, NOT the CFL clock — far below the
+    // acoustic bound, so no guard is near tripping) and stopped well before
+    // parking (the order genuinely collapses in the saturated regime where
+    // every trajectory lands on the same cap).
+    const P_CHAMBER: f64 = 1.5e6; // 15 bar — τ_ign in the acoustic-dt decade
+    const H_MID: f64 = 5.5e6; // T_u ≈ 1888 K: τ = 1.758e-7 s (printed below)
+    /// Coarsest run's step count; 2N and 4N refine it.
+    const N_BASE: usize = 3;
+    /// March horizon in units of the ENTRY τ: long enough for real reactive
+    /// content (measured mean burn 0.916), short enough that no cell parks
+    /// at the cap (measured: a 3.2τ horizon saturates at b ≈ 0.996 and the
+    /// order degrades to 1.72 — the parked regime the doc excludes). τ
+    /// itself collapses through the run (reaction-driven compression
+    /// heating), so the marched nodes sweep the LOCAL dt/τ from the printed
+    /// entry value up through ≫ 1 — the mid band is genuinely traversed.
+    const T_FINAL_OVER_TAU: f64 = 1.2;
+
+    // τ at the fixture state, via the operator's own query path.
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let ign = IgnitionColumns::bind(&it).unwrap();
+    let comb = Combustion {
+        blend: &blend,
+        ignition: ign,
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
+    let w0 = blend
+        .cons_from_phzb(P_CHAMBER, H_MID, Z0, 0.0, [0.0, 0.0, 0.0])
+        .and_then(|u| blend.prim_checked(&u))
+        .unwrap();
+    let t_u = blend.unburnt_temperature(&w0).unwrap();
+    let tau = comb.ignition.induction_time(P_CHAMBER, t_u, Z0).unwrap();
+    let t_final = T_FINAL_OVER_TAU * tau;
+    let dt_coarse = t_final / N_BASE as f64;
+
+    let run = |n_steps: usize| -> Grid {
+        let ut = unburnt();
+        let bt = burnt();
+        let it = ignition();
+        let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+        let ign = IgnitionColumns::bind(&it).unwrap();
+        let comb = Combustion {
+            blend: &blend,
+            ignition: ign,
+            wrinkling: 1.0,
+            theta: THETA_CELLS,
+        };
+        let (mut g, f) = tube(8, 4.0e-3);
+        for (k, &id) in f.ids().iter().enumerate() {
+            g.fill_field(id, |_r, _th, _z| {
+                blend
+                    .cons_from_phzb(P_CHAMBER, H_MID, Z0, 0.0, [0.0, 0.0, 0.0])
+                    .expect("valid superheated IC")[k]
+            });
+        }
+        let p_amb = |_t: f64| P_CHAMBER;
+        let op = Euler {
+            eos: blend.clone(),
+            source: &ZERO_SRC,
+            bcs: FlowBcs {
+                r_inner: FlowBc::Reflecting,
+                r_outer: FlowBc::Reflecting,
+                z_lo: FlowBc::Reflecting,
+                z_hi: FlowBc::PressureOutflow(&p_amb),
+            },
+            wall_normal: None,
+            slip_wall_z_faces: true,
+            combustion: Some(&comb),
+        };
+        let flow = FlowClass {
+            op: &op,
+            fields: &f,
+        };
+        let reaction = ReactionClass { op: &comb };
+        let mut sdc = Sdc::new();
+        // Fixture self-check: the fixed Richardson dt must sit far below the
+        // acoustic CFL bound (no guard near tripping — the doc's constraint).
+        let dt_cfl = sdc.stable_dt(&g, &flow, 0.4).expect("dt");
+        let dt = t_final / n_steps as f64;
+        assert!(
+            dt < 0.75 * dt_cfl,
+            "Richardson dt {dt:.3e} too close to the CFL bound {dt_cfl:.3e}"
+        );
+        let mut t = 0.0;
+        for _ in 0..n_steps {
+            sdc.step(
+                &mut g,
+                Some(&flow),
+                None,
+                None,
+                None,
+                Some(&reaction),
+                t,
+                dt,
+            )
+            .expect("mid-stiffness class-R step");
+            t += dt;
+        }
+        g
+    };
+
+    let (a, b, c) = (run(N_BASE), run(2 * N_BASE), run(4 * N_BASE));
+    let (_, f) = tube(8, 4.0e-3);
+    // The band + no-parking preconditions, measured on the coarsest run.
+    let burned = mean_burn(&a, &f);
+    let ids = f.ids();
+    let mut b_max = 0.0f64;
+    for bi in 0..a.n_bricks() {
+        let br = a.brick(bi);
+        let mask = br.mask();
+        let (rho, rhob) = (br.field(ids[I_RHO]), br.field(ids[I_RB]));
+        for local in 0..64 {
+            if mask & (1u64 << local) != 0 {
+                let cell = br.cell_index(0, local);
+                b_max = b_max.max(rhob[cell] / rho[cell]);
+            }
+        }
+    }
+    let e1 = field_l2_diff(&a, &b, &f);
+    let e2 = field_l2_diff(&b, &c, &f);
+    let order = (e1 / e2).log2();
+    println!(
+        "class_r_order: T_u={t_u:.0} K  τ={tau:.3e} s  dt_coarse/τ={:.2}  \
+         burned={burned:.3}  b_max={b_max:.4}  e1={e1:.3e}  e2={e2:.3e}  order={order:.3}",
+        dt_coarse / tau
+    );
+    // Mid-stiffness fixture self-check: the coarsest run's dt/τ must sit in
+    // the ~1 band (the mid-band the extreme-end tests were blind to).
+    let stiff = dt_coarse / tau;
+    assert!(
+        (0.2..=3.0).contains(&stiff),
+        "fixture not in the mid-stiffness band (dt/τ = {stiff:.2})"
+    );
+    // Stopped before parking: order measurement is meaningless once cells
+    // saturate at the cap (every trajectory lands on the same fixed point).
+    assert!(
+        b_max < 1.0 - 10.0 * crucible_solvers::euler::BURN_COMPLETE,
+        "fixture parked (b_max {b_max:.6}) — the order gate needs a live transient"
+    );
+    assert!(
+        burned > 0.1,
+        "fixture carries no reactive content (burned {burned:.3})"
+    );
+    // Measured: 1.80 at the committed fixture (2.09 at a 1.0τ horizon, 1.84
+    // at N_BASE = 4 — consistently ~2, degrading only toward saturation), so
+    // the band pins genuine 2nd order without faking tightness the composed
+    // nonlinear step does not claim.
+    assert!(
+        (1.5..=2.8).contains(&order),
+        "class-R temporal order {order:.3} outside [1.5, 2.8] at dt/τ = {stiff:.2} \
+         (SOLV-4 §3.6 v0.4.8 + COUP-3 §6.1: the composed step must hold ~2nd order \
+         where the class-R truncation dominates)"
+    );
+}
+
 #[test]
 fn implicit_node_solve_parks_exactly_at_any_stiffness() {
     // The class-R node solve as a pure function, at stiffness no march can
@@ -744,6 +930,118 @@ fn implicit_node_solve_parks_exactly_at_any_stiffness() {
     // A base at/past the cap is a zero-source fixed point.
     let (x_at, r_at) = comb.implicit_auto_update(&u, cap, tau).unwrap();
     assert!(x_at == cap && r_at == 0.0);
+}
+
+#[test]
+fn n_tau_refreeze_node_lag_stays_within_the_recorded_envelope() {
+    // SOLV-4 §3.6 v0.4.8 (the recorded S8 carry): the measured N_TAU_REFREEZE
+    // witness in the Δt/τ ~ 1 mid-band — and the S9 FINDING it produced.
+    // The 0.4.4 sizing premise ("τ depends on the unknown only weakly —
+    // Δp/p per node is CFL-bounded") is FALSE in the reaction-driven-
+    // compression band: within ONE node solve the burn's constant-volume
+    // compression heating drives T_u 1057 → 1512 K and τ down ×1/93 at this
+    // fixture state, so the 2-refreeze solve lags the converged frozen-τ
+    // fixed point by rel Δ ≈ 3.0e-1 at w/τ = 0.3 (2.2e-2 at 1, 2.1e-3 at 3;
+    // the reference converges monotonically to machine precision by pass
+    // ~13, so the witness is well-posed). The contract is therefore
+    // RESTATED (SOLV-4 0.4.8 as amended): the fixed refreeze count is
+    // STRUCTURE, not a convergence claim — the per-node lag is a
+    // temporal-truncation-class term absorbed by the SDC sweeps' own
+    // re-evaluations, and ACCURACY is owned by the composed-order gate
+    // (`class_r_temporal_order_holds_at_mid_stiffness`, measured 1.8–2.1
+    // through this same band) — exactly the S3 truncated-Picard idiom.
+    // This test pins the MEASURED lag envelope so a regression that grows
+    // the lag (a τ-surface change, a projection change) fails loudly.
+    //
+    // The production 2-refreeze node solve is compared against the SAME
+    // frozen-τ BE fixed-point iteration run to convergence (a faithful
+    // replica of the implicit_auto_update loop — same prim_checked
+    // projection, same floor guards, same induction-time query path, same
+    // closed form and cap).
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let ign = IgnitionColumns::bind(&it).unwrap();
+    let comb = Combustion {
+        blend: &blend,
+        ignition: ign,
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
+    const H_HOT: f64 = 2.5e6; // T_u ≈ 1050 K: real finite τ_ign (the parks-test state)
+    /// Reference pass count: far past N_TAU_REFREEZE = 2. Measured: the
+    /// frozen-τ map converges monotonically to machine precision by pass
+    /// ~13 at every probed band point, so 20 passes ARE the fixed point.
+    const N_REF_ITERS: usize = 20;
+    /// The mid-stiffness band (w/τ): below, at, and above the BE knee.
+    const W_OVER_TAU: [f64; 3] = [0.3, 1.0, 3.0];
+    /// The recorded lag envelope per band point (measured 2026-08-25:
+    /// {3.022e-1, 2.242e-2, 2.077e-3} at w/τ = {0.3, 1, 3}, ×~1.3 headroom
+    /// for fixture drift). NOT an accuracy claim — the composed-order gate
+    /// owns accuracy; this pins the measurement so lag GROWTH is caught.
+    const LAG_ENVELOPE: [f64; 3] = [4.0e-1, 3.0e-2, 3.0e-3];
+
+    let u = blend
+        .cons_from_phzb(P0, H_HOT, Z0, 0.0, [0.0, 0.0, 0.0])
+        .unwrap();
+    let w0 = blend.prim_checked(&u).unwrap();
+    let t_u = blend.unburnt_temperature(&w0).unwrap();
+    // τ at the state, via the same induction-time query path the solve uses.
+    let tau = comb.ignition.induction_time(P0, t_u, Z0).unwrap();
+    let rho = u[I_RHO];
+    let cap = rho * (1.0 - crucible_solvers::euler::BURN_COMPLETE);
+
+    for (bi, r) in W_OVER_TAU.into_iter().enumerate() {
+        let w_new = r * tau;
+        // The production solve: N_TAU_REFREEZE = 2.
+        let (x_2, _) = comb.implicit_auto_update(&u, 0.0, w_new).unwrap();
+        // The reference: the identical frozen-τ BE fixed-point map, run to
+        // N_REF_ITERS passes (combustion.rs implicit_auto_update, replicated
+        // faithfully; base = 0 is inside the invariant set, so the entry
+        // projection is the identity here).
+        let base = 0.0f64;
+        let mut x_ref = base;
+        for _ in 0..N_REF_ITERS {
+            let mut ut_ref = u;
+            ut_ref[I_RB] = x_ref;
+            let wp = blend.prim_checked(&ut_ref).unwrap();
+            // The solve's floor guards, replicated: neither may trip at this
+            // hot fixture state (they would return `base` and the witness
+            // would compare guards, not refreeze convergence).
+            assert!(
+                !blend.below_unburnt_floor(&wp),
+                "fixture fell below the unburnt h-floor mid-iteration"
+            );
+            let (p, z) = (wp[4], wp[I_RC]);
+            let t_u_i = blend.unburnt_temperature(&wp).unwrap();
+            assert!(
+                !comb.ignition.non_reactive_floor(p, t_u_i),
+                "fixture fell below the non-reactive floor mid-iteration"
+            );
+            let tau_i = comb.ignition.induction_time(p, t_u_i, z).unwrap();
+            // BE at frozen τ: x = (base + w·ρ/τ)/(1 + w/τ), parked at the cap.
+            x_ref = ((base + w_new * rho / tau_i) / (1.0 + w_new / tau_i)).min(cap);
+            if x_ref == cap {
+                break; // parked: further τ refreshes cannot move it
+            }
+        }
+        let delta = (x_2 - x_ref).abs() / x_ref.abs().max(f64::MIN_POSITIVE);
+        println!(
+            "refreeze_witness: w/τ={r}  x_2/ρ={:.15}  x_ref/ρ={:.15}  rel Δ={delta:.3e}",
+            x_2 / rho,
+            x_ref / rho
+        );
+        assert!(
+            delta < LAG_ENVELOPE[bi],
+            "N_TAU_REFREEZE = 2 node lag at w/τ = {r} grew past the recorded \
+             envelope (rel Δ = {delta:.3e} vs pinned {:.1e}; SOLV-4 §3.6 v0.4.8 \
+             as amended: the lag is a truncation-class term absorbed by the SDC \
+             sweeps — accuracy is owned by the composed-order gate — but GROWTH \
+             here means the τ surface or the projection changed character)",
+            LAG_ENVELOPE[bi]
+        );
+    }
 }
 
 /// March a lit flame tube WITH the class-D gas-diffusion coupling — the

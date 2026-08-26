@@ -220,6 +220,11 @@ fn opposite(d: FaceDir) -> FaceDir {
         FaceDir::RPlus => FaceDir::RMinus,
         FaceDir::ZMinus => FaceDir::ZPlus,
         FaceDir::ZPlus => FaceDir::ZMinus,
+        // S9 compile completeness: wall faces come from `gas_solid_faces`,
+        // which enumerates only r/z faces (regions are (r,z)-shaped;
+        // per-θ wall patches ride plan S11).
+        FaceDir::ThetaMinus => FaceDir::ThetaPlus,
+        FaceDir::ThetaPlus => FaceDir::ThetaMinus,
     }
 }
 
@@ -293,6 +298,10 @@ pub fn build_wall_patches(g: &Grid) -> Result<Vec<WallPatch>, String> {
                 FaceDir::RPlus => (1.0, 0.0),
                 FaceDir::ZMinus => (0.0, -1.0),
                 FaceDir::ZPlus => (0.0, 1.0),
+                FaceDir::ThetaMinus | FaceDir::ThetaPlus => unreachable!(
+                    "gas_solid_faces enumerates only r/z faces — regions are \
+                     (r,z)-shaped (per-θ wall patches ride plan S11)"
+                ),
             };
         }
         match srd_neighborhood(g, i_r, i_z).map_err(|e| format!("wall patch: {e}"))? {
@@ -680,20 +689,23 @@ impl Sdc {
         self.sb.as_mut().expect("just ensured")
     }
 
-    /// Gas class-`D` buffers. The staleness test is brick-count-only
-    /// (N_θ = 1 is enforced upstream, so the plane size is fixed): this is
-    /// sound ONLY because every buffer is fully rewritten before it is
-    /// read each step — nothing carries across steps. A future warm start
-    /// (persisting `sol` between steps) must strengthen this test first,
-    /// or a same-brick-count grid swap would silently read stale operands
-    /// (S3 review finding).
+    /// Gas class-`D` buffers (per-brick θ-plane sizes since S9). Shape
+    /// staleness (brick count + per-brick plane), like the reaction
+    /// buffers: this is sound ONLY because every buffer is fully rewritten
+    /// before it is read each step — nothing carries across steps. A
+    /// future warm start (persisting `sol` between steps) must strengthen
+    /// this test first, or a same-shape grid swap would silently read
+    /// stale operands (S3 review finding).
     fn ensure_gb(&mut self, g: &Grid) -> &mut GasBufs {
         let nb = g.n_bricks();
+        let plane = |bi: usize| g.brick(bi).n_theta() as usize * BRICK_CELLS;
         let stale = self.gb.as_ref().is_none_or(|s| {
-            s.d0.len() != nb || s.d0.first().is_none_or(|v| v.len() != BRICK_CELLS)
+            s.d0.len() != nb || s.d0.iter().enumerate().any(|(bi, v)| v.len() != plane(bi))
         });
         if stale {
-            let mkc = || vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; nb];
+            let mkc = || -> Vec<Vec<Cons>> {
+                (0..nb).map(|bi| vec![[0.0f64; NCOMP]; plane(bi)]).collect()
+            };
             self.gb = Some(GasBufs {
                 sol: GasOperands::alloc(g),
                 lag: GasOperands::alloc(g),
@@ -839,18 +851,21 @@ impl Sdc {
             ));
         }
         if gas.is_some() {
+            // Uniform N_θ ≥ 1 is legal since plan S9 (the full θ-stress
+            // tensor, COUP-3 0.4.5 as built).
             let nt0 = g.brick(0).n_theta();
             if g.bricks().iter().any(|b| b.n_theta() != nt0) {
                 return Err(SdcError::Config(
-                    "gas diffusion (class D) at mixed N_θ: the ring-interface coupling \
+                    "gas diffusion (class D) at MIXED N_θ: the ring-interface coupling \
                      of an implicit operator rides plan S11 (COUP-3 0.4.5); uniform N_θ \
                      only — refusing rather than guessing",
                 ));
             }
-            if nt0 != 1 {
+            if nt0 != 1 && g.has_cut_geometry() {
                 return Err(SdcError::Config(
-                    "gas diffusion (class D) at N_θ > 1 rides plan S9 (the S8 split: a \
-                     partial θ-stress tensor is wrong physics); refusing rather than guessing",
+                    "gas diffusion (class D) with cut geometry at N_θ > 1 rides plan \
+                     S11 (θ-face apertures + per-θ wall patches); refusing rather than \
+                     guessing",
                 ));
             }
         }
@@ -1562,8 +1577,8 @@ impl Sdc {
             debug_assert!(
                 (0..g.n_bricks()).all(|bi| {
                     let mask = g.brick(bi).mask();
-                    (0..BRICK_CELLS).all(|c| {
-                        mask & (1u64 << c) != 0
+                    (0..gb.d0[bi].len()).all(|c| {
+                        mask & (1u64 << (c % BRICK_CELLS)) != 0
                             || (gb.d0[bi][c].iter().all(|v| *v == 0.0)
                                 && gb.dprev[bi][c].iter().all(|v| *v == 0.0)
                                 && gb.dlag[bi][c].iter().all(|v| *v == 0.0))
@@ -2157,46 +2172,50 @@ fn derive_gas_operands(
 ) -> Result<(), SdcError> {
     for bi in 0..g.n_bricks() {
         let b = g.brick(bi);
-        for local in 0..BRICK_CELLS {
-            if b.mask() & (1u64 << local) == 0 {
-                sol.rho[bi][local] = 1.0; // never read; keeps masses finite
-                sol.ur[bi][local] = 0.0;
-                sol.om[bi][local] = 0.0;
-                sol.uz[bi][local] = 0.0;
-                sol.tt[bi][local] = 0.0;
-                sol.cc[bi][local] = 0.0;
-                tr.set_masked(bi, local);
-                ke_base[bi][local] = 0.0;
-                continue;
+        let nt = b.n_theta() as usize;
+        for jt in 0..nt {
+            for local in 0..BRICK_CELLS {
+                let idx = jt * BRICK_CELLS + local;
+                if b.mask() & (1u64 << local) == 0 {
+                    sol.rho[bi][idx] = 1.0; // never read; keeps masses finite
+                    sol.ur[bi][idx] = 0.0;
+                    sol.om[bi][idx] = 0.0;
+                    sol.uz[bi][idx] = 0.0;
+                    sol.tt[bi][idx] = 0.0;
+                    sol.cc[bi][idx] = 0.0;
+                    tr.set_masked(bi, idx);
+                    ke_base[bi][idx] = 0.0;
+                    continue;
+                }
+                let (i_r, i_z) = b.global_rz(local);
+                let w = &prim[bi][idx];
+                let tt = temperature(w).map_err(|what| {
+                    SdcError::Flow(FlowError::NonPhysicalState {
+                        i_r,
+                        i_z,
+                        i_theta: jt as u32,
+                        what,
+                    })
+                })?;
+                sol.rho[bi][idx] = w[0];
+                sol.ur[bi][idx] = w[1];
+                sol.om[bi][idx] = w[2] / g.r_center(i_r);
+                sol.uz[bi][idx] = w[3];
+                sol.tt[bi][idx] = tt;
+                sol.cc[bi][idx] = w[5];
+                // The spine reading at this cell's own state — the COUP-3
+                // 0.4.3 refresh point. Its refusal carries the cell.
+                let props = transport(w).map_err(|what| {
+                    SdcError::Flow(FlowError::NonPhysicalState {
+                        i_r,
+                        i_z,
+                        i_theta: jt as u32,
+                        what,
+                    })
+                })?;
+                tr.set(bi, idx, i_r, i_z, &props).map_err(SdcError::Gas)?;
+                ke_base[bi][idx] = 0.5 * (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]);
             }
-            let (i_r, i_z) = b.global_rz(local);
-            let w = &prim[bi][local];
-            let tt = temperature(w).map_err(|what| {
-                SdcError::Flow(FlowError::NonPhysicalState {
-                    i_r,
-                    i_z,
-                    i_theta: 0,
-                    what,
-                })
-            })?;
-            sol.rho[bi][local] = w[0];
-            sol.ur[bi][local] = w[1];
-            sol.om[bi][local] = w[2] / g.r_center(i_r);
-            sol.uz[bi][local] = w[3];
-            sol.tt[bi][local] = tt;
-            sol.cc[bi][local] = w[5];
-            // The spine reading at this cell's own state — the COUP-3
-            // 0.4.3 refresh point. Its refusal carries the cell.
-            let props = transport(w).map_err(|what| {
-                SdcError::Flow(FlowError::NonPhysicalState {
-                    i_r,
-                    i_z,
-                    i_theta: 0,
-                    what,
-                })
-            })?;
-            tr.set(bi, local, i_r, i_z, &props).map_err(SdcError::Gas)?;
-            ke_base[bi][local] = 0.5 * (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]);
         }
     }
     Ok(())
@@ -2228,28 +2247,30 @@ fn fill_gas_rhs(
     };
     for bi in 0..g.n_bricks() {
         let brick = g.brick(bi);
-        for local in 0..BRICK_CELLS {
+        let nt = brick.n_theta();
+        for idx in 0..b[bi].len() {
+            let local = idx % BRICK_CELLS;
             if brick.mask() & (1u64 << local) == 0 {
-                b[bi][local] = 0.0;
+                b[bi][idx] = 0.0;
                 continue;
             }
             let (i_r, _) = brick.global_rz(local);
-            let kv = brick.kappa_rz(local) * g.cell_volume(i_r, 1);
-            let ddiff = dstage[bi][local][k] - dlag[bi][local][k];
+            let kv = brick.kappa_rz(local) * g.cell_volume(i_r, nt);
+            let ddiff = dstage[bi][idx][k] - dlag[bi][idx][k];
             let mut val = match comp {
                 GasComp::Om => wqnew * g.r_center(i_r) * kv * ddiff,
                 _ => wqnew * kv * ddiff,
             };
             if comp == GasComp::T {
                 let r = g.r_center(i_r);
-                let ut = sol.om[bi][local] * r;
+                let ut = sol.om[bi][idx] * r;
                 let ke_new = 0.5
-                    * (sol.ur[bi][local] * sol.ur[bi][local]
+                    * (sol.ur[bi][idx] * sol.ur[bi][idx]
                         + ut * ut
-                        + sol.uz[bi][local] * sol.uz[bi][local]);
-                val += sol.rho[bi][local] * kv * (ke_base[bi][local] - ke_new);
+                        + sol.uz[bi][idx] * sol.uz[bi][idx]);
+                val += sol.rho[bi][idx] * kv * (ke_base[bi][idx] - ke_new);
             }
-            b[bi][local] = val;
+            b[bi][idx] = val;
         }
     }
 }
@@ -2275,8 +2296,9 @@ fn rate_resid(
     let mut s_rc = 0.0f64;
     for bi in 0..g.n_bricks() {
         let b = g.brick(bi);
-        for local in 0..BRICK_CELLS {
-            if b.mask() & (1u64 << local) == 0 {
+        let plane = b.n_theta() as usize * BRICK_CELLS;
+        for idx in 0..plane {
+            if b.mask() & (1u64 << (idx % BRICK_CELLS)) == 0 {
                 continue;
             }
             for k in [I_MR, I_MT, I_MZ, I_EN, I_RC] {
@@ -2284,7 +2306,7 @@ fn rate_resid(
                 // shrink to a finite one and let the acceptance pass on a
                 // poisoned state — the S2 `rel_resid` finding class, and
                 // the reason this is an explicit test (S3 review finding).
-                let v = b.field(ids[k])[local];
+                let v = b.field(ids[k])[idx];
                 if v.is_nan() {
                     return f64::NAN;
                 }

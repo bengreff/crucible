@@ -61,8 +61,9 @@ pub const MMS_ORDER_MAX: f64 = 2.3;
 
 /// The manufactured field and its exact partial derivatives at one point:
 /// value plus ∂/∂r, ∂/∂θ, ∂/∂z, ∂/∂t of every primitive — and the second
-/// r/z derivatives (∂rr, ∂rz, ∂zz) the S3 viscous MMS consumes. Public:
-/// the gas-diffusion battery reuses this field and source rather than
+/// derivatives the viscous MMS consumes (∂rr, ∂rz, ∂zz since S3; the θ
+/// bundle ∂θθ, ∂rθ, ∂zθ since S9's θ-stress tensor). Public: the
+/// gas-diffusion battery reuses this field and source rather than
 /// restating them.
 pub struct Manufactured {
     pub w: Prim,
@@ -73,6 +74,9 @@ pub struct Manufactured {
     pub drr: Prim,
     pub drz: Prim,
     pub dzz: Prim,
+    pub dthth: Prim,
+    pub drth: Prim,
+    pub dzth: Prim,
 }
 
 pub fn manufactured(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Manufactured {
@@ -91,6 +95,9 @@ pub fn manufactured(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Manufacture
     let phi_rr = -MMS_A * MMS_A * phi;
     let phi_rz = -MMS_A * MMS_B * cr * sz * ang * decay;
     let phi_zz = -MMS_B * MMS_B * phi;
+    let phi_thth = sr * cz * (-eps * m * m * ct) * decay;
+    let phi_rth = MMS_A * cr * cz * (-eps * m * st) * decay;
+    let phi_zth = -MMS_B * sr * sz * (-eps * m * st) * decay;
 
     let build = |scale: f64| -> Prim { std::array::from_fn(|k| MMS_AMP[k] * scale) };
     let mut w = build(phi);
@@ -106,6 +113,9 @@ pub fn manufactured(r: f64, theta: f64, z: f64, t: f64, eps: f64) -> Manufacture
         drr: build(phi_rr),
         drz: build(phi_rz),
         dzz: build(phi_zz),
+        dthth: build(phi_thth),
+        drth: build(phi_rth),
+        dzth: build(phi_zth),
     }
 }
 

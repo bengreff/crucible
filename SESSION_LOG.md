@@ -1424,3 +1424,166 @@ the committed artifacts in `certificates/` are the living record.
   schedule; p_c at 9.2 ms already 0.50 MPa (the laminar run crossed ~0.5 MPa only after its
   ~24 ms chamber-scale light-off) — the 2× front is spreading measurably faster. The verdict +
   measured delta land in a follow-up commit when the ~3 h march completes.
+
+- Session 21 (2026-08-25): **plan S9, FULL GEOMETRY + the S8 carries.** The FND-3 geometry kernel
+  exists (CSG, STL, PLIC, voxelization), the F_visc θ-stress tensor is complete at uniform N_θ
+  (the ◆C3 blocker), cut geometry runs at N_θ > 1, and the three S8-recorded carries landed —
+  one of them a genuine finding.
+
+  **Docs first** (the working rule): FND-3 0.4 (the as-built block: exact winding evaluation with
+  Barnes-Hut a recorded perf deferral; PLIC normal sources per authoring path; the S-Z offset by
+  deterministic fixed-count bracketed bisection on the monotone V(d); per-face-class sampling
+  measures; the SplitMix64 counter key scheme with the θ-sector deliberately excluded; the S9
+  conservative N_θ^geom floor; measured C_jitter + rate recorded); FND-2 0.5.3 (§3.4(iv)
+  superseded — cut geometry legal at UNIFORM N_θ, six-aperture per-θ-sector storage, the
+  wall-closure θ-limb W_θ = (a_θ+−a_θ−)·A_θ, mixed-N_θ cut → S11); SOLV-4 0.4.8 (the carry
+  designs, then the finding disposition); COUP-3 0.4.6 + SOLV-1 0.4.7 (as-built); the FND-4
+  schema comment re-pointed (the CSG/STL config GRAMMAR rides the engine 3-D assembly wave,
+  S10/S11 — its first consumer).
+
+  **The geometry kernel (`crucible_grid::geom3d` — a subagent build, math-reviewed in-session):**
+  the analytic SDF tree (sphere/box/cylinder-z/cone-z/torus exact; the revolved-(s,z)-polygon
+  leaf the engine contour corresponds to; min/max booleans with the §3.1 sign-exact/magnitude-
+  bound caveat; every node 1-Lipschitz ⇒ the |field| > R_circum pure-cell test is sound); STL
+  import (binary + ASCII, the 84+50n size identity disambiguates "solid"-headed binaries,
+  degenerate triangles counted never silently dropped) with the EXACT van Oosterom–Strackee
+  winding sum — a tetrahedron with a deleted face still classifies where ray-parity provably
+  flips (gated); the jittered-stratified voxelizer in the cylindrical measure (uniform in
+  (r², θ, z); apertures in each face's own measure — r: (θ,z), z: (r²,θ), θ: (r,z) planar);
+  PLIC via the Scardovelli–Zaleski corner-sum V(d) (verified against hand values) with
+  area = dV/dd exact and the volume match by 80 fixed bisections. **Measured:** C_jitter 0.907
+  → declared 1.4 (×1.5 margin, recorded in FND-3); sampling-rate exponent −0.723 vs the derived
+  −2/3; sphere PLIC area sum 2.77% (first-order-in-curvature class, as declared). **Two build
+  findings, doc-amended:** a watertight mesh's winding number is piecewise CONSTANT, so its
+  gradient cannot supply the PLIC normal — mesh cells take the area-weighted outward facet
+  normal (CSG keeps the SDF gradient); and the jitter key excludes the θ-sector index so an
+  axisymmetric solid voxelizes bit-identically per sector (up to the classifier's rotational
+  round-off — the honest form of the §6.6 zero-variance gate) with canonical face arrays giving
+  shared-face bitwise coherence by construction. Ten gates green (convergence rate, exact ring
+  forms, imperfect-STL robustness, CSG↔STL cross-check, planar-cut exactness, sphere area,
+  determinism/seed-liveness, θ-congruence + floors, STL round-trip).
+
+  **The F_visc θ-extension (the S8 split repaid — COUP-3 0.4.5's design, built):** every solved
+  component gains its θ-θ implicit core on the periodic within-brick ring stencil (μ for u_r/u_z,
+  (4/3)μ·r̄² for ω — both ring cells share r̄ exactly, so the coefficient is symmetric and the CG
+  stays SPD; k for T; ρD for C); the curvature/cross couplings ride the same fixed Picard lag as
+  the S3 cross terms (the τ_rθ θ-limb (1/r)∂u_r/∂θ at meridional faces + r∂ω/∂r at θ-faces, the
+  τ_θz mirror, and the ∂ω/∂θ dilatation limb extending e_θθ in τ_rr, τ_zz, AND the −τ_θθ/r
+  volume source — the m = 1 curvature partners); θ work/conduction/species fluxes enter the same
+  total-energy bookkeeping (dissipation still emerges from the KE ledger). Buffers went
+  per-brick-θ-plane through sdc.rs (the ensure_rb S8 pattern); the CG dot's partials NEST per
+  (brick, θ-plane) into the fixed tree — at N_θ = 1 exactly the prior per-brick list, and on an
+  axisymmetric N_θ = 2^k world the equal per-plane partials combine EXACTLY (pairwise doubling;
+  the power-of-two θ-ladder is what makes this work), so the CG's accept/iterate decisions are
+  bit-identical per plane to the N_θ = 1 march. **Gates:** the m = 2 θ-MMS with the full
+  continuous θ-stress residual (an independent formulation, every ∂θ limb) — fine-pair L1
+  orders 2.03–2.61 on all seven components; **the trap gate**: uniform transverse flow
+  (u_r = U cosθ, u_θ = −U sinθ — zero true stress, the state a partial tensor damps at μU/r²)
+  measures interior residual 0.9% of that scale at N_θ = 8 and 0.09% at N_θ = 32 (Δθ²
+  convergence; species stays an exact zero); an axisymmetric no-swirl coupled march at N_θ = 8
+  reproduces N_θ = 1 BITWISE per θ-plane through the full flow+diffusion step; mixed-N_θ and
+  cut-θ class-D refuse typed (→ S11). N_θ = 1 arithmetic identity held everywhere (the whole
+  existing battery + gate 5).
+
+  **The S8-recorded carries (a subagent build) — landed, one FINDING:**
+  - *Root uniqueness (SOLV-4 0.4.8):* the blend's mid-transition scan now completes its full
+    fixed N_P_SCAN sweep and COUNTS crossings — more than one admissible root is a typed refusal
+    (branch residency undecidable), the TableEos warm-path straddle analogue the mid-b path
+    lacked. Single-root brackets are bit-identical to the old first-hit path (verified in-suite);
+    a genuine two-root fixture is not constructible on the production surfaces (monotone v(p)),
+    so the counting logic is pinned on synthetic closures.
+  - *Class-R dt-Richardson (the mid-stiffness blind spot):* measured temporal order **1.80** at
+    dt/τ ≈ 0.4–3 on a marched superheated tube (2.09/1.84 on horizon/step variants; the parked
+    3.2τ variant collapses order exactly as the doc predicts and is guarded out). The composed
+    step holds its order where the class-R truncation dominates.
+  - *N_TAU_REFREEZE (the FINDING):* the 0.4.4 sizing premise — "τ depends on the unknown only
+    weakly (Δp/p per node is CFL-bounded)" — is FALSE in the reaction-driven-compression band:
+    within ONE node solve the burn's constant-volume compression heating drives T_u 1057 → 1512 K
+    and τ down ×1/93 at the fixture state; the 2-refreeze solve lags the converged frozen-τ fixed
+    point by rel Δ 3.0e-1 at w/τ = 0.3 (2.2e-2 at 1, 2.1e-3 at 3; the reference converges to
+    machine precision by pass ~13, so the witness is well-posed). **Disposition (this session,
+    recorded in SOLV-4 0.4.8 + the constant's doc comment): the contract is restated, the
+    constant is NOT resized** — the fixed count is structure (COUP-3 §3.7), the per-node lag is a
+    temporal-truncation-class term the SDC sweeps' own re-evaluations absorb (which is exactly
+    what the order gate measures through the same band), the same split as the truncated
+    gas-diffusion Picard; the witness ships ARMED as a measured-envelope regression pin
+    ({4e-1, 3e-2, 3e-3}) so lag GROWTH fails loudly. The two results are coherent: the isolated
+    sizing claim was false while the composed step was always fine — the doc now says what is
+    actually true.
+
+  **3-D apertures incl. θ-faces (a subagent build, diff-reviewed in-session; the FND-2 0.5.3
+  wave):** `build_with_geometry`'s N_θ = 1 restriction is retired for genuinely 3-D worlds —
+  `BrickGeom` went θ-plane-major with the FULL six-face aperture set (FaceDir gained the θ pair;
+  every pre-S9 `[_;4]` consumer verified 4-long), `build_with_geometry_theta` validates per
+  sector (bitwise shared-face coherence incl. the θ-pair rule aperture[θ+][j] ≡ aperture[θ−][j+1];
+  the covered-face rule; the S9 SCOPE RULE — a θ-sector fully covered inside a gas ring is a
+  typed refusal, per-sector activity masks ride S10/S11; thin walls legal), the wall closure
+  gained its θ-limb W_θ = (a_θ+−a_θ−)·A_θ (per-sector `wall_closure_cell`), the sweeps
+  aperture-weight θ-faces with ONE canonical side per face (face fi reads θ+ of ring cell
+  (fi−1) mod n — both accumulation directions identical bits, ring telescoping exact), SRD went
+  per-sector with θ-neighbors as flow-connected candidates (tie order r−, r+, θ−, θ+, z−, z+; at
+  N_θ = 1 the θ-candidates are structurally absent), and cut-geometry bricks pin
+  n_theta_geom_floor at the built N_θ (coarsen/refine/assert refuse on geometry bricks — adaptive
+  N_θ on cut worlds rides S11). The certified N_θ = 1 path held bit-identity ON THE FIRST RUN of
+  the station batteries; both new arms are mutation-proven load-bearing (neutering the θ-limb or
+  forcing θ-apertures to 1.0 fails the well-balance gate). Extra refusals beyond the spec, all
+  typed: combustion + cut θ > 1 (its D_c stencil reads the (r,z) geometry view → S11); the
+  (r,z)-keyed SRD debit view refuses θ-recruited members (per-θ wall patches → S11). Gates (7):
+  the revolved cut world at N_θ = 8 ≡ N_θ = 1 **bitwise per plane** through both builders (the
+  gate-5-in-miniature); well-balance on a θ-varying world (ρ/ρE/ρC/ρb bitwise, momenta ≤ 1e-14 —
+  the separately-rounded (A·ap)·p associations, the S12 round-off class, documented); audited
+  shock-transient conservation; per-sector SRD (a sliver in ONE sector merges through its θ-faces
+  while the other sectors stay bitwise untouched); the plane contract; the analytic-supplier toy
+  chamber; and **`stl_toy_chamber` END TO END on the real sampled path** — a CSG chamber (big
+  cylinder − revolved cavity + a shallow axial rib protruding into the gas over one θ-side)
+  voxelized by geom3d, ingested by `build_with_geometry_theta` with its per-sector validation
+  accepting the sampled output AS-IS (canonical face arrays ⇒ bitwise coherence by construction),
+  θ-varying gas rings confirmed, 55 audited cold-flow steps, mass/energy drift < 1e-12.
+  **Recorded seam wart (review-wave flag):** the voxelizer emits FND-2 §3.3(1) face order
+  {r−,r+,θ−,θ+,z−,z+}; the grid's `CellGeomTheta` uses FaceDir-index order {r−,r+,z−,z+,θ−,θ+} —
+  mapped explicitly at the one seam where they meet.
+
+  **Gates: all five green** on the final merged tree — fmt/clippy clean; gate 3 grew the Rust
+  battery 209 → 243 (the 10-gate geom3d battery, the 7-gate θ-geometry battery incl. both toy
+  chambers, the θ-MMS + transverse-flow + bitwise-per-plane gas gates, the three carry gates, the
+  blend uniqueness units, + geometry-seam additions); gate 4 = the 50 offline tests, untouched;
+  **gate 5: every certificate regenerates byte-identical** — the θ-plane-major geometry storage,
+  the six-aperture restructure, the θ-stress tensor, the per-plane CG partials, and the blend
+  scan-completion never moved a certified bit (the N_θ = 1 arithmetic-identity claims, proven
+  again). Certified numbers stay S2/S3-spine of record.
+
+  **Review wave (two agents: voxelization/PLIC math + θ-stress derivation; doc-claims) — no
+  CONFIRMED correctness defect.** The math reviewer re-derived the continuous cylindrical stress
+  tensor and its divergence independently, replicated the code's exact discretizations in Python
+  (the m = 1 residual decays ~×4/×8 per N_θ doubling with no O(1) term — the tensor inventory is
+  complete), Monte-Carlo-verified the S-Z corner-sum V(d) + the area = dV/dd identity + the
+  signed-normal mirroring algebra, verified the van Oosterom–Strackee winding form numerically,
+  and confirmed every sampling measure, the SPD/Jacobian-identity contracts, the ring-telescoping
+  with apertures ≠ 1, the wall-closure θ-limb fixed-point sign, and the per-(brick,plane)
+  reduction-scaling argument. Four low/nano findings, all cured as doc/comment precision: the
+  mesh pure-cell hint's threshold-stability claim scoped to WATERTIGHT meshes (an imperfect
+  mesh's w is merely harmonic away from triangles and can cross 0.5 in a triangle-free cell near
+  a hole — recorded limit; a watertightness gate rides the production-STL wave); the θ-congruence
+  "exact, not statistical" claim softened to the honest ulp-bounded form (kernel + FND-3); the
+  z-face torque-arm "exactly" comment corrected to the consistent second-order lumped form (the
+  exact moment is (r̄²+Δr²/12)ΔrΔθ; the r̄² form matches the ω inertia and telescopes exactly);
+  a ±0.0 corner in the bit-identity argument noted unreachable. The doc-claims reviewer verified
+  every S9 doc addition against the code and found six mismatches, all fixed: the battery count
+  (209 → 243, +34 — the entry above now says it right; CLAUDE.md's stale 184 fixed with it);
+  COUP-3's "six components" → seven; the SOLV-4 change-log "zero new evaluations" overclaim →
+  the bounded-cost truth; the FND-3 0.4 change-log row moved to its oldest-first position;
+  FND-2 0.5.3's face-order phrasing disambiguated (grid FaceDir order vs the voxelizer's §3.3(1)
+  emission order) and its bit-identity wording tightened; the geometry floor stated in its hard
+  shipped form (EVERY geometry brick pins at built N_θ, stricter than the kernel's θ-varying
+  minimum). Everything else verified accurate against the code, including all measured numbers.
+
+  **Deferrals recorded (owners named):** the CSG/STL CONFIG GRAMMAR + engine 3-D assembly (the
+  kernel's first config consumer) → S10/S11 with refinement tiles + ◆C3 (FND-4 schema comment
+  re-pointed); per-sector activity masks (full sector coverage inside gas rings) → S10/S11;
+  mixed-N_θ cut worlds, mixed-N_θ class-D, cut-θ class-D, per-θ wall patches, adaptive N_θ on
+  cut worlds → S11 (all typed refusals); Barnes-Hut winding evaluation → the production-STL
+  wave; the FND-2 §3.3(7) sharp-interface grid fields stay dormant (the voxelizer now emits
+  their initial condition — PLIC planes live in the VoxelWorld product); the voxelizer↔grid
+  face-order unification → the S9 review wave's cleanup list. **The ◆C2-rerun verdict
+  (wrinkling 2.0, S8's follow-up) has NOT landed as of this entry** — the parked S8 session owns
+  that follow-up commit; this entry deliberately does not restate its early trajectory.

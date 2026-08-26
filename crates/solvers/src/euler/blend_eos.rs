@@ -75,6 +75,100 @@ const H_BRACKET_MARGIN: f64 = 1.0e-9;
 /// [`TableEos`]'s `N_P_SCAN`); sized to match the tables' own p-axis density.
 const N_P_SCAN: usize = 64;
 
+/// The typed **mid-transition root-uniqueness refusal** (SOLV-4 §3.6 v0.4.8,
+/// the recorded S8 carry): a folded `g` carrying more than one admissible
+/// root makes "which root" a function of the scan grid, not the physics —
+/// the exact analogue of `TableEos`'s warm-path straddle precondition, which
+/// the mid-`b` path previously lacked.
+pub(crate) const MULTI_ROOT_REFUSAL: &str = "mid-transition projection found multiple admissible roots \
+     (branch residency undecidable; SOLV-4 §3.6 v0.4.8): refusing";
+
+/// Outcome of the fixed mid-`b` log-scan ([`scan_first_crossing`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum PScan {
+    /// `g` hit exactly zero at a scan node before any sign change — the node
+    /// IS the accepted root (the pre-v0.4.8 semantics, preserved bit-for-bit).
+    ExactRoot(f64),
+    /// Exactly one sign change over the sweep: the crossing's bracket
+    /// `(a, b)` with its endpoint residuals `(ga, gb)` — identical floats to
+    /// the pre-v0.4.8 first-hit bracket, so the accepted root is bit-identical.
+    Bracket { a: f64, b: f64, ga: f64, gb: f64 },
+    /// No sign change anywhere: the `|g|`-best sample over the whole sweep
+    /// (the tangency-acceptance seed, unchanged from the pre-v0.4.8 sweep).
+    NoCrossing { p_best: f64 },
+}
+
+/// The **mid-transition root-uniqueness guard** (SOLV-4 §3.6 v0.4.8): run the
+/// fixed `N_P_SCAN` log-scan of `g` over `[lo, hi]` to COMPLETION, counting
+/// sign changes and remembering the FIRST crossing's bracket. More than one
+/// crossing (a second sign change, or an exact grid zero past the first
+/// crossing — a further admissible root either way) is the typed
+/// [`MULTI_ROOT_REFUSAL`], never a silent first-root acceptance.
+///
+/// **Bit-identity contract:** the scan grid (`lo·(hi/lo)^(k/N)`), the
+/// `g`-evaluation order, and the `best`-sample tracking are byte-for-byte the
+/// pre-v0.4.8 loop's up to the first crossing, so the single-root bracket and
+/// the no-crossing tangency seed are the identical floats — the guard only
+/// COMPLETES the sweep instead of breaking at the first hit (a bounded,
+/// deterministic cost; `g` is a pure closure over table interpolation, so the
+/// new post-crossing evaluations are inert). An `Err` from `g` propagates
+/// from ANY node — post-crossing nodes keep the same no-skip semantics the
+/// pre-crossing portion always had (the pre-v0.4.8 loop `?`-propagated every
+/// bad point; symmetry, not a new skip rule).
+///
+/// `ga0` must be the caller's already-computed `g(lo)` (nonzero — the caller
+/// returns on exact-zero endpoints before scanning).
+pub(crate) fn scan_first_crossing(
+    lo: f64,
+    hi: f64,
+    ga0: f64,
+    g: &impl Fn(f64) -> Result<f64, &'static str>,
+) -> Result<PScan, &'static str> {
+    let ratio = hi / lo;
+    let mut prev_p = lo;
+    let mut prev_g = ga0;
+    let mut best = (lo, ga0.abs());
+    let mut first: Option<(f64, f64, f64, f64)> = None;
+    let mut crossings = 0usize;
+    for k in 1..=N_P_SCAN {
+        let pk = lo * ratio.powf(k as f64 / N_P_SCAN as f64);
+        let gk = g(pk)?;
+        if gk == 0.0 {
+            if first.is_none() {
+                // Pre-crossing exact zero: the accepted root, exactly as the
+                // pre-v0.4.8 loop returned it (bit-identity).
+                return Ok(PScan::ExactRoot(pk));
+            }
+            // An exact grid zero PAST the first crossing is a further
+            // admissible root — count it toward multiplicity (the sign
+            // product `prev_g·gk = 0` would never register it as a
+            // crossing, and the pre-v0.4.8 code never reached this node).
+            crossings += 1;
+            prev_p = pk;
+            prev_g = gk;
+            continue;
+        }
+        if gk.abs() < best.1 {
+            best = (pk, gk.abs());
+        }
+        if prev_g * gk < 0.0 {
+            crossings += 1;
+            if first.is_none() {
+                first = Some((prev_p, pk, prev_g, gk));
+            }
+        }
+        prev_p = pk;
+        prev_g = gk;
+    }
+    if crossings > 1 {
+        return Err(MULTI_ROOT_REFUSAL);
+    }
+    Ok(match first {
+        Some((a, b, ga, gb)) => PScan::Bracket { a, b, ga, gb },
+        None => PScan::NoCrossing { p_best: best.0 },
+    })
+}
+
 /// The SOLV-4 §3.6 blended occupant: two `(p, h, Z)` branches + the S18
 /// `h_offset` knockdown (applied to the **burnt** interrogation only — the
 /// unburnt reactants carry no combustion-completeness deficit).
@@ -320,21 +414,20 @@ impl<'t> BurnBlendEos<'t> {
         // fixed log-scan below therefore ALWAYS runs first: it brackets the
         // first sign change to a single scan cell (~a fifth of a decade),
         // where Illinois converges in a handful of iterations; no sign
-        // change anywhere falls through to the tangency acceptance.
+        // change anywhere falls through to the tangency acceptance. The
+        // v0.4.8 root-uniqueness guard ([`scan_first_crossing`]) completes
+        // the fixed sweep and refuses on more than one crossing — the
+        // single-root bracket is the identical floats, so accepted roots
+        // are bit-identical to the pre-guard code.
         let ratio = hi / lo;
-        let mut prev_p = lo;
-        let mut prev_g = ga0;
-        let mut best = (lo, ga0.abs());
-        for k in 1..=N_P_SCAN {
-            let pk = lo * ratio.powf(k as f64 / N_P_SCAN as f64);
-            let gk = g(pk)?;
-            if gk == 0.0 {
-                return Ok(pk);
-            }
-            if gk.abs() < best.1 {
-                best = (pk, gk.abs());
-            }
-            if prev_g * gk < 0.0 {
+        let p_best = match scan_first_crossing(lo, hi, ga0, &g)? {
+            PScan::ExactRoot(pk) => return Ok(pk),
+            PScan::Bracket {
+                a: pa,
+                b: pb,
+                ga,
+                gb,
+            } => {
                 // Root-residual acceptance (S8 review wave, SOLV-4 0.4.7):
                 // Illinois/bisection accepts on BRACKET WIDTH, so a fold or
                 // residual partition corner could hand back a pseudo-root
@@ -344,7 +437,7 @@ impl<'t> BurnBlendEos<'t> {
                 // the tangency path applies. (An artifact without stamped
                 // bounds keeps the bracket-width acceptance — the pre-S8
                 // semantics; every production surface stamps them.)
-                let p_root = TableEos::illinois_root(prev_p, pk, prev_g, gk, &g)?;
+                let p_root = TableEos::illinois_root(pa, pb, ga, gb, &g)?;
                 let g_root = g(p_root)?;
                 return match self.root_within_bound(p_root, g_root, rho, e, z, b)? {
                     None | Some(true) => Ok(p_root),
@@ -355,9 +448,8 @@ impl<'t> BurnBlendEos<'t> {
                     ),
                 };
             }
-            prev_p = pk;
-            prev_g = gk;
-        }
+            PScan::NoCrossing { p_best } => p_best,
+        };
         // Near-vacuum tangency acceptance (S7, mirroring `TableEos`): the
         // constraint line h = e + p/ρ runs almost parallel to the blended
         // ρ-contour in the deep plume, so the crossing can be a tangency the
@@ -376,8 +468,8 @@ impl<'t> BurnBlendEos<'t> {
         };
         let phi = 0.618_033_988_749_894_9_f64;
         let (mut x0, mut x3) = (
-            (best.0 / ratio.powf(1.0 / N_P_SCAN as f64)).max(lo),
-            (best.0 * ratio.powf(1.0 / N_P_SCAN as f64)).min(hi),
+            (p_best / ratio.powf(1.0 / N_P_SCAN as f64)).max(lo),
+            (p_best * ratio.powf(1.0 / N_P_SCAN as f64)).min(hi),
         );
         let mut x1 = x3 - phi * (x3 - x0);
         let mut x2 = x0 + phi * (x3 - x0);
@@ -738,5 +830,144 @@ impl EosLaw for BurnBlendEos<'_> {
     ) -> Result<Prim, FlowError> {
         self.unburnt
             .mass_flow_inflow_ghost(mdot_per_area, h_total, c_frac, p_int, sign, normal)
+    }
+}
+
+/// SOLV-4 §3.6 v0.4.8 — the mid-transition root-uniqueness guard's counting
+/// logic on synthetic closures (the fallback route: the production test
+/// surfaces are monotone in the projection variable, so no genuine
+/// two-crossing blend state was constructible from them; the counting is
+/// pinned here instead, and `project_pressure` consumes the same helper).
+#[cfg(test)]
+mod tests {
+    use super::{MULTI_ROOT_REFUSAL, N_P_SCAN, PScan, scan_first_crossing};
+
+    /// The exact scan grid the helper (and the pre-v0.4.8 loop) walks.
+    fn nodes(lo: f64, hi: f64) -> Vec<f64> {
+        let ratio = hi / lo;
+        (1..=N_P_SCAN)
+            .map(|k| lo * ratio.powf(k as f64 / N_P_SCAN as f64))
+            .collect()
+    }
+
+    #[test]
+    fn single_crossing_returns_the_first_hit_bracket_bit_exactly() {
+        // Monotone g with one sign change: the returned bracket must be the
+        // SAME floats the pre-v0.4.8 first-hit loop stored (bit-identity of
+        // every currently-accepted root rides on this).
+        let (lo, hi) = (1.0e2, 1.0e6);
+        let g = |p: f64| -> Result<f64, &'static str> { Ok(p - 3.7e4) };
+        let out = scan_first_crossing(lo, hi, g(lo).unwrap(), &g).expect("single root scans");
+        let ns = nodes(lo, hi);
+        let k = ns.iter().position(|&p| p > 3.7e4).expect("crossing node");
+        let a_want = if k == 0 { lo } else { ns[k - 1] };
+        let want = PScan::Bracket {
+            a: a_want,
+            b: ns[k],
+            ga: a_want - 3.7e4,
+            gb: ns[k] - 3.7e4,
+        };
+        assert_eq!(out, want, "first-crossing bracket must be bit-identical");
+    }
+
+    #[test]
+    fn two_crossings_refuse_with_the_typed_message() {
+        // A folded g (two admissible roots): the v0.4.8 guard must refuse
+        // with the typed SOLV-4 §3.6 message, never accept the first root.
+        let (lo, hi) = (1.0, 1.0e4);
+        let g = |p: f64| -> Result<f64, &'static str> { Ok((p - 30.0) * (p - 3.0e3)) };
+        let err = scan_first_crossing(lo, hi, g(lo).unwrap(), &g)
+            .expect_err("a folded g must refuse (SOLV-4 §3.6 v0.4.8)");
+        assert_eq!(err, MULTI_ROOT_REFUSAL);
+        assert!(
+            err.contains("SOLV-4 §3.6 v0.4.8"),
+            "the refusal must name the guard"
+        );
+    }
+
+    #[test]
+    fn three_crossings_also_refuse() {
+        // Multiplicity beyond two is the same undecidable-residency refusal.
+        let (lo, hi) = (1.0, 1.0e4);
+        let g =
+            |p: f64| -> Result<f64, &'static str> { Ok((p - 12.0) * (p - 350.0) * (p - 4.7e3)) };
+        let err = scan_first_crossing(lo, hi, g(lo).unwrap(), &g).expect_err("three roots refuse");
+        assert_eq!(err, MULTI_ROOT_REFUSAL);
+    }
+
+    #[test]
+    fn no_crossing_returns_the_best_sample() {
+        // One-signed g: the tangency seed is the |g|-minimal node over the
+        // WHOLE sweep — identical to the pre-v0.4.8 fall-through.
+        let (lo, hi) = (1.0, 1.0e4);
+        let g =
+            |p: f64| -> Result<f64, &'static str> { Ok((p.ln() - 100.0f64.ln()).powi(2) + 0.5) };
+        let out = scan_first_crossing(lo, hi, g(lo).unwrap(), &g).expect("no-crossing scans");
+        let ns = nodes(lo, hi);
+        let p_want = ns
+            .iter()
+            .copied()
+            .fold((lo, g(lo).unwrap().abs()), |acc, p| {
+                let gp = g(p).unwrap().abs();
+                if gp < acc.1 { (p, gp) } else { acc }
+            })
+            .0;
+        assert_eq!(out, PScan::NoCrossing { p_best: p_want });
+    }
+
+    #[test]
+    fn exact_grid_zero_before_any_crossing_is_the_root() {
+        // g exactly zero AT a scan node with no prior sign change: returned
+        // as the root, exactly as the pre-v0.4.8 loop did (bit-identity).
+        let (lo, hi) = (1.0, 1.0e4);
+        let p0 = nodes(lo, hi)[17];
+        let g = move |p: f64| -> Result<f64, &'static str> { Ok(p - p0) };
+        let out = scan_first_crossing(lo, hi, g(lo).unwrap(), &g).expect("exact zero scans");
+        assert_eq!(out, PScan::ExactRoot(p0));
+    }
+
+    #[test]
+    fn exact_grid_zero_after_a_crossing_counts_as_a_further_root() {
+        // A sign change, then an exact grid zero further on: a second
+        // admissible root the sign product (prev·g = 0) would never count —
+        // the guard must still refuse.
+        let (lo, hi) = (1.0, 1.0e4);
+        let p1 = nodes(lo, hi)[40];
+        let g = move |p: f64| -> Result<f64, &'static str> { Ok((p - 5.0) * (p - p1)) };
+        let err = scan_first_crossing(lo, hi, g(lo).unwrap(), &g)
+            .expect_err("crossing + exact later zero must refuse");
+        assert_eq!(err, MULTI_ROOT_REFUSAL);
+    }
+
+    #[test]
+    fn g_error_propagates_from_any_node() {
+        // No-skip semantics, symmetric with the pre-v0.4.8 loop: an Err from
+        // g refuses the scan whether it lands before OR after the first
+        // crossing (the old loop `?`-propagated every bad point it reached).
+        let (lo, hi) = (1.0, 1.0e4);
+        let ns = nodes(lo, hi);
+        let (early, late) = (ns[3], ns[50]);
+        let g_pre = move |p: f64| -> Result<f64, &'static str> {
+            if p == early {
+                Err("bad point")
+            } else {
+                Ok(p - 5.0e3)
+            }
+        };
+        assert_eq!(
+            scan_first_crossing(lo, hi, g_pre(lo).unwrap(), &g_pre),
+            Err("bad point")
+        );
+        let g_post = move |p: f64| -> Result<f64, &'static str> {
+            if p == late {
+                Err("bad point")
+            } else {
+                Ok(p - 5.0)
+            }
+        };
+        assert_eq!(
+            scan_first_crossing(lo, hi, g_post(lo).unwrap(), &g_post),
+            Err("bad point")
+        );
     }
 }

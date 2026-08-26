@@ -2,9 +2,13 @@
 //! validation (Gas ⇔ κ > 0, shared-face bitwise coherence, covered-face
 //! rule), accessor defaults on full-box worlds, and the wall-closure
 //! identity (zero for uncut interior cells; the exact covered-face vector
-//! in the stair-degenerate case).
+//! in the stair-degenerate case). S9 (FND-2 §3.4 3-D aperture wave):
+//! `build_with_geometry_theta` validation — the per-sector scope rule
+//! (θ-sector coverage inside a gas ring refuses), θ-face bitwise
+//! coherence, the geometry-floor coarsen/refine refusal — and the
+//! `wall_closure_cell` θ-limb identities.
 
-use crucible_grid::{CellGeom, FaceDir, Grid, GridSpec, Region};
+use crucible_grid::{CellGeom, CellGeomTheta, FaceDir, Grid, GridError, GridSpec, Region};
 
 fn spec(n_r: usize, n_z: usize) -> GridSpec {
     GridSpec {
@@ -138,7 +142,8 @@ fn incoherent_suppliers_refuse() {
     // this trips BOTH the mismatch and covered-face rules; either way loud.
     assert!(Grid::build_with_geometry(spec(4, 4), &["q"], open_into_wall).is_err());
 
-    // Geometry at N_θ > 1: deferred loudly.
+    // The revolved per-(r,z) path at N_θ > 1: refused, pointing at the S9
+    // 3-D entry point.
     let mut s = spec(4, 4);
     s.n_theta_max = 4;
     s.axisymmetry_assertion = false;
@@ -147,5 +152,188 @@ fn incoherent_suppliers_refuse() {
         kappa: 1.0,
         aperture: [1.0; 4],
     };
-    assert!(Grid::build_with_geometry(s, &["q"], full).is_err());
+    let err = Grid::build_with_geometry(s, &["q"], full).expect_err("must refuse");
+    assert!(
+        format!("{err}").contains("build_with_geometry_theta"),
+        "refusal must name the 3-D entry point: {err}"
+    );
+}
+
+// --- S9: the θ-sector builder (FND-3 §3.3 3-D apertures) --------------------
+
+fn spec_theta(n_r: usize, n_z: usize, n_theta: u32) -> GridSpec {
+    GridSpec {
+        r_min: 0.0,
+        dr: 0.1,
+        n_r,
+        z_min: 0.0,
+        dz: 0.1,
+        n_z,
+        n_theta_max: n_theta,
+        axisymmetry_assertion: false,
+    }
+}
+
+/// A θ-varying legal world on 4×4×N_θ4: every cell gas, per-sector κ in
+/// (0, 1], θ-face apertures computed from the FACE index (coherent by
+/// construction), r/z faces fully open in the interior.
+fn bumpy_supplier(i_r: usize, j: u32, _i_z: usize) -> CellGeomTheta {
+    let nt = 4u32;
+    // θ-face aperture as a function of the face (between sector fi−1 and
+    // fi): one value per face index, shared by both adjacent sectors.
+    let theta_face = |fi: u32| 0.7 + 0.05 * f64::from((fi + i_r as u32) % nt);
+    CellGeomTheta {
+        kappa: 0.6 + 0.08 * f64::from(j),
+        aperture: [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            theta_face(j),            // θ−: the face below sector j
+            theta_face((j + 1) % nt), // θ+: the face above sector j
+        ],
+    }
+}
+
+#[test]
+fn fnd3_s33_theta_builder_accepts_a_theta_varying_world() {
+    let g = Grid::build_with_geometry_theta(spec_theta(4, 4, 4), &["q"], bumpy_supplier, |_, _| {
+        Region::Exterior
+    })
+    .expect("legal θ-varying world builds");
+    assert!(g.has_cut_geometry());
+    // Per-sector accessors read the sector's own values; plane-0 forms read
+    // sector 0 (the documented contract).
+    assert_eq!(g.kappa_at(1, 3, 2), 0.6 + 0.08 * 3.0);
+    assert_eq!(g.kappa(1, 2), 0.6);
+    assert_eq!(
+        g.aperture_at(1, 2, 2, FaceDir::ThetaMinus).to_bits(),
+        g.aperture_at(1, 1, 2, FaceDir::ThetaPlus).to_bits(),
+        "one θ-face, one bit pattern on both sides"
+    );
+    // The geometry floor pins every brick at the built N_θ.
+    for b in g.bricks() {
+        assert_eq!(b.n_theta_geom_floor(), 4);
+    }
+}
+
+#[test]
+fn fnd3_s33_theta_sector_coverage_inside_a_gas_ring_refuses_typed() {
+    // Sector 2 of one ring cell fully covered (κ = 0) while other sectors
+    // hold gas — the S9 scope rule's typed refusal (S10/S11 wave).
+    let pillar = |i_r: usize, j: u32, i_z: usize| {
+        let mut c = bumpy_supplier(i_r, j, i_z);
+        if (i_r, i_z) == (2, 2) && j == 2 {
+            c.kappa = 0.0;
+        }
+        c
+    };
+    let err = Grid::build_with_geometry_theta(spec_theta(4, 4, 4), &["q"], pillar, |_, _| {
+        Region::Exterior
+    })
+    .expect_err("sector coverage must refuse");
+    match err {
+        GridError::ThetaSectorCovered { i_r, i_z, i_theta } => {
+            assert_eq!((i_r, i_z, i_theta), (2, 2, 2));
+        }
+        other => panic!("wrong refusal type: {other}"),
+    }
+    assert!(
+        format!(
+            "{}",
+            GridError::ThetaSectorCovered {
+                i_r: 2,
+                i_z: 2,
+                i_theta: 2
+            }
+        )
+        .contains("per-sector activity masks"),
+        "the refusal must name the missing capability"
+    );
+}
+
+#[test]
+fn fnd3_s33_theta_face_bit_mismatch_refuses() {
+    // Sector 1's θ+ disagrees with sector 2's θ− by one ulp-scale amount:
+    // the bitwise shared-face rule refuses.
+    let mismatch = |i_r: usize, j: u32, i_z: usize| {
+        let mut c = bumpy_supplier(i_r, j, i_z);
+        if (i_r, i_z) == (1, 1) && j == 1 {
+            c.aperture[FaceDir::ThetaPlus.index()] += 1e-12;
+        }
+        c
+    };
+    assert!(
+        Grid::build_with_geometry_theta(spec_theta(4, 4, 4), &["q"], mismatch, |_, _| {
+            Region::Exterior
+        })
+        .is_err(),
+        "θ-face bit mismatch must refuse"
+    );
+}
+
+#[test]
+fn fnd3_s34_theta_regrid_refuses_on_geometry_bricks() {
+    // FND-3 §3.4 geometry floor, S9: the controller can never re-grid cut
+    // geometry — coarsen AND refine refuse, naming plan S11.
+    let mut g = Grid::build_with_geometry_theta(
+        spec_theta(4, 4, 8),
+        &["q"],
+        |i_r, j, i_z| bumpy_supplier(i_r, j % 4, i_z),
+        |_, _| Region::Exterior,
+    )
+    .expect("builds at N_θ = 8");
+    let coarsen = g.coarsen_theta(0, None).expect_err("coarsen must refuse");
+    assert!(
+        format!("{coarsen}").contains("S11"),
+        "coarsen refusal names S11: {coarsen}"
+    );
+    let refine = g.refine_theta(0).expect_err("refine must refuse");
+    assert!(
+        format!("{refine}").contains("S11"),
+        "refine refusal names S11: {refine}"
+    );
+}
+
+#[test]
+fn fnd3_s33_wall_closure_cell_theta_limb_exact_stair_identity() {
+    // A hand-built θ-varying world: cell (1, 1)'s sector 1 has θ− = 0.25
+    // and θ+ = 1.0 ⇒ W_θ = (1.0 − 0.25)·A_θ exactly; its r/z faces are
+    // symmetric so W_z = 0 and W_r keeps the revolved identity. Uncut
+    // interior cells return the exact (0, 0, 0).
+    let nt = 4u32;
+    let supplier = |i_r: usize, j: u32, i_z: usize| {
+        if (i_r, i_z) == (1, 1) {
+            // θ-face apertures per face index: face 1 (between sectors 0
+            // and 1) is 0.25, every other face 1.0.
+            let face = |fi: u32| if fi == 1 { 0.25 } else { 1.0 };
+            CellGeomTheta {
+                kappa: 0.8,
+                aperture: [1.0, 1.0, 1.0, 1.0, face(j), face((j + 1) % nt)],
+            }
+        } else {
+            CellGeomTheta {
+                kappa: 1.0,
+                aperture: [1.0; 6],
+            }
+        }
+    };
+    let g = Grid::build_with_geometry_theta(spec_theta(4, 4, nt), &["q"], supplier, |_, _| {
+        Region::Exterior
+    })
+    .expect("builds");
+    let a_th = g.face_area_theta();
+    // Sector 1: θ− is face 1 (0.25), θ+ is face 2 (1.0).
+    let (_, w_theta, w_z) = g.wall_closure_cell(1, 1, 1, nt);
+    assert_eq!(w_z, 0.0);
+    assert_eq!(
+        w_theta.to_bits(),
+        ((1.0 - 0.25) * a_th).to_bits(),
+        "the θ-limb is the exact stair identity (a_θ₊ − a_θ₋)·A_θ"
+    );
+    // Sector 0: θ− is face 0 (1.0), θ+ is face 1 (0.25) — the mirror sign.
+    let (_, w_theta0, _) = g.wall_closure_cell(1, 0, 1, nt);
+    assert_eq!(w_theta0.to_bits(), ((0.25 - 1.0) * a_th).to_bits());
+    // Uncut interior: exact (0, 0, 0) by bitwise cancellation.
+    assert_eq!(g.wall_closure_cell(2, 2, 2, nt), (0.0, 0.0, 0.0));
 }

@@ -1,12 +1,21 @@
-//! SOLV-1 §3.1 — **`F_visc`, the missing forces (plan S3)**: compressible
-//! viscous stress + Fourier heat conduction + Fickian species diffusion on
-//! the exact cylindrical metric, axisymmetric-with-swirl (N_θ = 1; the θ
-//! diffusion fluxes and per-θ re-keying ride **plan S9** — the S8 split:
-//! the design is fixed in COUP-3 0.4.5 (θ-θ implicit cores + lagged
-//! curvature couplings), and a PARTIAL θ-stress tensor is wrong physics
-//! (it damps m = 1 translation modes whose curvature-coupling partners
-//! are absent), so N_θ > 1 refuses loudly rather than shipping an
-//! inconsistent tensor; mixed-N_θ class-D rides plan S11). One flux-form operator over the gas state —
+//! SOLV-1 §3.1 — **`F_visc`, the missing forces (plan S3; the full θ-stress
+//! tensor at uniform N_θ landed at plan S9 — COUP-3 0.4.5's fixed design,
+//! built)**: compressible viscous stress + Fourier heat conduction +
+//! Fickian species diffusion on the exact cylindrical metric. At N_θ > 1
+//! (uniform per-brick N_θ only) every component gains its **θ-θ implicit
+//! core** on the periodic within-brick ring stencil (μ for u_r/u_z,
+//! (4/3)μ·r̄² for the ω angular-momentum form, k for T, ρD for C) and the
+//! **θ curvature/cross couplings** ride the same fixed Picard lag as the
+//! S3 cross-stress terms (the τ_rθ/τ_θz θ-limbs, the ∂ω/∂θ dilatation limb
+//! in e_θθ, and the θ work fluxes through the same total-energy
+//! bookkeeping). The COMPLETE tensor is the point: the θ-θ core alone
+//! would spuriously damp m = 1 translation (u_r = U cosθ, u_θ = −U sinθ
+//! has zero true stress; its curvature partners cancel the core — the
+//! transverse-flow gate measures that cancellation at O(Δθ²)). **Mixed
+//! per-brick N_θ refuses → plan S11** (the ring-interface coupling of an
+//! implicit operator is ◆C3-wave content), and **cut geometry at N_θ > 1
+//! refuses → plan S11** with it (θ-face apertures + per-θ wall patches).
+//! One flux-form operator over the gas state —
 //! no material or regime branch; transport (μ, k, c_v, ρD, ∂h/∂Z) is a
 //! **per-cell query on the FND-7 §3.3 spine** ([`crate::transport`], S4),
 //! the same one provider the wall law next door reads. This operator holds
@@ -113,9 +122,15 @@ pub(crate) type BufF = Vec<Vec<f64>>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum GasDiffError {
-    /// Gas diffusion at N_θ > 1 rides plan S9 (the S8 split — module
-    /// doc): θ-direction fluxes + per-θ operand keying. Refuse.
+    /// Mixed per-brick N_θ in the gas class-D solve rides plan S11 (the
+    /// ring-interface coupling of an implicit operator is the ◆C3 wave's
+    /// content — the explicit flow reflux does not transfer to the CG
+    /// stencil unmodified, COUP-3 0.4.5). Refuse.
     AzimuthalResolution,
+    /// Cut geometry at N_θ > 1 in the gas class-D solve rides plan S11
+    /// (θ-face apertures + per-θ wall patches — FND-2 0.5.3 makes the
+    /// flow legal there first). Refuse.
+    CutThetaGeometry,
     /// Non-finite operand in the assembly — halt with diagnosis.
     NonFinite {
         i_r: usize,
@@ -132,8 +147,15 @@ impl std::fmt::Display for GasDiffError {
         match self {
             Self::AzimuthalResolution => write!(
                 f,
-                "gas diffusion at N_θ > 1 rides plan S9 (the S8 split: a partial \
-                 θ-stress tensor is wrong physics); refusing rather than guessing"
+                "gas diffusion at MIXED per-brick N_θ rides plan S11 (the \
+                 ring-interface coupling of an implicit operator, COUP-3 0.4.5); \
+                 refusing rather than guessing"
+            ),
+            Self::CutThetaGeometry => write!(
+                f,
+                "gas diffusion with cut geometry at N_θ > 1 rides plan S11 \
+                 (θ-face apertures + per-θ wall patches); refusing rather than \
+                 guessing"
             ),
             Self::NonFinite { i_r, i_z, what } => write!(
                 f,
@@ -240,9 +262,18 @@ pub struct GasTransportField {
     pub(crate) dh_dz: BufF,
 }
 
+/// Per-brick buffer sized to the brick's own θ-plane count (`n_theta ×
+/// BRICK_CELLS`, θ-plane-major — the grid's `cell_index` layout). At
+/// N_θ = 1 this is the pre-S9 `BRICK_CELLS` layout bit-for-bit.
+fn alloc_plane(g: &Grid) -> BufF {
+    (0..g.n_bricks())
+        .map(|bi| vec![0.0f64; g.brick(bi).n_theta() as usize * BRICK_CELLS])
+        .collect()
+}
+
 impl GasTransportField {
     pub fn alloc(g: &Grid) -> Self {
-        let mk = || vec![vec![0.0f64; BRICK_CELLS]; g.n_bricks()];
+        let mk = || alloc_plane(g);
         GasTransportField {
             mu: mk(),
             k: mk(),
@@ -355,7 +386,7 @@ pub struct GasOperands {
 
 impl GasOperands {
     pub fn alloc(g: &Grid) -> Self {
-        let mk = || vec![vec![0.0f64; BRICK_CELLS]; g.n_bricks()];
+        let mk = || alloc_plane(g);
         GasOperands {
             rho: mk(),
             ur: mk(),
@@ -384,11 +415,21 @@ impl GasOperands {
 
 /// Scratch of the gas class-D solve: lag-state cell-centered velocity
 /// gradients (the Picard-lagged cross-term operands) and the CG vectors.
+/// The θ-derivative buffers (`d*_dth`, plain ∂/∂θ per cell — consumers
+/// divide by the cell's own radius, the `e_thth_f` pattern) and the ω
+/// meridional gradients (`dom_dr`/`dom_dz`, the τ_rθ/τ_θz θ-face limbs)
+/// are written only at N_θ > 1 and never read at N_θ = 1 (the structural
+/// bit-identity guard — S9).
 pub struct GasWork {
     pub(crate) dur_dr: BufF,
     pub(crate) dur_dz: BufF,
     pub(crate) duz_dr: BufF,
     pub(crate) duz_dz: BufF,
+    pub(crate) dom_dr: BufF,
+    pub(crate) dom_dz: BufF,
+    pub(crate) dur_dth: BufF,
+    pub(crate) duz_dth: BufF,
+    pub(crate) dom_dth: BufF,
     pub(crate) b: BufF,
     pub(crate) r: BufF,
     pub(crate) z: BufF,
@@ -402,12 +443,17 @@ pub struct GasWork {
 
 impl GasWork {
     pub fn alloc(g: &Grid) -> Self {
-        let mk = || vec![vec![0.0f64; BRICK_CELLS]; g.n_bricks()];
+        let mk = || alloc_plane(g);
         GasWork {
             dur_dr: mk(),
             dur_dz: mk(),
             duz_dr: mk(),
             duz_dz: mk(),
+            dom_dr: mk(),
+            dom_dz: mk(),
+            dur_dth: mk(),
+            duz_dth: mk(),
+            dom_dth: mk(),
             b: mk(),
             r: mk(),
             z: mk(),
@@ -480,11 +526,22 @@ struct FaceGeom {
 }
 
 impl GasDiffusion<'_> {
+    /// Uniform per-brick N_θ (any value) is legal since plan S9; MIXED
+    /// N_θ and cut geometry at N_θ > 1 refuse (→ plan S11, module doc).
     fn validate(&self, g: &Grid) -> Result<(), GasDiffError> {
-        if g.bricks().iter().any(|b| b.n_theta() != 1) {
+        let nt0 = g.brick(0).n_theta();
+        if g.bricks().iter().any(|b| b.n_theta() != nt0) {
             return Err(GasDiffError::AzimuthalResolution);
         }
+        if nt0 > 1 && g.has_cut_geometry() {
+            return Err(GasDiffError::CutThetaGeometry);
+        }
         Ok(())
+    }
+
+    /// The validated uniform N_θ (callers run `validate` first).
+    fn n_theta(g: &Grid) -> usize {
+        g.brick(0).n_theta() as usize
     }
 
     /// Implicit two-point face coefficient of a component [per unit
@@ -564,7 +621,11 @@ impl GasDiffusion<'_> {
 
     /// Resolve the four (r,z) faces of `(i_r, i_z)` for the visiting gas
     /// cell. Fixed order r−, r+, z−, z+ (the deterministic contract).
-    #[allow(clippy::too_many_lines)]
+    /// Areas are per θ-sector (`nt` = the validated uniform N_θ — exactly
+    /// the pre-S9 values at N_θ = 1); the classification itself is
+    /// θ-independent (masks and apertures are per (r,z); cut geometry at
+    /// N_θ > 1 refuses upstream).
+    #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
     fn classify_faces<'b>(
         &'b self,
         g: &Grid,
@@ -572,6 +633,7 @@ impl GasDiffusion<'_> {
         local: usize,
         i_r: usize,
         i_z: usize,
+        nt: u32,
         nbrs: &[Nbr; 4],
     ) -> [(FaceKind<'b>, FaceGeom); 4] {
         let spec = g.spec();
@@ -588,7 +650,7 @@ impl GasDiffusion<'_> {
         ];
         let geoms = [
             FaceGeom {
-                area: g.face_area_r(i_r, false, 1),
+                area: g.face_area_r(i_r, false, nt),
                 dist: dr,
                 r_face: r0 + i_r as f64 * dr,
                 high: -1.0,
@@ -596,7 +658,7 @@ impl GasDiffusion<'_> {
                 radial: true,
             },
             FaceGeom {
-                area: g.face_area_r(i_r, true, 1),
+                area: g.face_area_r(i_r, true, nt),
                 dist: dr,
                 r_face: r0 + (i_r + 1) as f64 * dr,
                 high: 1.0,
@@ -604,7 +666,7 @@ impl GasDiffusion<'_> {
                 radial: true,
             },
             FaceGeom {
-                area: g.face_area_z(i_r, 1),
+                area: g.face_area_z(i_r, nt),
                 dist: dz,
                 r_face: rbar,
                 high: -1.0,
@@ -612,7 +674,7 @@ impl GasDiffusion<'_> {
                 radial: false,
             },
             FaceGeom {
-                area: g.face_area_z(i_r, 1),
+                area: g.face_area_z(i_r, nt),
                 dist: dz,
                 r_face: rbar,
                 high: 1.0,
@@ -723,7 +785,13 @@ impl GasDiffusion<'_> {
 
     /// Cell-centered lag-state velocity gradients (the Picard-lagged
     /// cross-term operands): central over gas-connected neighbors,
-    /// one-sided at walls/edges (first-order locally — module doc).
+    /// one-sided at walls/edges (first-order locally — module doc). At
+    /// N_θ > 1 the meridional gradients are computed per θ-plane, the ω
+    /// meridional gradients (`dom_dr`/`dom_dz` — the τ_rθ/τ_θz θ-face
+    /// limbs) join them, and the plain-∂/∂θ ring gradients are central
+    /// over the periodic within-brick ring (`(f[j+1] − f[j−1])/(2Δθ)`).
+    /// The θ buffers are untouched at N_θ = 1 (structural bit-identity —
+    /// they are also never read there).
     pub(crate) fn fill_lag_gradients(
         &self,
         g: &Grid,
@@ -731,7 +799,9 @@ impl GasDiffusion<'_> {
         work: &mut GasWork,
     ) -> Result<(), GasDiffError> {
         self.validate(g)?;
+        let nt = Self::n_theta(g);
         let (dr, dz) = (g.spec().dr, g.spec().dz);
+        let dtheta = std::f64::consts::TAU / nt as f64;
         for bi in 0..g.n_bricks() {
             let b = g.brick(bi);
             let (br, bz) = (b.br(), b.bz());
@@ -745,73 +815,114 @@ impl GasDiffusion<'_> {
                     .flatten(),
                 g.brick_index_by_coords(br, bz + 1),
             ];
-            for local in 0..BRICK_CELLS {
-                work.dur_dr[bi][local] = 0.0;
-                work.dur_dz[bi][local] = 0.0;
-                work.duz_dr[bi][local] = 0.0;
-                work.duz_dz[bi][local] = 0.0;
-                if b.mask() & (1u64 << local) == 0 {
-                    continue;
+            for jt in 0..nt {
+                for local in 0..BRICK_CELLS {
+                    let idx = jt * BRICK_CELLS + local;
+                    work.dur_dr[bi][idx] = 0.0;
+                    work.dur_dz[bi][idx] = 0.0;
+                    work.duz_dr[bi][idx] = 0.0;
+                    work.duz_dz[bi][idx] = 0.0;
+                    work.dom_dr[bi][idx] = 0.0;
+                    work.dom_dz[bi][idx] = 0.0;
+                    if b.mask() & (1u64 << local) == 0 {
+                        continue;
+                    }
+                    let (lr, lz) = (local / BRICK, local % BRICK);
+                    let (i_r, i_z) = b.global_rz(local);
+                    let nbrs = Self::neighbors(g, i_r, i_z, lr, lz, &nb);
+                    let dirs = [
+                        FaceDir::RMinus,
+                        FaceDir::RPlus,
+                        FaceDir::ZMinus,
+                        FaceDir::ZPlus,
+                    ];
+                    // Gas-connected neighbor value of a field (same
+                    // θ-plane — masks/apertures are per (r,z)), else None.
+                    let val = |n: Nbr, f: &BufF, dir: FaceDir| -> Option<f64> {
+                        if b.aperture_rz(dir, local) <= 0.0 {
+                            return None;
+                        }
+                        match n {
+                            Nbr::InBrick(off) => {
+                                let nl = (local as isize + off) as usize;
+                                (b.mask() & (1u64 << nl) != 0).then(|| f[bi][jt * BRICK_CELLS + nl])
+                            }
+                            Nbr::Cross { bi: nbi, local: nl } => {
+                                (g.brick(nbi).mask() & (1u64 << nl) != 0)
+                                    .then(|| f[nbi][jt * BRICK_CELLS + nl])
+                            }
+                            _ => None,
+                        }
+                    };
+                    let deriv = |f: &BufF, k_lo: usize, k_hi: usize, d: f64| -> f64 {
+                        let c = f[bi][idx];
+                        let lo = val(nbrs[k_lo], f, dirs[k_lo]);
+                        let hi = val(nbrs[k_hi], f, dirs[k_hi]);
+                        match (lo, hi) {
+                            (Some(a), Some(bv)) => (bv - a) / (2.0 * d),
+                            (None, Some(bv)) => (bv - c) / d,
+                            (Some(a), None) => (c - a) / d,
+                            // No gas neighbor either way in this direction.
+                            // Correct (not a guess) for the symmetric cases
+                            // this reaches today — a quasi-1-D fixture or a
+                            // free-slip single-cell span, where the gradient
+                            // IS zero. A genuinely under-resolved gas island
+                            // (one-cell gap between walls) would also land
+                            // here and silently lose its dilatation term; the
+                            // FND-3 PLIC/refinement wave owns that geometry
+                            // class and should refuse it at build time
+                            // (S3 review finding — recorded, not cured here).
+                            (None, None) => 0.0,
+                        }
+                    };
+                    work.dur_dr[bi][idx] = deriv(&lag.ur, 0, 1, dr);
+                    work.dur_dz[bi][idx] = deriv(&lag.ur, 2, 3, dz);
+                    work.duz_dr[bi][idx] = deriv(&lag.uz, 0, 1, dr);
+                    work.duz_dz[bi][idx] = deriv(&lag.uz, 2, 3, dz);
+                    if nt > 1 {
+                        work.dom_dr[bi][idx] = deriv(&lag.om, 0, 1, dr);
+                        work.dom_dz[bi][idx] = deriv(&lag.om, 2, 3, dz);
+                        // Periodic ring central differences, plain ∂/∂θ
+                        // (consumers divide by their own radius — the
+                        // `e_thth_f` per-cell-radius pattern).
+                        let jm = (jt + nt - 1) % nt;
+                        let jp = (jt + 1) % nt;
+                        let ring = |f: &BufF| -> f64 {
+                            (f[bi][jp * BRICK_CELLS + local] - f[bi][jm * BRICK_CELLS + local])
+                                / (2.0 * dtheta)
+                        };
+                        work.dur_dth[bi][idx] = ring(&lag.ur);
+                        work.duz_dth[bi][idx] = ring(&lag.uz);
+                        work.dom_dth[bi][idx] = ring(&lag.om);
+                    }
                 }
-                let (lr, lz) = (local / BRICK, local % BRICK);
-                let (i_r, i_z) = b.global_rz(local);
-                let nbrs = Self::neighbors(g, i_r, i_z, lr, lz, &nb);
-                let dirs = [
-                    FaceDir::RMinus,
-                    FaceDir::RPlus,
-                    FaceDir::ZMinus,
-                    FaceDir::ZPlus,
-                ];
-                // Gas-connected neighbor value of a field, else None.
-                let val = |n: Nbr, f: &BufF, dir: FaceDir| -> Option<f64> {
-                    if b.aperture_rz(dir, local) <= 0.0 {
-                        return None;
-                    }
-                    match n {
-                        Nbr::InBrick(off) => {
-                            let nl = (local as isize + off) as usize;
-                            (b.mask() & (1u64 << nl) != 0).then(|| f[bi][nl])
-                        }
-                        Nbr::Cross { bi: nbi, local: nl } => {
-                            (g.brick(nbi).mask() & (1u64 << nl) != 0).then(|| f[nbi][nl])
-                        }
-                        _ => None,
-                    }
-                };
-                let deriv = |f: &BufF, k_lo: usize, k_hi: usize, d: f64| -> f64 {
-                    let c = f[bi][local];
-                    let lo = val(nbrs[k_lo], f, dirs[k_lo]);
-                    let hi = val(nbrs[k_hi], f, dirs[k_hi]);
-                    match (lo, hi) {
-                        (Some(a), Some(bv)) => (bv - a) / (2.0 * d),
-                        (None, Some(bv)) => (bv - c) / d,
-                        (Some(a), None) => (c - a) / d,
-                        // No gas neighbor either way in this direction.
-                        // Correct (not a guess) for the symmetric cases
-                        // this reaches today — a quasi-1-D fixture or a
-                        // free-slip single-cell span, where the gradient
-                        // IS zero. A genuinely under-resolved gas island
-                        // (one-cell gap between walls) would also land
-                        // here and silently lose its dilatation term; the
-                        // FND-3 PLIC/refinement wave owns that geometry
-                        // class and should refuse it at build time
-                        // (S3 review finding — recorded, not cured here).
-                        (None, None) => 0.0,
-                    }
-                };
-                work.dur_dr[bi][local] = deriv(&lag.ur, 0, 1, dr);
-                work.dur_dz[bi][local] = deriv(&lag.ur, 2, 3, dz);
-                work.duz_dr[bi][local] = deriv(&lag.uz, 0, 1, dr);
-                work.duz_dz[bi][local] = deriv(&lag.uz, 2, 3, dz);
             }
         }
         Ok(())
     }
 
+    /// Implicit θ-θ two-point face coefficient of a component (COUP-3
+    /// 0.4.5's fixed design): μ for u_r/u_z (the τ_rθ/τ_θz implicit
+    /// limbs), (4/3)μ·r̄² for ω (the τ_θθ limb in the angular-momentum
+    /// form — both ring cells share r̄ exactly, so the coefficient is
+    /// symmetric), k for T, ρD for C. Same units contract as `face_coef`
+    /// with the θ-face distance r̄·Δθ.
+    fn face_coef_theta(comp: GasComp, rbar: f64, tr: &FaceTr) -> f64 {
+        match comp {
+            GasComp::Ur | GasComp::Uz => tr.mu,
+            GasComp::Om => (4.0 / 3.0) * tr.mu * rbar * rbar,
+            GasComp::T => tr.k,
+            GasComp::C => tr.rho_d,
+        }
+    }
+
     /// The matrix apply of one component's implicit core: `out = L·x` in
     /// solve units (force for u_r/u_z, angular-momentum torque for ω, W
     /// for T/C-flux), constants dropped exactly (the Linear discipline of
-    /// the solid assembly). `diag` receives ∂out_i/∂x_i (≤ 0).
+    /// the solid assembly). `diag` receives ∂out_i/∂x_i (≤ 0). At
+    /// N_θ > 1 each cell additionally carries its two periodic θ-θ core
+    /// faces (`face_coef_theta`); the whole θ block is structurally
+    /// skipped at N_θ = 1 (bit identity — module doc).
     pub(crate) fn apply_linear(
         &self,
         g: &Grid,
@@ -821,6 +932,10 @@ impl GasDiffusion<'_> {
         out: &mut BufF,
         mut diag: Option<&mut BufF>,
     ) {
+        let nt = Self::n_theta(g);
+        let ntu = nt as u32;
+        let a_th = g.face_area_theta();
+        let dtheta = std::f64::consts::TAU / nt as f64;
         for bi in 0..g.n_bricks() {
             let b = g.brick(bi);
             let (br, bz) = (b.br(), b.bz());
@@ -838,70 +953,91 @@ impl GasDiffusion<'_> {
             if let Some(d) = diag.as_deref_mut() {
                 d[bi].fill(0.0);
             }
-            for local in 0..BRICK_CELLS {
-                if b.mask() & (1u64 << local) == 0 {
-                    continue;
-                }
-                let (lr, lz) = (local / BRICK, local % BRICK);
-                let (i_r, i_z) = b.global_rz(local);
-                let nbrs = Self::neighbors(g, i_r, i_z, lr, lz, &nb);
-                let faces = self.classify_faces(g, bi, local, i_r, i_z, &nbrs);
-                let x_c = x[bi][local];
-                let mut acc = 0.0f64;
-                let mut dg = 0.0f64;
-                for (kind, geom) in &faces {
-                    // The face's transport must be formed EXACTLY as
-                    // `assemble_rates` forms it, or the CG solves a
-                    // different operator than the composition applies (the
-                    // S3 review wave verified that identity by
-                    // finite-differencing the true Jacobian; variable
-                    // coefficients must not break it).
-                    let ftr = match kind {
-                        FaceKind::Interior {
-                            bi: nbi, local: nl, ..
-                        } => FaceTr::between(tr, (bi, local), (*nbi, *nl)),
-                        _ => FaceTr::at(tr, bi, local),
-                    };
-                    let coef = Self::face_coef(comp, geom, &ftr);
-                    match kind {
-                        FaceKind::Interior {
-                            bi: nbi,
-                            local: nl,
-                            ap,
-                        } => {
-                            let a = geom.area * ap;
-                            let x_n = x[*nbi][*nl];
-                            acc += coef * a * (x_n - x_c) / geom.dist;
-                            dg -= coef * a / geom.dist;
-                        }
-                        FaceKind::Boundary { bc, ap } => {
-                            // Linear mode: the wall VALUE is a constant —
-                            // only the −x_c part of the two-point form
-                            // survives; zero-flux BCs contribute nothing.
-                            if geom.area > 0.0 && Self::bc_active(comp, bc) {
-                                let a = geom.area * ap;
-                                let c = coef * a / (0.5 * geom.dist);
-                                acc -= c * x_c;
-                                dg -= c;
-                            }
-                        }
-                        FaceKind::Suppressed => {}
+            for jt in 0..nt {
+                for local in 0..BRICK_CELLS {
+                    if b.mask() & (1u64 << local) == 0 {
+                        continue;
                     }
-                }
-                if comp == GasComp::Ur {
-                    // The negative-definite geometric diagonal of −τ_θθ/r:
-                    // −(4/3)μ·u_r/r̄ · geo·κV with the metric-consistent
-                    // geo = (A_out − A_in)/V = 1/r̄ (SOLV-1 §3.3 pattern).
-                    let vol = g.cell_volume(i_r, 1);
-                    let geo = (g.face_area_r(i_r, true, 1) - g.face_area_r(i_r, false, 1)) / vol;
-                    let kv = b.kappa_rz(local) * vol;
-                    let c = (4.0 / 3.0) * tr.mu[bi][local] * geo / g.r_center(i_r) * kv;
-                    acc -= c * x_c;
-                    dg -= c;
-                }
-                out[bi][local] = acc;
-                if let Some(d) = diag.as_deref_mut() {
-                    d[bi][local] = dg;
+                    let idx = jt * BRICK_CELLS + local;
+                    let (lr, lz) = (local / BRICK, local % BRICK);
+                    let (i_r, i_z) = b.global_rz(local);
+                    let nbrs = Self::neighbors(g, i_r, i_z, lr, lz, &nb);
+                    let faces = self.classify_faces(g, bi, local, i_r, i_z, ntu, &nbrs);
+                    let x_c = x[bi][idx];
+                    let mut acc = 0.0f64;
+                    let mut dg = 0.0f64;
+                    for (kind, geom) in &faces {
+                        // The face's transport must be formed EXACTLY as
+                        // `assemble_rates` forms it, or the CG solves a
+                        // different operator than the composition applies (the
+                        // S3 review wave verified that identity by
+                        // finite-differencing the true Jacobian; variable
+                        // coefficients must not break it).
+                        let ftr = match kind {
+                            FaceKind::Interior {
+                                bi: nbi, local: nl, ..
+                            } => FaceTr::between(tr, (bi, idx), (*nbi, jt * BRICK_CELLS + nl)),
+                            _ => FaceTr::at(tr, bi, idx),
+                        };
+                        let coef = Self::face_coef(comp, geom, &ftr);
+                        match kind {
+                            FaceKind::Interior {
+                                bi: nbi,
+                                local: nl,
+                                ap,
+                            } => {
+                                let a = geom.area * ap;
+                                let x_n = x[*nbi][jt * BRICK_CELLS + nl];
+                                acc += coef * a * (x_n - x_c) / geom.dist;
+                                dg -= coef * a / geom.dist;
+                            }
+                            FaceKind::Boundary { bc, ap } => {
+                                // Linear mode: the wall VALUE is a constant —
+                                // only the −x_c part of the two-point form
+                                // survives; zero-flux BCs contribute nothing.
+                                if geom.area > 0.0 && Self::bc_active(comp, bc) {
+                                    let a = geom.area * ap;
+                                    let c = coef * a / (0.5 * geom.dist);
+                                    acc -= c * x_c;
+                                    dg -= c;
+                                }
+                            }
+                            FaceKind::Suppressed => {}
+                        }
+                    }
+                    if nt > 1 {
+                        // The two periodic θ-θ core faces (θ−, θ+ — fixed
+                        // order). Always interior (no θ domain edge; cut
+                        // geometry at N_θ > 1 refuses upstream, so the
+                        // aperture is identically 1).
+                        let rbar = g.r_center(i_r);
+                        let dist = rbar * dtheta;
+                        let jm = (jt + nt - 1) % nt;
+                        let jp = (jt + 1) % nt;
+                        for jn in [jm, jp] {
+                            let nidx = jn * BRICK_CELLS + local;
+                            let ftr = FaceTr::between(tr, (bi, idx), (bi, nidx));
+                            let coef = Self::face_coef_theta(comp, rbar, &ftr);
+                            acc += coef * a_th * (x[bi][nidx] - x_c) / dist;
+                            dg -= coef * a_th / dist;
+                        }
+                    }
+                    if comp == GasComp::Ur {
+                        // The negative-definite geometric diagonal of −τ_θθ/r:
+                        // −(4/3)μ·u_r/r̄ · geo·κV with the metric-consistent
+                        // geo = (A_out − A_in)/V = 1/r̄ (SOLV-1 §3.3 pattern).
+                        let vol = g.cell_volume(i_r, ntu);
+                        let geo =
+                            (g.face_area_r(i_r, true, ntu) - g.face_area_r(i_r, false, ntu)) / vol;
+                        let kv = b.kappa_rz(local) * vol;
+                        let c = (4.0 / 3.0) * tr.mu[bi][idx] * geo / g.r_center(i_r) * kv;
+                        acc -= c * x_c;
+                        dg -= c;
+                    }
+                    out[bi][idx] = acc;
+                    if let Some(d) = diag.as_deref_mut() {
+                        d[bi][idx] = dg;
+                    }
                 }
             }
         }
@@ -928,6 +1064,10 @@ impl GasDiffusion<'_> {
         mut ledger: Option<&mut FlowLedger>,
     ) -> Result<(), GasDiffError> {
         self.validate(g)?;
+        let nt = Self::n_theta(g);
+        let ntu = nt as u32;
+        let a_th = g.face_area_theta();
+        let dtheta = std::f64::consts::TAU / nt as f64;
         for bi in 0..g.n_bricks() {
             let b = g.brick(bi);
             let (br, bz) = (b.br(), b.bz());
@@ -944,143 +1084,175 @@ impl GasDiffusion<'_> {
             for cell in rates[bi].iter_mut() {
                 *cell = [0.0; NCOMP];
             }
-            for local in 0..BRICK_CELLS {
-                if b.mask() & (1u64 << local) == 0 {
-                    continue;
-                }
-                let (lr, lz) = (local / BRICK, local % BRICK);
-                let (i_r, i_z) = b.global_rz(local);
-                let rbar = g.r_center(i_r);
-                let vol = g.cell_volume(i_r, 1);
-                let kv = b.kappa_rz(local) * vol;
-                let nbrs = Self::neighbors(g, i_r, i_z, lr, lz, &nb);
-                let faces = self.classify_faces(g, bi, local, i_r, i_z, &nbrs);
-
-                // The visiting cell's operands.
-                let at = |f: &BufF| f[bi][local];
-                let (ur_c, om_c, uz_c, tt_c, cc_c) = (
-                    at(&sol.ur),
-                    at(&sol.om),
-                    at(&sol.uz),
-                    at(&sol.tt),
-                    at(&sol.cc),
-                );
-                for (what, v, positive) in [
-                    ("velocity", ur_c.abs() + om_c.abs() + uz_c.abs(), false),
-                    // Temperature must be POSITIVE, not merely finite: a
-                    // T ≤ 0 out of the implicit solve would otherwise flow
-                    // into the k∇T fluxes and downstream seams unremarked
-                    // (META-1 P6 — refuse, never carry; S3 review finding).
-                    ("temperature", tt_c, true),
-                    ("composition operand", cc_c.abs(), false),
-                ] {
-                    if !v.is_finite() || (positive && v <= 0.0) {
-                        return Err(GasDiffError::NonFinite { i_r, i_z, what });
+            for jt in 0..nt {
+                for local in 0..BRICK_CELLS {
+                    if b.mask() & (1u64 << local) == 0 {
+                        continue;
                     }
-                }
-                // Lag-state cell value for the cross terms.
-                let e_thth_c = lag.ur[bi][local] / rbar;
+                    let idx = jt * BRICK_CELLS + local;
+                    let (lr, lz) = (local / BRICK, local % BRICK);
+                    let (i_r, i_z) = b.global_rz(local);
+                    let rbar = g.r_center(i_r);
+                    let vol = g.cell_volume(i_r, ntu);
+                    let kv = b.kappa_rz(local) * vol;
+                    let nbrs = Self::neighbors(g, i_r, i_z, lr, lz, &nb);
+                    let faces = self.classify_faces(g, bi, local, i_r, i_z, ntu, &nbrs);
 
-                // Accumulators in total units; θ-momentum in λ (angular-
-                // momentum) units. Fixed face order = the deterministic
-                // accumulation contract.
-                let mut tot = [0.0f64; NCOMP];
-                let mut tot_lam = 0.0f64;
-                let mut lam_abs = 0.0f64;
-                // The domain-edge (port) part of `tot`, kept separately so
-                // the ledger's gross scale does not double-count it.
-                let mut bc_port = [0.0f64; NCOMP];
+                    // The visiting cell's operands.
+                    let at = |f: &BufF| f[bi][idx];
+                    let (ur_c, om_c, uz_c, tt_c, cc_c) = (
+                        at(&sol.ur),
+                        at(&sol.om),
+                        at(&sol.uz),
+                        at(&sol.tt),
+                        at(&sol.cc),
+                    );
+                    for (what, v, positive) in [
+                        ("velocity", ur_c.abs() + om_c.abs() + uz_c.abs(), false),
+                        // Temperature must be POSITIVE, not merely finite: a
+                        // T ≤ 0 out of the implicit solve would otherwise flow
+                        // into the k∇T fluxes and downstream seams unremarked
+                        // (META-1 P6 — refuse, never carry; S3 review finding).
+                        ("temperature", tt_c, true),
+                        ("composition operand", cc_c.abs(), false),
+                    ] {
+                        if !v.is_finite() || (positive && v <= 0.0) {
+                            return Err(GasDiffError::NonFinite { i_r, i_z, what });
+                        }
+                    }
+                    // Lag-state cell value for the cross terms. At N_θ > 1 the
+                    // full e_θθ carries the ∂ω/∂θ dilatation limb (COUP-3
+                    // 0.4.5): e_θθ = u_r/r + (1/r)∂u_θ/∂θ = u_r/r + ∂ω/∂θ —
+                    // structurally skipped at N_θ = 1 (bit identity).
+                    let mut e_thth_c = lag.ur[bi][idx] / rbar;
+                    if nt > 1 {
+                        e_thth_c += work.dom_dth[bi][idx];
+                    }
 
-                for (kind, geom) in &faces {
-                    match kind {
-                        FaceKind::Interior {
-                            bi: nbi,
-                            local: nl,
-                            ap,
-                        } => {
-                            let ftr = FaceTr::between(tr, (bi, local), (*nbi, *nl));
-                            let two_thirds_mu = (2.0 / 3.0) * ftr.mu;
-                            let a = geom.area * ap;
-                            let d = geom.dist;
-                            let (ur_n, om_n, uz_n, tt_n, cc_n) = (
-                                sol.ur[*nbi][*nl],
-                                sol.om[*nbi][*nl],
-                                sol.uz[*nbi][*nl],
-                                sol.tt[*nbi][*nl],
-                                sol.cc[*nbi][*nl],
-                            );
-                            // Signed two-point gradients along the face
-                            // normal, oriented +r/+z (exact negation seen
-                            // from the other side ⇒ exact telescoping).
-                            let s = geom.high;
-                            let g_ur = s * (ur_n - ur_c) / d;
-                            let g_om = s * (om_n - om_c) / d;
-                            let g_uz = s * (uz_n - uz_c) / d;
-                            let g_tt = s * (tt_n - tt_c) / d;
-                            let g_cc = s * (cc_n - cc_c) / d;
-                            // Face-averaged lag quantities for the cross
-                            // pieces (identical from both sides). For
-                            // radial faces the neighbor's e_θθ uses its
-                            // own ring radius; z-face neighbors share r̄.
-                            let avg_w = |w: &BufF| 0.5 * (w[bi][local] + w[*nbi][*nl]);
-                            let e_thth_f = if geom.radial {
-                                let (n_ir, _) = g.brick(*nbi).global_rz(*nl);
-                                0.5 * (e_thth_c + lag.ur[*nbi][*nl] / g.r_center(n_ir))
-                            } else {
-                                0.5 * (e_thth_c + lag.ur[*nbi][*nl] / rbar)
-                            };
-                            let e_rr_f = avg_w(&work.dur_dr);
-                            let e_zz_f = avg_w(&work.duz_dz);
-                            let dur_dz_f = avg_w(&work.dur_dz);
-                            let duz_dr_f = avg_w(&work.duz_dr);
-                            // Face-averaged velocities for the work flux.
-                            let ur_f = 0.5 * (ur_c + ur_n);
-                            let uz_f = 0.5 * (uz_c + uz_n);
-                            let ut_f = if geom.radial {
-                                let (n_ir, _) = g.brick(*nbi).global_rz(*nl);
-                                0.5 * (om_c * rbar + sol.om[*nbi][*nl] * g.r_center(n_ir))
-                            } else {
-                                0.5 * (om_c + om_n) * rbar
-                            };
-                            // The stress components at the face (implicit
-                            // normal-gradient parts at sol; cross at lag).
-                            let (f_mr, f_mz, tau_rr_or_zz, tau_rz, tau_th);
-                            if geom.radial {
-                                let tau_rr = (4.0 / 3.0) * ftr.mu * g_ur
-                                    - two_thirds_mu * (e_thth_f + e_zz_f);
-                                let t_rz = ftr.mu * (g_uz + dur_dz_f);
-                                let t_rth = ftr.mu * geom.r_face * g_om;
-                                f_mr = a * tau_rr;
-                                f_mz = a * t_rz;
-                                tau_rr_or_zz = tau_rr;
-                                tau_rz = t_rz;
-                                tau_th = t_rth;
-                            } else {
-                                let tau_zz = (4.0 / 3.0) * ftr.mu * g_uz
-                                    - two_thirds_mu * (e_rr_f + e_thth_f);
-                                let t_rz = ftr.mu * (g_ur + duz_dr_f);
-                                let t_thz = ftr.mu * rbar * g_om;
-                                f_mr = a * t_rz;
-                                f_mz = a * tau_zz;
-                                tau_rr_or_zz = tau_zz;
-                                tau_rz = t_rz;
-                                tau_th = t_thz;
-                            }
-                            // Signed accumulation: G is the flux vector
-                            // component along +r/+z; a high face adds
-                            // +G·A, a low face −G·A (divergence).
-                            tot[I_MR] += s * f_mr;
-                            tot[I_MZ] += s * f_mz;
-                            // θ: the angular-momentum (λ = ρu_θr) flux is
-                            // A·r·τ_(rθ|θz) with the face's own radius —
-                            // `geom.r_face` is the face radius on r-faces
-                            // and r̄ on z-faces, which is exactly the
-                            // reduction of ∫r(∇·τ)_θ dV in each direction.
-                            let f_lam = a * geom.r_face * tau_th;
-                            tot_lam += s * f_lam;
-                            lam_abs += (f_lam / rbar).abs();
-                            // Energy: work + conduction.
-                            let g_e = if geom.radial {
+                    // Accumulators in total units; θ-momentum in λ (angular-
+                    // momentum) units. Fixed face order = the deterministic
+                    // accumulation contract.
+                    let mut tot = [0.0f64; NCOMP];
+                    let mut tot_lam = 0.0f64;
+                    let mut lam_abs = 0.0f64;
+                    // The domain-edge (port) part of `tot`, kept separately so
+                    // the ledger's gross scale does not double-count it.
+                    let mut bc_port = [0.0f64; NCOMP];
+
+                    for (kind, geom) in &faces {
+                        match kind {
+                            FaceKind::Interior {
+                                bi: nbi,
+                                local: nl,
+                                ap,
+                            } => {
+                                let nidx = jt * BRICK_CELLS + nl;
+                                let ftr = FaceTr::between(tr, (bi, idx), (*nbi, nidx));
+                                let two_thirds_mu = (2.0 / 3.0) * ftr.mu;
+                                let a = geom.area * ap;
+                                let d = geom.dist;
+                                let (ur_n, om_n, uz_n, tt_n, cc_n) = (
+                                    sol.ur[*nbi][nidx],
+                                    sol.om[*nbi][nidx],
+                                    sol.uz[*nbi][nidx],
+                                    sol.tt[*nbi][nidx],
+                                    sol.cc[*nbi][nidx],
+                                );
+                                // Signed two-point gradients along the face
+                                // normal, oriented +r/+z (exact negation seen
+                                // from the other side ⇒ exact telescoping).
+                                let s = geom.high;
+                                let g_ur = s * (ur_n - ur_c) / d;
+                                let g_om = s * (om_n - om_c) / d;
+                                let g_uz = s * (uz_n - uz_c) / d;
+                                let g_tt = s * (tt_n - tt_c) / d;
+                                let g_cc = s * (cc_n - cc_c) / d;
+                                // Face-averaged lag quantities for the cross
+                                // pieces (identical from both sides). For
+                                // radial faces the neighbor's e_θθ uses its
+                                // own ring radius; z-face neighbors share r̄.
+                                let avg_w = |w: &BufF| 0.5 * (w[bi][idx] + w[*nbi][nidx]);
+                                let e_thth_f = {
+                                    let (n_ir, _) = g.brick(*nbi).global_rz(*nl);
+                                    let r_n = if geom.radial { g.r_center(n_ir) } else { rbar };
+                                    let mut e_n = lag.ur[*nbi][nidx] / r_n;
+                                    if nt > 1 {
+                                        // The neighbor's own ∂ω/∂θ dilatation
+                                        // limb (its e_θθ, like e_thth_c above).
+                                        e_n += work.dom_dth[*nbi][nidx];
+                                    }
+                                    0.5 * (e_thth_c + e_n)
+                                };
+                                let e_rr_f = avg_w(&work.dur_dr);
+                                let e_zz_f = avg_w(&work.duz_dz);
+                                let dur_dz_f = avg_w(&work.dur_dz);
+                                let duz_dr_f = avg_w(&work.duz_dr);
+                                // Face-averaged velocities for the work flux.
+                                let ur_f = 0.5 * (ur_c + ur_n);
+                                let uz_f = 0.5 * (uz_c + uz_n);
+                                let ut_f = if geom.radial {
+                                    let (n_ir, _) = g.brick(*nbi).global_rz(*nl);
+                                    0.5 * (om_c * rbar + sol.om[*nbi][nidx] * g.r_center(n_ir))
+                                } else {
+                                    0.5 * (om_c + om_n) * rbar
+                                };
+                                // The stress components at the face (implicit
+                                // normal-gradient parts at sol; cross at lag).
+                                // At N_θ > 1 the meridional-face θ-limbs join
+                                // as lag terms (COUP-3 0.4.5): τ_rθ gains
+                                // (1/r)∂u_r/∂θ, τ_θz gains (1/r)∂u_z/∂θ — the
+                                // per-cell-radius face average, e_θθ pattern.
+                                let (f_mr, f_mz, tau_rr_or_zz, tau_rz, tau_th);
+                                if geom.radial {
+                                    let tau_rr = (4.0 / 3.0) * ftr.mu * g_ur
+                                        - two_thirds_mu * (e_thth_f + e_zz_f);
+                                    let t_rz = ftr.mu * (g_uz + dur_dz_f);
+                                    let mut t_rth = ftr.mu * geom.r_face * g_om;
+                                    if nt > 1 {
+                                        let (n_ir, _) = g.brick(*nbi).global_rz(*nl);
+                                        let dur_dth_r_f = 0.5
+                                            * (work.dur_dth[bi][idx] / rbar
+                                                + work.dur_dth[*nbi][nidx] / g.r_center(n_ir));
+                                        t_rth += ftr.mu * dur_dth_r_f;
+                                    }
+                                    f_mr = a * tau_rr;
+                                    f_mz = a * t_rz;
+                                    tau_rr_or_zz = tau_rr;
+                                    tau_rz = t_rz;
+                                    tau_th = t_rth;
+                                } else {
+                                    let tau_zz = (4.0 / 3.0) * ftr.mu * g_uz
+                                        - two_thirds_mu * (e_rr_f + e_thth_f);
+                                    let t_rz = ftr.mu * (g_ur + duz_dr_f);
+                                    let mut t_thz = ftr.mu * rbar * g_om;
+                                    if nt > 1 {
+                                        t_thz += ftr.mu * avg_w(&work.duz_dth) / rbar;
+                                    }
+                                    f_mr = a * t_rz;
+                                    f_mz = a * tau_zz;
+                                    tau_rr_or_zz = tau_zz;
+                                    tau_rz = t_rz;
+                                    tau_th = t_thz;
+                                }
+                                // Signed accumulation: G is the flux vector
+                                // component along +r/+z; a high face adds
+                                // +G·A, a low face −G·A (divergence).
+                                tot[I_MR] += s * f_mr;
+                                tot[I_MZ] += s * f_mz;
+                                // θ: the angular-momentum (λ = ρu_θr) flux is
+                                // A·r·τ_(rθ|θz) with the face's own radius —
+                                // `geom.r_face` is the face radius on r-faces
+                                // (exact) and r̄ on z-faces (the consistent
+                                // second-order lumped form of ∫r τ dA — the
+                                // exact z-face moment is (r̄² + Δr²/12)ΔrΔθ;
+                                // the r̄² form matches the ω-solve's ρr̄²κV
+                                // inertia and telescopes exactly — S9 review
+                                // note).
+                                let f_lam = a * geom.r_face * tau_th;
+                                tot_lam += s * f_lam;
+                                lam_abs += (f_lam / rbar).abs();
+                                // Energy: work + conduction.
+                                let g_e = if geom.radial {
                                 ur_f * tau_rr_or_zz + ut_f * tau_th + uz_f * tau_rz
                             } else {
                                 ur_f * tau_rz + ut_f * tau_th + uz_f * tau_rr_or_zz
@@ -1096,154 +1268,238 @@ impl GasDiffusion<'_> {
                                 // (crate::transport module doc), so adding it
                                 // again would double-count one flux.
                                 + ftr.rho_d * ftr.dh_dz * g_cc;
+                                tot[I_EN] += s * a * g_e;
+                                // Species.
+                                tot[I_RC] += s * a * ftr.rho_d * g_cc;
+                            }
+                            FaceKind::Boundary { bc, ap } => {
+                                if geom.area == 0.0 {
+                                    continue; // the axis face drops out
+                                }
+                                let ftr = FaceTr::at(tr, bi, idx);
+                                let two_thirds_mu = (2.0 / 3.0) * ftr.mu;
+                                let a = geom.area * ap;
+                                let half = 0.5 * geom.dist;
+                                let theta = Grid::theta_center(jt as u32, ntu);
+                                let s = geom.high;
+                                // One-sided lag pieces at the boundary (module
+                                // doc: first-order locally).
+                                let e_zz_f = work.duz_dz[bi][idx];
+                                let e_rr_f = work.dur_dr[bi][idx];
+                                let e_thth_f = e_thth_c;
+                                let dur_dz_f = work.dur_dz[bi][idx];
+                                let duz_dr_f = work.duz_dr[bi][idx];
+                                let mut port = [0.0f64; NCOMP];
+                                let mut port_lam = 0.0f64;
+                                // Viscous terms per the declared velocity BC:
+                                // NoSlip = two-point normal gradients against
+                                // the wall values + one-sided cross pieces,
+                                // work at the WALL velocity; Continuative =
+                                // zero normal gradient, cross pieces only,
+                                // work at the CELL velocity; FreeSlip = none.
+                                let visc = match &bc.velocity {
+                                    VelocityBc::FreeSlip => None,
+                                    VelocityBc::NoSlip(f) => {
+                                        let (r, z) = geom.pos;
+                                        let (wr, wt, wz) = f(r, theta, z, time);
+                                        Some((
+                                            s * (wr - ur_c) / half,
+                                            s * (wz - uz_c) / half,
+                                            s * (wt / geom.r_face - om_c) / half,
+                                            wr,
+                                            wt,
+                                            wz,
+                                        ))
+                                    }
+                                    VelocityBc::Continuative => {
+                                        Some((0.0, 0.0, 0.0, ur_c, om_c * rbar, uz_c))
+                                    }
+                                };
+                                if let Some((g_ur, g_uz, g_om, wr, wt, wz)) = visc {
+                                    let (tau_nn, tau_rz, mut tau_th);
+                                    if geom.radial {
+                                        tau_nn = (4.0 / 3.0) * ftr.mu * g_ur
+                                            - two_thirds_mu * (e_thth_f + e_zz_f);
+                                        tau_rz = ftr.mu * (g_uz + dur_dz_f);
+                                        tau_th = ftr.mu * geom.r_face * g_om;
+                                        if nt > 1 {
+                                            // One-sided τ_rθ θ-limb at the
+                                            // boundary (cell radius — module
+                                            // doc: first-order locally).
+                                            tau_th += ftr.mu * work.dur_dth[bi][idx] / rbar;
+                                        }
+                                        port[I_MR] += s * a * tau_nn;
+                                        port[I_MZ] += s * a * tau_rz;
+                                    } else {
+                                        tau_nn = (4.0 / 3.0) * ftr.mu * g_uz
+                                            - two_thirds_mu * (e_rr_f + e_thth_f);
+                                        tau_rz = ftr.mu * (g_ur + duz_dr_f);
+                                        tau_th = ftr.mu * rbar * g_om;
+                                        if nt > 1 {
+                                            // One-sided τ_θz θ-limb.
+                                            tau_th += ftr.mu * work.duz_dth[bi][idx] / rbar;
+                                        }
+                                        port[I_MZ] += s * a * tau_nn;
+                                        port[I_MR] += s * a * tau_rz;
+                                    }
+                                    port_lam += s * a * geom.r_face * tau_th;
+                                    // The face's work at its declared/continued
+                                    // velocity (the Couette drive when a NoSlip
+                                    // wall moves) — an energy port.
+                                    let g_e_work = if geom.radial {
+                                        wr * tau_nn + wt * tau_th + wz * tau_rz
+                                    } else {
+                                        wr * tau_rz + wt * tau_th + wz * tau_nn
+                                    };
+                                    port[I_EN] += s * a * g_e_work;
+                                }
+                                // Thermal + species two-point terms (declared
+                                // independently of the velocity condition).
+                                if let Some(w_tt) = self.bc_value(GasComp::T, bc, geom, theta, time)
+                                {
+                                    let g_tt = s * (w_tt - tt_c) / half;
+                                    port[I_EN] += s * a * ftr.k * g_tt;
+                                }
+                                if let Some(wc) = self.bc_value(GasComp::C, bc, geom, theta, time) {
+                                    let g_cc = s * (wc - cc_c) / half;
+                                    port[I_RC] += s * a * ftr.rho_d * g_cc;
+                                    // ...and the enthalpy that flux carries.
+                                    port[I_EN] += s * a * ftr.rho_d * ftr.dh_dz * g_cc;
+                                }
+                                for ((t_k, b_k), p_k) in
+                                    tot.iter_mut().zip(bc_port.iter_mut()).zip(&port)
+                                {
+                                    *t_k += p_k;
+                                    *b_k += p_k;
+                                }
+                                tot_lam += port_lam;
+                                lam_abs += (port_lam / rbar).abs();
+                                if let Some(l) = ledger.as_deref_mut() {
+                                    #[allow(clippy::needless_range_loop)]
+                                    // kk indexes two ledger arrays
+                                    for kk in 0..NCOMP {
+                                        if kk == I_MT {
+                                            continue; // θ goes through the src lines
+                                        }
+                                        l.port_net[kk] += port[kk];
+                                        l.port_abs[kk] += port[kk].abs();
+                                    }
+                                }
+                            }
+                            FaceKind::Suppressed => {}
+                        }
+                    }
+
+                    if nt > 1 {
+                        // The two periodic θ-faces (θ−, θ+ — fixed order after
+                        // the r/z quartet; COUP-3 0.4.5's full θ-stress
+                        // tensor). Always interior (periodic ring; no cut
+                        // geometry at N_θ > 1), aperture identically 1. The
+                        // per-unit-arc two-point gradients read `sol` (the
+                        // implicit limbs — arithmetic mirrors `apply_linear`'s
+                        // θ core); the curvature/cross limbs read the lag
+                        // gradients, face-averaged (both cells share r̄, so
+                        // every face quantity is identical from either side —
+                        // exact telescoping).
+                        let dist = rbar * dtheta;
+                        let jm = (jt + nt - 1) % nt;
+                        let jp = (jt + 1) % nt;
+                        for (jn, s) in [(jm, -1.0f64), (jp, 1.0f64)] {
+                            let nidx = jn * BRICK_CELLS + local;
+                            let ftr = FaceTr::between(tr, (bi, idx), (bi, nidx));
+                            let two_thirds_mu = (2.0 / 3.0) * ftr.mu;
+                            let a = a_th;
+                            // Signed per-unit-arc gradients along +θ:
+                            // g_X = (1/r)∂X/∂θ at the face.
+                            let g_ur = s * (sol.ur[bi][nidx] - ur_c) / dist;
+                            let g_om = s * (sol.om[bi][nidx] - om_c) / dist;
+                            let g_uz = s * (sol.uz[bi][nidx] - uz_c) / dist;
+                            let g_tt = s * (sol.tt[bi][nidx] - tt_c) / dist;
+                            let g_cc = s * (sol.cc[bi][nidx] - cc_c) / dist;
+                            // Face-averaged lag pieces (same (r,z) cell pair).
+                            let avg_w = |w: &BufF| 0.5 * (w[bi][idx] + w[bi][nidx]);
+                            let e_rr_f = avg_w(&work.dur_dr);
+                            let e_zz_f = avg_w(&work.duz_dz);
+                            let dom_dr_f = avg_w(&work.dom_dr);
+                            let dom_dz_f = avg_w(&work.dom_dz);
+                            let ur_f_lag = 0.5 * (lag.ur[bi][idx] + lag.ur[bi][nidx]);
+                            // The θ-column stresses at the face:
+                            // τ_rθ = μ[(1/r)∂u_r/∂θ + r ∂ω/∂r]
+                            // τ_θθ = (4/3)μ[(1/r)∂u_θ/∂θ + u_r/r] − ⅔μ(e_rr+e_zz)
+                            //        with (1/r)∂u_θ/∂θ = ∂ω/∂θ = r̄·g_om
+                            // τ_θz = μ[(1/r)∂u_z/∂θ + r ∂ω/∂z]
+                            let tau_rth = ftr.mu * (g_ur + rbar * dom_dr_f);
+                            let tau_thth = (4.0 / 3.0) * ftr.mu * (rbar * g_om + ur_f_lag / rbar)
+                                - two_thirds_mu * (e_rr_f + e_zz_f);
+                            let tau_thz = ftr.mu * (g_uz + rbar * dom_dz_f);
+                            tot[I_MR] += s * a * tau_rth;
+                            tot[I_MZ] += s * a * tau_thz;
+                            // Angular momentum: the θ-face torque flux is
+                            // A_θ·r̄·τ_θθ (force τ_θθ × arm r̄).
+                            let f_lam = a * rbar * tau_thth;
+                            tot_lam += s * f_lam;
+                            lam_abs += (f_lam / rbar).abs();
+                            // Energy: work + conduction + species enthalpy —
+                            // the same total-energy bookkeeping as the r/z
+                            // faces (dissipation from the KE ledger).
+                            let ur_f = 0.5 * (ur_c + sol.ur[bi][nidx]);
+                            let ut_f = 0.5 * (om_c + sol.om[bi][nidx]) * rbar;
+                            let uz_f = 0.5 * (uz_c + sol.uz[bi][nidx]);
+                            let g_e = ur_f * tau_rth
+                                + ut_f * tau_thth
+                                + uz_f * tau_thz
+                                + ftr.k * g_tt
+                                + ftr.rho_d * ftr.dh_dz * g_cc;
                             tot[I_EN] += s * a * g_e;
-                            // Species.
                             tot[I_RC] += s * a * ftr.rho_d * g_cc;
                         }
-                        FaceKind::Boundary { bc, ap } => {
-                            if geom.area == 0.0 {
-                                continue; // the axis face drops out
-                            }
-                            let ftr = FaceTr::at(tr, bi, local);
-                            let two_thirds_mu = (2.0 / 3.0) * ftr.mu;
-                            let a = geom.area * ap;
-                            let half = 0.5 * geom.dist;
-                            let theta = Grid::theta_center(0, 1);
-                            let s = geom.high;
-                            // One-sided lag pieces at the boundary (module
-                            // doc: first-order locally).
-                            let e_zz_f = work.duz_dz[bi][local];
-                            let e_rr_f = work.dur_dr[bi][local];
-                            let e_thth_f = e_thth_c;
-                            let dur_dz_f = work.dur_dz[bi][local];
-                            let duz_dr_f = work.duz_dr[bi][local];
-                            let mut port = [0.0f64; NCOMP];
-                            let mut port_lam = 0.0f64;
-                            // Viscous terms per the declared velocity BC:
-                            // NoSlip = two-point normal gradients against
-                            // the wall values + one-sided cross pieces,
-                            // work at the WALL velocity; Continuative =
-                            // zero normal gradient, cross pieces only,
-                            // work at the CELL velocity; FreeSlip = none.
-                            let visc = match &bc.velocity {
-                                VelocityBc::FreeSlip => None,
-                                VelocityBc::NoSlip(f) => {
-                                    let (r, z) = geom.pos;
-                                    let (wr, wt, wz) = f(r, theta, z, time);
-                                    Some((
-                                        s * (wr - ur_c) / half,
-                                        s * (wz - uz_c) / half,
-                                        s * (wt / geom.r_face - om_c) / half,
-                                        wr,
-                                        wt,
-                                        wz,
-                                    ))
-                                }
-                                VelocityBc::Continuative => {
-                                    Some((0.0, 0.0, 0.0, ur_c, om_c * rbar, uz_c))
-                                }
-                            };
-                            if let Some((g_ur, g_uz, g_om, wr, wt, wz)) = visc {
-                                let (tau_nn, tau_rz, tau_th);
-                                if geom.radial {
-                                    tau_nn = (4.0 / 3.0) * ftr.mu * g_ur
-                                        - two_thirds_mu * (e_thth_f + e_zz_f);
-                                    tau_rz = ftr.mu * (g_uz + dur_dz_f);
-                                    tau_th = ftr.mu * geom.r_face * g_om;
-                                    port[I_MR] += s * a * tau_nn;
-                                    port[I_MZ] += s * a * tau_rz;
-                                } else {
-                                    tau_nn = (4.0 / 3.0) * ftr.mu * g_uz
-                                        - two_thirds_mu * (e_rr_f + e_thth_f);
-                                    tau_rz = ftr.mu * (g_ur + duz_dr_f);
-                                    tau_th = ftr.mu * rbar * g_om;
-                                    port[I_MZ] += s * a * tau_nn;
-                                    port[I_MR] += s * a * tau_rz;
-                                }
-                                port_lam += s * a * geom.r_face * tau_th;
-                                // The face's work at its declared/continued
-                                // velocity (the Couette drive when a NoSlip
-                                // wall moves) — an energy port.
-                                let g_e_work = if geom.radial {
-                                    wr * tau_nn + wt * tau_th + wz * tau_rz
-                                } else {
-                                    wr * tau_rz + wt * tau_th + wz * tau_nn
-                                };
-                                port[I_EN] += s * a * g_e_work;
-                            }
-                            // Thermal + species two-point terms (declared
-                            // independently of the velocity condition).
-                            if let Some(w_tt) = self.bc_value(GasComp::T, bc, geom, theta, time) {
-                                let g_tt = s * (w_tt - tt_c) / half;
-                                port[I_EN] += s * a * ftr.k * g_tt;
-                            }
-                            if let Some(wc) = self.bc_value(GasComp::C, bc, geom, theta, time) {
-                                let g_cc = s * (wc - cc_c) / half;
-                                port[I_RC] += s * a * ftr.rho_d * g_cc;
-                                // ...and the enthalpy that flux carries.
-                                port[I_EN] += s * a * ftr.rho_d * ftr.dh_dz * g_cc;
-                            }
-                            for ((t_k, b_k), p_k) in
-                                tot.iter_mut().zip(bc_port.iter_mut()).zip(&port)
-                            {
-                                *t_k += p_k;
-                                *b_k += p_k;
-                            }
-                            tot_lam += port_lam;
-                            lam_abs += (port_lam / rbar).abs();
-                            if let Some(l) = ledger.as_deref_mut() {
-                                #[allow(clippy::needless_range_loop)]
-                                // kk indexes two ledger arrays
-                                for kk in 0..NCOMP {
-                                    if kk == I_MT {
-                                        continue; // θ goes through the src lines
-                                    }
-                                    l.port_net[kk] += port[kk];
-                                    l.port_abs[kk] += port[kk].abs();
-                                }
-                            }
-                        }
-                        FaceKind::Suppressed => {}
                     }
-                }
 
-                // −τ_θθ/r volume source of the r-momentum (implicit
-                // diagonal + lagged compressible correction), with the
-                // metric-consistent 1/r̄ (SOLV-1 §3.3 pattern).
-                let geo = (g.face_area_r(i_r, true, 1) - g.face_area_r(i_r, false, 1)) / vol;
-                let e_rr_c = work.dur_dr[bi][local];
-                let e_zz_c = work.duz_dz[bi][local];
-                let mu_c = tr.mu[bi][local];
-                let tau_thth =
-                    (4.0 / 3.0) * mu_c * (ur_c / rbar) - (2.0 / 3.0) * mu_c * (e_rr_c + e_zz_c);
-                let src_mr = -tau_thth * geo * kv;
-                tot[I_MR] += src_mr;
+                    // −τ_θθ/r volume source of the r-momentum (implicit
+                    // diagonal + lagged compressible correction), with the
+                    // metric-consistent 1/r̄ (SOLV-1 §3.3 pattern). At N_θ > 1
+                    // e_θθ's lagged ∂ω/∂θ dilatation limb joins (the
+                    // "(2μ/r²)∂u_θ/∂θ-class basis term" — the m = 1 curvature
+                    // partner of the θ-θ core).
+                    let geo =
+                        (g.face_area_r(i_r, true, ntu) - g.face_area_r(i_r, false, ntu)) / vol;
+                    let e_rr_c = work.dur_dr[bi][idx];
+                    let e_zz_c = work.duz_dz[bi][idx];
+                    let mu_c = tr.mu[bi][idx];
+                    let mut tau_thth =
+                        (4.0 / 3.0) * mu_c * (ur_c / rbar) - (2.0 / 3.0) * mu_c * (e_rr_c + e_zz_c);
+                    if nt > 1 {
+                        tau_thth += (4.0 / 3.0) * mu_c * work.dom_dth[bi][idx];
+                    }
+                    let src_mr = -tau_thth * geo * kv;
+                    tot[I_MR] += src_mr;
 
-                // Commit: conserved-density rates (θ from λ/(r̄κV)).
-                let inv_kv = 1.0 / kv;
-                let rate = &mut rates[bi][local];
-                rate[I_MR] = tot[I_MR] * inv_kv;
-                rate[I_MT] = tot_lam / (rbar * kv);
-                rate[I_MZ] = tot[I_MZ] * inv_kv;
-                rate[I_EN] = tot[I_EN] * inv_kv;
-                rate[I_RC] = tot[I_RC] * inv_kv;
+                    // Commit: conserved-density rates (θ from λ/(r̄κV)).
+                    let inv_kv = 1.0 / kv;
+                    let rate = &mut rates[bi][idx];
+                    rate[I_MR] = tot[I_MR] * inv_kv;
+                    rate[I_MT] = tot_lam / (rbar * kv);
+                    rate[I_MZ] = tot[I_MZ] * inv_kv;
+                    rate[I_EN] = tot[I_EN] * inv_kv;
+                    rate[I_RC] = tot[I_RC] * inv_kv;
 
-                if let Some(l) = ledger.as_deref_mut() {
-                    // Interior fluxes telescope for r/z-momentum, energy,
-                    // species — only BC ports (accumulated in the Boundary
-                    // arm above) and the volume/θ sources are ledgered.
-                    l.src_net[I_MR] += src_mr;
-                    l.src_abs[I_MR] += src_mr.abs();
-                    l.src_net[I_MT] += tot_lam / rbar;
-                    l.src_abs[I_MT] += lam_abs;
-                    // Gross magnitude for S[q]: the cell's NET applied
-                    // increment. The boundary ports are already in
-                    // `port_abs`; adding `tot` (which contains them) would
-                    // double-count and silently LOOSEN `TOL_AUDIT` on every
-                    // edge-touching cell (S3 review finding) — charge only
-                    // the interior part here.
-                    for kk in [I_MR, I_MZ, I_EN, I_RC] {
-                        l.port_abs[kk] += (tot[kk] - bc_port[kk]).abs();
+                    if let Some(l) = ledger.as_deref_mut() {
+                        // Interior fluxes telescope for r/z-momentum, energy,
+                        // species — only BC ports (accumulated in the Boundary
+                        // arm above) and the volume/θ sources are ledgered.
+                        l.src_net[I_MR] += src_mr;
+                        l.src_abs[I_MR] += src_mr.abs();
+                        l.src_net[I_MT] += tot_lam / rbar;
+                        l.src_abs[I_MT] += lam_abs;
+                        // Gross magnitude for S[q]: the cell's NET applied
+                        // increment. The boundary ports are already in
+                        // `port_abs`; adding `tot` (which contains them) would
+                        // double-count and silently LOOSEN `TOL_AUDIT` on every
+                        // edge-touching cell (S3 review finding) — charge only
+                        // the interior part here.
+                        for kk in [I_MR, I_MZ, I_EN, I_RC] {
+                            l.port_abs[kk] += (tot[kk] - bc_port[kk]).abs();
+                        }
                     }
                 }
             }
@@ -1267,17 +1523,39 @@ impl GasDiffusion<'_> {
     ) -> Result<(usize, f64), GasDiffError> {
         let nb = g.n_bricks();
         let masked = |bi: usize| g.brick(bi).mask();
+        // Plane-wide iteration (θ-plane-major; the (r,z) gas mask repeats
+        // per plane — `idx % BRICK_CELLS`). At N_θ = 1 this is the pre-S9
+        // loop bit-for-bit (same length, same order). The dot's partials
+        // are per (brick, θ-plane) into the fixed-shape tree: at N_θ = 1
+        // that is exactly the per-brick list of before, and on an
+        // axisymmetric N_θ = 2^k world the equal per-plane partials
+        // combine EXACTLY (pairwise doubling is exact), so the CG's
+        // accept/iterate decisions — and therefore the whole solve — stay
+        // bit-identical per plane to the N_θ = 1 march (the S9 symmetry
+        // gate's arithmetic basis).
         let dot = |a: &BufF, c: &BufF| -> f64 {
             let partials: Vec<f64> = (0..nb)
                 .map(|bi| {
                     let m = masked(bi);
-                    let mut acc = 0.0f64;
-                    for local in 0..BRICK_CELLS {
-                        if m & (1u64 << local) != 0 {
-                            acc += a[bi][local] * c[bi][local];
-                        }
-                    }
-                    acc
+                    let nt_b = a[bi].len() / BRICK_CELLS;
+                    // Per-plane sums combined by the same fixed tree
+                    // WITHIN the brick (N_θ is a power of two on the
+                    // ladder, so equal planes double pairwise exactly),
+                    // then the per-brick partials enter the outer tree —
+                    // whose shape is therefore N_θ-independent.
+                    let planes: Vec<f64> = (0..nt_b)
+                        .map(|jt| {
+                            let mut acc = 0.0f64;
+                            for local in 0..BRICK_CELLS {
+                                if m & (1u64 << local) != 0 {
+                                    let idx = jt * BRICK_CELLS + local;
+                                    acc += a[bi][idx] * c[bi][idx];
+                                }
+                            }
+                            acc
+                        })
+                        .collect();
+                    tree_combine(&planes)
                 })
                 .collect();
             tree_combine(&partials)
@@ -1287,11 +1565,11 @@ impl GasDiffusion<'_> {
         self.apply_linear(g, comp, tr, x, &mut work.q, Some(&mut work.diag));
         for bi in 0..nb {
             let m = masked(bi);
-            for local in 0..BRICK_CELLS {
-                if m & (1u64 << local) == 0 {
-                    work.diag[bi][local] = 1.0;
+            for idx in 0..work.diag[bi].len() {
+                if m & (1u64 << (idx % BRICK_CELLS)) == 0 {
+                    work.diag[bi][idx] = 1.0;
                 } else {
-                    work.diag[bi][local] = work.mass[bi][local] - wqnew * work.diag[bi][local];
+                    work.diag[bi][idx] = work.mass[bi][idx] - wqnew * work.diag[bi][idx];
                 }
             }
         }
@@ -1302,8 +1580,8 @@ impl GasDiffusion<'_> {
         let b_norm2 = dot(&work.b, &work.b);
         let eps2 = EPS_CG_RESID * EPS_CG_RESID * b_norm2;
         for bi in 0..nb {
-            for local in 0..BRICK_CELLS {
-                work.z[bi][local] = work.r[bi][local] / work.diag[bi][local];
+            for idx in 0..work.z[bi].len() {
+                work.z[bi][idx] = work.r[bi][idx] / work.diag[bi][idx];
             }
             work.p[bi].copy_from_slice(&work.z[bi]);
         }
@@ -1315,12 +1593,12 @@ impl GasDiffusion<'_> {
             self.apply_linear(g, comp, tr, &work.p, &mut work.q, None);
             for bi in 0..nb {
                 let m = masked(bi);
-                for local in 0..BRICK_CELLS {
-                    if m & (1u64 << local) == 0 {
-                        work.q[bi][local] = 0.0;
+                for idx in 0..work.q[bi].len() {
+                    if m & (1u64 << (idx % BRICK_CELLS)) == 0 {
+                        work.q[bi][idx] = 0.0;
                     } else {
-                        work.q[bi][local] =
-                            work.mass[bi][local] * work.p[bi][local] - wqnew * work.q[bi][local];
+                        work.q[bi][idx] =
+                            work.mass[bi][idx] * work.p[bi][idx] - wqnew * work.q[bi][idx];
                     }
                 }
             }
@@ -1330,22 +1608,22 @@ impl GasDiffusion<'_> {
             }
             let alpha = rz / pq;
             for bi in 0..nb {
-                for local in 0..BRICK_CELLS {
-                    work.delta[bi][local] += alpha * work.p[bi][local];
-                    work.r[bi][local] -= alpha * work.q[bi][local];
+                for idx in 0..work.delta[bi].len() {
+                    work.delta[bi][idx] += alpha * work.p[bi][idx];
+                    work.r[bi][idx] -= alpha * work.q[bi][idx];
                 }
             }
             for bi in 0..nb {
-                for local in 0..BRICK_CELLS {
-                    work.z[bi][local] = work.r[bi][local] / work.diag[bi][local];
+                for idx in 0..work.z[bi].len() {
+                    work.z[bi][idx] = work.r[bi][idx] / work.diag[bi][idx];
                 }
             }
             let rz_new = dot(&work.r, &work.z);
             let beta = rz_new / rz;
             rz = rz_new;
             for bi in 0..nb {
-                for local in 0..BRICK_CELLS {
-                    work.p[bi][local] = work.z[bi][local] + beta * work.p[bi][local];
+                for idx in 0..work.p[bi].len() {
+                    work.p[bi][idx] = work.z[bi][idx] + beta * work.p[bi][idx];
                 }
             }
             r_norm2 = dot(&work.r, &work.r);
@@ -1360,9 +1638,9 @@ impl GasDiffusion<'_> {
         }
         for (bi, xb) in x.iter_mut().enumerate() {
             let m = masked(bi);
-            for (local, xv) in xb.iter_mut().enumerate() {
-                if m & (1u64 << local) != 0 {
-                    *xv += work.delta[bi][local];
+            for (idx, xv) in xb.iter_mut().enumerate() {
+                if m & (1u64 << (idx % BRICK_CELLS)) != 0 {
+                    *xv += work.delta[bi][idx];
                 }
             }
         }
@@ -1381,21 +1659,23 @@ impl GasDiffusion<'_> {
     ) {
         for (bi, mb) in work.mass.iter_mut().enumerate() {
             let b = g.brick(bi);
-            for (local, mv) in mb.iter_mut().enumerate() {
+            let nt = b.n_theta();
+            for (idx, mv) in mb.iter_mut().enumerate() {
+                let local = idx % BRICK_CELLS;
                 if b.mask() & (1u64 << local) == 0 {
                     *mv = 1.0;
                     continue;
                 }
                 let (i_r, _) = b.global_rz(local);
-                let kv = b.kappa_rz(local) * g.cell_volume(i_r, 1);
-                let rho_c = rho[bi][local];
+                let kv = b.kappa_rz(local) * g.cell_volume(i_r, nt);
+                let rho_c = rho[bi][idx];
                 *mv = match comp {
                     GasComp::Ur | GasComp::Uz | GasComp::C => rho_c * kv,
                     GasComp::Om => {
                         let r = g.r_center(i_r);
                         rho_c * r * r * kv
                     }
-                    GasComp::T => rho_c * tr.cv[bi][local] * kv,
+                    GasComp::T => rho_c * tr.cv[bi][idx] * kv,
                 };
             }
         }
@@ -2341,6 +2621,123 @@ mod tests {
         assert!(
             net.abs() <= 1e-12 * gross.max(1e-30),
             "suppressed world leaks energy: net {net:.3e} vs gross {gross:.3e}"
+        );
+    }
+
+    /// **The S9 trap gate (COUP-3 0.4.5): uniform transverse flow is not
+    /// spuriously damped.** The Cartesian translation u_r = U·cosθ,
+    /// u_θ = −U·sinθ has ZERO true stress; the θ-θ core alone would damp
+    /// it at the full μU/r² scale (the partial-tensor wrong physics the S8
+    /// split refused to ship). With the curvature/cross partners present
+    /// the discrete residual must sit at truncation (O(Δθ²) + O(Δr²)),
+    /// orders below that scale, and shrink as N_θ refines.
+    #[test]
+    fn transverse_flow_is_not_spuriously_damped() {
+        const U: f64 = 1.0;
+        let residual = |nt: u32| -> f64 {
+            let spec = GridSpec {
+                r_min: 1.0,
+                dr: 0.05,
+                n_r: 8,
+                z_min: 0.0,
+                dz: 0.05,
+                n_z: 8,
+                n_theta_max: nt,
+                axisymmetry_assertion: false,
+            };
+            let g = Grid::build(spec, &["dummy"]).expect("grid");
+            let o = op();
+            let mut sol = GasOperands::alloc(&g);
+            for bi in 0..g.n_bricks() {
+                let b = g.brick(bi);
+                let n = b.n_theta() as usize;
+                for jt in 0..n {
+                    let th = Grid::theta_center(jt as u32, b.n_theta());
+                    for l in 0..BRICK_CELLS {
+                        let idx = jt * BRICK_CELLS + l;
+                        let (ir, _) = b.global_rz(l);
+                        let r = g.r_center(ir);
+                        sol.rho[bi][idx] = 1.2;
+                        sol.ur[bi][idx] = U * th.cos();
+                        sol.om[bi][idx] = -U * th.sin() / r;
+                        sol.uz[bi][idx] = 0.3;
+                        sol.tt[bi][idx] = 300.0;
+                        sol.cc[bi][idx] = 0.4;
+                    }
+                }
+            }
+            let mut work = GasWork::alloc(&g);
+            let mut rates: Vec<Vec<Cons>> = (0..g.n_bricks())
+                .map(|bi| vec![[0.0f64; NCOMP]; g.brick(bi).n_theta() as usize * BRICK_CELLS])
+                .collect();
+            let t = {
+                let mut f = GasTransportField::alloc(&g);
+                let p = props();
+                for bi in 0..g.n_bricks() {
+                    let b = g.brick(bi);
+                    for jt in 0..b.n_theta() as usize {
+                        for l in 0..BRICK_CELLS {
+                            let (ir, iz) = b.global_rz(l);
+                            f.set(bi, jt * BRICK_CELLS + l, ir, iz, &p).expect("tr");
+                        }
+                    }
+                }
+                f
+            };
+            o.fill_lag_gradients(&g, &sol, &mut work).expect("grads");
+            o.assemble_rates(&g, &sol, &sol, &work, &t, 0.0, &mut rates, None)
+                .expect("assembly");
+            let (n_r, n_z) = (g.spec().n_r, g.spec().n_z);
+            let mut worst = 0.0f64;
+            for (bi, rb) in rates.iter().enumerate() {
+                let b = g.brick(bi);
+                for (idx, cell) in rb.iter().enumerate() {
+                    let (ir, iz) = b.global_rz(idx % BRICK_CELLS);
+                    // Interior cells only: at domain edges the declared
+                    // zero-flux BC leaves the interior face's O(Δθ²)
+                    // truncation uncancelled with a 1/Δ amplification —
+                    // the module-doc first-order-local boundary effect,
+                    // not the m = 1 damping this gate measures.
+                    if ir == 0 || iz == 0 || ir + 1 == n_r || iz + 1 == n_z {
+                        continue;
+                    }
+                    if b.mask() & (1u64 << (idx % BRICK_CELLS)) != 0 {
+                        // C is uniform: every species gradient is an exact
+                        // zero (no dilatation limb enters species).
+                        assert_eq!(cell[I_RC], 0.0, "species θ flux on uniform C");
+                        // I_MZ joins the residual: at z-edge cells the
+                        // zero-flux boundary face cannot cancel the
+                        // interior face's O(Δθ²) dilatation-limb τ_zz —
+                        // truncation, not damping.
+                        worst = worst
+                            .max(cell[I_MR].abs())
+                            .max(cell[I_MT].abs())
+                            .max(cell[I_MZ].abs())
+                            .max(cell[I_EN].abs());
+                    }
+                }
+            }
+            worst
+        };
+        // The partial-tensor damping scale the trap names: ρ·du_r/dt would
+        // be ~μU/r² at r_min if the curvature partners were missing.
+        let scale = MU * U / (1.0 * 1.0);
+        let (r8, r32) = (residual(8), residual(32));
+        println!(
+            "transverse-flow residual: N_θ=8 {r8:.3e}, N_θ=32 {r32:.3e}, \
+             partial-tensor scale {scale:.3e}"
+        );
+        assert!(
+            r32 <= 0.025 * scale,
+            "N_θ=32 residual {r32:.3e} not ≪ the partial-tensor damping {scale:.3e}"
+        );
+        assert!(
+            r8 <= 0.25 * scale,
+            "N_θ=8 residual {r8:.3e} not below the partial-tensor damping {scale:.3e}"
+        );
+        assert!(
+            r32 < 0.5 * r8,
+            "residual does not shrink with θ refinement: {r8:.3e} → {r32:.3e}"
         );
     }
 }

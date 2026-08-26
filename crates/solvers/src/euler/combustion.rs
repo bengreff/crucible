@@ -639,10 +639,19 @@ impl Combustion<'_> {
 }
 
 /// Fixed τ-refreeze count of the class-`R` implicit node solve
-/// ([`Combustion::implicit_auto_update`]): `τ_ign` depends on the unknown
-/// only through the blend's projected pressure (weak — `Δp/p` per node is
-/// CFL-bounded), so two refreezes converge the frozen-τ closed form far past
-/// the closure's own band. Fixed structure, never adaptive (COUP-3 §3.7).
+/// ([`Combustion::implicit_auto_update`]). **Contract (restated at S9,
+/// SOLV-4 §3.6 v0.4.8):** the fixed count is STRUCTURE, not a convergence
+/// claim — the S9 witness measured the original "weak τ-dependence"
+/// premise false in the reaction-driven-compression band (within one node
+/// solve the burn's constant-volume compression heating can drive τ down
+/// ~×1/100; measured node lag vs the converged frozen-τ fixed point:
+/// ~3.0e-1 at w/τ = 0.3, 2.2e-2 at 1, 2.1e-3 at 3). The residual per-node
+/// lag is a temporal-truncation-class term the SDC sweeps' own
+/// re-evaluations absorb — measured composed temporal order 1.8–2.1
+/// through that same band (the dt-Richardson gate owns accuracy; the
+/// envelope pin catches lag growth) — the same split as the truncated
+/// gas-diffusion Picard (COUP-3 §3.1). Fixed structure, never adaptive
+/// (COUP-3 §3.7).
 pub const N_TAU_REFREEZE: usize = 2;
 
 /// The **reacting measure** `R = ∫ b(1−b)·(the live burn rate) dV` (SOLV-4

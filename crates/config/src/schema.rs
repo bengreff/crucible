@@ -55,7 +55,13 @@ pub(crate) struct MetaBlock {
 }
 
 /// `[geometry]` — grammar owned by FND-3; only the pieces the loader checks
-/// now are typed (the CSG/STL grammar lands with the FND-3 session).
+/// now are typed. The FND-3 geometry KERNEL landed at plan S9
+/// (`crucible_grid::geom3d`: CSG SDF trees, STL winding-number import,
+/// voxelization + PLIC); the config GRAMMAR binding it (`[geometry.csg]`
+/// shape trees / `stl` references + resolution + seeds, content-addressed
+/// like the contour) rides the engine-assembly 3-D wave (plan S10/S11 with
+/// refinement tiles + ◆C3), which is its first consumer — engine worlds
+/// stay contour-authored N_θ = 1 until then.
 /// `n_theta_max` is the config-declared finest azimuthal resolution
 /// (FND-3 §3.3), gated by the θ-ladder rule (FND-4 §3.4-5b / FND-2 §3.4);
 /// `axisymmetric = true` is the FND-2 §3.4 **recorded axisymmetry

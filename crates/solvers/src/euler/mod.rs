@@ -51,8 +51,12 @@
 //! aggregate of the same numbers — bit-exact telescoping, interior to the
 //! COUP-2 ledger. Constraints (validated loudly): 2:1 ladder adjacency
 //! between face-adjacent bricks; ≥ NGHOST cells of uniform N_θ on each side
-//! of a jump (proper nesting); cut geometry + SRD stay N_θ = 1 (FND-3 3-D
-//! wave); combustion at mixed N_θ refuses → plan S11. The Δt rule carries
+//! of a jump (proper nesting); combustion at mixed N_θ refuses → plan S11.
+//! Cut geometry (S9, FND-3 §3.3 3-D apertures): legal at **uniform** N_θ —
+//! the sweeps and SRD consume per-θ-sector κ and six face apertures
+//! (`kappa_cell`/`aperture_cell`; at N_θ = 1 plane 0 keeps every certified
+//! contour world bit-identical); mixed-N_θ cut worlds and combustion on a
+//! cut world at N_θ > 1 refuse → plan S11. The Δt rule carries
 //! the per-brick θ-CFL member and, when combustion is scheduled, the
 //! SOLV-4 §3.6 front-carrier signal `σ_front` with its `S_T_MACH_LIMIT`
 //! model-form scale-separation refusal (COUP-3 §3.4, S8).
@@ -85,18 +89,22 @@ use rayon::prelude::*;
 /// per geometry.
 pub const KAPPA_SRD: f64 = 0.5;
 
-/// A merge neighborhood: member cells as global (i_r, i_z) with their gas
-/// volumes κ·V (per θ-plane) — the SRD weights.
+/// A merge neighborhood in its (r,z)-keyed view: member cells as global
+/// (i_r, i_z) with their gas volumes κ·V (per θ-plane) — the SRD weights.
 pub type SrdNeighborhood = Vec<((usize, usize), f64)>;
 
-/// The deterministic SRD merging neighborhood of cell (i_r, i_z): itself,
-/// then flow-connected face neighbors (shared aperture > 0) added in
-/// descending-κ order (ties: the fixed FaceDir enumeration order) until
+/// The deterministic SRD merging neighborhood of cell (i_r, i_z) in its
+/// **(r,z)-keyed sector-0 view**: itself, then flow-connected face
+/// neighbors (shared aperture > 0) added in descending-κ order (ties: the
+/// fixed candidate order, see [`neighborhood_cells`]) until
 /// `Σκ ≥ KAPPA_SRD`. `None` for a regular cell (κ ≥ threshold). The
 /// under-resolved case — no reachable neighborhood — refuses loudly.
 /// Public because the engine's wall-exchange debit must deposit into the
 /// same merged control volume SRD stabilizes (single owner of the rule).
 /// Returned weights are the members' gas volumes κ·V (per θ-plane).
+/// Its consumers (the wall patches) march N_θ = 1 worlds — a neighborhood
+/// that recruits a θ-neighbor (possible only at N_θ > 1, S9) cannot be
+/// expressed in this view and refuses rather than mis-keying.
 pub fn srd_neighborhood(
     g: &Grid,
     i_r: usize,
@@ -106,11 +114,17 @@ pub fn srd_neighborhood(
     if g.kappa(i_r, i_z) >= KAPPA_SRD {
         return Ok(None);
     }
-    let members = neighborhood_cells(g, i_r, i_z)?;
+    let members = neighborhood_cells(g, i_r, i_z, 0)?;
+    if members.iter().any(|&(_, _, j)| j != 0) {
+        return Err(FlowError::ThetaCutUnsupported {
+            what: "the (r,z)-keyed SRD debit neighborhood (a θ-recruited member; \
+                   per-θ wall patches)",
+        });
+    }
     Ok(Some(
         members
             .into_iter()
-            .map(|(r, z)| ((r, z), g.kappa(r, z) * g.cell_volume(r, nt)))
+            .map(|(r, z, _)| ((r, z), g.kappa(r, z) * g.cell_volume(r, nt)))
             .collect(),
     ))
 }
@@ -132,7 +146,8 @@ fn theta_mapped(prim: &[Prim], local: usize, j: u32, nts: u32, nt_nbr: u32) -> P
 }
 
 /// One uniform-N_θ span of a pencil run (S8): its stored per-θ face values
-/// (`af[j·(len+1) + fi]`) and per-cell κ, for the two-pass sweeps.
+/// (`af[j·(len+1) + fi]`) and per-sector cell κ (`kap[j·len + q]`, S9 —
+/// cut geometry is per-θ-sector), for the two-pass sweeps.
 struct SweepSeg {
     start: usize,
     len: usize,
@@ -148,7 +163,7 @@ impl SweepSeg {
             len,
             nts,
             af: vec![[0.0; NCOMP]; nts as usize * (len + 1)],
-            kap: vec![1.0; len],
+            kap: vec![1.0; nts as usize * len],
         }
     }
 }
@@ -186,38 +201,71 @@ fn reflux_fixup(segs: &mut [SweepSeg], agg: impl Fn(&Cons, &Cons) -> Cons) {
     }
 }
 
-/// The one neighborhood-construction rule (see [`srd_neighborhood`]).
-fn neighborhood_cells(g: &Grid, i_r: usize, i_z: usize) -> Result<Vec<(usize, usize)>, FlowError> {
-    let mut members = vec![(i_r, i_z)];
-    let mut sum = g.kappa(i_r, i_z);
+/// The one neighborhood-construction rule (see [`srd_neighborhood`]),
+/// sector-resolved (S9): the neighborhood of θ-sector cell
+/// (i_r, i_theta, i_z) is itself, then flow-connected face neighbors
+/// (shared aperture > 0) added in descending-κ order until
+/// `Σκ ≥ KAPPA_SRD`. Ties break on the fixed candidate order
+/// **r−, r+, θ−, θ+, z−, z+** (the S9 extension of the S2 FaceDir tie
+/// rule; documented order, stable sort). θ-candidates are the two ring
+/// neighbors (j ∓ 1 mod N_θ) of the SAME (r,z) cell, offered only at
+/// N_θ > 1 — at N_θ = 1 the ring neighbor is the cell itself, so it is
+/// excluded STRUCTURALLY and the N_θ = 1 neighborhoods are bit-identical
+/// to the pre-S9 rule.
+fn neighborhood_cells(
+    g: &Grid,
+    i_r: usize,
+    i_z: usize,
+    i_theta: u32,
+) -> Result<Vec<(usize, usize, u32)>, FlowError> {
+    let nt = g.brick(0).n_theta();
+    let mut members = vec![(i_r, i_z, i_theta)];
+    let mut sum = g.kappa_at(i_r, i_theta, i_z);
     if sum >= KAPPA_SRD {
         return Ok(members);
     }
-    let nbrs = [
-        (FaceDir::RMinus, i_r.checked_sub(1).map(|r| (r, i_z))),
-        (FaceDir::RPlus, Some((i_r + 1, i_z))),
-        (FaceDir::ZMinus, i_z.checked_sub(1).map(|z| (i_r, z))),
-        (FaceDir::ZPlus, Some((i_r, i_z + 1))),
-    ];
-    let mut cand: Vec<((usize, usize), f64)> = Vec::new();
-    for (dir, nbr) in nbrs {
+    let mut cand: Vec<((usize, usize, u32), f64)> = Vec::new();
+    let push_rz = |dir: FaceDir, nbr: Option<(usize, usize)>, cand: &mut Vec<_>| {
         if let Some((nr, nz)) = nbr
-            && g.aperture(i_r, i_z, dir) > 0.0
+            && g.aperture_at(i_r, i_theta, i_z, dir) > 0.0
             && g.is_active(nr, nz)
         {
-            cand.push(((nr, nz), g.kappa(nr, nz)));
+            cand.push(((nr, nz, i_theta), g.kappa_at(nr, i_theta, nz)));
+        }
+    };
+    push_rz(
+        FaceDir::RMinus,
+        i_r.checked_sub(1).map(|r| (r, i_z)),
+        &mut cand,
+    );
+    push_rz(FaceDir::RPlus, Some((i_r + 1, i_z)), &mut cand);
+    if nt > 1 {
+        let ring = [
+            (FaceDir::ThetaMinus, (i_theta + nt - 1) % nt),
+            (FaceDir::ThetaPlus, (i_theta + 1) % nt),
+        ];
+        for (dir, jn) in ring {
+            if g.aperture_at(i_r, i_theta, i_z, dir) > 0.0 {
+                cand.push(((i_r, i_z, jn), g.kappa_at(i_r, jn, i_z)));
+            }
         }
     }
-    // Stable sort: descending κ, FaceDir order breaking ties.
+    push_rz(
+        FaceDir::ZMinus,
+        i_z.checked_sub(1).map(|z| (i_r, z)),
+        &mut cand,
+    );
+    push_rz(FaceDir::ZPlus, Some((i_r, i_z + 1)), &mut cand);
+    // Stable sort: descending κ, the fixed candidate order breaking ties.
     cand.sort_by(|a, b| b.1.partial_cmp(&a.1).expect("finite κ"));
-    for ((nr, nz), k) in cand {
-        members.push((nr, nz));
+    for ((nr, nz, nj), k) in cand {
+        members.push((nr, nz, nj));
         sum += k;
         if sum >= KAPPA_SRD {
             return Ok(members);
         }
     }
-    Err(FlowError::CutCellUnmergeable { i_r, i_z })
+    Err(FlowError::CutCellUnmergeable { i_r, i_z, i_theta })
 }
 
 /// Components of `U` (SOLV-1 §3.1) and of the primitive view
@@ -549,8 +597,11 @@ pub enum FlowError {
         at: usize,
     },
     /// A capability that requires uniform N_θ was scheduled on a mixed-N_θ
-    /// world (combustion → plan S11; cut geometry/SRD → FND-3 3-D wave).
+    /// world (combustion, cut geometry/SRD → plan S11).
     MixedThetaUnsupported { what: &'static str },
+    /// A capability not yet carried by cut geometry at N_θ > 1 (S9 opened
+    /// the Euler sweeps + SRD only; the rest rides plan S11).
+    ThetaCutUnsupported { what: &'static str },
     /// SOLV-4 §3.6 (S8, 0.4.7): `S_T` crossed `S_T_MACH_LIMIT ×` the
     /// cell's own sound speed — the quasi-isobaric flamelet premises are
     /// broken (fast-deflagration/DDT class, out of the declared model
@@ -580,8 +631,13 @@ pub enum FlowError {
     /// A cut cell below [`KAPPA_SRD`] has no flow-connected neighborhood
     /// reaching the merge target — the geometry has a feature thinner than
     /// the cell (FND-2 §5 under-resolved class). Refine or fix the
-    /// contour; never smear (META-1 P6).
-    CutCellUnmergeable { i_r: usize, i_z: usize },
+    /// contour; never smear (META-1 P6). Sector-resolved at N_θ > 1 (S9;
+    /// `i_theta` = 0 on N_θ = 1 worlds).
+    CutCellUnmergeable {
+        i_r: usize,
+        i_z: usize,
+        i_theta: u32,
+    },
 }
 
 impl std::fmt::Display for FlowError {
@@ -608,6 +664,11 @@ impl std::fmt::Display for FlowError {
                 f,
                 "{what} requires uniform N_θ — refusing on this mixed-N_θ world rather \
                  than guessing"
+            ),
+            Self::ThetaCutUnsupported { what } => write!(
+                f,
+                "{what} is not yet carried by cut geometry at N_θ > 1 — refusing rather \
+                 than guessing (S9 opened the Euler sweeps + SRD; the rest rides plan S11)"
             ),
             Self::FrontCarrierScaleSeparation {
                 i_r,
@@ -642,11 +703,11 @@ impl std::fmt::Display for FlowError {
                 "{bc} has no closed form under the selected EOS occupant — refusing \
                  rather than approximating (the COUP-7 boundary object owns this inflow)"
             ),
-            Self::CutCellUnmergeable { i_r, i_z } => write!(
+            Self::CutCellUnmergeable { i_r, i_z, i_theta } => write!(
                 f,
-                "cut cell (i_r={i_r}, i_z={i_z}) below the SRD threshold has no \
-                 flow-connected merge neighborhood — geometry under-resolved at this \
-                 cell size (feature thinner than a cell); refine, never smear"
+                "cut cell (i_r={i_r}, i_z={i_z}, i_θ={i_theta}) below the SRD threshold \
+                 has no flow-connected merge neighborhood — geometry under-resolved at \
+                 this cell size (feature thinner than a cell); refine, never smear"
             ),
         }
     }
@@ -768,7 +829,9 @@ pub(crate) struct Scratch {
     pub(crate) ledger: FlowLedger,
 }
 
-/// Cells addressed as (brick index, local index) — the sweeps' native form.
+/// Cells addressed as (brick index, θ-plane-major storage index
+/// `i_theta·BRICK_CELLS + local`) — the field storage's native form (at
+/// N_θ = 1 the index IS the local (r,z) index).
 type BrickLocalCells = Vec<(usize, usize)>;
 
 /// One sweep's (net, gross) port-flux partial (COUP-2 ledger).
@@ -785,21 +848,28 @@ impl EulerWorkspace {
 }
 
 /// SRD bookkeeping (Berger & Giuliani 2020): the small-cell neighborhoods
-/// in fixed lexicographic owner order and the overlap counts n_j.
+/// in fixed owner order and the overlap counts n_j. Sector-resolved (S9):
+/// each θ-plane's neighborhoods come from that sector's own κ and
+/// apertures (`neighborhood_cells`), and members address cells by their
+/// θ-plane-major storage index — at N_θ = 1 `idx = local`, so the pre-S9
+/// bookkeeping is reproduced bit-identically.
 struct CutScratch {
-    /// Per small cell: members as (bi, local) with members[0] = owner, and
-    /// the members' gas volumes κ·V (per θ-plane) — the merge weights.
+    /// Per small sector-cell, in the fixed build order (θ-plane-major:
+    /// sector 0's (r,z) sweep first, then sector 1, …): members as
+    /// (bi, idx) with members[0] = owner, and the members' gas volumes
+    /// κ_j·V — the merge weights.
     small: Vec<(BrickLocalCells, Vec<f64>)>,
-    /// Overlap count n_j per (bi·BRICK_CELLS + local): 1 + the number of
+    /// Overlap count n_j per (bi·N_θ·BRICK_CELLS + idx): 1 + the number of
     /// OTHER cells' neighborhoods containing j (every cell's own
     /// neighborhood — trivial for regular cells — is the 1).
     counts: Vec<u32>,
 }
 
 impl<E: EosLaw + Sync> Euler<'_, E> {
-    /// S8 N_θ legality (module doc): per-brick ladder membership, 2:1
-    /// face-adjacency, uniform-N_θ-only capabilities (cut geometry/SRD;
-    /// combustion → S11). Pure structure checks — a pure function of the
+    /// S8/S9 N_θ legality (module doc): per-brick ladder membership, 2:1
+    /// face-adjacency, uniform-N_θ-only capabilities (cut geometry/SRD and
+    /// combustion at mixed N_θ → S11; combustion on cut worlds at
+    /// N_θ > 1 → S11). Pure structure checks — a pure function of the
     /// grid, run before every evaluation (cheap: O(bricks)).
     fn validate(&self, g: &Grid) -> Result<(), FlowError> {
         let nt0 = g.brick(0).n_theta();
@@ -832,7 +902,8 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
         if mixed {
             if g.has_cut_geometry() {
                 return Err(FlowError::MixedThetaUnsupported {
-                    what: "cut geometry / State Redistribution (FND-3 3-D wave)",
+                    what: "cut geometry / State Redistribution (mixed-N_θ cut worlds \
+                           ride plan S11; uniform N_θ is legal — S9)",
                 });
             }
             if self.combustion.is_some() {
@@ -841,6 +912,13 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                            c-diffusion rides plan S11)",
                 });
             }
+        } else if nt0 > 1 && g.has_cut_geometry() && self.combustion.is_some() {
+            // S9 opened the sweeps + SRD to per-sector cut geometry; the
+            // combustion operator's D_c face stencil still reads the
+            // (r,z)-plane geometry view, which cannot see a θ-varying wall.
+            return Err(FlowError::ThetaCutUnsupported {
+                what: "the SOLV-4 §3.6 combustion operator's per-sector D_c face geometry",
+            });
         }
         Ok(())
     }
@@ -866,30 +944,40 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
             }
         }
         let cut = if g.has_cut_geometry() {
-            // Uniform N_θ guaranteed by `validate` (cut ⇒ N_θ = 1 today,
-            // `Grid::build_with_geometry`); the SRD weights key on it.
+            // Uniform N_θ guaranteed by `validate` (mixed-N_θ cut worlds
+            // refuse → plan S11); the SRD weights key on it. Sector-resolved
+            // (S9): each θ-plane's small cells and neighborhoods come from
+            // that sector's own κ/apertures, in the fixed θ-plane-major
+            // build order — at N_θ = 1 this is exactly the pre-S9 (r,z)
+            // sweep, bit-identical.
             let nt = g.brick(0).n_theta();
+            let plane = nt as usize * BRICK_CELLS;
             let mut small = Vec::new();
-            let mut counts = vec![1u32; nb * BRICK_CELLS];
-            let to_bl = |(r, z): (usize, usize)| {
+            let mut counts = vec![1u32; nb * plane];
+            let to_bl = |(r, z, j): (usize, usize, u32)| {
                 let bi = bmap[(r / BRICK) * nbz + z / BRICK].expect("active cell's brick");
-                (bi, (r % BRICK) * BRICK + z % BRICK)
+                (
+                    bi,
+                    j as usize * BRICK_CELLS + (r % BRICK) * BRICK + z % BRICK,
+                )
             };
-            for i_r in 0..n_r {
-                for i_z in 0..n_z {
-                    if !act[i_r * n_z + i_z] || g.kappa(i_r, i_z) >= KAPPA_SRD {
-                        continue;
+            for j in 0..nt {
+                for i_r in 0..n_r {
+                    for i_z in 0..n_z {
+                        if !act[i_r * n_z + i_z] || g.kappa_at(i_r, j, i_z) >= KAPPA_SRD {
+                            continue;
+                        }
+                        let cells = neighborhood_cells(g, i_r, i_z, j)?;
+                        let kv: Vec<f64> = cells
+                            .iter()
+                            .map(|&(r, z, jj)| g.kappa_at(r, jj, z) * g.cell_volume(r, nt))
+                            .collect();
+                        let members: Vec<(usize, usize)> = cells.into_iter().map(to_bl).collect();
+                        for &(bi, idx) in &members[1..] {
+                            counts[bi * plane + idx] += 1;
+                        }
+                        small.push((members, kv));
                     }
-                    let cells = neighborhood_cells(g, i_r, i_z)?;
-                    let kv: Vec<f64> = cells
-                        .iter()
-                        .map(|&(r, z)| g.kappa(r, z) * g.cell_volume(r, nt))
-                        .collect();
-                    let members: Vec<(usize, usize)> = cells.into_iter().map(to_bl).collect();
-                    for &(bi, local) in &members[1..] {
-                        counts[bi * BRICK_CELLS + local] += 1;
-                    }
-                    small.push((members, kv));
                 }
             }
             Some(CutScratch { small, counts })
@@ -967,8 +1055,7 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     /// construction, and the reason Δt keeps the UNCUT CFL. A no-op on
     /// worlds without cut geometry (bit-identity preserved).
     pub fn apply_srd(&self, g: &mut Grid, f: &EulerFields, ws: &EulerWorkspace) {
-        let nt = g.brick(0).n_theta();
-        Self::srd(g, f, nt, &ws.0);
+        Self::srd(g, f, &ws.0);
     }
 
     /// The State-Redistribution pass (META-3 `state-redistribution`),
@@ -981,70 +1068,72 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
     ///
     /// `Σ κVU` is preserved exactly (each j appears in n_j neighborhoods);
     /// only cells touched by a small neighborhood change. Fixed owner and
-    /// member order ⇒ deterministic.
-    fn srd(g: &mut Grid, f: &EulerFields, nt: u32, s: &Scratch) {
+    /// member order ⇒ deterministic. Sector-resolved (S9): the
+    /// neighborhoods carry θ-plane-major member indices and per-sector
+    /// κ_j·V weights, so one pass covers every θ-plane; at N_θ = 1 the
+    /// index IS the (r,z) local index and the pass is the pre-S9
+    /// arithmetic, bit-identical.
+    fn srd(g: &mut Grid, f: &EulerFields, s: &Scratch) {
         let Some(cut) = &s.cut else { return };
         if cut.small.is_empty() {
             return;
         }
+        // Uniform N_θ on cut worlds (`validate`); the counts stride.
+        let plane = g.brick(0).n_theta() as usize * BRICK_CELLS;
         let ids = f.ids();
-        for j_theta in 0..nt {
-            // (bi, local) → (Σ Q contributions, is-small-owner).
-            let mut acc: std::collections::BTreeMap<(usize, usize), ([f64; NCOMP], bool)> =
-                std::collections::BTreeMap::new();
-            for (members, _) in &cut.small {
-                acc.entry(members[0]).or_insert(([0.0; NCOMP], false)).1 = true;
-            }
-            let read = |g: &Grid, bi: usize, local: usize| -> Cons {
-                let b = g.brick(bi);
-                let idx = b.cell_index(j_theta, local);
-                std::array::from_fn(|k| b.field(ids[k])[idx])
-            };
-            // Neighborhood averages against the CURRENT (provisional) state.
-            let mut qs: Vec<[f64; NCOMP]> = Vec::with_capacity(cut.small.len());
-            for (members, kv) in &cut.small {
-                let mut num = [0.0f64; NCOMP];
-                let mut den = 0.0f64;
-                for (&(bi, local), &kvj) in members.iter().zip(kv) {
-                    let w = kvj / f64::from(cut.counts[bi * BRICK_CELLS + local]);
-                    let u = read(g, bi, local);
-                    for k in 0..NCOMP {
-                        num[k] += w * u[k];
-                    }
-                    den += w;
+        // (bi, idx) → (Σ Q contributions, is-small-owner).
+        let mut acc: std::collections::BTreeMap<(usize, usize), ([f64; NCOMP], bool)> =
+            std::collections::BTreeMap::new();
+        for (members, _) in &cut.small {
+            acc.entry(members[0]).or_insert(([0.0; NCOMP], false)).1 = true;
+        }
+        let read = |g: &Grid, bi: usize, idx: usize| -> Cons {
+            let b = g.brick(bi);
+            std::array::from_fn(|k| b.field(ids[k])[idx])
+        };
+        // Neighborhood averages against the CURRENT (provisional) state.
+        let mut qs: Vec<[f64; NCOMP]> = Vec::with_capacity(cut.small.len());
+        for (members, kv) in &cut.small {
+            let mut num = [0.0f64; NCOMP];
+            let mut den = 0.0f64;
+            for (&(bi, idx), &kvj) in members.iter().zip(kv) {
+                let w = kvj / f64::from(cut.counts[bi * plane + idx]);
+                let u = read(g, bi, idx);
+                for k in 0..NCOMP {
+                    num[k] += w * u[k];
                 }
-                qs.push(std::array::from_fn(|k| num[k] / den));
+                den += w;
             }
-            // Base term: every affected non-owner keeps its own trivial
-            // neighborhood's Q = Û; owners' own Q is the merged one.
-            for (members, _) in &cut.small {
-                for &(bi, local) in members {
-                    acc.entry((bi, local)).or_insert(([0.0; NCOMP], false));
-                }
+            qs.push(std::array::from_fn(|k| num[k] / den));
+        }
+        // Base term: every affected non-owner keeps its own trivial
+        // neighborhood's Q = Û; owners' own Q is the merged one.
+        for (members, _) in &cut.small {
+            for &(bi, idx) in members {
+                acc.entry((bi, idx)).or_insert(([0.0; NCOMP], false));
             }
-            for ((bi, local), (a, owner)) in &mut acc {
-                if !*owner {
-                    let u = read(g, *bi, *local);
-                    for k in 0..NCOMP {
-                        a[k] += u[k];
-                    }
+        }
+        for ((bi, idx), (a, owner)) in &mut acc {
+            if !*owner {
+                let u = read(g, *bi, *idx);
+                for k in 0..NCOMP {
+                    a[k] += u[k];
                 }
             }
-            for ((members, _), q) in cut.small.iter().zip(&qs) {
-                for &(bi, local) in members {
-                    let (a, _) = acc.get_mut(&(bi, local)).expect("member entry");
-                    for k in 0..NCOMP {
-                        a[k] += q[k];
-                    }
+        }
+        for ((members, _), q) in cut.small.iter().zip(&qs) {
+            for &(bi, idx) in members {
+                let (a, _) = acc.get_mut(&(bi, idx)).expect("member entry");
+                for k in 0..NCOMP {
+                    a[k] += q[k];
                 }
             }
-            // Write back U_j = acc_j / n_j in fixed (bi, local) order.
-            for ((bi, local), (a, _)) in &acc {
-                let n = f64::from(cut.counts[*bi * BRICK_CELLS + *local]);
-                let idx = g.brick(*bi).cell_index(j_theta, *local);
-                for (k, &id) in ids.iter().enumerate() {
-                    g.brick_field_mut(*bi, id)[idx] = a[k] / n;
-                }
+        }
+        // Write back U_j = acc_j / n_j in fixed (bi, idx) order.
+        for ((bi, idx), (a, _)) in &acc {
+            let n = f64::from(cut.counts[*bi * plane + *idx]);
+            for (k, &id) in ids.iter().enumerate() {
+                g.brick_field_mut(*bi, id)[*idx] = a[k] / n;
             }
         }
     }
@@ -1526,23 +1615,22 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                             let left_nt = (si > 0).then(|| segs[si - 1].nts);
                             let right_nt = (si + 1 < segs.len()).then(|| segs[si + 1].nts);
                             let area = &metrics[&nts].0;
-                            for (q, ii) in (seg_start..seg_end).enumerate() {
-                                let bi =
-                                    bmap[(ii / BRICK) * nbz + bz].expect("active cell's brick");
-                                let b = g.brick(bi);
-                                let local = (ii % BRICK) * BRICK + lz;
-                                segs[si].kap[q] = b.kappa_rz(local);
-                                ap[q] = b.aperture_rz(FaceDir::RMinus, local);
-                                if q + 1 == seg_len {
-                                    ap[seg_len] = b.aperture_rz(FaceDir::RPlus, local);
-                                }
-                            }
                             for j in 0..nts {
                                 let theta = Grid::theta_center(j, nts);
+                                // Per-sector cut geometry (FND-3 §3.3, S9):
+                                // κ and the face apertures of THIS θ-plane.
+                                // At N_θ = 1 plane 0 carries the identical
+                                // bits the pre-S9 (r,z) reads produced.
                                 for (q, ii) in (seg_start..seg_end).enumerate() {
                                     let bi =
                                         bmap[(ii / BRICK) * nbz + bz].expect("active cell's brick");
+                                    let b = g.brick(bi);
                                     let local = (ii % BRICK) * BRICK + lz;
+                                    segs[si].kap[j as usize * seg_len + q] = b.kappa_cell(j, local);
+                                    ap[q] = b.aperture_cell(FaceDir::RMinus, j, local);
+                                    if q + 1 == seg_len {
+                                        ap[seg_len] = b.aperture_cell(FaceDir::RPlus, j, local);
+                                    }
                                     w[NGHOST + q] = prim[bi][j as usize * BRICK_CELLS + local];
                                 }
                                 // Low ghosts.
@@ -1656,9 +1744,9 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                                     let k_slot = slot[ii / BRICK].expect("active brick in row");
                                     let idx = j * BRICK_CELLS + (ii % BRICK) * BRICK + lz;
                                     let rate = &mut row[k_slot].1[idx];
+                                    let kap = seg.kap[j * seg.len + q];
                                     for k in 0..NCOMP {
-                                        rate[k] +=
-                                            (af[q][k] - af[q + 1][k]) / (seg.kap[q] * vol[ii]);
+                                        rate[k] += (af[q][k] - af[q + 1][k]) / (kap * vol[ii]);
                                     }
                                 }
                                 if first && last {
@@ -1696,7 +1784,16 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
 
     /// Azimuthal sweep: periodic ring pencils, each inside one brick at its
     /// own N_θ (S8). At N_θ = 1 both faces carry the same computed flux and
-    /// cancel exactly — geometry, not a code branch.
+    /// cancel exactly — geometry, not a code branch. Cut geometry (S9,
+    /// FND-3 §3.3): each θ-face flux is aperture-weighted and the rate
+    /// divide uses the sector's own κ. **One canonical aperture side per
+    /// face**: face `fi` (between ring cells fi−1 and fi, mod N_θ) reads
+    /// the θ+ aperture of the cell BEFORE it, so both accumulation
+    /// directions use the identical bits and the periodic face 0 ≡ face
+    /// N_θ (their fluxes already agree by the periodic gather; the shared
+    /// bits keep the ring telescoping exact). Full-box worlds: ap = 1.0
+    /// and κ = 1.0 exactly, so `F·1.0 ≡ F` and `x/1.0 ≡ x` — the S12
+    /// arithmetic-identity idiom, every pre-S9 world bit-identical.
     fn sweep_theta(&self, g: &Grid, s: &mut Scratch) {
         let a_th = g.face_area_theta();
         let n_max = g.bricks().iter().map(|b| b.n_theta()).max().unwrap_or(1) as usize;
@@ -1704,19 +1801,21 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
         let mut fl = vec![[0.0f64; NPRIM]; n_max + 1];
         let mut fr = vec![[0.0f64; NPRIM]; n_max + 1];
         let mut af = vec![[0.0f64; NCOMP]; n_max + 1];
+        let mut ap = vec![1.0f64; n_max + 1];
 
         for bi in 0..g.n_bricks() {
-            let mask = g.brick(bi).mask();
-            let n = g.brick(bi).n_theta() as usize;
+            let b = g.brick(bi);
+            let mask = b.mask();
+            let n = b.n_theta() as usize;
             for local in 0..BRICK_CELLS {
                 if mask & (1u64 << local) == 0 {
                     continue;
                 }
-                let (i_r, _) = g.brick(bi).global_rz(local);
+                let (i_r, _) = b.global_rz(local);
                 // One per-ring metric ratio `A_θ/V` (= 1/(r̄·Δθ) exactly),
                 // applied to the flux difference — the same conditioning
                 // rule as the z sweep.
-                let inv = a_th / g.cell_volume(i_r, g.brick(bi).n_theta());
+                let inv = a_th / g.cell_volume(i_r, b.n_theta());
                 // Periodic gather with wrapped ghosts: pencil index pi maps
                 // to ring cell (pi − NGHOST) mod n, offset by NGHOST·n so
                 // the subtraction cannot underflow at any n ≥ 1.
@@ -1724,14 +1823,24 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                     let jj = (pi + NGHOST * n - NGHOST) % n;
                     *cell = s.prim[bi][jj * BRICK_CELLS + local];
                 }
+                // Canonical θ-face apertures (module note above): face fi
+                // reads the θ+ aperture of ring cell (fi − 1) mod n.
+                for (fi, a) in ap[..=n].iter_mut().enumerate() {
+                    let jp = ((fi + n - 1) % n) as u32;
+                    *a = b.aperture_cell(FaceDir::ThetaPlus, jp, local);
+                }
                 ppm_faces(&w[..n + 2 * NGHOST], n, &mut fl, &mut fr);
                 for fi in 0..=n {
-                    af[fi] = hllc_flux(&fl[fi], &fr[fi], I_MT, &self.eos);
+                    let flux = hllc_flux(&fl[fi], &fr[fi], I_MT, &self.eos);
+                    for k in 0..NCOMP {
+                        af[fi][k] = flux[k] * ap[fi];
+                    }
                 }
                 for j in 0..n {
+                    let kap = b.kappa_cell(j as u32, local);
                     let rate = &mut s.rate[bi][j * BRICK_CELLS + local];
                     for k in 0..NCOMP {
-                        rate[k] += (af[j][k] - af[j + 1][k]) * inv;
+                        rate[k] += (af[j][k] - af[j + 1][k]) * inv / kap;
                     }
                 }
             }
@@ -1820,22 +1929,20 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                             let seg_end = seg_start + seg_len;
                             let left_nt = (si > 0).then(|| segs[si - 1].nts);
                             let right_nt = (si + 1 < segs.len()).then(|| segs[si + 1].nts);
-                            for (q, ii) in (seg_start..seg_end).enumerate() {
-                                let bi = bmap[br * nbz + ii / BRICK].expect("active cell's brick");
-                                let b = g.brick(bi);
-                                let local = lr * BRICK + (ii % BRICK);
-                                segs[si].kap[q] = b.kappa_rz(local);
-                                ap[q] = b.aperture_rz(FaceDir::ZMinus, local);
-                                if q + 1 == seg_len {
-                                    ap[seg_len] = b.aperture_rz(FaceDir::ZPlus, local);
-                                }
-                            }
                             for j in 0..nts {
                                 let theta = Grid::theta_center(j, nts);
+                                // Per-sector cut geometry (FND-3 §3.3, S9)
+                                // — see sweep_r.
                                 for (q, ii) in (seg_start..seg_end).enumerate() {
                                     let bi =
                                         bmap[br * nbz + ii / BRICK].expect("active cell's brick");
+                                    let b = g.brick(bi);
                                     let local = lr * BRICK + (ii % BRICK);
+                                    segs[si].kap[j as usize * seg_len + q] = b.kappa_cell(j, local);
+                                    ap[q] = b.aperture_cell(FaceDir::ZMinus, j, local);
+                                    if q + 1 == seg_len {
+                                        ap[seg_len] = b.aperture_cell(FaceDir::ZPlus, j, local);
+                                    }
                                     w[NGHOST + q] = prim[bi][j as usize * BRICK_CELLS + local];
                                 }
                                 if let Some(lnt) = left_nt {
@@ -1924,8 +2031,9 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                                     let k_slot = slot[ii / BRICK].expect("active brick in column");
                                     let idx = j * BRICK_CELLS + lr * BRICK + (ii % BRICK);
                                     let rate = &mut col[k_slot].1[idx];
+                                    let kap = seg.kap[j * seg.len + q];
                                     for k in 0..NCOMP {
-                                        rate[k] += (af[q][k] - af[q + 1][k]) * inv_dz / seg.kap[q];
+                                        rate[k] += (af[q][k] - af[q + 1][k]) * inv_dz / kap;
                                     }
                                 }
                                 if first && last {
@@ -1993,22 +2101,16 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                     let vol = g.cell_volume(i_r, nt);
                     let geo = (a_out - a_in) / vol;
                     let (r, z) = (g.r_center(i_r), g.z_center(i_z));
-                    let kv = g.brick(bi).kappa_rz(local) * vol;
-                    // Embedded-interface pressure closure (cut cells only —
-                    // gated on geometry presence so full-box worlds stay
-                    // bit-identical; `+0.0` could flip a −0.0 rate bit).
-                    let wall = if g.brick(bi).has_geom() {
-                        let (w_r, w_z) = g.wall_closure(i_r, i_z, nt);
-                        let inv_kv = 1.0 / (g.brick(bi).kappa_rz(local) * vol);
-                        Some((w_r * inv_kv, w_z * inv_kv))
-                    } else {
-                        None
-                    };
+                    let has_geom = g.brick(bi).has_geom();
                     for j in 0..nt {
                         let idx = j as usize * BRICK_CELLS + local;
                         let wc = prim[bi][idx];
                         let (rho, ur, ut, p) = (wc[I_RHO], wc[1], wc[2], wc[4]);
                         let rate = &mut rate_v[idx];
+                        // Per-sector κV ledger weight (S9): each θ-plane's
+                        // applied increment weighs by its own sector's gas
+                        // volume. At N_θ = 1 plane 0 = the pre-S9 bits.
+                        let kv = g.brick(bi).kappa_cell(j, local) * vol;
                         let s_mr = (a_out * p - a_in * p) / vol + rho * ut * ut * geo;
                         let s_mt = rho * ur * ut * geo;
                         rate[I_MR] += s_mr;
@@ -2017,13 +2119,33 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                         abs[I_MR] += (kv * s_mr).abs();
                         net[I_MT] -= kv * s_mt;
                         abs[I_MT] += (kv * s_mt).abs();
-                        if let Some((wr_kv, wz_kv)) = wall {
+                        // Embedded-interface pressure closure (cut cells
+                        // only — gated on geometry presence so full-box
+                        // worlds stay bit-identical; `+0.0` could flip a
+                        // −0.0 rate bit). Per-sector (S9): the sector's own
+                        // closure vector, SOLV-1 §3.3 / FND-2 §3.4.
+                        if has_geom {
+                            let (w_r, w_theta, w_z) = g.wall_closure_cell(i_r, j, i_z, nt);
+                            let inv_kv = 1.0 / (g.brick(bi).kappa_cell(j, local) * vol);
+                            let (wr_kv, wz_kv) = (w_r * inv_kv, w_z * inv_kv);
                             rate[I_MR] += p * wr_kv;
                             rate[I_MZ] += p * wz_kv;
                             net[I_MR] += kv * (p * wr_kv);
                             abs[I_MR] += (kv * (p * wr_kv)).abs();
                             net[I_MZ] += kv * (p * wz_kv);
                             abs[I_MZ] += (kv * (p * wz_kv)).abs();
+                            // θ-limb (S9): applied only when nonzero — on
+                            // the certified N_θ = 1 revolved path W_θ is
+                            // exactly 0 (both θ-apertures the same bits),
+                            // and adding its +0.0 could flip a −0.0 rate
+                            // bit (the same reasoning as the has_geom
+                            // gate). A pure-data comparison, not a mode.
+                            if w_theta != 0.0 {
+                                let wt_kv = w_theta * inv_kv;
+                                rate[I_MT] += p * wt_kv;
+                                net[I_MT] += kv * (p * wt_kv);
+                                abs[I_MT] += (kv * (p * wt_kv)).abs();
+                            }
                         }
                         let src = (self.source)(r, Grid::theta_center(j, nt), z, t);
                         for k in 0..NCOMP {
