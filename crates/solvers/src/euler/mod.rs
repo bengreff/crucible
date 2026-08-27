@@ -912,12 +912,21 @@ impl<E: EosLaw + Sync> Euler<'_, E> {
                            c-diffusion rides plan S11)",
                 });
             }
-        } else if nt0 > 1 && g.has_cut_geometry() && self.combustion.is_some() {
-            // S9 opened the sweeps + SRD to per-sector cut geometry; the
-            // combustion operator's D_c face stencil still reads the
-            // (r,z)-plane geometry view, which cannot see a θ-varying wall.
+        } else if nt0 > 1
+            && g.has_cut_geometry()
+            && self.combustion.is_some()
+            && !g.geometry_is_theta_uniform()
+        {
+            // S9 opened the sweeps + SRD to per-sector cut geometry; S11
+            // extended the combustion operator's D_c face stencil to read
+            // per-sector apertures too (kv, meridional faces, and the
+            // θ-face aperture), so a REVOLVED (θ-uniform) cut wall — every
+            // ◆C3 engine world — is legal. A genuinely θ-varying wall
+            // (CSG/STL) still rides the θ-varying-geometry wave.
             return Err(FlowError::ThetaCutUnsupported {
-                what: "the SOLV-4 §3.6 combustion operator's per-sector D_c face geometry",
+                what: "the SOLV-4 §3.6 combustion operator on θ-VARYING cut geometry \
+                       (revolved cut walls are legal since S11; CSG/STL θ-variation \
+                       rides the θ-varying-geometry wave)",
             });
         }
         Ok(())

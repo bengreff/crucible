@@ -141,6 +141,14 @@ pub const MU_RANGE: (f64, f64) = (1e-7, 1e-2);
 /// value where dissociation stores energy, which is why the ceiling is the
 /// generous 1e5 rather than a combustion-products figure).
 pub const CP_RANGE: (f64, f64) = (50.0, 1e5);
+/// Prandtl rail `Pr = μ·c_p/k` — the same `[0.05, 5]` the
+/// `TRANSPORT_CONSTANT_MANIFEST` `pr` range enforces on the declared-constant
+/// occupant at config load (a Pr outside it is not a gas). The tabulated
+/// occupant derives Pr from its own `k`, so the rail must be applied at
+/// runtime here too, or a metal-like `k` node would pass the column rails yet
+/// deliver a sub-0.05 Pr unremarked (S11 review wave A: the code now enforces
+/// the rail the doc claimed).
+pub const PR_RANGE: (f64, f64) = (0.05, 5.0);
 /// How far below `k_frozen` the composed effective conductivity may sit
 /// before it is refused. Sized to admit generator round-off in the
 /// undissociated corners (measured worst case on the shipped surface:
@@ -451,11 +459,15 @@ impl<'t> TabulatedTransport<'t> {
         // trustworthy than a config value, and the reasons those bounds
         // exist — a metal-like μ gives the gas a metal-like k, a Pr outside
         // [0.05, 5] is not a gas — apply to whatever produced the number.
+        // Pr is DERIVED here (`μ·c_p/k`), so its rail is enforced explicitly
+        // below alongside the tabulated columns (S11 review: the constant
+        // occupant's `pr` is manifest-ranged at load, this one was not).
         for (column, v, lo, hi) in [
             ("viscosity", mu, MU_RANGE.0, MU_RANGE.1),
             ("cp_equilibrium", cp_eq, CP_RANGE.0, CP_RANGE.1),
             ("cp_frozen", cp_fr, CP_RANGE.0, CP_RANGE.1),
             ("cv_equilibrium", cv_eq, CP_RANGE.0, CP_RANGE.1),
+            ("prandtl", mu * cp_eq / k, PR_RANGE.0, PR_RANGE.1),
         ] {
             if v < lo || v > hi {
                 return Err(TransportError::NonPhysical {

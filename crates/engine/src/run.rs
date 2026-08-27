@@ -512,6 +512,10 @@ pub fn run(
         r_hi: f64,
         z_lo: f64,
         z_hi: f64,
+        /// `None` at N_θ = 1 (a ring — no azimuth). `Some((n_θ, j_target))`
+        /// at N_θ > 1: the point spark fires in the single sector `j_target`
+        /// (S11 / ◆C3), the source of the asymmetric light-off.
+        theta_gate: Option<(u32, u32)>,
         t_on: f64,
         t_off: f64,
         t_ramp: f64,
@@ -522,12 +526,26 @@ pub fn run(
         Some(ig) => {
             let (r_lo, r_hi) = (ig.r_m - ig.half_width_m, ig.r_m + ig.half_width_m);
             let (z_lo, z_hi) = (ig.z_m - ig.half_width_m, ig.z_m + ig.half_width_m);
+            // Uniform, geometry-floor-pinned N_θ on the revolved contour.
+            let nt_world = spec.grid.spec().n_theta_max;
+            let theta_gate = if nt_world > 1 {
+                let dth = std::f64::consts::TAU / f64::from(nt_world);
+                let jt = ((ig.theta_rad / dth).floor() as u32) % nt_world;
+                Some((nt_world, jt))
+            } else {
+                None
+            };
+            // The deposit's gas volume — summed over EXACTLY the cells the
+            // source fires into (the box, and the target θ-sector at N_θ > 1),
+            // each weighted by its own sector volume `κ·cell_volume(i_r, n_θ)`.
+            // At N_θ = 1 this is the full-ring volume, bitwise the S7 form.
             let mut vol = 0.0f64;
             spec.grid.for_each_active_cell(|c| {
-                let r = spec.grid.r_center(c.i_r);
-                let z = spec.grid.z_center(c.i_z);
-                if r > r_lo && r < r_hi && z > z_lo && z < z_hi {
-                    vol += spec.grid.kappa(c.i_r, c.i_z) * spec.grid.cell_volume(c.i_r, 1);
+                let in_box = c.r > r_lo && c.r < r_hi && c.z > z_lo && c.z < z_hi;
+                let in_theta = theta_gate.is_none_or(|(_, jt)| c.i_theta == jt);
+                if in_box && in_theta {
+                    let nt = brick_n_theta(&spec.grid, c.i_r, c.i_z);
+                    vol += spec.grid.kappa(c.i_r, c.i_z) * spec.grid.cell_volume(c.i_r, nt);
                 }
             });
             if vol <= 0.0 {
@@ -546,6 +564,7 @@ pub fn run(
                 r_hi,
                 z_lo,
                 z_hi,
+                theta_gate,
                 t_on: ig.window_start_s,
                 t_off: ig.window_start_s + ig.window_s,
                 t_ramp,
@@ -553,7 +572,7 @@ pub fn run(
             })
         }
     };
-    let source_fn = move |r: f64, _th: f64, z: f64, t: f64| -> Cons {
+    let source_fn = move |r: f64, th: f64, z: f64, t: f64| -> Cons {
         let mut src = [0.0; NCOMP];
         if let Some(k) = &igniter_kernel
             && t >= k.t_on
@@ -563,12 +582,24 @@ pub fn run(
             && z > k.z_lo
             && z < k.z_hi
         {
-            let ramp = if k.t_ramp > 0.0 {
-                ((t - k.t_on) / k.t_ramp).min(1.0)
-            } else {
-                1.0
+            // At N_θ > 1 the deposit is confined to the target sector — the
+            // continuous θ maps to its sector index (θ_center(j) = (j+½)·Δθ).
+            let in_theta = match k.theta_gate {
+                None => true,
+                Some((nt, jt)) => {
+                    let dth = std::f64::consts::TAU / f64::from(nt);
+                    let j = (th / dth).floor().rem_euclid(f64::from(nt)) as u32;
+                    j == jt
+                }
             };
-            src[4] = k.q0_w_per_m3 * ramp;
+            if in_theta {
+                let ramp = if k.t_ramp > 0.0 {
+                    ((t - k.t_on) / k.t_ramp).min(1.0)
+                } else {
+                    1.0
+                };
+                src[4] = k.q0_w_per_m3 * ramp;
+            }
         }
         src
     };
@@ -1326,9 +1357,11 @@ fn step_halt_mechanism(message: &str) -> String {
 fn max_flame_cell(g: &Grid, f: &EulerFields) -> Option<(usize, usize)> {
     let ids = f.ids();
     let mut best: Option<((usize, usize), f64)> = None;
+    // Scan every θ-sector (S11): an asymmetric extinction front's remnant may
+    // sit off the θ = 0 plane. At N_θ = 1 this is the θ = 0 scan unchanged.
     g.for_each_active_cell(|c| {
-        let rho = cell_value(g, ids[I_RHO], c.i_r, c.i_z);
-        let b = (cell_value(g, ids[I_RB], c.i_r, c.i_z) / rho).clamp(0.0, 1.0);
+        let rho = cell_value_theta(g, ids[I_RHO], c.i_r, c.i_theta, c.i_z);
+        let b = (cell_value_theta(g, ids[I_RB], c.i_r, c.i_theta, c.i_z) / rho).clamp(0.0, 1.0);
         let content = b * (1.0 - b);
         if best.is_none_or(|(_, m)| content > m) {
             best = Some(((c.i_r, c.i_z), content));
@@ -1486,13 +1519,27 @@ pub fn plane_area(g: &Grid, i_z: usize, side: FaceDir) -> f64 {
         .sum()
 }
 
-/// Mass flow through z-plane `i_z`: Σ ρu_z·a·A_z over active cells.
+/// Mass flow through z-plane `i_z`: Σ ρu_z·a·A_z over active cells and θ
+/// sectors. Each sector carries the per-sector annular area
+/// `face_area_z(i_r, n_θ)·aperture`; at N_θ = 1 the single sector's area is
+/// the full ring — bit-identical to the pre-S11 form. The z-face `aperture`
+/// is the θ-plane-0 view, exact for the revolved (θ-uniform) worlds the
+/// engine builds; a genuinely θ-varying wall (CSG/STL, S11) would need the
+/// per-sector `aperture_at` here (latent, unreachable until that wave).
 pub fn plane_mdot(g: &Grid, f: &EulerFields, i_z: usize, side: FaceDir) -> f64 {
     let ids = f.ids();
-    (0..g.spec().n_r)
-        .filter(|&i_r| g.is_active(i_r, i_z))
-        .map(|i_r| cell_value(g, ids[3], i_r, i_z) * open_area_z(g, i_r, i_z, side))
-        .sum()
+    let mut acc = 0.0f64;
+    for i_r in 0..g.spec().n_r {
+        if !g.is_active(i_r, i_z) {
+            continue;
+        }
+        let nt = brick_n_theta(g, i_r, i_z);
+        let a = g.face_area_z(i_r, nt) * g.aperture(i_r, i_z, side);
+        for j in 0..nt {
+            acc += cell_value_theta(g, ids[3], i_r, j, i_z) * a;
+        }
+    }
+    acc
 }
 
 /// Vacuum thrust integral over z-plane `i_z` (SOLV-7.1): Σ (ρu_z² + p)·a·A_z.
@@ -1509,14 +1556,18 @@ pub fn plane_thrust<E: EosLaw>(
         if !g.is_active(i_r, i_z) {
             continue;
         }
-        let mut u = [0.0f64; NCOMP];
-        for (k, id) in ids.iter().enumerate() {
-            u[k] = cell_value(g, *id, i_r, i_z);
+        let nt = brick_n_theta(g, i_r, i_z);
+        let a = g.face_area_z(i_r, nt) * g.aperture(i_r, i_z, side);
+        for j in 0..nt {
+            let mut u = [0.0f64; NCOMP];
+            for (k, id) in ids.iter().enumerate() {
+                u[k] = cell_value_theta(g, *id, i_r, j, i_z);
+            }
+            let w = eos
+                .prim_checked(&u)
+                .map_err(|e| format!("thrust plane ({i_r},{j},{i_z}): {e}"))?;
+            acc += (w[0] * w[3] * w[3] + w[4]) * a;
         }
-        let w = eos
-            .prim_checked(&u)
-            .map_err(|e| format!("thrust plane ({i_r},{i_z}): {e}"))?;
-        acc += (w[0] * w[3] * w[3] + w[4]) * open_area_z(g, i_r, i_z, side);
     }
     Ok(acc)
 }
@@ -1536,20 +1587,23 @@ pub fn injector_end_stagnation_p<E: EosLaw>(
         if !g.is_active(i_r, i_z) {
             continue;
         }
-        let mut u = [0.0f64; NCOMP];
-        for (k, id) in ids.iter().enumerate() {
-            u[k] = cell_value(g, *id, i_r, i_z);
+        let nt = brick_n_theta(g, i_r, i_z);
+        let a_z = g.face_area_z(i_r, nt) * g.aperture(i_r, i_z, FaceDir::ZMinus);
+        for j in 0..nt {
+            let mut u = [0.0f64; NCOMP];
+            for (k, id) in ids.iter().enumerate() {
+                u[k] = cell_value_theta(g, *id, i_r, j, i_z);
+            }
+            let w = eos
+                .prim_checked(&u)
+                .map_err(|e| format!("p_c plane ({i_r},{j},{i_z}): {e}"))?;
+            let a = eos.sound_speed_w(&w);
+            let m2 = (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]) / (a * a);
+            let g1 = w[0] * a * a / w[4]; // Γ₁ from the state itself
+            let p0 = w[4] * (1.0 + 0.5 * (g1 - 1.0) * m2).powf(g1 / (g1 - 1.0));
+            acc += p0 * a_z;
+            area += a_z;
         }
-        let w = eos
-            .prim_checked(&u)
-            .map_err(|e| format!("p_c plane ({i_r},{i_z}): {e}"))?;
-        let a = eos.sound_speed_w(&w);
-        let m2 = (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]) / (a * a);
-        let g1 = w[0] * a * a / w[4]; // Γ₁ from the state itself
-        let p0 = w[4] * (1.0 + 0.5 * (g1 - 1.0) * m2).powf(g1 / (g1 - 1.0));
-        let a_z = open_area_z(g, i_r, i_z, FaceDir::ZMinus);
-        acc += p0 * a_z;
-        area += a_z;
     }
     if area <= 0.0 {
         return Err("empty injector-end plane".to_string());
@@ -1568,11 +1622,28 @@ pub fn exit_plane(g: &Grid) -> usize {
 // --- Small field utilities (random access at coupler rate) -----------------
 
 fn cell_value(g: &Grid, f: crucible_grid::FieldId, i_r: usize, i_z: usize) -> f64 {
+    cell_value_theta(g, f, i_r, 0, i_z)
+}
+
+/// Field value in θ-sector `j` of cell (i_r, i_z). At N_θ = 1 (`j = 0`) this
+/// is exactly [`cell_value`] (the certified path); the θ-sector plane
+/// integrals (S11 / ◆C3) sum this over `0..n_theta`.
+fn cell_value_theta(g: &Grid, f: crucible_grid::FieldId, i_r: usize, j: u32, i_z: usize) -> f64 {
     let bi = g
         .brick_index_by_coords((i_r / BRICK) as u32, (i_z / BRICK) as u32)
         .expect("cell in an allocated brick");
     let b = g.brick(bi);
-    b.field(f)[b.cell_index(0, (i_r % BRICK) * BRICK + i_z % BRICK)]
+    b.field(f)[b.cell_index(j, (i_r % BRICK) * BRICK + i_z % BRICK)]
+}
+
+/// The azimuthal resolution of the brick owning cell (i_r, i_z) — 1 on the
+/// certified axisymmetric path, `n_theta_max` on the ◆C3 revolved world
+/// (uniform, geometry-floor-pinned).
+fn brick_n_theta(g: &Grid, i_r: usize, i_z: usize) -> u32 {
+    let bi = g
+        .brick_index_by_coords((i_r / BRICK) as u32, (i_z / BRICK) as u32)
+        .expect("cell in an allocated brick");
+    g.brick(bi).n_theta()
 }
 
 fn fill_solid(g: &mut Grid, f: crucible_grid::FieldId, value: f64) {
@@ -1649,33 +1720,62 @@ fn fields_csv(
 ) -> Result<String, String> {
     use std::fmt::Write;
     let ids = f.ids();
-    let mut out = String::from("r_m,z_m,region,rho,u_r,u_z,p,T,Z,mach\n");
+    // A genuinely-3-D world emits one row per (r, θ, z) with a θ column and
+    // the swirl velocity (S11 / ◆C3); the certified axisymmetric feed keeps
+    // its exact pre-S11 columns (no θ, no u_θ) — the two never mix.
+    let world_3d = g.spec().n_theta_max > 1;
+    let mut out = String::from(if world_3d {
+        "r_m,theta_rad,z_m,region,rho,u_r,u_theta,u_z,p,T,Z,mach\n"
+    } else {
+        "r_m,z_m,region,rho,u_r,u_z,p,T,Z,mach\n"
+    });
     for i_z in 0..g.spec().n_z {
         for i_r in 0..g.spec().n_r {
             let z = g.z_center(i_z);
             let r = g.r_center(i_r);
             if g.is_active(i_r, i_z) {
-                let mut u = [0.0f64; NCOMP];
-                for (k, id) in ids.iter().enumerate() {
-                    u[k] = cell_value(g, *id, i_r, i_z);
+                let nt = if world_3d {
+                    brick_n_theta(g, i_r, i_z)
+                } else {
+                    1
+                };
+                for j in 0..nt {
+                    let mut u = [0.0f64; NCOMP];
+                    for (k, id) in ids.iter().enumerate() {
+                        u[k] = cell_value_theta(g, *id, i_r, j, i_z);
+                    }
+                    let w = eos
+                        .prim_checked(&u)
+                        .map_err(|e| format!("csv ({i_r},{j},{i_z}): {e}"))?;
+                    let a = eos.sound_speed_w(&w);
+                    let mach = (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]).sqrt() / a;
+                    let temp = eos
+                        .temperature_w(&w)
+                        .map_err(|e| format!("csv T ({i_r},{j},{i_z}): {e}"))?;
+                    if world_3d {
+                        let theta = Grid::theta_center(j, nt);
+                        writeln!(
+                            out,
+                            "{r:.6},{theta:.6},{z:.6},gas,{:.6e},{:.4},{:.4},{:.4},{:.6e},{temp:.2},{:.5},{mach:.4}",
+                            w[0], w[1], w[2], w[3], w[4], w[5]
+                        )
+                        .expect("string write");
+                    } else {
+                        writeln!(
+                            out,
+                            "{r:.6},{z:.6},gas,{:.6e},{:.4},{:.4},{:.6e},{temp:.2},{:.5},{mach:.4}",
+                            w[0], w[1], w[3], w[4], w[5]
+                        )
+                        .expect("string write");
+                    }
                 }
-                let w = eos
-                    .prim_checked(&u)
-                    .map_err(|e| format!("csv ({i_r},{i_z}): {e}"))?;
-                let a = eos.sound_speed_w(&w);
-                let mach = (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]).sqrt() / a;
-                let temp = eos
-                    .temperature_w(&w)
-                    .map_err(|e| format!("csv T ({i_r},{i_z}): {e}"))?;
-                writeln!(
-                    out,
-                    "{r:.6},{z:.6},gas,{:.6e},{:.4},{:.4},{:.6e},{temp:.2},{:.5},{mach:.4}",
-                    w[0], w[1], w[3], w[4], w[5]
-                )
-                .expect("string write");
             } else if cell_region_is_solid(g, i_r, i_z) {
                 let ts = cell_value(g, t_solid, i_r, i_z);
-                writeln!(out, "{r:.6},{z:.6},solid,,,,,{ts:.2},,").expect("string write");
+                if world_3d {
+                    writeln!(out, "{r:.6},,{z:.6},solid,,,,,,{ts:.2},,").expect("string write");
+                } else {
+                    writeln!(out, "{r:.6},{z:.6},solid,,,,,{ts:.2},,").expect("string write");
+                }
             }
         }
     }
@@ -1718,9 +1818,17 @@ pub fn crash_fields_csv(
 ) -> String {
     use std::fmt::Write;
     let ids = f.ids();
+    // A 3-D halt localizes in θ too (S11): the crash artifact gains an
+    // `i_theta`/`theta_rad` pair and one row per sector, so an asymmetric
+    // runaway/starvation is visible. N_θ = 1 keeps its exact columns.
+    let world_3d = g.spec().n_theta_max > 1;
+    let header = if world_3d {
+        "i_r,i_z,i_theta,r_m,theta_rad,z_m,region,kappa,rho,mom_r,mom_theta,mom_z,rho_e,rho_c,rho_b,ok,p,T,Z,mach\n"
+    } else {
+        "i_r,i_z,r_m,z_m,region,kappa,rho,mom_r,mom_theta,mom_z,rho_e,rho_c,rho_b,ok,p,T,Z,mach\n"
+    };
     let mut out = format!(
-        "# halt: {}\n# step: {step}  t_s: {t:.9e}\n\
-         i_r,i_z,r_m,z_m,region,kappa,rho,mom_r,mom_theta,mom_z,rho_e,rho_c,rho_b,ok,p,T,Z,mach\n",
+        "# halt: {}\n# step: {step}  t_s: {t:.9e}\n{header}",
         message.replace('\n', " / "),
     );
     for i_z in 0..g.spec().n_z {
@@ -1728,40 +1836,57 @@ pub fn crash_fields_csv(
             let z = g.z_center(i_z);
             let r = g.r_center(i_r);
             if g.is_active(i_r, i_z) {
-                let mut u = [0.0f64; NCOMP];
-                for (k, id) in ids.iter().enumerate() {
-                    u[k] = cell_value(g, *id, i_r, i_z);
-                }
-                write!(
-                    out,
-                    "{i_r},{i_z},{r:.6},{z:.6},gas,{:.6e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},",
-                    g.kappa(i_r, i_z),
-                    u[0],
-                    u[1],
-                    u[2],
-                    u[3],
-                    u[4],
-                    u[5],
-                    u[6]
-                )
-                .expect("string write");
-                match eos.prim_checked(&u) {
-                    Ok(w) => {
-                        let a = eos.sound_speed_w(&w);
-                        let mach = (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]).sqrt() / a;
-                        let temp_s = match eos.temperature_w(&w) {
-                            Ok(temp) => format!("{temp:.2}"),
-                            Err(_) => String::new(),
-                        };
-                        writeln!(out, "1,{:.6e},{temp_s},{:.5},{mach:.4}", w[4], w[5])
-                            .expect("string write");
+                let nt = if world_3d {
+                    brick_n_theta(g, i_r, i_z)
+                } else {
+                    1
+                };
+                for j in 0..nt {
+                    let mut u = [0.0f64; NCOMP];
+                    for (k, id) in ids.iter().enumerate() {
+                        u[k] = cell_value_theta(g, *id, i_r, j, i_z);
                     }
-                    Err(_) => writeln!(out, "0,,,,").expect("string write"),
+                    if world_3d {
+                        let theta = Grid::theta_center(j, nt);
+                        write!(
+                            out,
+                            "{i_r},{i_z},{j},{r:.6},{theta:.6},{z:.6},gas,{:.6e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},",
+                            g.kappa(i_r, i_z),
+                            u[0], u[1], u[2], u[3], u[4], u[5], u[6]
+                        )
+                        .expect("string write");
+                    } else {
+                        write!(
+                            out,
+                            "{i_r},{i_z},{r:.6},{z:.6},gas,{:.6e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},{:.9e},",
+                            g.kappa(i_r, i_z),
+                            u[0], u[1], u[2], u[3], u[4], u[5], u[6]
+                        )
+                        .expect("string write");
+                    }
+                    match eos.prim_checked(&u) {
+                        Ok(w) => {
+                            let a = eos.sound_speed_w(&w);
+                            let mach = (w[1] * w[1] + w[2] * w[2] + w[3] * w[3]).sqrt() / a;
+                            let temp_s = match eos.temperature_w(&w) {
+                                Ok(temp) => format!("{temp:.2}"),
+                                Err(_) => String::new(),
+                            };
+                            writeln!(out, "1,{:.6e},{temp_s},{:.5},{mach:.4}", w[4], w[5])
+                                .expect("string write");
+                        }
+                        Err(_) => writeln!(out, "0,,,,").expect("string write"),
+                    }
                 }
             } else if cell_region_is_solid(g, i_r, i_z) {
                 let ts = cell_value(g, t_solid, i_r, i_z);
-                writeln!(out, "{i_r},{i_z},{r:.6},{z:.6},solid,,,,,,,,,,,{ts:.2},,")
-                    .expect("string write");
+                if world_3d {
+                    writeln!(out, "{i_r},{i_z},,{r:.6},,{z:.6},solid,,,,,,,,,,,{ts:.2},,")
+                        .expect("string write");
+                } else {
+                    writeln!(out, "{i_r},{i_z},{r:.6},{z:.6},solid,,,,,,,,,,,{ts:.2},,")
+                        .expect("string write");
+                }
             }
         }
     }

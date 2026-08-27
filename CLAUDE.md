@@ -17,13 +17,14 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-26 — session 22 = plan S10 complete)
+## State (2026-08-26 — session 23 = plan S11 complete)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
 closed 68/68-discharged and deleted 2026-08-19; findings live in doc change logs + git history).
-Eighteen sessions, every one gates-green and committed; three multi-agent code reviews
-(sessions 6, 10, 12) plus per-session review waves (14, 15, 16, 17, 18) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
-(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **248 Rust + 50 Python
+Nineteen sessions, every one gates-green and committed; three multi-agent code reviews
+(sessions 6, 10, 12) plus per-session review waves (14, 15, 16, 17, 18, and the S11 review wave A
+over all of phases 1–3, session 23) with every confirmed finding fixed. `scripts/check.sh` = the 5-gate battery
+(fmt, clippy, cargo test, offline pytest, certificate regen + diff). **253 Rust + 50 Python
 tests.** **Blind rule v1.4.1**: blind = mechanical input-blindness; every certificate declares
 `development-observed: yes/no`; the RL10 campaign is declared **open development**.
 
@@ -455,14 +456,24 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   front-tracking — timeline grid-independent, refinement buys 1.93× sharpness at 4× cost/level, so
   S10b/S10c not inserted and the static-plus-closure-set-front fallback stands measured; two S9
   carries — the coarsest-reproducing-N_θ floor + the face-order unification; plan §8 v1.10).
-  **NEXT = plan S11 (◆C3 + review wave A)**: coarse full-3-D RL10 (N_θ ≤ 32, ~10⁵ cells) — true
-  point spark, asymmetric light-off, start-to-settle; the F_visc θ-tensor unblocked it at S9. S11
-  also owns: the **cross-pencil (r,z) flux-register production integration** (threading the S10
-  level-interface primitive through `sweep_r`/`sweep_z` + arena refinement — its consumer is a
-  refined 3-D RL10); the **CSG/STL config grammar + engine 3-D assembly** (the geom3d kernel's first
-  production consumer); per-sector activity masks; and the typed S9/S10 refusals (mixed-N_θ cut,
-  mixed-N_θ class-D, cut-θ class-D, per-θ wall patches, mixed level × N_θ / cut / class-D). Read the
-  S11 §5 entry + FND-2 §3.4/§3.6.1 + the owning docs' §3 before coding.
+  **Session 23 = plan S11 DONE** (◆C3 — the first genuinely 3-D engine run + review wave A: the
+  engine N_θ > 1 assembly (`build_with_geometry_theta` on the revolved contour, N_θ = 1 bit-identical),
+  θ-aware `run.rs` readouts + the **point-in-θ spark**, and the **combustion cut-θ D_c stencil made
+  per-sector** so the revolved cut RL10 lights at N_θ = 8 (θ-varying still refused via
+  `geometry_is_theta_uniform`); ◆C3 = ADIABATIC flow+combustion — the cooled-wall/F_visc/conduction
+  couplings stay the typed S11/S9 solver refusals; the laptop-mini verdict = **DOESN'T WORK
+  (FAILED_TO_REACH): p_c −92.2% / F −94.8% of commanded** — the 3-D START MACHINERY proven, "doesn't
+  fully light" the honest outcome; review wave A over phases 1–3 found no confirmed bug, the transport
+  Pr-rail LOW finding fixed; certificates byte-identical; plan §8 v1.11).
+  **NEXT = plan S12 (GPU spike)**: the CUDA backend skeleton — port the two hot kernels (hyperbolic
+  sweep, EOS projection), **measure real f64 throughput on the 4080**, re-size the §3 envelopes with
+  data, validate the deterministic-reduction strategy (fixed-topology trees, gather-only scatter).
+  **Owed to a later CPU wave (S11's typed refusals still standing, owners named):** the cooled-3-D
+  wall-patch/conduction wave (per-θ wall patches + coupled flow+conduction — `sdc::build_wall_patches`
+  and the step guards refuse N_θ > 1); F_visc on cut θ-faces; the CSG/STL config grammar + geom3d
+  production consumer; the cross-pencil (r,z) flux-register integration (the S10 Option A/B decision,
+  still Ben's — unbuilt); per-sector activity masks; combustion on θ-VARYING cut geometry. Read the
+  S12 §5 entry + the owning docs' §3 before coding.
 - The old per-item deferral list (station-4 fixture rewire; Bartz oracle scoring; digest v4;
   COUP-5 ensembles; FND-3 PLIC/slot class) is absorbed into the plan's phases: §4 maps each to
   its session.

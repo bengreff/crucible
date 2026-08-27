@@ -357,7 +357,11 @@ impl Combustion<'_> {
                     // face's ρD_c is the two-cell arithmetic mean; a wall/edge face
                     // is zero-flux (skipped).
                     let vol = g.cell_volume(i_r, nt);
-                    let kv = brick.kappa_rz(local) * vol;
+                    // Per-sector κ (S11): on a revolved cut wall every sector's
+                    // κ equals plane 0's, so this is bitwise the S9 form at
+                    // N_θ = 1 and on box worlds; it becomes load-bearing only
+                    // when the θ-varying wave lands a genuinely per-sector κ.
+                    let kv = brick.kappa_cell(j, local) * vol;
                     let mut diff = 0.0;
                     let faces = [
                         (
@@ -386,7 +390,10 @@ impl Combustion<'_> {
                         ),
                     ];
                     for (dir, nbr, area, d) in faces {
-                        let ap = g.aperture(i_r, i_z, dir);
+                        // Per-sector meridional aperture (S11): θ-uniform on a
+                        // revolved wall (bitwise the S9 `g.aperture` view at
+                        // N_θ = 1 / box worlds), per-sector when it matters.
+                        let ap = g.aperture_at(i_r, j, i_z, dir);
                         if ap <= 0.0 {
                             continue;
                         }
@@ -409,12 +416,23 @@ impl Combustion<'_> {
                     // θ-direction faces (S8): the periodic ring stencil, within
                     // this brick at this local cell. Skipped at N_θ = 1 (the two
                     // faces are the same face — zero net flux, zero cost; the
-                    // pre-S8 arithmetic is untouched bitwise). No aperture: cut
-                    // geometry is N_θ = 1 by construction (FND-3 3-D wave).
+                    // pre-S8 arithmetic is untouched bitwise). The θ-face
+                    // aperture (S11) weights the flux — a revolved cut cell's
+                    // constant-θ plane is partly blocked, and full dr·dz would
+                    // over-diffuse the front across a wall-clipped sector. On
+                    // box worlds the aperture is 1.0 (×1 exact ⇒ the S8
+                    // arithmetic is bitwise untouched).
                     if nt > 1 {
                         let a_th = g.face_area_theta();
                         let arc = g.r_center(i_r) * (std::f64::consts::TAU / f64::from(nt));
-                        for jn in [(j + nt - 1) % nt, (j + 1) % nt] {
+                        for (jn, dir) in [
+                            ((j + nt - 1) % nt, FaceDir::ThetaMinus),
+                            ((j + 1) % nt, FaceDir::ThetaPlus),
+                        ] {
+                            let ap_th = g.aperture_at(i_r, j, i_z, dir);
+                            if ap_th <= 0.0 {
+                                continue;
+                            }
                             let idx_n = jn as usize * BRICK_CELLS + local;
                             let b_nbr = brick.field(rhob_id)[idx_n] / brick.field(rho_id)[idx_n];
                             let rho_dc_nbr = match self.rho_dc_of(&prim[bi][idx_n], delta) {
@@ -422,7 +440,7 @@ impl Combustion<'_> {
                                 Err(what) => return Err(nonphys(i_r, i_z, jn, what)),
                             };
                             let rho_dc_face = 0.5 * (rho_dc_here + rho_dc_nbr);
-                            diff += a_th * rho_dc_face * (b_nbr - b) / arc;
+                            diff += ap_th * a_th * rho_dc_face * (b_nbr - b) / arc;
                         }
                     }
                     let diff_div = if kv > 0.0 { diff / kv } else { 0.0 };
@@ -717,7 +735,9 @@ pub fn reacting_measure(
                 // (the c > a core drives it; the metastable c < a fringe pulls
                 // back) keeps R a clean flame-activity indicator.
                 let rate = propagation_rate(rho_u, k, b_c).max(0.0) + rho * (1.0 - b_c) / tau;
-                r += b_c * (1.0 - b_c) * rate * brick.kappa_rz(local) * g.cell_volume(i_r, nt);
+                // Per-sector κ (S11), matching `accumulate`'s source weighting;
+                // bit-identical to the plane-0 `kappa_rz` on θ-uniform worlds.
+                r += b_c * (1.0 - b_c) * rate * brick.kappa_cell(j, local) * g.cell_volume(i_r, nt);
             }
         }
     }
@@ -781,7 +801,9 @@ pub fn consumption_rate(
                 let s_t = (s_l * wrinkling).max(0.0);
                 let (_d_c, k) = front_coeffs(s_t, delta, theta);
                 let rate = propagation_rate(rho_u, k, b_c) + rho * (1.0 - b_c) / tau;
-                acc += rate * brick.kappa_rz(local) * g.cell_volume(i_r, nt);
+                // Per-sector κ (S11), matching `accumulate`; bit-identical to
+                // plane-0 `kappa_rz` on θ-uniform worlds.
+                acc += rate * brick.kappa_cell(j, local) * g.cell_volume(i_r, nt);
             }
         }
     }

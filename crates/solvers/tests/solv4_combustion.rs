@@ -24,7 +24,7 @@
 //! class-A rate inside `Euler::eval_rhs`), with the COUP-2 conservation audit
 //! armed — closure is the standing condition.
 
-use crucible_grid::{Grid, GridSpec};
+use crucible_grid::{CellGeom, CellGeomTheta, Grid, GridSpec, Region};
 use crucible_solvers::euler::{
     BurnBlendEos, Combustion, Cons, EPS_IGNITED, EosLaw, Euler, EulerFields, FlowBc, FlowBcs, I_RB,
     I_RC, I_RHO, IgnitionColumns, NCOMP, THETA_CELLS, TableEos, consumption_rate, reacting_measure,
@@ -1560,4 +1560,328 @@ fn near_axis_combustion_dt_does_not_spuriously_refuse() {
         .stable_dt(&g, &flow, 0.4)
         .expect("a mild flame near the axis at N_θ = 16 must not refuse");
     assert!(dt.is_finite() && dt > 0.0);
+}
+
+// --- S11 / ◆C3: combustion on a REVOLVED CUT world at N_θ > 1 ----------------
+// The S9-standing refusal ("combustion on cut θ > 1 worlds") is retired here
+// for REVOLVED (θ-uniform) cut walls — every world the ◆C3 engine builds:
+// the operator's D_c stencil now reads per-sector κ + apertures (kv, the
+// meridional faces, and the θ-face aperture that weights the ring flux). A
+// genuinely θ-VARYING wall (CSG/STL) stays refused (test below).
+
+const CUT_H: f64 = 1.0e-3;
+/// Wall at 3.7 cells: ring 3 is a κ ≈ 0.67 gas sliver (cut, but above the SRD
+/// threshold so this gate isolates the combustion θ-faces), ring 4+ is wall.
+const CUT_WALL_R: f64 = 3.7 * CUT_H;
+
+fn cut_cyl_rz(i_r: usize) -> (f64, [f64; 4]) {
+    let r0 = i_r as f64 * CUT_H;
+    let r1 = (i_r as f64 + 1.0) * CUT_H;
+    let x = CUT_WALL_R.clamp(r0, r1);
+    let kappa = ((x * x - r0 * r0) / (r1 * r1 - r0 * r0)).clamp(0.0, 1.0);
+    let ap_r = |rf: f64| if CUT_WALL_R > rf { 1.0 } else { 0.0 };
+    (kappa, [ap_r(r0), ap_r(r1), kappa, kappa])
+}
+
+fn cut_cyl_spec(n_z: usize, n_theta: u32) -> GridSpec {
+    GridSpec {
+        r_min: 0.0,
+        dr: CUT_H,
+        n_r: 5,
+        z_min: 0.0,
+        dz: CUT_H,
+        n_z,
+        n_theta_max: n_theta,
+        axisymmetry_assertion: n_theta == 1,
+    }
+}
+
+fn cut_cyl_grid_1(n_z: usize) -> Grid {
+    Grid::build_with_geometry(
+        cut_cyl_spec(n_z, 1),
+        crucible_solvers::euler::EULER_FIELDS,
+        |i_r, _| {
+            let (kappa, aperture) = cut_cyl_rz(i_r);
+            let region = if kappa > 0.0 {
+                Region::Gas
+            } else {
+                Region::Exterior
+            };
+            CellGeom {
+                region,
+                kappa,
+                aperture,
+            }
+        },
+    )
+    .expect("revolved cut cylinder at N_θ = 1")
+}
+
+fn cut_cyl_grid_theta(n_z: usize, n_theta: u32) -> Grid {
+    Grid::build_with_geometry_theta(
+        cut_cyl_spec(n_z, n_theta),
+        crucible_solvers::euler::EULER_FIELDS,
+        |i_r, _j, _i_z| {
+            let (kappa, ap) = cut_cyl_rz(i_r);
+            CellGeomTheta {
+                kappa,
+                aperture: [ap[0], ap[1], ap[2], ap[3], kappa, kappa],
+            }
+        },
+        |_, _| Region::Exterior,
+    )
+    .expect("revolved cut cylinder through the θ-builder")
+}
+
+const H_CUT_WARM: f64 = 1.3e6;
+
+/// An axisymmetric burning IC: a z-front (burnt below, unburnt above) in warm
+/// reactants — θ-uniform, so the reaction + meridional front diffusion are
+/// live but the θ-direction flux is identically zero.
+fn fill_axisym_front(g: &mut Grid, f: &EulerFields, blend: &BurnBlendEos<'_>) {
+    let ids = f.ids();
+    for (k, &id) in ids.iter().enumerate() {
+        g.fill_field(id, |_r, _th, z| {
+            let b0 = if z < 3.0 * CUT_H { 1.0 } else { 0.0 };
+            blend
+                .cons_from_phzb(P0, H_CUT_WARM, Z0, b0, [0.0, 0.0, 0.0])
+                .expect("valid axisym IC")[k]
+        });
+    }
+}
+
+// THE gate: an axisymmetric burn on a revolved CUT world at N_θ = 8 stays
+// exactly θ-symmetric (every sector bit-identical to sector 0 — the per-sector
+// D_c stencil and the zero θ-flux introduce no spurious asymmetry) and reduces
+// to the certified N_θ = 1 cut march (tight tolerance early; unlike the flow
+// sweep, the per-θ face-area accumulation is not power-of-two bit-reducible, so
+// the sub-ULP round-off amplifies chaotically — different N_θ discretizations
+// need only converge, not bit-match). Marched through the real SDC step
+// (class A + class R), audit armed.
+#[test]
+fn s11_revolved_cut_combustion_n_theta_8_is_theta_symmetric_and_reduces() {
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let comb = Combustion {
+        blend: &blend,
+        ignition: IgnitionColumns::bind(&it).unwrap(),
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
+    let n_z = 6usize;
+    let mut g1 = cut_cyl_grid_1(n_z);
+    let mut g8 = cut_cyl_grid_theta(n_z, 8);
+    // The fixture must actually be cut (a partial ring) yet θ-uniform.
+    assert!(g8.has_cut_geometry(), "fixture must carry cut geometry");
+    assert!(
+        g8.geometry_is_theta_uniform(),
+        "a revolved cut world must read θ-uniform"
+    );
+    assert!(
+        (0.6..0.75).contains(&g8.kappa_at(3, 0, 0)),
+        "ring 3 must be the declared κ ≈ 0.67 sliver"
+    );
+    let f1 = EulerFields::resolve(&g1).expect("fields");
+    let f8 = EulerFields::resolve(&g8).expect("fields");
+    fill_axisym_front(&mut g1, &f1, &blend);
+    fill_axisym_front(&mut g8, &f8, &blend);
+    let op1 = Euler {
+        eos: blend.clone(),
+        source: &ZERO_SRC,
+        bcs: FlowBcs {
+            r_inner: FlowBc::Reflecting,
+            r_outer: FlowBc::Reflecting,
+            z_lo: FlowBc::Reflecting,
+            z_hi: FlowBc::Reflecting,
+        },
+        wall_normal: None,
+        slip_wall_z_faces: true,
+        combustion: Some(&comb),
+    };
+    let op8 = Euler {
+        eos: blend.clone(),
+        source: &ZERO_SRC,
+        bcs: FlowBcs {
+            r_inner: FlowBc::Reflecting,
+            r_outer: FlowBc::Reflecting,
+            z_lo: FlowBc::Reflecting,
+            z_hi: FlowBc::Reflecting,
+        },
+        wall_normal: None,
+        slip_wall_z_faces: true,
+        combustion: Some(&comb),
+    };
+    let flow1 = FlowClass {
+        op: &op1,
+        fields: &f1,
+    };
+    let flow8 = FlowClass {
+        op: &op8,
+        fields: &f8,
+    };
+    let react1 = ReactionClass { op: &comb };
+    let react8 = ReactionClass { op: &comb };
+    let (mut sdc1, mut sdc8) = (Sdc::new(), Sdc::new());
+    let mut t = 0.0;
+    for step in 0..24 {
+        let dt = sdc8.stable_dt(&g8, &flow8, 0.4).expect("dt");
+        sdc8.step(
+            &mut g8,
+            Some(&flow8),
+            None,
+            None,
+            None,
+            Some(&react8),
+            t,
+            dt,
+        )
+        .expect("audited 3-D cut combustion step");
+        sdc1.step(
+            &mut g1,
+            Some(&flow1),
+            None,
+            None,
+            None,
+            Some(&react1),
+            t,
+            dt,
+        )
+        .expect("audited 2-D cut combustion step");
+        t += dt;
+        let ids = f8.ids();
+        for bi in 0..g8.n_bricks() {
+            let b1 = g1.brick(bi);
+            let b8 = g8.brick(bi);
+            let nt = b8.n_theta();
+            for &id in ids.iter() {
+                let d1 = b1.field(id);
+                let d8 = b8.field(id);
+                for local in 0..crucible_grid::BRICK_CELLS {
+                    // (A) THE θ-symmetry gate (bitwise, every step): an
+                    // axisymmetric burn must keep every sector bit-identical
+                    // to sector 0 — the per-sector D_c stencil and the zero
+                    // θ-flux introduce NO spurious azimuthal asymmetry. A bug
+                    // in the θ-faces would break this immediately.
+                    let v0 = d8[b8.cell_index(0, local)];
+                    for j in 1..nt {
+                        assert_eq!(
+                            v0.to_bits(),
+                            d8[b8.cell_index(j, local)].to_bits(),
+                            "sector {j} of brick {bi} field {id:?} cell {local} broke θ-symmetry \
+                             at step {step} — a spurious azimuthal asymmetry"
+                        );
+                    }
+                    // (B) Reduction to the certified N_θ = 1 cut march, checked
+                    // in the first steps before chaotic amplification of the
+                    // sub-ULP round-off differences (the per-θ face-area
+                    // accumulation is not power-of-two bit-reducible the way
+                    // the flow sweep is; the physics is identical).
+                    if step < 3 {
+                        let v1 = d1[b1.cell_index(0, local)];
+                        let denom = v1.abs().max(1e-6);
+                        assert!(
+                            (v0 - v1).abs() / denom < 1e-9,
+                            "brick {bi} field {id:?} cell {local}: N_θ = 8 {v0:.9e} vs \
+                             N_θ = 1 {v1:.9e} at step {step} — combustion did not reduce"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A genuinely θ-VARYING cut wall stays refused (the CSG/STL wave, plan S11):
+// per-sector apertures differ, so the D_c stencil's shared-face assumptions
+// are not yet the whole story — refuse loudly, cell/owner named.
+#[test]
+fn s11_theta_varying_cut_combustion_still_refuses() {
+    let ut = unburnt();
+    let bt = burnt();
+    let it = ignition();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let comb = Combustion {
+        blend: &blend,
+        ignition: IgnitionColumns::bind(&it).unwrap(),
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
+    // All-gas, but κ + apertures VARY by sector — θ-varying cut geometry.
+    let nt = 8u32;
+    let spec = GridSpec {
+        r_min: 0.5 * CUT_H,
+        dr: CUT_H,
+        n_r: 4,
+        z_min: 0.0,
+        dz: CUT_H,
+        n_z: 4,
+        n_theta_max: nt,
+        axisymmetry_assertion: false,
+    };
+    let mut g = Grid::build_with_geometry_theta(
+        spec,
+        crucible_solvers::euler::EULER_FIELDS,
+        |_i_r, j, _i_z| {
+            // κ dips in one sector (all gas) — θ-VARYING — while every face
+            // aperture stays 1.0 so the θ-pair + shared-face coherence rules
+            // are satisfied and the world builds. Only κ varies by sector.
+            let kappa = if j == 3 { 0.6 } else { 0.8 };
+            CellGeomTheta {
+                kappa,
+                aperture: [1.0; 6],
+            }
+        },
+        |_, _| Region::Exterior,
+    )
+    .expect("θ-varying cut world builds");
+    assert!(g.has_cut_geometry());
+    assert!(
+        !g.geometry_is_theta_uniform(),
+        "the fixture must read θ-VARYING"
+    );
+    let f = EulerFields::resolve(&g).expect("fields");
+    for (k, &id) in f.ids().iter().enumerate() {
+        g.fill_field(id, |_r, _th, _z| {
+            blend
+                .cons_from_phzb(P0, H_CUT_WARM, Z0, 0.5, [0.0, 0.0, 0.0])
+                .expect("valid IC")[k]
+        });
+    }
+    let op = Euler {
+        eos: blend.clone(),
+        source: &ZERO_SRC,
+        bcs: FlowBcs {
+            r_inner: FlowBc::Reflecting,
+            r_outer: FlowBc::Reflecting,
+            z_lo: FlowBc::Reflecting,
+            z_hi: FlowBc::Reflecting,
+        },
+        wall_normal: None,
+        slip_wall_z_faces: true,
+        combustion: Some(&comb),
+    };
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
+    let react = ReactionClass { op: &comb };
+    let err = Sdc::new()
+        .step(
+            &mut g,
+            Some(&flow),
+            None,
+            None,
+            None,
+            Some(&react),
+            0.0,
+            1.0e-9,
+        )
+        .expect_err("θ-varying cut combustion must refuse");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("VARYING") || msg.contains("θ-VARYING") || msg.contains("combustion"),
+        "the refusal must name the θ-varying-combustion owner, got: {msg}"
+    );
 }

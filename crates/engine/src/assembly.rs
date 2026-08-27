@@ -7,7 +7,7 @@
 
 use crate::geometry::Contour;
 use crucible_config::{Loaded, ResolvedConfig, parse_contour_csv};
-use crucible_grid::{CellGeom, Grid, GridSpec, Region};
+use crucible_grid::{CellGeom, CellGeomTheta, Grid, GridSpec, Region};
 use crucible_solvers::euler::{EULER_FIELDS, EulerFields};
 use crucible_solvers::wall_heat::WallLaw;
 
@@ -73,6 +73,9 @@ pub struct IgniterSpec {
     pub r_m: f64,
     pub z_m: f64,
     pub half_width_m: f64,
+    /// Azimuthal placement [rad] of the point spark (S11 / ◆C3): the deposit
+    /// fires in the one θ-sector nearest this angle. Ignored at N_θ = 1.
+    pub theta_rad: f64,
     pub window_start_s: f64,
     pub window_s: f64,
 }
@@ -199,11 +202,16 @@ pub fn assemble(
         .extents
         .as_ref()
         .ok_or("resolved contour config must carry derived extents")?;
-    if !geo.axisymmetric || geo.n_theta_max != 1 {
+    // N_θ = 1 is the recorded-axisymmetry path (the certified stations + ◆C2);
+    // N_θ > 1 (S11) opens the genuinely-3-D assembly for ◆C3. The loader
+    // already ladder-validated `n_theta_max` and enforced `n_theta_max = 1 ⇒
+    // axisymmetric`; the deferred-coupling refusals (cooled wall, F_visc) come
+    // after the mechanism parse, where the selection is known.
+    let n_theta_max = u32::try_from(geo.n_theta_max)
+        .map_err(|_| format!("n_theta_max {} out of range", geo.n_theta_max))?;
+    if n_theta_max == 1 && !geo.axisymmetric {
         return Err(
-            "this wave runs under the recorded axisymmetry assertion (n_theta_max = 1); \
-             N_θ > 1 assemblies arrive with the refluxing wave (COUP-2/3)"
-                .to_string(),
+            "n_theta_max = 1 requires the recorded axisymmetry assertion (FND-2 §3.4)".to_string(),
         );
     }
 
@@ -412,6 +420,7 @@ pub fn assemble(
                 r_m: f("r_m"),
                 z_m: f("z_m"),
                 half_width_m: f("half_width_m"),
+                theta_rad: f("theta_rad"),
                 window_start_s: f("window_start_s"),
                 window_s: f("window_s"),
             })
@@ -529,6 +538,36 @@ pub fn assemble(
         }
     }
 
+    // --- N_θ > 1 (S11 / ◆C3): the deferred-coupling refusals ---------------
+    // The genuinely-3-D assembly runs the ADIABATIC flow+combustion start
+    // core (◆C3 proves the 3-D start MACHINERY, not a working engine). The
+    // cooled-wall Robin exchange (per-θ wall patches), the coupled flow+solid
+    // conduction, and F_visc on cut θ-faces are the typed S11/S9 refusals
+    // still standing in the solver (`sdc::build_wall_patches` and the
+    // `Sdc::step` guards refuse them); a cooled or viscous 3-D RL10 lands
+    // with that wall-patch/conduction wave. Refuse here, at assembly, loudly.
+    if n_theta_max > 1 {
+        if cooled {
+            return Err(
+                "N_θ > 1 with a cooled wall (liner_thickness_m > 0): per-θ wall patches \
+                 + coupled flow/solid conduction ride the S11 wall-patch wave (the solver \
+                 refuses them — `build_wall_patches` and the flow+conduction step guard); \
+                 ◆C3 runs the adiabatic flow+combustion start core — set \
+                 liner_thickness_m = 0 (and drop jacket/wall/conduction/margins)"
+                    .to_string(),
+            );
+        }
+        if gas_diffusion {
+            return Err(
+                "N_θ > 1 with gas_diffusion (F_visc) on the cut RL10 contour: θ-face \
+                 apertures + per-θ wall patches ride S11 (the solver refuses gas diffusion \
+                 with cut geometry at N_θ > 1); drop `gas_diffusion` for the ◆C3 3-D \
+                 start core"
+                    .to_string(),
+            );
+        }
+    }
+
     // The ternary grid through the FND-3 §3.3/§3.6 ingest seam: analytic
     // partial fractions + face apertures from the contour clip. Gas ⇔
     // κ > 0 (the by-center stair classification is retired); the liner
@@ -543,15 +582,21 @@ pub fn assemble(
         z_min: ext.z_min,
         dz: ext.dz,
         n_z: usize::try_from(ext.n_z).map_err(|_| "n_z overflow")?,
-        n_theta_max: 1,
-        axisymmetry_assertion: true,
+        n_theta_max,
+        // The recorded axisymmetry assertion legalizes N_θ = 1 (and only it);
+        // a genuinely-3-D world never asserts it.
+        axisymmetry_assertion: n_theta_max == 1,
     };
     let mut names: Vec<&str> = EULER_FIELDS.to_vec();
     names.push(T_SOLID);
     names.push(RATE_SOLID);
     let (r_min, dr, dz, z0) = (spec.r_min, spec.dr, spec.dz, spec.z_min);
     let c = contour.clone();
-    let grid = Grid::build_with_geometry(spec, &names, |i_r, i_z| {
+    // The meridional geometry of a cell — revolved (θ-uniform), so both the
+    // N_θ = 1 and N_θ > 1 builders read the SAME analytic clip. Returns the
+    // `CellGeom` the single-valued builder wants directly; the θ-builder
+    // adapts it (θ-faces = κ, region from the κ = 0 branch).
+    let geom_rz = move |i_r: usize, i_z: usize| -> CellGeom {
         let r0 = r_min + i_r as f64 * dr;
         let r1 = r_min + (i_r + 1) as f64 * dr;
         let za = z0 + i_z as f64 * dz;
@@ -582,7 +627,36 @@ pub fn assemble(
                 aperture: [0.0; 4],
             }
         }
-    })
+    };
+    let grid = if n_theta_max == 1 {
+        // The certified path — bitwise unchanged from the pre-S11 assembly.
+        Grid::build_with_geometry(spec, &names, &geom_rz)
+    } else {
+        // ◆C3: the revolved contour at uniform N_θ through the θ-builder.
+        // Every sector is the identical clip (`_j` unused), θ-face apertures
+        // are κ (the revolved convention — FND-2 0.5.3 / the S9
+        // `stl_toy_chamber` shape); `region_of` classifies the all-κ = 0
+        // rings (with liner_thickness_m = 0 forced above, always Exterior).
+        Grid::build_with_geometry_theta(
+            spec,
+            &names,
+            |i_r, _j, i_z| {
+                let g = geom_rz(i_r, i_z);
+                CellGeomTheta {
+                    kappa: g.kappa,
+                    aperture: [
+                        g.aperture[0],
+                        g.aperture[1],
+                        g.aperture[2],
+                        g.aperture[3],
+                        g.kappa,
+                        g.kappa,
+                    ],
+                }
+            },
+            |i_r, i_z| geom_rz(i_r, i_z).region,
+        )
+    }
     .map_err(|e| format!("grid build: {e}"))?;
     let fields = EulerFields::resolve(&grid).map_err(|e| format!("fields: {e}"))?;
     let t_solid = grid.field_id(T_SOLID).map_err(|e| format!("{e}"))?;

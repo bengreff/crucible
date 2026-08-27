@@ -1699,3 +1699,118 @@ the committed artifacts in `certificates/` are the living record.
   the **cross-pencil (r,z) flux-register production integration** + dynamic-AMR-if-ever (needs a
   frozen-topology amendment first, and the measurement says it isn't needed for the front); per-sector
   activity masks; mixed level × N_θ / cut / class-D (all typed refusals when they arrive).
+
+- Session 23 (2026-08-26): **plan S11, ◆C3 — THE FIRST GENUINELY 3-D ENGINE RUN + review wave A.** The
+  azimuthal machinery built and gated in the SOLVER at S8/S9 now reaches the ENGINE: a coarse full-3-D
+  RL10 lights from a **true point spark**, shows **asymmetric light-off**, and marches spark→settle to a
+  typed COUP-4 verdict. ◆C3 proves the 3-D START MACHINERY, not a working engine — and the honest
+  measured outcome is **DOESN'T WORK**, exactly as the 2-D ◆C2 (S7) and the plan predicted.
+
+  **The engine N_θ > 1 assembly (`crates/engine/src/assembly.rs`).** The `!axisymmetric || n_theta_max
+  != 1` guard (the S9-map's ~line-202 refusal) is lifted. `n_theta_max` from `[geometry]` now threads
+  into `GridSpec`; the N_θ = 1 path keeps `build_with_geometry` **bitwise unchanged** (the certified
+  stations + ◆C2), and N_θ > 1 builds via `build_with_geometry_theta` on the revolved contour (a
+  `_j`-ignoring closure — every sector the identical analytic clip, θ-face apertures = κ, the S9
+  `stl_toy_chamber` convention). **Scope, refused loudly at assembly:** the cooled-wall Robin exchange
+  (per-θ wall patches), coupled flow+solid conduction, and F_visc on cut θ-faces are the typed S11/S9
+  refusals still standing IN THE SOLVER (`sdc::build_wall_patches` refuses N_θ > 1; the `Sdc::step`
+  guards refuse coupled flow+conduction and gas-diffusion-on-cut-θ) — so a cooled or viscous 3-D RL10
+  lands with that wall-patch/conduction wave. ◆C3 therefore runs the **ADIABATIC flow+combustion start
+  core** (`liner_thickness_m = 0`, slip-wall nozzle); the two new assembly refusals name the deferral
+  in kind (gated by `s11_azimuthal_3d`).
+
+  **`run.rs` made θ-aware — N_θ = 1 bit-identical (certificates byte-identical, gate 5).** The
+  field-weighted plane integrals (`plane_mdot`/`plane_thrust`/`injector_end_stagnation_p`) now sum over
+  θ sectors, each carrying its per-sector annular area `face_area_z(i_r, n_θ)·aperture`; at N_θ = 1 the
+  single sector's area is the full ring and `cell_value_theta(…,0,…)` = `cell_value`, so the arithmetic
+  is bitwise the pre-S11 form (the geometry `aperture` reads the θ-plane-0 view — exact for revolved,
+  latent for a θ-varying wall). `max_flame_cell` scans every sector; `fields_csv`/`crash_fields_csv`
+  emit one row per (r, θ, z) with a θ column + swirl velocity for N_θ > 1 (the certified N_θ = 1 columns
+  unchanged). The quiescent fill + audit reductions were already θ-complete (`fill_field`,
+  `reduce_kappa_volume_weighted`).
+
+  **The point-in-θ spark (`IgniterSpec.theta_rad`, default 0 so the certified configs are untouched).**
+  The igniter deposit is confined to the SINGLE θ-sector nearest `theta_rad` — a true point, not the
+  N_θ = 1 ring: the `IgniterKernel.theta_gate` computes the target sector, the volume-normalization
+  loop selects exactly that sector's cells (per-sector `cell_volume(i_r, n_θ)`), and `source_fn` maps
+  the continuous θ back to the sector index (`(θ/Δθ).floor()`) — the same cell set, so the deposited
+  energy still integrates to exactly `energy_j`. At N_θ = 1 `theta_gate = None` ⇒ the ring, bitwise the
+  S7 form.
+
+  **The combustion cut-θ D_c stencil built (the S9 "combustion on cut θ > 1 worlds" refusal RETIRED for
+  revolved walls — landed with its gate, exactly the brief's sanction).** The exploratory ◆C3 march
+  surfaced the last blocker: on the CUT RL10 contour the combustion front-diffusion refused at N_θ > 1
+  (`euler/mod.rs` `validate`), because its D_c stencil read the θ-uniform (r,z) geometry view. Fixed
+  per-sector (`combustion.rs`): `kv` uses `kappa_cell(j, local)`, the meridional faces use
+  `aperture_at(i_r, j, i_z, dir)`, and the θ-direction faces now **weight by the θ-face aperture**
+  `aperture_at(…, ThetaMinus/ThetaPlus)` — a revolved cut cell's constant-θ plane is partly blocked, and
+  full dr·dz would over-diffuse the front across a wall-clipped sector; the shared θ-face aperture is
+  bit-coherent from both sides (build validation) so the flux still telescopes. **Every change is
+  bit-identical at N_θ = 1 and on box worlds** (`kappa_cell(0,·) == kappa_rz`, `aperture_at(·,0,·,·) ==
+  aperture`, θ-block skipped at N_θ = 1, ×1.0 exact on box worlds) — the whole N_θ = 1 combustion
+  battery (`flame_1d`, `spark_box`, …) stays green. The refusal is **narrowed** to genuinely θ-VARYING
+  cut geometry via a build-time `Grid::geometry_is_theta_uniform()` flag (computed once in
+  `build_with_geometry_theta` by bit-comparing every sector's κ + 6 apertures to sector 0) — a CSG/STL
+  θ-varying wall still refuses, typed, until that wave. `reacting_measure`/`consumption_rate` aligned to
+  per-sector κ too (review-wave consistency; bit-identical on θ-uniform).
+
+  **Gates (all new, all green).** `solv4_combustion::s11_revolved_cut_combustion_n_theta_8_is_theta_
+  symmetric_and_reduces`: an axisymmetric burn on a revolved CUT world at N_θ = 8 stays **exactly
+  θ-symmetric** (every sector bit-identical to sector 0 through the SDC step — the per-sector D_c
+  stencil + zero θ-flux introduce NO spurious azimuthal asymmetry) and reduces to the certified N_θ = 1
+  cut march (tight tolerance early; finding: unlike the flow sweep, the per-θ face-area accumulation is
+  NOT power-of-two bit-reducible, so the sub-ULP round-off amplifies chaotically — different N_θ
+  discretizations need only converge, not bit-match); `s11_theta_varying_cut_combustion_still_refuses`
+  (a θ-varying κ world refuses, typed). `engine/s11_azimuthal_3d`: a coarse 3-D RL10 **assembles,
+  marches audited steps, audit closes**, reads out θ-summed (the fields CSV carries the θ column); the
+  cooled-wall and gas_diffusion 3-D configs **refuse at assembly**.
+
+  **Uniform N_θ is structural, not a shortcut.** `build_with_geometry_theta` pins every geometry-bearing
+  brick's `n_theta_geom_floor = n_theta_max`, and the controller refuses to regrid a geometry-bearing
+  brick — so a revolved-contour world is **uniform N_θ by construction** (the θ-CFL near the axis sets
+  the step count; the N_θ(r) controller that would coarsen near-axis rings is a later-wave item, moot on
+  the contour's geometry floor). No controller wiring was needed or possible.
+
+  **◆C3 — the run (verdict AS MEASURED).** `configs/rl10_startup_3d.toml` = the desktop-confirm spec
+  (N_θ = 8, dial 5, grid 40×119, 84 ms horizon; assembles + marches — Ben's to run to completion). The
+  **laptop MINI** (N_θ = 8, dial 3, grid 24×71, commanded p_c 3.15 MPa / F 75.6 kN) marched end to end:
+  spark fires at 2 ms into the target sector → an asymmetric reacting kernel grows (R climbs 0 →
+  ~1.2e-7 kg/s) but **cannot anchor** (three orders below the ṁ-scaled ignition floor — the laminar
+  front can't spread across the swept face, exactly the ◆C2/S16 physics) → the Stage-1 horizon expires
+  and the march ends in the typed verdict **DOESN'T WORK (FAILED_TO_REACH; physical): p_c 0.246 MPa
+  (−92.2%), thrust 3.93 kN (−94.8%) of commanded** (2610 steps, audit green, verdict + crash artifacts
+  written). "DOESN'T FULLY LIGHT" remains the honest expected outcome until the spreading physics
+  (distributed injection S16, resolved 3-D recirculation) exists — ◆C3 proves the 3-D START MACHINERY
+  (point spark, asymmetric light-off, θ-summed readout, typed verdict), not a working engine.
+
+  **Review wave A (multi-agent review of phases 1–3 + the S11 diff; 4 finder agents by subsystem).**
+  Verdict: **no confirmed correctness bug** across the S2 integrator, S3 F_visc, S4 transport, S5 cold
+  branch, S6/S7 ignition, S8 azimuthal, S9 geometry, S10 refinement, or the S11 3-D engine path. The
+  agents re-derived the load-bearing invariants by hand: the SDC audit genuinely closes and catches a
+  violation; F_visc's metric/CG-symmetry/wall-suppression are correct; heat release is EOS-implicit and
+  conserved by construction; the Nagumo front speed is genuinely closure-set; the winding number,
+  cylindrical voxel measures, PLIC bisection, and level-interface telescoping are sound; and the S11
+  N_θ = 1 bit-identity + D_c telescoping + point-θ mapping + θ-uniformity detection all hold. **One
+  confirmed finding (LOW), fixed in-session:** the tabulated transport occupant did not enforce the
+  Prandtl rail its own doc claimed the constant occupant carries (`[0.05, 5]`, `TRANSPORT_CONSTANT_
+  MANIFEST`) — a metal-like-`k` node would pass the column rails yet deliver a sub-0.05 Pr; now railed
+  (`PR_RANGE`, defense-in-depth — shipped Pr is 0.2–1.5, no data rejected, S4 spine march unchanged).
+  **Recorded to their owning waves (latent, not bugs):** the θ-summed readouts + `reacting_measure` read
+  the θ-plane-0 aperture/κ view (exact on revolved, needs per-sector on a CSG/STL θ-varying wall); the
+  igniter's sector index derives from `n_theta_max` (agrees with the brick N_θ only via the geometry
+  floor); the blend `partition_h` clamp trades the enthalpy identity for the density identity at the
+  cold/hot edges (a bounded fidelity edge — worth a mid-`b` deep-quench unit test); the ignition↔unburnt
+  envelope-consistency contract is convention-enforced (an offline cross-check would harden it, like the
+  transport↔EOS refusal that caught the S6 inversion).
+
+  **Docs:** SESSION_LOG (this entry); CLAUDE.md State; PLAN §8 v1.11. No Reviewed Layer-2 doc contract
+  changed (the combustion cut-θ extension realizes COUP-3 0.4.6 / SOLV-4 §3.6 at uniform N_θ, already
+  the design of record; the engine 3-D assembly is FND-4/engine-header scope). Certificates
+  byte-identical (gate 5). **NEXT = plan S12 (GPU spike).**
+
+  **OPEN DECISION FOR BEN (carried from S10 close, still unanswered): static (r,z) refinement wiring —
+  Option A (wire the S10 flux-register primitive into the engine now, for wall/throat/injector gradient
+  resolution) vs Option B (defer until the S19 RUN needs the cell budget — my recommendation, justified
+  by the measured AMR NO-GO). NOT built this session; the primitive stays proven-but-unwired. New angle
+  from ◆C3: refining the injector/shear-layer region may help the RESOLVED turbulent mixing that spreads
+  the flame — but only after distributed injection (S16), so even under A it is a measure-first item.**

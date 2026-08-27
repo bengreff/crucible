@@ -1,0 +1,139 @@
+# RL10A-3-3A STARTUP, S11 / ◆C3 — the FIRST GENUINELY 3-D ENGINE RUN.
+#
+# This is the coarse full-3-D checkpoint: a true POINT spark (one innermost
+# (r, θ, z) cell/sector, not a ring) lights the filling chamber; the kernel
+# spreads to adjacent θ-sectors first (ASYMMETRIC light-off — the S8
+# point-in-θ combustion, now realized in the ENGINE); the march runs
+# spark → ignition → light-off → choke/settle to a typed COUP-4 verdict.
+#
+# ◆C3 proves the 3-D START MACHINERY, not a working engine. The spreading
+# physics that would let a laminar front cross the swept face (distributed
+# injection S16, resolved 3-D recirculation) does not exist yet, so
+# "DOESN'T FULLY LIGHT" (FAILED_TO_REACH) remains the honest expected
+# outcome — exactly as the ◆C2 (2-D) verdict of record (S7/S8).
+#
+# SCOPE (S11): the 3-D core is ADIABATIC flow + combustion. The cooled-wall
+# Robin exchange (per-θ wall patches), coupled flow+solid conduction, and
+# F_visc on cut θ-faces are the typed S11/S9 refusals still standing in the
+# solver (build_wall_patches / the SDC step guards) — a cooled or viscous
+# 3-D RL10 lands with that wall-patch/conduction wave. So: liner_thickness_m
+# = 0 (slip-wall nozzle), no jacket/wall/conduction/margins, no gas_diffusion.
+#
+# TIER: this file is the DESKTOP-CONFIRM spec at N_θ = 8 (coarse, ~10^4-10^5
+# cells with the θ dimension; the θ-CFL at the near-axis rings sets the step
+# count — the N_θ(r) controller that would coarsen those rings is pinned OFF
+# by the revolved contour's geometry floor, a later-wave item). The laptop
+# MINI (this session's ◆C3 evidence) runs the same file at a shorter horizon;
+# the desktop confirm raises n_theta_max (≤ 32) and the horizon. Report the
+# verdict AS MEASURED.
+#
+# Run from the repository root:
+#   cargo run --release -p crucible -- run configs/rl10_startup_3d.toml
+schema_version = 1
+
+[meta]
+name = "rl10-startup-3d"
+description = "RL10A-3-3A coarse full-3-D startup — ◆C3: point spark, asymmetric light-off, typed verdict (plan S11)"
+
+[geometry]
+# THE 3-D dimension: N_θ = 8 uniform (revolved RL10 contour; the geometry
+# floor pins it uniform — the controller cannot regrid a geometry-bearing
+# brick). The desktop confirm raises this to 16 or 32 (≤ MAX_N_THETA).
+n_theta_max = 8
+axisymmetric = false
+contour = "data/anchors/rl10_contour.csv"
+contour_units = "in"
+# ADIABATIC 3-D core (S11 scope): no solid ring — the cooled wall + per-θ
+# wall patches ride a later wave. The contour wall is a slip plane.
+liner_thickness_m = 0.0
+cells_across_throat = 5.0
+
+[mechanisms.flow]
+type = "flow_shifting"
+
+[mechanisms.combustion]
+# SOLV-4 §3.6 burn progress, N_θ > 1 (S8 built the per-θ-plane re-key +
+# θ-direction front diffusion; S11 wires it through the engine).
+type = "combustion_blend"
+# Declared S_T/S_L = 2.0 (META-3 `turbulent-flame-speed`, the pin's band
+# factor — the honest single-constant tier; see rl10_startup_s8.toml for the
+# full rationale). The S_T-CFL front-carrier guard (S8) marches it honestly.
+wrinkling = 2.0
+
+[mechanisms.igniter]
+# COUP-7 §3.3 spark igniter — the TRUE POINT SPARK (S11): the deposit is
+# confined to the ONE θ-sector nearest `theta_rad`, off-axis so the
+# light-off is visibly asymmetric (the ring limitation of the N_θ = 1 tiers
+# is retired here). Torch-tier energy over the Stage-1 window (the real ASI
+# runs continuously through start — TM-107318). Sized per the ◆C2 finding
+# (a laminar kernel cannot anchor in the fill stream; flame-holding is the
+# torch's job) — same deposit class, now a point not a ring.
+type = "spark_igniter"
+energy_j = 21000.0
+r_m = 0.025       # off-axis (a few cells out) so one sector is clearly lit
+z_m = -0.2823     # ~3 cells downstream of the injector face (z_min ≈ −0.326)
+half_width_m = 0.008
+theta_rad = 0.0   # the point spark's sector (S11): sector 0 of N_θ
+window_start_s = 2.0e-3
+window_s = 8.2e-2
+
+[mechanisms.injector]
+type = "injector_prior"
+mdot_kg_per_s = 16.9465
+mixture_ratio = 5.0
+# GAS-PHASE declared injection state (~215 K premixed — inside the unburnt
+# surface's h envelope; the liquid-injection state rides S15).
+h_inj_j_per_kg = -2.5e5
+
+[mechanisms.transport]
+# Required by the spine (every config has a medium), but UNUSED in the
+# adiabatic 3-D core: F_visc (its only F_visc consumer) is off, and there
+# is no wall law. The declared-constant occupant needs no table.
+type = "transport_constant"
+cp_j_per_kg_k = 5000.0
+mu_pa_s = 1.0e-4
+pr = 0.6
+gamma = 1.2
+schmidt = 0.5
+
+[engine.bindings]
+"flow.inflow" = "injector.combustion_inlet"
+
+[operating_profile]
+mode = "steady_march"
+# The Stage-1 horizon: same COLD-FILL acoustic span as the S8 2-D startup
+# (measured ~2.8 ms/flow-through at the ~215 K fill). The desktop confirm
+# runs the full 30; the laptop mini uses a shorter horizon (overridden).
+flowthroughs = 30.0
+fill_p_pa = 1000.0
+pumpdown_flowthroughs = 0.0
+p_amb_floor_pa = 1000.0
+injector_ramp_flowthroughs = 4.0
+valve_cited_timeline_s = 2.0
+# COUP-4 commanded profile — arms the WORKS criterion so the march ends in a
+# typed verdict (the S8 2-D operating point of record).
+commanded_p_c_pa = 3.15e6
+commanded_thrust_n = 75600.0
+eps_works = 0.05
+t_dwell_flowthroughs = 7.0
+
+[tables.chem_equilibrium]
+file = "tables/chem/lox_lh2_v0.4.0.h5"
+group = "/chem/lox_lh2/equilibrium"
+pins = "tables/chem/lox_lh2_v0.4.0.pins.toml"
+
+[tables.chem_unburnt]
+file = "tables/chem/lox_lh2_unburnt_v0.3.0.h5"
+group = "/chem/lox_lh2/unburnt"
+pins = "tables/chem/lox_lh2_unburnt_v0.3.0.pins.toml"
+
+[tables.chem_ignition]
+file = "tables/chem/lox_lh2_ignition_v0.3.0.h5"
+group = "/chem/lox_lh2/ignition"
+pins = "tables/chem/lox_lh2_ignition_v0.3.0.pins.toml"
+
+[determinism]
+mode = "fixed-order"
+
+[rng]
+master_seed = 11

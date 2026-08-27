@@ -374,12 +374,24 @@ pub static SPARK_IGNITER_MANIFEST: Manifest = Manifest {
         },
         ParamSpec {
             // Half-width of the square deposit kernel around (r_m, z_m); at
-            // N_θ = 1 this is a ring (the declared 2-D limitation — a true
-            // point spark is the S8/S11 3-D capability).
+            // N_θ = 1 this is a ring (the declared 2-D limitation). At
+            // N_θ > 1 (S11 / ◆C3) the deposit is confined to the SINGLE
+            // θ-sector containing `theta_rad` — the true point spark, whose
+            // asymmetric light-off is the 3-D start capability.
             name: "half_width_m",
             ty: ParamType::Float,
             range: Some((1.0e-5, 1.0)),
             default: None,
+        },
+        ParamSpec {
+            // Azimuthal placement [rad] of the point spark (S11 / ◆C3): the
+            // deposit fires in the one θ-sector whose center is nearest this
+            // angle. Ignored at N_θ = 1 (a ring has no azimuth) — default 0
+            // so the certified axisymmetric configs need not declare it.
+            name: "theta_rad",
+            ty: ParamType::Float,
+            range: Some((0.0, std::f64::consts::TAU)),
+            default: Some(ParamValue::Float(0.0)),
         },
         ParamSpec {
             // Firing-window schedule [s] (COUP-7 §3.2.2 class): start time

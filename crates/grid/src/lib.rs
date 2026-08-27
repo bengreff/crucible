@@ -394,6 +394,13 @@ pub struct Grid {
     field_names: Vec<String>,
     /// Morton-sorted active-brick array — THE canonical traversal (§3.7).
     bricks: Vec<Brick>,
+    /// Whether any attached cut geometry is identical across θ-sectors (a
+    /// revolved contour) — the certified and ◆C3 case. `true` when there is
+    /// no cut geometry (box worlds) or N_θ = 1. A genuinely θ-varying world
+    /// (CSG/STL, S11) sets this `false`; the combustion operator's per-sector
+    /// D_c face stencil is legal only on θ-uniform cut geometry until the
+    /// θ-varying wall wave lands (`Euler::validate`, plan S11).
+    geom_theta_uniform: bool,
 }
 
 impl Grid {
@@ -522,6 +529,9 @@ impl Grid {
             spec,
             field_names: field_names.iter().map(|s| s.to_string()).collect(),
             bricks,
+            // Box worlds and the single-valued/revolved N_θ = 1 path carry no
+            // θ-varying geometry; the θ-builder recomputes this after clip.
+            geom_theta_uniform: true,
         })
     }
 
@@ -700,6 +710,9 @@ impl Grid {
             }
         })?;
         let plane = nt as usize * BRICK_CELLS;
+        // Is every sector's clip identical (a revolved contour)? Combustion's
+        // per-sector D_c stencil is legal only when it is (plan S11).
+        let mut theta_uniform = true;
         for b in &mut g.bricks {
             let mut bg = BrickGeom {
                 kappa: vec![0.0; plane],
@@ -747,12 +760,25 @@ impl Grid {
                     }
                     bg.kappa[idx] = c.kappa;
                 }
+                // θ-uniformity: every sector's κ + 6 apertures must bit-equal
+                // sector 0's (a revolved clip is byte-identical per sector).
+                if gas {
+                    for j in 1..nt {
+                        let idx = j as usize * BRICK_CELLS + local;
+                        if bg.kappa[idx] != bg.kappa[local]
+                            || (0..6).any(|d| bg.aperture[d][idx] != bg.aperture[d][local])
+                        {
+                            theta_uniform = false;
+                        }
+                    }
+                }
             }
             b.geom = Some(bg);
             // FND-3 §3.4 geometry floor (S9): cut geometry pins its ring at
             // the built resolution — the controller can never coarsen it.
             b.n_theta_geom_floor = nt;
         }
+        g.geom_theta_uniform = theta_uniform;
         // Face coherence, per sector (the same rules as the revolved path,
         // extended by the θ-face pair rule within each cell).
         for i_r in 0..g.spec.n_r {
@@ -832,6 +858,14 @@ impl Grid {
     /// Whether this world carries FND-3 cut geometry (fractions/apertures).
     pub fn has_cut_geometry(&self) -> bool {
         self.bricks.iter().any(|b| b.geom.is_some())
+    }
+
+    /// Whether any attached cut geometry is θ-uniform (a revolved contour) —
+    /// `true` for box worlds, the N_θ = 1 path, and revolved N_θ > 1 worlds;
+    /// `false` only for a genuinely θ-varying (CSG/STL) wall. The combustion
+    /// operator's per-sector D_c face stencil is gated on this (plan S11).
+    pub fn geometry_is_theta_uniform(&self) -> bool {
+        self.geom_theta_uniform
     }
 
     /// Gas volume fraction κ of cell (i_r, i_z): 0 outside the gas mask,
