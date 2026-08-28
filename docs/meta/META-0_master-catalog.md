@@ -5,8 +5,8 @@
 | **ID** | META-0 |
 | **Family** | META |
 | **Status** | Draft |
-| **Depends on** | VISION_SCOPE.md (Layer 1, now v1.3) |
-| **Version** | 0.5 (v1.3 unified-grid pivot) |
+| **Depends on** | VISION_SCOPE.md (Layer 1, now **v1.6**) |
+| **Version** | 0.5 (catalog structure fixed at the v1.3 unified-grid pivot; unchanged since) |
 
 ---
 
@@ -49,9 +49,14 @@ as a VISION_SCOPE amendment.
 
 ## 2. Reading order for a fresh session
 
-`VISION_SCOPE.md` (v1.3) → this file (META-0) → META-1 (philosophy; Rules 12/13 are supreme) →
+`VISION_SCOPE.md` (v1.6) → this file (META-0) → META-1 (philosophy; Rules 12/13 are supreme) →
 META-2 (conventions) → the specific module doc(s) you're working on (each header notes what to read
 first). META-3 (sources) is a reference, consulted per datum.
+
+> **This catalog is design-time scope** (what each doc *owns*). For **build status** — which docs are
+> code, what's done, what's next — the authority is `PLAN_CHEMICAL_SANDBOX.md` §5/§8 and `CLAUDE.md`.
+> As of 2026-08-28 the chemical vertical slice is at plan S12/20 (Phase 4, GPU); the nuclear/advanced
+> regimes (W3/W4 docs) are Reviewed but not yet built.
 
 ---
 
