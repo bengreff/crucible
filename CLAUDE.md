@@ -548,4 +548,5 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   spark-to-steady certification overnight); keep the fields-CSV feed boring and complete meanwhile.
 - **Compute strategy:** laptop = per-session mini-sims (the test battery); desktop (`backhouse` =
   RTX 4070 Ti SUPER, 24-h cap; reached over Tailscale SSH — WSL2 Ubuntu + CUDA 13.3) = the new GPU
-  measurement tier + the ◆ checkpoint overnights (plan §3/§6).
+  measurement tier + the ◆ checkpoint overnights (plan §3/§6). **How to reach + drive the box (SSH/WSL
+  mechanics, long-job persistence, sharing): `docs/gpu-box.md` — read it before any GPU session.**
