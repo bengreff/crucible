@@ -1,0 +1,23 @@
+# crucible-gpu — the S12 GPU-spike CUDA backend skeleton (PLAN S12; ruling #9).
+# DETACHED from the repo workspace on purpose (its own empty [workspace] table):
+# it requires nvcc + an NVIDIA GPU, which the laptop CPU reference host and the
+# `scripts/check.sh` fast gate do not have. The CPU path stays the bit-exact
+# reference (D-H); this crate is opt-in and touches no CPU-produced number.
+# Built + run only on the GPU box (RTX 4070 Ti SUPER, over ssh). See SESSION_LOG
+# S12 for the measured throughput + the CPU↔GPU tolerance this bin establishes.
+[package]
+name = "crucible-gpu"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+
+[dependencies]
+crucible-solvers = { path = "../solvers" }
+
+[[bin]]
+name = "gpu_spike"
+path = "src/main.rs"
+
+# Empty table = this crate is its OWN workspace root, so the repo-root
+# `cargo build --workspace` / check.sh never pull it in (no nvcc on the laptop).
+[workspace]

@@ -1814,3 +1814,63 @@ the committed artifacts in `certificates/` are the living record.
   by the measured AMR NO-GO). NOT built this session; the primitive stays proven-but-unwired. New angle
   from ◆C3: refining the injector/shear-layer region may help the RESOLVED turbulent mixing that spreads
   the flame — but only after distributed injection (S16), so even under A it is a measure-first item.**
+
+- Session 24 (2026-08-27): **plan S12 — THE GPU SPIKE (measured on real hardware) + the S11 doctrine
+  amendment + remote-GPU bring-up.** Three things landed.
+  **(1) Remote GPU box brought up** (the new logistics). Ben had nothing set up; from a standing start we
+  established: Tailscale on both machines (PC = `backhouse`, RTX **4070 Ti SUPER** — NOT the assumed 4080;
+  16 GB, 256-bit, ~672 GB/s, driver 591.86); Windows OpenSSH server (installed from Microsoft's GitHub
+  after the Windows-Update FoD route returned `NotPresent`); key-based login; and the dev environment
+  **inside WSL2 Ubuntu 24.04** (already present, GPU visible in WSL) — base toolchain, **CUDA 13.3**
+  toolkit, **Rust 1.93.1**. The full CRUCIBLE workspace **builds on the box in ~27 s incl. hdf5-from-source**.
+  Working pattern of record: edit on the laptop → `rsync -e ssh --rsync-path="wsl rsync"` into WSL → build/run
+  over ssh (Windows sshd lands in cmd.exe, so bash runs via `wsl bash -l` with the script piped over stdin;
+  long jobs held in the FOREGROUND of a laptop-side background ssh session — WSL kills nohup'd detached jobs
+  when the launching session exits). Sudo needed no persistence hack: `wsl -u root` runs apt as root
+  per-command (the NOPASSWD-sudoers route was correctly refused by the auto-mode guard as unrequested
+  persistence).
+  **(2) The S11 doctrine amendment (doc-first, ruling #14).** The **torch / ASI flame-holder object is
+  DELETED** (reverses the S7/S8 "torch tier"): the only boundary inputs to a start are the **bounded initial
+  spark** (a deposit that ends) and the **injected fuel**; flame-holding / recirculation / turbulent mixing
+  are **emergent**, resolved on the grid — so the startability verdict cannot be circular. Refinement is
+  re-scoped to **turbulence, not the flame front** (the S10 NO-GO measured front sharpness invisible to the
+  timeline verdict): the S16 solution-adaptive subsystem (Pope-80% / vorticity / Q, 3-D incl. θ, GPU-resident,
+  LES-commutation-aware), with the archived-dormant S10 (r,z) flux-register revived there as its
+  interface-conservation kernel. Landed as PLAN §1 ruling #14 + §2.2/§2.3 + §5 S16 + §8 v1.12; VISION_SCOPE
+  §4.1 reaction-razor worked consequence + §15 v1.6; META-3 `spark-igniter-class` 0.8.6 DEPRECATED note. The
+  torch-tier **code + configs stay in place, marked DEPRECATED, until S16** replaces them with emergent
+  flame-holding (ripping them out now would orphan ◆C2/◆C3 with no starter) — `rl10_startup*.toml` flagged,
+  values untouched.
+  **(3) The spike (STEP 2).** Ported the two hot kernels to CUDA, matching the CPU math (indices, GammaLaw
+  closures, PPM edge algebra, HLLC-Batten, the Illinois root-find + its constants). **Measured f64 throughput
+  (RTX 4070 Ti SUPER, CUDA 13.3, arch sm_89):**
+  · STREAM triad = **401 GB/s** sustained (60% of the 672 peak) — the bandwidth ceiling.
+  · PPM+HLLC hyperbolic z-sweep (NCOMP=7) = **~0.96×10⁸ cell-updates/s**, run-twice **BIT-IDENTICAL**.
+  · Illinois (p,h,Z) EOS projection = **~4.9×10⁸ cell-projections/s**, root recovery 2.8e-15, run-twice
+    **BIT-IDENTICAL**.
+  **Determinism strategy VALIDATED** (META-1 §2.5, ruling #13): gather-only, fixed-order, no atomics ⇒
+  same-build reruns bit-identical. The **Rust→CUDA binding skeleton** = `crates/gpu` (`crucible-gpu`,
+  raw-FFI + nvcc `build.rs`, its own empty `[workspace]` so the laptop `check.sh` never builds it — CPU
+  reference untouched, gate 5 byte-identical). Its `gpu_spike` bin cross-checks the GPU HLLC against the
+  bit-exact `crucible_solvers::euler::hllc_flux` over 1,048,576 face pairs × 3 directions: **worst rel diff
+  5.0×10⁻¹⁰** (the declared cross-device ECT tolerance — FMA contraction differs CPU↔GPU; bit-identity
+  cross-device is impossible and not promised), GPU rerun bit-identical, PASS.
+  **THE KEY FINDING (governs the envelope):** the sweep's ~10⁸ cups is **occupancy/latency-bound, NOT
+  f64-ALU-bound and NOT bandwidth-saturated.** Evidence: the shared-memory formulation barely beat the naive
+  fused one (9.6 vs 9.3×10⁷); the f32 twin is only **~2×** faster (would be 20–60× if f64 arithmetic were the
+  wall); effective DRAM traffic is ~10 GB/s vs the 401 GB/s ceiling; `ptxas` reports **146 registers/thread ⇒
+  ~25% occupancy**. So ruling #9's "bandwidth-bound" premise is **reachable** — the lever is register reduction
+  (staged predictor/correct kernels, fewer live stencil arrays) at the S13 residency + S14 profiling, not
+  blocked by the consumer f64 1/64 rate. **§3 THE-RUN envelope RE-SIZED with data:** ~3×10¹²–1.5×10¹³
+  cell-updates ÷ the measured sweep floor ~1×10⁸ cups = **~8–42 h** (low end in-cap; high end rides the legal
+  multi-night checkpointed continuation), dropping to **~1.7–14 h** at a realistic tuned ~3–5×10⁸ cups.
+  **Spike simplifications (S13 generalizes, recorded in `crates/gpu/cuda/bench/README.md`):** z-sweep on a
+  uniform (r,z) field N_θ=1 (z-face annular areas cancel — metric-exact for z; r-sweep face_radius + cut
+  apertures + mixed N_θ are S13); the EOS surface is a synthetic **multilinear** (p,h,Z) grid exercising the
+  exact trilinear gather + Illinois flow (the real HDF5 surface + the SOLV-4 0.4.8 multi-root scan guard are
+  S13); fused single-kernel sweep, not the staged SDC pipeline; class-D diffusion CG unspiked. Bench kernels
+  archived under `crates/gpu/cuda/bench/`. **Docs:** this entry, CLAUDE.md State, PLAN §8 v1.12+v1.13 + ruling
+  #9 + §3, VISION_SCOPE §15 v1.6, META-3 0.8.6. Local `check.sh` green (the detached `crucible-gpu` is
+  invisible to it); certificates byte-identical. **NEXT = S13 (full residency): entire step on-device,
+  FND-6 checkpoint/restart, the CPU↔GPU tolerance cross-check on real fixtures, register-reduction toward
+  the throughput target.**

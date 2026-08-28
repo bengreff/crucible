@@ -17,6 +17,37 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
+## State (2026-08-27 — session 24 = plan S12 complete)
+
+**Session 24 = plan S12: THE GPU SPIKE (+ the S11 doctrine amendment + remote-GPU bring-up).**
+The runtime touched a GPU for the first time — measured, not estimated. **Remote box of record:
+`backhouse` = RTX 4070 Ti SUPER** (16 GB, 256-bit, ~672 GB/s; **NOT the assumed RTX 4080** — same
+Ada gen, ~6% less bandwidth; ruling #9 + §3 corrected), reached over Tailscale SSH; the dev stack is
+**WSL2 Ubuntu 24.04 + CUDA 13.3 + Rust 1.93.1**, and the full CRUCIBLE workspace builds on it
+(~27 s incl. hdf5-from-source). Working pattern: edit on the laptop → `rsync --rsync-path="wsl rsync"`
+→ build/run over ssh (`wsl bash -l` with scripts piped over stdin; long jobs held foreground in a
+laptop-side background ssh session). **Two hot kernels ported + measured (f64, sm_89):** STREAM triad
+**401 GB/s** (the bandwidth ceiling); PPM+HLLC hyperbolic sweep **~1×10⁸ cell-updates/s**; Illinois
+(p,h,Z) EOS projection **~4.9×10⁸/s** (root recovery 2.8e-15). **Determinism validated** (META-1 §2.5):
+every kernel bit-identical on same-build rerun (gather-only, fixed-order, no atomics). The
+**Rust→CUDA binding** = `crates/gpu` (`crucible-gpu`, raw-FFI + nvcc build.rs, its own `[workspace]`
+so the laptop fast gate never builds it — CPU reference untouched, gate 5 byte-identical); its
+`gpu_spike` bin cross-checks GPU HLLC vs the bit-exact `crucible_solvers::euler::hllc_flux` over 1M
+face pairs × 3 dirs → **worst rel diff 5.0×10⁻¹⁰** (the declared cross-device ECT tolerance; bit-identity
+cross-device impossible) + GPU rerun bit-identical, PASS. **KEY FINDING:** the sweep floor is
+**occupancy/latency-bound (146 regs/thread ⇒ ~25% occ), NOT f64-ALU- or bandwidth-bound** (f32 twin
+only ~2× faster; ~10 GB/s effective vs the 401 ceiling) — ruling #9's bandwidth-bound premise is
+*reachable* via register reduction at S13/S14, not blocked by the consumer f64 1/64 rate. **§3 envelope
+re-sized with data:** ~8–42 h at the un-tuned floor (low end in-cap, high end multi-night-legal),
+~1.7–14 h tuned. Spike simplifications (S13 generalizes): z-sweep uniform (r,z) N_θ=1; synthetic
+multilinear EOS surface; fused (not staged SDC) sweep; class-D CG unspiked — recorded in
+`crates/gpu/cuda/bench/README.md`. **The S11 doctrine amendment landed doc-first (ruling #14):** the
+**torch/ASI flame-holder object is DELETED** — flame-holding is emergent (resolved recirculation), the
+only start boundary-inputs are the bounded spark + injected fuel, so the startability verdict is not
+circular; refinement is re-scoped to turbulence (S16), not the flame front; the S7/S8 torch-tier code +
+`rl10_startup*.toml` are marked **DEPRECATED** (removal rides S16, so ◆C2/◆C3 keep a starter). Certificates
+byte-identical (gate 5); local `check.sh` green. **NEXT = plan S13 (full residency).**
+
 ## State (2026-08-26 — session 23 = plan S11 complete)
 
 Design complete: all 29 critical-path Layer-2 docs **Reviewed 2026-08-14** (the review register was
@@ -465,9 +496,12 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   (FAILED_TO_REACH): p_c −92.2% / F −94.8% of commanded** — the 3-D START MACHINERY proven, "doesn't
   fully light" the honest outcome; review wave A over phases 1–3 found no confirmed bug, the transport
   Pr-rail LOW finding fixed; certificates byte-identical; plan §8 v1.11).
-  **NEXT = plan S12 (GPU spike)**: the CUDA backend skeleton — port the two hot kernels (hyperbolic
-  sweep, EOS projection), **measure real f64 throughput on the 4080**, re-size the §3 envelopes with
-  data, validate the deterministic-reduction strategy (fixed-topology trees, gather-only scatter).
+  **NEXT = plan S13 (full residency)** *(S12 done — see the session-24 State block at the top)*: entire SDC step on-device (flow, diffusion cycles, projection,
+  progress, conduction, closures); CPU orchestrates; same-build rerun bit-identity; the CPU↔GPU
+  tolerance cross-check on real fixtures; FND-6 checkpoint/restart (the 24-h-cap instrument). The S12
+  spike proved the pieces (measured throughput + determinism + the `crates/gpu` Rust→CUDA binding); S13
+  is residency + the register reduction toward the throughput target (the sweep is occupancy-bound at
+  146 regs/thread — see the S12 finding). Read the S13 §5 entry + META-1 §2.5 + the owning docs' §3.
   **Owed to a later CPU wave (S11's typed refusals still standing, owners named):** the cooled-3-D
   wall-patch/conduction wave (per-θ wall patches + coupled flow+conduction — `sdc::build_wall_patches`
   and the step guards refuse N_θ > 1); F_visc on cut θ-faces; the CSG/STL config grammar + geom3d
@@ -512,5 +546,6 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
 - **Do not build:** SOLV-5, OFFL-4 (unreviewed); COUP-1 is a retired tombstone.
 - **Ben's viz gate (2026-08-19):** NO dataviz work until THE RUN exists (plan S19 — the full-3-D
   spark-to-steady certification overnight); keep the fields-CSV feed boring and complete meanwhile.
-- **Compute strategy:** laptop = per-session mini-sims (the test battery); desktop (RTX 4080,
-  24-h cap) = the ◆ checkpoint overnights (plan §3/§6).
+- **Compute strategy:** laptop = per-session mini-sims (the test battery); desktop (`backhouse` =
+  RTX 4070 Ti SUPER, 24-h cap; reached over Tailscale SSH — WSL2 Ubuntu + CUDA 13.3) = the new GPU
+  measurement tier + the ◆ checkpoint overnights (plan §3/§6).

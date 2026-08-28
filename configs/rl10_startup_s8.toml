@@ -77,6 +77,11 @@ type = "combustion_blend"
 wrinkling = 2.0
 
 [mechanisms.igniter]
+# ⚠ DEPRECATED torch tier (2026-08-27, VISION_SCOPE v1.6 / PLAN ruling #14):
+# the continuous kJ-class deposit below acts as a FLAME-HOLDER — that makes the
+# startability verdict circular. Flame-holding is now emergent (resolved
+# recirculation); the igniter reverts to a bounded pulse. KEPT AS-IS until S16
+# replaces it with emergent flame-holding (removing it now orphans ◆C2).
 # COUP-7 §3.3 igniter, TORCH tier (S7 ◆C2 finding): a one-shot exciter
 # spark LIGHTS a kernel (measured: 8 J/40 µs → b = 0.91) but the front
 # CANNOT ANCHOR — the chamber is a ~170 m/s premixed stream during fill
