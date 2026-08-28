@@ -17,7 +17,7 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-28 — session 24 = plan S12 done; chemical sandbox at S12/20, Phase 4)
+## State (2026-08-28 — session 25 = plan S13 done (split; S13b next); chemical sandbox at S13/20, Phase 4)
 
 **This section is current state only.** Per-session build history (measured deltas, findings,
 review waves) lives in `SESSION_LOG.md`; the by-area capability detail is under "What exists" below;
@@ -39,6 +39,21 @@ projection **~4.9×10⁸/s**, STREAM **401 GB/s**; determinism validated (bit-id
 ECT ~5×10⁻¹⁰); the `crates/gpu` Rust→CUDA binding built. Finding: the sweep is **occupancy-bound
 (~25% occ), not f64-bound** — the throughput target is reachable via register reduction at S13/S14;
 THE-RUN envelope re-sized to ~1.7–14 h tuned (§3).
+
+**Session 25 made the class-A step resident** (plan S13, SPLIT — the whole SDC step on-device is larger than one
+ssh-remote session, so residency landed for the **explicit-hyperbolic subset**, the rest → S13b): the class-A RHS
+ported to a device-resident kernel set (`crates/gpu/cuda/residency.cu`) — the **real** 2-direction sweep (exact
+`face_radius` metric: r area-weighted, z metric-ratio) + SOLV-1 §3.3 geometric sources + staged `fill_prims`→`rate`→
+`compose` kernels (generalizing S12 spike simplifications (a) z-only-uniform and (c) fused; PPM + HLLC-Batten
+bit-for-formula from the CPU; GammaLaw EOS, real HDF5 `TableEos` = S13b). The **marched resident SDC step**
+(2-node Lobatto IMEX-SDC, state on-device across the loop, CPU orchestrates) cross-checks the CPU `eval_rhs`/
+`Sdc::step_flow` on real (r,z) fixtures at **worst rel 1.2×10⁻¹⁰ single / 3.1×10⁻¹¹ marched** (FMA-order, ECT does
+not grow), **same-build reruns bit-identical**. The **FND-6 checkpoint/restart primitive** is proven bit-faithful
+(`march(2)▸resume▸march(3)` == `march(5)` byte-for-byte; FND-6 0.5 §3.8). Tuning finding: **naive fused-RHS
+residency is register-heavy** (228 regs, worse than S12's 146 — both directions + sources + the PPM pencil fused);
+the per-direction split buys only 228→206; the real lever (each face computed **once** into a device flux buffer +
+localized PPM temporaries) is the **S14** target. §3 envelope unchanged (~8–42 h un-tuned floor reproduced on the
+resident path).
 
 **Doctrine (VISION_SCOPE v1.6 / plan ruling #14, 2026-08-27):** the **torch/ASI flame-holder object is
 DELETED** — flame-holding is **emergent** (resolved recirculation), the only start boundary-inputs are
@@ -220,12 +235,20 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   (FAILED_TO_REACH): p_c −92.2% / F −94.8% of commanded** — the 3-D START MACHINERY proven, "doesn't
   fully light" the honest outcome; review wave A over phases 1–3 found no confirmed bug, the transport
   Pr-rail LOW finding fixed; certificates byte-identical; plan §8 v1.11).
-  **NEXT = plan S13 (full residency)** *(S12 done — see the session-24 State block at the top)*: entire SDC step on-device (flow, diffusion cycles, projection,
-  progress, conduction, closures); CPU orchestrates; same-build rerun bit-identity; the CPU↔GPU
-  tolerance cross-check on real fixtures; FND-6 checkpoint/restart (the 24-h-cap instrument). The S12
-  spike proved the pieces (measured throughput + determinism + the `crates/gpu` Rust→CUDA binding); S13
-  is residency + the register reduction toward the throughput target (the sweep is occupancy-bound at
-  146 regs/thread — see the S12 finding). Read the S13 §5 entry + META-1 §2.5 + the owning docs' §3.
+  **Session 25 = plan S13 DONE (SPLIT — the class-A subset resident; the rest → S13b)** *(see the
+  session-25 State block at the top + SESSION_LOG session 25)*: the class-A (explicit hyperbolic) SDC step
+  made **resident on-device** (`crates/gpu/cuda/residency.cu` — real `face_radius` metric r/z sweeps +
+  geometric sources + staged kernels + GammaLaw EOS; the marched resident step, CPU orchestrates); the
+  CPU↔GPU tolerance cross-check on real (r,z) fixtures (worst rel 1.2×10⁻¹⁰ single / 3.1×10⁻¹¹ marched,
+  ECT does not grow) + same-build rerun bit-identity; the **FND-6 checkpoint/restart primitive** proven
+  bit-faithful (FND-6 0.5 §3.8). Tuning: naive fused-RHS residency = 228 regs (worse than S12's 146); the
+  flux-buffer register-reduction lever confirmed as S14; §3 envelope unchanged. **NEXT = plan S13b
+  (residency, the rest):** class-D diffusion CG (gas `F_visc` + solid conduction + Robin-Robin Picard)
+  on-device; combustion (Nagumo + front-thickening + class-R) residency; the real HDF5 `TableEos` (p,h,Z)
+  projection + multi-root guard on-device; cut apertures + mixed-N_θ + SRD + BC + `stable_dt` residency —
+  the whole-step generality. Then **S14** (hardening + ◆C4: the overnight auto-checkpoint/resume harness +
+  profiling to the throughput target). Read the S13/S13b §5 entries + META-1 §2.5 + FND-6 §3.8 + the
+  owning docs' §3.
   **Owed to a later CPU wave (S11's typed refusals still standing, owners named):** the cooled-3-D
   wall-patch/conduction wave (per-θ wall patches + coupled flow+conduction — `sdc::build_wall_patches`
   and the step guards refuse N_θ > 1); F_visc on cut θ-faces; the CSG/STL config grammar + geom3d

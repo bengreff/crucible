@@ -845,6 +845,15 @@ impl EulerWorkspace {
     pub fn ledger(&self) -> &FlowLedger {
         &self.0.ledger
     }
+
+    /// The class-A rate buffer of the most recent [`Euler::eval_rhs`],
+    /// per brick (cell index `idx = i_theta·BRICK_CELLS + local`). Exposed
+    /// read-only for the S13 GPU residency cross-check (`crates/gpu`): the
+    /// CPU stays the bit-exact reference the device kernels are scored
+    /// against. No physics path reads it.
+    pub fn rates(&self) -> &[Vec<Cons>] {
+        &self.0.rate
+    }
 }
 
 /// SRD bookkeeping (Berger & Giuliani 2020): the small-cell neighborhoods

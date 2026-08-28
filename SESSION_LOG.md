@@ -1874,3 +1874,62 @@ the committed artifacts in `certificates/` are the living record.
   invisible to it); certificates byte-identical. **NEXT = S13 (full residency): entire step on-device,
   FND-6 checkpoint/restart, the CPU↔GPU tolerance cross-check on real fixtures, register-reduction toward
   the throughput target.**
+
+- Session 25 (2026-08-28): **plan S13 — GPU RESIDENCY (the class-A step on-device) + determinism
+  cross-check + the FND-6 checkpoint primitive + tuning; SPLIT — class-D/combustion/real-EOS/geometry →
+  S13b.** S13 as briefed ("the ENTIRE SDC step on-device") is much larger than one ssh-remote session; per
+  the improvisation rule I drew the split at the **class-A (explicit hyperbolic) subset** — a complete,
+  self-consistent resident step — and recorded the rest to S13b. Branch `s13-gpu-residency` off
+  `s12-gpu-spike` (the S12→main merge left to Ben — it was never pushed; S13 contains all of S12).
+  **What landed, all measured on the RTX 4070 Ti SUPER (CUDA 13.3, sm_89):**
+  **(1) The residency core (STEP 1).** The class-A RHS ported to a device-resident kernel set
+  (`crates/gpu/cuda/residency.cu`), generalizing two of the four S12 spike simplifications: **(a)** the
+  sweep is now the REAL 2-direction operator — the exact `face_radius` cylindrical metric (r-sweep
+  area-weighted `af = A·F`, z-sweep metric-ratio `(F_l−F_r)/dz`) + the SOLV-1 §3.3 geometric sources
+  (radial pressure + centrifugal `ρu_θ²/r̄` + swirl `−ρu_ru_θ/r̄`) — not the S12 z-only-uniform pass where
+  the annular z-face areas cancel; **(c)** the kernels are **staged** (`fill_prims` → per-direction `rate`
+  → `compose`), not one fused kernel. PPM (CW84 + van-Leer MC limiter) + HLLC-Batten are bit-for-formula
+  copies of `recon.rs`/`hllc.rs`. GammaLaw EOS on-device (the real HDF5 `TableEos` (p,h,Z) projection is
+  S13b). **Cross-check vs the bit-exact CPU `Euler::eval_rhs`** on a smooth subsonic N_θ=1 box fixture,
+  INTERIOR cells only (≥ NGHOST from every edge, so the compact PPM stencil is all real interior data —
+  the BC/reflux/axis machinery is out of the compared set, S13b): **worst rel 1.2×10⁻¹⁰** over 26,460
+  scalar comparisons (FMA-order, inside the declared ECT ~5×10⁻¹⁰), **same-build rerun bit-identical**.
+  **(2) The marched resident SDC step + determinism (STEP 1+2).** 2-node Lobatto IMEX-SDC, explicit-only
+  (1 predictor + `N_SDC_CORRECTIONS`=2 corrections; `compose_gas` flow-only composition `U = u0 +
+  we0·A(u0) + we1·A(U)`) — the state **lives on-device across the whole internal step loop**, CPU
+  orchestrates (uploads once, downloads once). Fixed Δt fed to CPU and GPU alike (stable_dt-on-device is
+  the reduction, S13b). **Cross-check vs the CPU `Sdc::step_flow`** over a 5-step march on the ≥3·M
+  interior (neither the CPU's BCs nor the GPU's frozen boundary can reach it in M compact steps): **worst
+  rel 3.1×10⁻¹¹ — ECT does NOT grow over the march** (phase-1 was 1.2×10⁻¹⁰); **GPU resident-march rerun
+  bit-identical**. (META-1 §2.5: gather-only, one writer per cell, fixed control flow, no physics atomics.)
+  **(3) FND-6 checkpoint/restart (STEP 3).** The device-state host round-trip proven **bit-faithful**:
+  `march(2) ▸ resume ▸ march(3)` == continuous `march(5)` **byte-for-byte** on the same device/build — the
+  §7 "one physical trajectory across wall-clock segments" made real. **FND-6 amended first** (0.4→0.5,
+  §3.8): checkpoints at a **step boundary** (only the field state is live — the SDC node scratch is
+  step-local, rebuilt deterministically, so not serialized); byte-identical-continuation contract
+  extending §3.6 gate 1 across a wall-clock seam; fail-loud on manifest/build/table mismatch. The
+  overnight auto-checkpoint/resume/halt-artifact **harness + profiling-to-target is S14 (◆C4)** — this
+  session fixes the contract + the primitive.
+  **(4) Tuning (STEP 4) — the register-reduction finding.** Staged `fill_prims`/`compose` out of the
+  sweep (28 / 12–14 regs, cheap), then split the rate kernel **per-direction** (each holds ONE 7-cell
+  pencil). `ptxas -v`: the **fused monolithic** rate kernel = **228 regs** + 288 B stack (WORSE than the
+  S12 fused sweep's 146 — it fuses both directions + sources + the whole PPM pencil into local memory);
+  the **per-direction split = 206 regs each** (occupancy ~21%). Throughput on 256×512 = 131,072 cells:
+  **8.4×10⁷ full-RHS-evals/s ≈ 1.7×10⁸ cell-direction-updates/s** — the **same ~1×10⁸ cups regime** S12
+  measured. **FINDING: naive fused-RHS residency is register-heavy, and the per-direction split buys only
+  a marginal win (228→206).** The real register-reduction lever — compute each face **once** into a device
+  flux buffer (retiring the current 2×-per-cell face recompute) + localize the PPM temporaries + the
+  staged predictor/correct pipeline — is **confirmed as the S14 target**, not reached by the naive
+  staging. **§3 THE-RUN envelope UNCHANGED:** the ~8–42 h un-tuned floor stands (now reproduced on the
+  resident path), the ~1.7–14 h tuned target still gated on the S14 register work.
+  **CPU reference untouched** except one read-only accessor (`EulerWorkspace::rates()`, for the
+  cross-check — no physics path reads it); local `check.sh` green (the detached `crucible-gpu` is invisible
+  to it); **certificates byte-identical** (gate 5). Build: `crates/gpu` gained `cuda/residency.cu` (the
+  resident class-A kernels + the march + throughput-bench FFIs) + `src/residency_xcheck.rs` (the 3-phase
+  harness); `build.rs` generalized to archive both `.cu`; `crucible-grid` added as a dep.
+  **SPLIT → S13b (improvisation rule):** class-D implicit diffusion CG residency (gas `F_visc` +
+  solid conduction + Robin-Robin Picard); combustion (Nagumo + front-thickening + class-R auto-ignition)
+  residency; the real HDF5 `TableEos` (p,h,Z) projection + multi-root scan guard on-device; cut apertures
+  + mixed-N_θ + SRD + BC + `stable_dt` residency (the whole-step generality). ◆C4's overnight harness +
+  profiling-to-target = **S14**. **Docs:** this entry, CLAUDE.md State, PLAN §8 v1.14 + §5, FND-6 0.5.
+  **NEXT = S13b (finish residency), then S14 (hardening + ◆C4).**
