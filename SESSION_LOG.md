@@ -1933,3 +1933,66 @@ the committed artifacts in `certificates/` are the living record.
   + mixed-N_θ + SRD + BC + `stable_dt` residency (the whole-step generality). ◆C4's overnight harness +
   profiling-to-target = **S14**. **Docs:** this entry, CLAUDE.md State, PLAN §8 v1.14 + §5, FND-6 0.5.
   **NEXT = S13b (finish residency), then S14 (hardening + ◆C4).**
+
+- Session 26 (2026-08-31): **plan S13b — GPU RESIDENCY, the class-D IMPLICIT DIFFUSION per-component
+  symmetric CG on device + the fixed-topology-reduction determinism primitive; SPLIT —
+  b-assembly / Robin / solid-conduction / combustion / real-EOS / whole-step geometry → S13c.** S13b as
+  briefed (class-D diffusion + combustion + real `TableEos` + geometry generality) is far larger than one
+  ssh-remote session; per the improvisation rule I drew the split at the **class-D per-component symmetric
+  CG** — the brief's own "single biggest piece" — a complete, self-consistent resident solver, and
+  recorded the rest to S13c. Branch `s13-gpu-residency` (continues from S13; the S12→main merge still
+  Ben's, deferred). **Why the CG first:** the S13 class-A residency had **zero reductions** (pure gather
+  stencils); the class-D CG introduces the first on-device REDUCTIONS (the dot products), the genuinely
+  new and only risky determinism surface — a **fixed-topology tree reduction** (META-1 §2.5:
+  "fixed-topology tree reductions for all grid/ensemble statistics"; COUP-3 §3.1: "per-component
+  symmetric fixed-structure CG ... fixed-order reductions ... reduction topology coefficient-independent").
+  Nail the primitive here against a bit-exact CPU reference and every downstream residency piece (Robin
+  coupling, `stable_dt`, the combustion node solve) reuses it.
+  **What landed, measured on the RTX 4070 Ti SUPER (CUDA 13.3, sm_89, first box trip clean):**
+  **(1) The resident class-D CG (`crates/gpu/cuda/residency_diffusion.cu`).** `apply_linear` ported as a
+  gather kernel — the exact cylindrical-metric two-point face stencil `coef·A·(x_nbr−x_c)/d` with the
+  transport read as the two-cell **face average** (`FaceTr::between`, so a one-sided coefficient would
+  show), the Uᵣ negative-definite geometric diagonal `−(4/3)μ·u_r/r̄·geo·κV` (SOLV-1 §3.3), and the
+  per-component `face_coef` (Uᵣ/U_z the μ vs (4/3)μ split, ω the μ·r_face² angular-momentum form, T the
+  k, C the ρD) — bit-for-formula from `gas_diffusion.rs`. `fill_mass` (ρκV; ρr̄²κV for ω; ρc_vκV for T)
+  as a kernel. The Jacobi-preconditioned CG driver runs the **fields resident on-device across the whole
+  solve loop** (only the O(1) scalars — α,β + the termination predicates — round-trip to host per
+  iteration, exactly as a real resident CG does). **The fixed-topology reduction** = block-level pairwise
+  shared-mem tree → fixed-stride block-partial pre-sum → single-block pairwise tree; shape a pure function
+  of (ncell, TPB), never of scheduling. **All 5 components (Uᵣ,U_z,ω,T,C) are the ONE component-generic
+  `cg_solve`** — the Picard-lagged cross terms live in the RHS `b` (`assemble_rates`), never in the CG
+  matrix (module doc), so validating the five validates the whole class-D CG.
+  **(2) Cross-check vs the bit-exact CPU `GasDiffusion::cg_solve`** (`crates/gpu/src/residency_diffusion_xcheck.rs`,
+  via the additive doc-hidden `xcheck_cg_dense` accessor — runs the real solve, changes no production
+  number, the S13 `EulerWorkspace::rates()` pattern) on a real N_θ=1 (r,z) box fixture (48×96), varying
+  nowhere-symmetric transport, free (zero-flux Neumann) BCs, a nonzero smooth RHS. Driven for the SAME
+  iteration count the CPU measured (identical work; only arithmetic order differs), per component
+  (iters, resid → worst rel on x / on δ=x−x0): **Uᵣ 270, 8.9e-13 → 3.4e-12 / 7.6e-12; U_z 293,
+  9.3e-13 → 9.6e-13 / 8.1e-13; ω 271, 9.5e-13 → 2.2e-13 / 3.4e-12; T 20, 4.9e-13 → 7.0e-12 / 2.3e-13;
+  C 290, 9.3e-13 → 3.8e-12 / 2.1e-12** — **overall worst 7.6×10⁻¹²**, well inside the declared
+  converged-solve ECT **1×10⁻⁸** (looser than the class-A per-op 1e-9 because the reduction-shape/FMA
+  difference accumulates over the CG iterations to the residual floor). **The GPU's OWN data-dependent
+  termination lands on the SAME iteration count and the same residual as the CPU for all five components
+  (270/293/271/20/290)** — the reduction is tight enough that the shape difference never flips a
+  termination decision (the light velocity/species masses give the stiff ~270–293-iter solves; T's
+  c_v-weighted mass gives the easy 20-iter solve — the reduction is exercised hundreds of times). **All
+  same-build GPU reruns bit-identical** (gather-only, one writer per cell, no physics atomics — META-1
+  §2.5). The S13 class-A `residency_xcheck` re-ran **unchanged** on the same build (single-RHS 1.2e-10,
+  marched 3.07e-11, FND-6 checkpoint byte-identical, throughput 1.71×10⁸ cell-updates/s).
+  **(3) SPLIT → S13c (improvisation rule):** the RHS `b`-assembly residency (the Picard-lagged
+  cross-stress + species-enthalpy `Σ h_k j_k` flux — `assemble_rates`); the **Robin-Robin fixed-Picard
+  wall coupling** + the **solid-conduction CG** (the other two legs of brief item 1); combustion residency
+  (bistable-Nagumo propagation + front-thickening diffusion + the class-R BE-with-τ-refreeze auto-ignition
+  node solve); the real HDF5 `TableEos` (p,h,Z) Illinois projection + the SOLV-4 0.4.8 multi-root scan
+  guard on-device (replacing the GammaLaw closure the class-A path carries); cut apertures + mixed-N_θ
+  refluxing + SRD + domain BCs + `stable_dt`-on-device (the CFL reduction — the reduction primitive's next
+  consumer). Acceptance for S13c stays the full-physics resident step CPU↔GPU cross-check on a coarse 3-D
+  RL10 fixture. **S14** (profiling to the throughput target via the flux-buffer register reduction + the
+  overnight auto-checkpoint/resume harness + ◆C4) is unchanged.
+  **CPU reference untouched** except the additive `xcheck_cg_dense` accessor + one guard test
+  (`xcheck_cg_dense_converges_for_all_components`), both doc-hidden/test-only, unused by production; local
+  `check.sh` green (the detached `crucible-gpu` is invisible to it); **certificates byte-identical**
+  (gate 5). Build: `crates/gpu` gained `cuda/residency_diffusion.cu` + the `residency_diffusion_xcheck`
+  bin; `build.rs` archives the third `.cu`. **Docs:** this entry, CLAUDE.md State, PLAN §8 v1.15 + §5
+  S13c, COUP-3 0.4.7 (device-resident CG breadcrumb). **NEXT = S13c (finish residency: b-assembly + Robin
+  + solid conduction + combustion + real EOS + geometry), then S14 (hardening + ◆C4).**

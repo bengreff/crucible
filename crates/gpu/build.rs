@@ -9,7 +9,11 @@ fn main() {
     let nvcc = format!("{cuda_home}/bin/nvcc");
 
     // Each .cu -> its own object; all archived into one static lib.
-    let sources = ["cuda/hllc_kernel.cu", "cuda/residency.cu"];
+    let sources = [
+        "cuda/hllc_kernel.cu",
+        "cuda/residency.cu",
+        "cuda/residency_diffusion.cu",
+    ];
     let mut objs = Vec::new();
     for cu in sources {
         println!("cargo:rerun-if-changed={cu}");

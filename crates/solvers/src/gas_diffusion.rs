@@ -1682,6 +1682,101 @@ impl GasDiffusion<'_> {
     }
 }
 
+/// S13b GPU-residency cross-check support (doc-hidden; **additive** — it runs
+/// the real `cg_solve` and changes no production number, the same pattern as
+/// S13's `EulerWorkspace::rates()`). One in-crate source of truth so the
+/// `crates/gpu` harness constructs no module `BufF`: it returns the CPU oracle
+/// solution *and* every dense operand the resident GPU CG
+/// (`crates/gpu/cuda/residency_diffusion.cu`) needs. N_θ = 1 only (the class-D
+/// residency scope; θ/mixed-N_θ is S13c). Dense layout `c = i_r*n_z + i_z`.
+#[doc(hidden)]
+pub struct GasCgDense {
+    /// CPU oracle: `x0 + δ` over gas cells (masked cells hold `x0`).
+    pub x_final: Vec<f64>,
+    pub iters: usize,
+    pub resid: f64,
+    pub rho: Vec<f64>,
+    pub cv: Vec<f64>,
+    pub mu: Vec<f64>,
+    pub k: Vec<f64>,
+    pub rhod: Vec<f64>,
+    /// 1.0 on gas cells, 0.0 elsewhere.
+    pub gas: Vec<f64>,
+    pub b: Vec<f64>,
+    pub x0: Vec<f64>,
+    pub n_r: usize,
+    pub n_z: usize,
+}
+
+impl GasDiffusion<'_> {
+    /// Build one component's fixed-structure CG problem from closures, solve it
+    /// on the CPU (the bit-exact oracle), and return the solution + the dense
+    /// operands for the device cross-check. `comp_id`: 0=Ur 1=Uz 2=Om 3=T 4=C.
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn xcheck_cg_dense(
+        &self,
+        g: &Grid,
+        comp_id: usize,
+        tr: &GasTransportField,
+        rho_of: impl Fn(usize, usize) -> f64,
+        b_of: impl Fn(usize, usize) -> f64,
+        x0_of: impl Fn(usize, usize) -> f64,
+        wq: f64,
+    ) -> GasCgDense {
+        let comp = match comp_id {
+            0 => GasComp::Ur,
+            1 => GasComp::Uz,
+            2 => GasComp::Om,
+            3 => GasComp::T,
+            _ => GasComp::C,
+        };
+        let mut rho = alloc_plane(g);
+        let mut work = GasWork::alloc(g);
+        let mut x = alloc_plane(g);
+        g.for_each_active_cell(|cell| {
+            rho[cell.bi][cell.idx] = rho_of(cell.i_r, cell.i_z);
+            work.b[cell.bi][cell.idx] = b_of(cell.i_r, cell.i_z);
+            x[cell.bi][cell.idx] = x0_of(cell.i_r, cell.i_z);
+        });
+        let x0_buf = x.clone();
+        self.fill_mass(g, comp, &rho, tr, &mut work);
+        let (iters, resid) = self
+            .cg_solve(g, comp, tr, wq, &mut x, &mut work)
+            .expect("xcheck cg_solve converged");
+        let (n_r, n_z) = (g.spec().n_r, g.spec().n_z);
+        let ncell = n_r * n_z;
+        let mut out = GasCgDense {
+            x_final: vec![0.0; ncell],
+            iters,
+            resid,
+            rho: vec![0.0; ncell],
+            cv: vec![0.0; ncell],
+            mu: vec![0.0; ncell],
+            k: vec![0.0; ncell],
+            rhod: vec![0.0; ncell],
+            gas: vec![0.0; ncell],
+            b: vec![0.0; ncell],
+            x0: vec![0.0; ncell],
+            n_r,
+            n_z,
+        };
+        g.for_each_active_cell(|cell| {
+            let c = cell.i_r * n_z + cell.i_z;
+            out.x_final[c] = x[cell.bi][cell.idx];
+            out.rho[c] = rho[cell.bi][cell.idx];
+            out.cv[c] = tr.cv[cell.bi][cell.idx];
+            out.mu[c] = tr.mu[cell.bi][cell.idx];
+            out.k[c] = tr.k[cell.bi][cell.idx];
+            out.rhod[c] = tr.rho_d[cell.bi][cell.idx];
+            out.gas[c] = 1.0;
+            out.b[c] = work.b[cell.bi][cell.idx];
+            out.x0[c] = x0_buf[cell.bi][cell.idx];
+        });
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2739,5 +2834,49 @@ mod tests {
             r32 < 0.5 * r8,
             "residual does not shrink with θ refinement: {r8:.3e} → {r32:.3e}"
         );
+    }
+
+    /// The S13b GPU cross-check accessor (`xcheck_cg_dense`) must run the real
+    /// `cg_solve` and CONVERGE for every one of the five components on the same
+    /// N_θ=1 box fixture the device harness uses — a CPU-side de-risk of the
+    /// (Ben-gated) GPU trip: it proves the accessor + fixture are healthy and
+    /// records the iteration counts the box feeds the resident CG. Uniform
+    /// transport here (the varying-coefficient face-average path is the
+    /// device harness's job); convergence + dense-mapping is what this guards.
+    #[test]
+    fn xcheck_cg_dense_converges_for_all_components() {
+        let (n_r, n_z) = (48usize, 96usize);
+        let spec = GridSpec {
+            r_min: 0.5,
+            dr: 1.0 / n_r as f64,
+            n_r,
+            z_min: 0.0,
+            dz: 1.0 / n_z as f64,
+            n_z,
+            n_theta_max: 1,
+            axisymmetry_assertion: true,
+        };
+        let g = Grid::build(spec, &["dummy"]).expect("grid");
+        let tf = tr(&g);
+        let o = op();
+        let rho_of = |i_r: usize, i_z: usize| 1.0 + 0.2 * (1.7 * i_r as f64 + 0.9 * i_z as f64).sin();
+        let b_of = |i_r: usize, i_z: usize| {
+            0.7 * (0.30 * i_r as f64).sin() * (0.21 * i_z as f64).cos()
+                + 0.15 * (0.9 * i_r as f64 - 0.5 * i_z as f64).sin()
+        };
+        let x0_of = |i_r: usize, i_z: usize| 0.4 + 0.1 * (0.5 * i_r as f64 + 0.3 * i_z as f64).cos();
+        let wq = 5.0e-2;
+        for comp in 0..5usize {
+            let d = o.xcheck_cg_dense(&g, comp, &tf, rho_of, b_of, x0_of, wq);
+            assert!(
+                d.resid <= EPS_CG_RESID && d.iters >= 1 && d.iters < N_CG_ITERS_MAX,
+                "component {comp}: resid {:.3e} iters {} — CG did not converge cleanly",
+                d.resid,
+                d.iters
+            );
+            // The dense map covers every cell of the box.
+            assert_eq!(d.gas.iter().filter(|&&v| v == 1.0).count(), n_r * n_z);
+            println!("comp {comp}: iters {}, resid {:.3e}", d.iters, d.resid);
+        }
     }
 }

@@ -25,6 +25,12 @@ path = "src/main.rs"
 name = "residency_xcheck"
 path = "src/residency_xcheck.rs"
 
+# S13b residency cross-check: the class-D per-component symmetric CG resident on
+# device vs the bit-exact CPU `GasDiffusion::cg_solve` on a real (r,z) fixture.
+[[bin]]
+name = "residency_diffusion_xcheck"
+path = "src/residency_diffusion_xcheck.rs"
+
 # Empty table = this crate is its OWN workspace root, so the repo-root
 # `cargo build --workspace` / check.sh never pull it in (no nvcc on the laptop).
 [workspace]

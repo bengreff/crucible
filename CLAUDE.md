@@ -17,7 +17,7 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-28 — session 25 = plan S13 done (split; S13b next); chemical sandbox at S13/20, Phase 4)
+## State (2026-08-31 — session 26 = plan S13b done (split; S13c next); chemical sandbox at S13b/20, Phase 4)
 
 **This section is current state only.** Per-session build history (measured deltas, findings,
 review waves) lives in `SESSION_LOG.md`; the by-area capability detail is under "What exists" below;
@@ -55,6 +55,23 @@ the per-direction split buys only 228→206; the real lever (each face computed 
 localized PPM temporaries) is the **S14** target. §3 envelope unchanged (~8–42 h un-tuned floor reproduced on the
 resident path).
 
+**Session 26 made the class-D diffusion CG resident** (plan S13b, SPLIT — the whole S13b (diffusion + combustion +
+real EOS + geometry) is larger than one ssh-remote session, so residency landed the brief's "single biggest piece":
+the **class-D per-component symmetric CG**, the rest → S13c): `crates/gpu/cuda/residency_diffusion.cu` — `apply_linear`
+as a gather kernel (exact cylindrical-metric two-point stencil + two-cell face-averaged transport + the Uᵣ geometric
+diagonal + per-component `face_coef`: Uᵣ/U_z μ vs (4/3)μ, ω the μ·r_face² angular-momentum form, T the k, C the ρD),
+`fill_mass`, and the Jacobi-CG driver with the **fields resident on-device across the whole solve loop** (only the
+O(1) α,β/termination scalars round-trip). The genuinely new surface vs S13's pure-gather class-A path is the CG **dot
+product**, realized as a **fixed-topology tree reduction** (META-1 §2.5) — the class-`D` determinism primitive that
+Robin coupling / `stable_dt` / the combustion node solve all reuse. All 5 components (Uᵣ,U_z,ω,T,C) are the ONE
+component-generic solve (cross terms Picard-lagged into the RHS `b`, not the CG matrix). Cross-checked vs the bit-exact
+CPU `GasDiffusion::cg_solve` (additive doc-hidden `xcheck_cg_dense` accessor): **worst rel 7.6×10⁻¹²** (declared
+converged-solve ECT 1×10⁻⁸), **CPU and GPU converge in the SAME iteration count for all five** (270/293/271/20/290 —
+the reduction never flips a termination decision), **same-build reruns bit-identical**; the S13 class-A path re-ran
+unchanged (checkpoint byte-identical, 1.71×10⁸ cups). Clean on the first box trip. **→ S13c:** the RHS `b`-assembly +
+Robin-Robin + solid-conduction CG residency; combustion (Nagumo + class-R); real HDF5 `TableEos` on-device;
+cut/mixed-N_θ + SRD + BC + `stable_dt`. ◆C4 harness + profiling = **S14**.
+
 **Doctrine (VISION_SCOPE v1.6 / plan ruling #14, 2026-08-27):** the **torch/ASI flame-holder object is
 DELETED** — flame-holding is **emergent** (resolved recirculation), the only start boundary-inputs are
 the **bounded spark + injected fuel**, so the startability verdict is not circular; **refinement is
@@ -66,7 +83,8 @@ deleted; findings live in doc change logs + git). Every session gates-green + co
 `scripts/check.sh` = the 5-gate battery (fmt, clippy, cargo test, offline pytest, certificate regen +
 diff); **253 Rust + 50 Python tests**. **Blind rule v1.4.1**: blind = mechanical input-blindness;
 every certificate declares `development-observed: yes/no`; the RL10 campaign is **open development**.
-**NEXT = plan S13 (full residency).**
+**NEXT = plan S13c (finish residency: the class-D b-assembly + Robin + solid conduction + combustion + real EOS +
+geometry generality), then S14 (hardening + ◆C4).**
 
 **VISION_SCOPE v1.5 (Ben, 2026-08-19) — the session-13 rulings, all doc-amended:** accelerated
 convergence (pseudo-transient/local-Δt) is **DELETED** — every certified result is a **physical
@@ -242,12 +260,21 @@ future feed (r/z/ρ/u/p/T/Z/M per cell + solid liner T).
   CPU↔GPU tolerance cross-check on real (r,z) fixtures (worst rel 1.2×10⁻¹⁰ single / 3.1×10⁻¹¹ marched,
   ECT does not grow) + same-build rerun bit-identity; the **FND-6 checkpoint/restart primitive** proven
   bit-faithful (FND-6 0.5 §3.8). Tuning: naive fused-RHS residency = 228 regs (worse than S12's 146); the
-  flux-buffer register-reduction lever confirmed as S14; §3 envelope unchanged. **NEXT = plan S13b
-  (residency, the rest):** class-D diffusion CG (gas `F_visc` + solid conduction + Robin-Robin Picard)
-  on-device; combustion (Nagumo + front-thickening + class-R) residency; the real HDF5 `TableEos` (p,h,Z)
-  projection + multi-root guard on-device; cut apertures + mixed-N_θ + SRD + BC + `stable_dt` residency —
-  the whole-step generality. Then **S14** (hardening + ◆C4: the overnight auto-checkpoint/resume harness +
-  profiling to the throughput target). Read the S13/S13b §5 entries + META-1 §2.5 + FND-6 §3.8 + the
+  flux-buffer register-reduction lever confirmed as S14; §3 envelope unchanged.
+  **Session 26 = plan S13b DONE (SPLIT again — the class-D per-component CG resident; the rest → S13c)**
+  *(see the session-26 State block at the top + SESSION_LOG session 26)*: the brief's "single biggest
+  piece" landed — the **class-D per-component symmetric CG on-device** (`crates/gpu/cuda/residency_diffusion.cu`
+  — `apply_linear` gather stencil + face-averaged transport + the Uᵣ geometric diagonal + `fill_mass` + the
+  Jacobi-CG, all 5 components (Uᵣ,U_z,ω,T,C) the one component-generic solve) with the **fixed-topology tree
+  reduction** for the CG dot products = the class-`D` determinism primitive (the first on-device reduction;
+  S13's class-A path had none). Cross-checked vs the bit-exact CPU `cg_solve`: worst rel 7.6×10⁻¹² (ECT 1e-8),
+  CPU/GPU same iteration count for all five, same-build reruns bit-identical; S13 class-A path re-ran unchanged.
+  **NEXT = plan S13c (finish residency):** the class-D RHS `b`-assembly (Picard-lagged cross-stress +
+  species-enthalpy flux) + the Robin-Robin fixed-Picard coupling + the solid-conduction CG on-device;
+  combustion (Nagumo + front-thickening + class-R) residency; the real HDF5 `TableEos` (p,h,Z) projection +
+  multi-root guard on-device; cut apertures + mixed-N_θ + SRD + BC + `stable_dt` residency — the whole-step
+  generality. Then **S14** (hardening + ◆C4: the overnight auto-checkpoint/resume harness + profiling to the
+  throughput target). Read the S13/S13b/S13c §5 entries + META-1 §2.5 + COUP-3 §3.1 + FND-6 §3.8 + the
   owning docs' §3.
   **Owed to a later CPU wave (S11's typed refusals still standing, owners named):** the cooled-3-D
   wall-patch/conduction wave (per-θ wall patches + coupled flow+conduction — `sdc::build_wall_patches`
