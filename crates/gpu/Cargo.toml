@@ -31,6 +31,12 @@ path = "src/residency_xcheck.rs"
 name = "residency_diffusion_xcheck"
 path = "src/residency_diffusion_xcheck.rs"
 
+# S13c residency cross-check: the class-D affine diffusion FORCING
+# (fill_lag_gradients + assemble_rates) resident vs the bit-exact CPU reference.
+[[bin]]
+name = "residency_assemble_xcheck"
+path = "src/residency_assemble_xcheck.rs"
+
 # Empty table = this crate is its OWN workspace root, so the repo-root
 # `cargo build --workspace` / check.sh never pull it in (no nvcc on the laptop).
 [workspace]

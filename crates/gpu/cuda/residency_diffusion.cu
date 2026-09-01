@@ -40,6 +40,8 @@
 
 #define TAU 6.283185307179586
 #define DTPB 256   // reduction/elementwise threads-per-block (power of two)
+#define NC 7       // NCOMP (rho, m_r, m_theta, m_z, rho_e, rho_c, rho_b) — the
+                   // affine class-D rate's dense stride (S13c assemble kernel)
 
 // ---- geometry (grid/lib.rs, N_theta = 1 so TAU/nt = TAU) ----------------
 __device__ __forceinline__ double d_face_radius(double r_min, double dr, int f) {
@@ -329,4 +331,184 @@ extern "C" int gpu_class_d_cg(double* x, const double* b, const double* rho, con
     cudaFree(d_rd); cudaFree(d_gas); cudaFree(d_mass); cudaFree(d_diag); cudaFree(d_r); cudaFree(d_z);
     cudaFree(d_p); cudaFree(d_q); cudaFree(d_delta); cudaFree(d_partial); cudaFree(d_scalar);
     return fail;
+}
+
+// =====================================================================
+// S13c — the class-D diffusion FORCING: fill_lag_gradients + assemble_rates
+// (the affine viscous-stress physics that BUILDS the CG's RHS b). This is
+// the intricate cross-term core of F_visc — compressible viscous stress
+// (τ_rr/τ_zz/τ_rz/τ_θθ), Fourier conduction (k∇T), species diffusion
+// (ρD∇C) + its enthalpy flux — bit-for-formula from gas_diffusion.rs's
+// fill_lag_gradients (~L786) and assemble_rates (~L1054).
+//
+// SCOPE: N_theta=1 box (kappa=aperture=1), interior cells only (the compared
+// set is ≥3 from every edge so the whole lag-gradient + face stencil is real
+// interior data), free (FreeSlip/Adiabatic/ZeroFlux) BCs — a domain-edge face
+// contributes nothing under those BCs, so "skip a face whose neighbour is
+// out of domain" reproduces the CPU exactly for this fixture (real NoSlip/
+// Robin walls are the S13c BC leg). Conserved slots: I_RHO0 I_MR1 I_MT2 I_MZ3
+// I_EN4 I_RC5 I_RB6. Determinism: gather-only, one writer per cell.
+// ---------------------------------------------------------------------
+
+// Cell-centred lag velocity gradients (central where both r/z gas neighbours
+// exist, one-sided at a domain edge, 0 if neither — fill_lag_gradients). Box:
+// "gas neighbour exists" ⟺ "in domain". At N_theta=1 only these four (of
+// lag u_r, u_z) are needed; dom_* / *_dth are the N_theta>1 legs.
+__global__ void kd_lag_grads(const double* __restrict__ lag_ur, const double* __restrict__ lag_uz,
+                             int n_r, int n_z, double dr, double dz, const double* __restrict__ gas,
+                             double* __restrict__ dur_dr, double* __restrict__ dur_dz,
+                             double* __restrict__ duz_dr, double* __restrict__ duz_dz) {
+    long c = (long)blockIdx.x * blockDim.x + threadIdx.x;
+    long ncell = (long)n_r * n_z;
+    if (c >= ncell) return;
+    dur_dr[c] = dur_dz[c] = duz_dr[c] = duz_dz[c] = 0.0;
+    if (gas[c] == 0.0) return;
+    int i_r = (int)(c / n_z), i_z = (int)(c % n_z);
+    // central/one-sided along a direction given the lo/hi neighbour presence.
+    #define DERIV(FLD, LOOK, HIOK, LO, HI, CC, DD) \
+        ( (LOOK && HIOK) ? (FLD[HI] - FLD[LO]) / (2.0*(DD)) \
+        : (HIOK) ? (FLD[HI] - FLD[CC]) / (DD) \
+        : (LOOK) ? (FLD[CC] - FLD[LO]) / (DD) : 0.0 )
+    bool rlo = i_r > 0,        rhi = i_r < n_r - 1;
+    bool zlo = i_z > 0,        zhi = i_z < n_z - 1;
+    long rL = (long)(i_r-1)*n_z + i_z, rH = (long)(i_r+1)*n_z + i_z;
+    long zL = (long)i_r*n_z + (i_z-1), zH = (long)i_r*n_z + (i_z+1);
+    // a domain neighbour must also be gas (box ⇒ always true, but keep exact)
+    rlo = rlo && gas[rL] != 0.0;  rhi = rhi && gas[rH] != 0.0;
+    zlo = zlo && gas[zL] != 0.0;  zhi = zhi && gas[zH] != 0.0;
+    dur_dr[c] = DERIV(lag_ur, rlo, rhi, rL, rH, c, dr);
+    dur_dz[c] = DERIV(lag_ur, zlo, zhi, zL, zH, c, dz);
+    duz_dr[c] = DERIV(lag_uz, rlo, rhi, rL, rH, c, dr);
+    duz_dz[c] = DERIV(lag_uz, zlo, zhi, zL, zH, c, dz);
+    #undef DERIV
+}
+
+// The affine class-D rate (assemble_rates), N_theta=1 box interior. sol =
+// current iterate (u_r,ω,u_z,T,C); lag_ur feeds e_θθ; the lag gradients feed
+// the cross/compressible pieces. Writes the 5 diffusion rates per cell
+// (mass slot 0, burn slot 0) in conserved-density-rate units.
+__global__ void kd_assemble_rates(const double* __restrict__ s_ur, const double* __restrict__ s_om,
+                                  const double* __restrict__ s_uz, const double* __restrict__ s_tt,
+                                  const double* __restrict__ s_cc, const double* __restrict__ lag_ur,
+                                  const double* __restrict__ dur_dr, const double* __restrict__ dur_dz,
+                                  const double* __restrict__ duz_dr, const double* __restrict__ duz_dz,
+                                  const double* __restrict__ mu, const double* __restrict__ kk,
+                                  const double* __restrict__ rhod, const double* __restrict__ dhdz,
+                                  const double* __restrict__ gas, int n_r, int n_z,
+                                  double r_min, double dr, double dz, double* __restrict__ rate) {
+    long c = (long)blockIdx.x * blockDim.x + threadIdx.x;
+    long ncell = (long)n_r * n_z;
+    if (c >= ncell) return;
+    for (int k = 0; k < NC; k++) rate[c*NC+k] = 0.0;
+    if (gas[c] == 0.0) return;
+    int i_r = (int)(c / n_z), i_z = (int)(c % n_z);
+    double rbar = d_r_center(r_min, dr, i_r);
+    double vol  = d_cell_volume(r_min, dr, dz, i_r);
+    double kv   = vol;                                   // kappa = 1
+    double ur_c = s_ur[c], om_c = s_om[c], uz_c = s_uz[c], tt_c = s_tt[c], cc_c = s_cc[c];
+    double tot_mr = 0.0, tot_mz = 0.0, tot_en = 0.0, tot_rc = 0.0, tot_lam = 0.0;
+    // 4 faces: 0=r-,1=r+,2=z-,3=z+
+    for (int fc = 0; fc < 4; fc++) {
+        bool radial = fc < 2;
+        double s = (fc & 1) ? 1.0 : -1.0;
+        int nr = i_r, nz = i_z;
+        if (fc == 0) nr = i_r - 1; else if (fc == 1) nr = i_r + 1;
+        else if (fc == 2) nz = i_z - 1; else nz = i_z + 1;
+        if (nr < 0 || nr >= n_r || nz < 0 || nz >= n_z) continue;   // free BC ⇒ no term
+        long nc = (long)nr * n_z + nz;
+        if (gas[nc] == 0.0) continue;
+        double d = radial ? dr : dz;
+        double r_face = radial ? d_face_radius(r_min, dr, (fc == 1) ? i_r + 1 : i_r) : rbar;
+        double area = radial ? d_area_r(r_min, dr, dz, i_r, (fc == 1)) : d_area_z(r_min, dr, i_r);
+        double mu_f  = 0.5 * (mu[c]   + mu[nc]);
+        double k_f   = 0.5 * (kk[c]   + kk[nc]);
+        double d_f   = 0.5 * (rhod[c] + rhod[nc]);
+        double dh_f  = 0.5 * (dhdz[c] + dhdz[nc]);
+        double two_thirds_mu = (2.0 / 3.0) * mu_f;
+        double g_ur = s * (s_ur[nc] - ur_c) / d;
+        double g_om = s * (s_om[nc] - om_c) / d;
+        double g_uz = s * (s_uz[nc] - uz_c) / d;
+        double g_tt = s * (s_tt[nc] - tt_c) / d;
+        double g_cc = s * (s_cc[nc] - cc_c) / d;
+        // e_θθ face avg: neighbour uses its own ring radius on r-faces, r̄ on z.
+        double r_n = radial ? d_r_center(r_min, dr, nr) : rbar;
+        double e_thth_f = 0.5 * (lag_ur[c] / rbar + lag_ur[nc] / r_n);
+        double e_rr_f   = 0.5 * (dur_dr[c] + dur_dr[nc]);
+        double e_zz_f   = 0.5 * (duz_dz[c] + duz_dz[nc]);
+        double dur_dz_f = 0.5 * (dur_dz[c] + dur_dz[nc]);
+        double duz_dr_f = 0.5 * (duz_dr[c] + duz_dr[nc]);
+        double ur_f = 0.5 * (ur_c + s_ur[nc]);
+        double uz_f = 0.5 * (uz_c + s_uz[nc]);
+        double ut_f = radial ? 0.5 * (om_c * rbar + s_om[nc] * r_n)
+                             : 0.5 * (om_c + s_om[nc]) * rbar;
+        double f_mr, f_mz, tau_nn, tau_rz, tau_th;
+        if (radial) {
+            double tau_rr = (4.0/3.0) * mu_f * g_ur - two_thirds_mu * (e_thth_f + e_zz_f);
+            double t_rz   = mu_f * (g_uz + dur_dz_f);
+            double t_rth  = mu_f * r_face * g_om;
+            f_mr = area * tau_rr; f_mz = area * t_rz;
+            tau_nn = tau_rr; tau_rz = t_rz; tau_th = t_rth;
+        } else {
+            double tau_zz = (4.0/3.0) * mu_f * g_uz - two_thirds_mu * (e_rr_f + e_thth_f);
+            double t_rz   = mu_f * (g_ur + duz_dr_f);
+            double t_thz  = mu_f * rbar * g_om;
+            f_mr = area * t_rz; f_mz = area * tau_zz;
+            tau_nn = tau_zz; tau_rz = t_rz; tau_th = t_thz;
+        }
+        tot_mr += s * f_mr;
+        tot_mz += s * f_mz;
+        double f_lam = area * r_face * tau_th;
+        tot_lam += s * f_lam;
+        double g_e = (radial ? (ur_f * tau_nn + ut_f * tau_th + uz_f * tau_rz)
+                             : (ur_f * tau_rz + ut_f * tau_th + uz_f * tau_nn))
+                   + k_f * g_tt + d_f * dh_f * g_cc;
+        tot_en += s * area * g_e;
+        tot_rc += s * area * d_f * g_cc;
+    }
+    // −τ_θθ/r volume source of r-momentum (SOLV-1 §3.3), metric-consistent 1/r̄.
+    double geo = (d_area_r(r_min, dr, dz, i_r, true) - d_area_r(r_min, dr, dz, i_r, false)) / vol;
+    double e_rr_c = dur_dr[c], e_zz_c = duz_dz[c], mu_c = mu[c];
+    double tau_thth = (4.0/3.0) * mu_c * (ur_c / rbar) - (2.0/3.0) * mu_c * (e_rr_c + e_zz_c);
+    double src_mr = -tau_thth * geo * kv;
+    tot_mr += src_mr;
+    double inv_kv = 1.0 / kv;
+    rate[c*NC + 1] = tot_mr * inv_kv;                    // I_MR
+    rate[c*NC + 2] = tot_lam / (rbar * kv);              // I_MT (λ → ρu_θ rate)
+    rate[c*NC + 3] = tot_mz * inv_kv;                    // I_MZ
+    rate[c*NC + 4] = tot_en * inv_kv;                    // I_EN
+    rate[c*NC + 5] = tot_rc * inv_kv;                    // I_RC
+}
+
+// FFI: one affine class-D rate evaluation (fill_lag_gradients + assemble_rates)
+// on a resident fixture. All inputs dense [ncell]; rate dense [ncell*NC].
+extern "C" void gpu_class_d_assemble(const double* s_ur, const double* s_om, const double* s_uz,
+                                     const double* s_tt, const double* s_cc, const double* lag_ur,
+                                     const double* lag_uz, const double* mu, const double* kk,
+                                     const double* rhod, const double* dhdz, const double* gas,
+                                     int n_r, int n_z, double r_min, double dr, double dz,
+                                     double* rate) {
+    long ncell = (long)n_r * n_z;
+    size_t nb = ncell * sizeof(double);
+    double *d_ur,*d_om,*d_uz,*d_tt,*d_cc,*d_lur,*d_luz,*d_mu,*d_k,*d_rd,*d_dh,*d_gas;
+    double *d_grr,*d_grz,*d_gzr,*d_gzz,*d_rate;
+    cudaMalloc(&d_ur,nb); cudaMalloc(&d_om,nb); cudaMalloc(&d_uz,nb); cudaMalloc(&d_tt,nb);
+    cudaMalloc(&d_cc,nb); cudaMalloc(&d_lur,nb); cudaMalloc(&d_luz,nb); cudaMalloc(&d_mu,nb);
+    cudaMalloc(&d_k,nb); cudaMalloc(&d_rd,nb); cudaMalloc(&d_dh,nb); cudaMalloc(&d_gas,nb);
+    cudaMalloc(&d_grr,nb); cudaMalloc(&d_grz,nb); cudaMalloc(&d_gzr,nb); cudaMalloc(&d_gzz,nb);
+    cudaMalloc(&d_rate, ncell*NC*sizeof(double));
+    cudaMemcpy(d_ur,s_ur,nb,cudaMemcpyHostToDevice); cudaMemcpy(d_om,s_om,nb,cudaMemcpyHostToDevice);
+    cudaMemcpy(d_uz,s_uz,nb,cudaMemcpyHostToDevice); cudaMemcpy(d_tt,s_tt,nb,cudaMemcpyHostToDevice);
+    cudaMemcpy(d_cc,s_cc,nb,cudaMemcpyHostToDevice); cudaMemcpy(d_lur,lag_ur,nb,cudaMemcpyHostToDevice);
+    cudaMemcpy(d_luz,lag_uz,nb,cudaMemcpyHostToDevice); cudaMemcpy(d_mu,mu,nb,cudaMemcpyHostToDevice);
+    cudaMemcpy(d_k,kk,nb,cudaMemcpyHostToDevice); cudaMemcpy(d_rd,rhod,nb,cudaMemcpyHostToDevice);
+    cudaMemcpy(d_dh,dhdz,nb,cudaMemcpyHostToDevice); cudaMemcpy(d_gas,gas,nb,cudaMemcpyHostToDevice);
+    long gblk = (ncell + DTPB - 1) / DTPB;
+    kd_lag_grads<<<gblk,DTPB>>>(d_lur,d_luz,n_r,n_z,dr,dz,d_gas,d_grr,d_grz,d_gzr,d_gzz);
+    kd_assemble_rates<<<gblk,DTPB>>>(d_ur,d_om,d_uz,d_tt,d_cc,d_lur,d_grr,d_grz,d_gzr,d_gzz,
+                                     d_mu,d_k,d_rd,d_dh,d_gas,n_r,n_z,r_min,dr,dz,d_rate);
+    cudaDeviceSynchronize();
+    cudaMemcpy(rate, d_rate, ncell*NC*sizeof(double), cudaMemcpyDeviceToHost);
+    cudaFree(d_ur); cudaFree(d_om); cudaFree(d_uz); cudaFree(d_tt); cudaFree(d_cc); cudaFree(d_lur);
+    cudaFree(d_luz); cudaFree(d_mu); cudaFree(d_k); cudaFree(d_rd); cudaFree(d_dh); cudaFree(d_gas);
+    cudaFree(d_grr); cudaFree(d_grz); cudaFree(d_gzr); cudaFree(d_gzz); cudaFree(d_rate);
 }

@@ -1775,6 +1775,105 @@ impl GasDiffusion<'_> {
         });
         out
     }
+
+    /// S13c GPU cross-check for the affine class-D FORCING (doc-hidden,
+    /// **additive** — runs the real `fill_lag_gradients` + `assemble_rates`,
+    /// changes no production number). Builds the operator's `sol` (current
+    /// iterate) and `lag` (cross-term lag state) from closures, plus a per-cell
+    /// transport field, and returns the dense 5-component diffusion rate the
+    /// device `gpu_class_d_assemble` must reproduce, alongside every dense
+    /// input. N_θ = 1 only (the S13c box scope). `c = i_r*n_z + i_z`.
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn xcheck_assemble_dense(
+        &self,
+        g: &Grid,
+        tr: &GasTransportField,
+        sol_ur: impl Fn(usize, usize) -> f64,
+        sol_om: impl Fn(usize, usize) -> f64,
+        sol_uz: impl Fn(usize, usize) -> f64,
+        sol_tt: impl Fn(usize, usize) -> f64,
+        sol_cc: impl Fn(usize, usize) -> f64,
+        lag_ur: impl Fn(usize, usize) -> f64,
+        lag_uz: impl Fn(usize, usize) -> f64,
+    ) -> GasAssembleDense {
+        let mut sol = GasOperands::alloc(g);
+        let mut lag = GasOperands::alloc(g);
+        g.for_each_active_cell(|cell| {
+            let (i_r, i_z) = (cell.i_r, cell.i_z);
+            sol.ur[cell.bi][cell.idx] = sol_ur(i_r, i_z);
+            sol.om[cell.bi][cell.idx] = sol_om(i_r, i_z);
+            sol.uz[cell.bi][cell.idx] = sol_uz(i_r, i_z);
+            sol.tt[cell.bi][cell.idx] = sol_tt(i_r, i_z);
+            sol.cc[cell.bi][cell.idx] = sol_cc(i_r, i_z);
+            lag.ur[cell.bi][cell.idx] = lag_ur(i_r, i_z);
+            lag.uz[cell.bi][cell.idx] = lag_uz(i_r, i_z);
+        });
+        let mut work = GasWork::alloc(g);
+        let mut rates = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
+        self.fill_lag_gradients(g, &lag, &mut work)
+            .expect("xcheck fill_lag_gradients");
+        self.assemble_rates(g, &sol, &lag, &work, tr, 0.0, &mut rates, None)
+            .expect("xcheck assemble_rates");
+        let (n_r, n_z) = (g.spec().n_r, g.spec().n_z);
+        let ncell = n_r * n_z;
+        let mut out = GasAssembleDense {
+            rate: vec![[0.0f64; NCOMP]; ncell],
+            ur: vec![0.0; ncell],
+            om: vec![0.0; ncell],
+            uz: vec![0.0; ncell],
+            tt: vec![0.0; ncell],
+            cc: vec![0.0; ncell],
+            lag_ur: vec![0.0; ncell],
+            lag_uz: vec![0.0; ncell],
+            mu: vec![0.0; ncell],
+            k: vec![0.0; ncell],
+            rhod: vec![0.0; ncell],
+            dhdz: vec![0.0; ncell],
+            gas: vec![0.0; ncell],
+            n_r,
+            n_z,
+        };
+        g.for_each_active_cell(|cell| {
+            let c = cell.i_r * n_z + cell.i_z;
+            out.rate[c] = rates[cell.bi][cell.idx];
+            out.ur[c] = sol.ur[cell.bi][cell.idx];
+            out.om[c] = sol.om[cell.bi][cell.idx];
+            out.uz[c] = sol.uz[cell.bi][cell.idx];
+            out.tt[c] = sol.tt[cell.bi][cell.idx];
+            out.cc[c] = sol.cc[cell.bi][cell.idx];
+            out.lag_ur[c] = lag.ur[cell.bi][cell.idx];
+            out.lag_uz[c] = lag.uz[cell.bi][cell.idx];
+            out.mu[c] = tr.mu[cell.bi][cell.idx];
+            out.k[c] = tr.k[cell.bi][cell.idx];
+            out.rhod[c] = tr.rho_d[cell.bi][cell.idx];
+            out.dhdz[c] = tr.dh_dz[cell.bi][cell.idx];
+            out.gas[c] = 1.0;
+        });
+        out
+    }
+}
+
+/// Dense operands + oracle rate for the S13c affine-forcing cross-check
+/// (doc-hidden). Dense layout `c = i_r*n_z + i_z`.
+#[doc(hidden)]
+pub struct GasAssembleDense {
+    /// CPU oracle: the 5-component (+ zero mass/burn slots) diffusion rate.
+    pub rate: Vec<Cons>,
+    pub ur: Vec<f64>,
+    pub om: Vec<f64>,
+    pub uz: Vec<f64>,
+    pub tt: Vec<f64>,
+    pub cc: Vec<f64>,
+    pub lag_ur: Vec<f64>,
+    pub lag_uz: Vec<f64>,
+    pub mu: Vec<f64>,
+    pub k: Vec<f64>,
+    pub rhod: Vec<f64>,
+    pub dhdz: Vec<f64>,
+    pub gas: Vec<f64>,
+    pub n_r: usize,
+    pub n_z: usize,
 }
 
 #[cfg(test)]
