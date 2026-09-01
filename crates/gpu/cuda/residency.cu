@@ -341,3 +341,71 @@ extern "C" double gpu_class_a_bench(const double* cons, int n_r, int n_z,
     cudaFree(d_cons); cudaFree(d_prim); cudaFree(d_rate); cudaFree(d_bad);
     return (double)ms;
 }
+
+// ---- FFI: stable_dt on-device (S13c — the CFL clock, class-A) -------------
+// The COUP-3 §3.4 timestep: Δt = cfl / max_cell σ, σ = (|u_r|+c)/dr +
+// (|u_z|+c)/dz (N_θ=1 box, no combustion — the front-carrier σ_front + the
+// θ-arc member are S13c's combustion/geometry legs). Bit-for-formula from
+// Euler::stable_dt_inner (GammaLaw). The reduction is a MAX — exactly
+// order-independent in IEEE754, so same-build reruns are bit-identical AND the
+// tree shape is immaterial to determinism (unlike the CG sum); CPU↔GPU differ
+// only at the per-cell σ's FMA order (declared ECT). A non-physical cell sets
+// *bad (halt, never clamp), matching the CPU refuse. tpb=256 power-of-two.
+#define SDTPB 256
+__global__ void k_sig_partial(const double* __restrict__ cons, long ncell, double g,
+                              double dr, double dz, double* __restrict__ partial,
+                              int* __restrict__ bad) {
+    __shared__ double sh[SDTPB];
+    long c = (long)blockIdx.x*blockDim.x + threadIdx.x;
+    double v = 0.0;
+    if (c < ncell) {
+        double w[NP];
+        if (rz_prim(cons + c*NC, g, w)) {
+            double cs = rz_sound(w, g);
+            v = (fabs(w[1]) + cs)/dr + (fabs(w[3]) + cs)/dz;
+        } else {
+            atomicExch(bad, 1);   // halt flag (not a physics-path atomic)
+        }
+    }
+    sh[threadIdx.x] = v;
+    __syncthreads();
+    for (int s = SDTPB/2; s > 0; s >>= 1) {
+        if (threadIdx.x < s) sh[threadIdx.x] = fmax(sh[threadIdx.x], sh[threadIdx.x+s]);
+        __syncthreads();
+    }
+    if (threadIdx.x == 0) partial[blockIdx.x] = sh[0];
+}
+__global__ void k_max_final(const double* __restrict__ partial, int nblk, double* __restrict__ out) {
+    __shared__ double sh[SDTPB];
+    double v = 0.0;
+    for (int j = threadIdx.x; j < nblk; j += SDTPB) v = fmax(v, partial[j]);
+    sh[threadIdx.x] = v;
+    __syncthreads();
+    for (int s = SDTPB/2; s > 0; s >>= 1) {
+        if (threadIdx.x < s) sh[threadIdx.x] = fmax(sh[threadIdx.x], sh[threadIdx.x+s]);
+        __syncthreads();
+    }
+    if (threadIdx.x == 0) *out = sh[0];
+}
+// Returns Δt = cfl / max σ (or a negative sentinel on halt); *bad set if any
+// cell was non-physical (the caller refuses, exactly as the CPU does).
+extern "C" double gpu_stable_dt(const double* cons, int n_r, int n_z,
+                                double dr, double dz, double gamma, double cfl, int* bad) {
+    long ncell = (long)n_r*n_z;
+    int nblk = (int)((ncell + SDTPB - 1)/SDTPB);
+    double *d_cons,*d_partial,*d_scalar; int *d_bad;
+    cudaMalloc(&d_cons, ncell*NC*sizeof(double));
+    cudaMalloc(&d_partial, nblk*sizeof(double));
+    cudaMalloc(&d_scalar, sizeof(double));
+    cudaMalloc(&d_bad, sizeof(int));
+    cudaMemcpy(d_cons, cons, ncell*NC*sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemset(d_bad, 0, sizeof(int));
+    k_sig_partial<<<nblk,SDTPB>>>(d_cons, ncell, gamma, dr, dz, d_partial, d_bad);
+    k_max_final<<<1,SDTPB>>>(d_partial, nblk, d_scalar);
+    cudaDeviceSynchronize();
+    double max_sig = 0.0; cudaMemcpy(&max_sig, d_scalar, sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(bad, d_bad, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaFree(d_cons); cudaFree(d_partial); cudaFree(d_scalar); cudaFree(d_bad);
+    if (*bad || !(max_sig > 0.0)) return -1.0;
+    return cfl / max_sig;
+}

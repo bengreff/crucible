@@ -65,6 +65,16 @@ unsafe extern "C" {
         gamma: f64,
         iters: i32,
     ) -> f64;
+    fn gpu_stable_dt(
+        cons: *const f64,
+        n_r: i32,
+        n_z: i32,
+        dr: f64,
+        dz: f64,
+        gamma: f64,
+        cfl: f64,
+        bad: *mut i32,
+    ) -> f64;
 }
 
 /// Smooth, subsonic, strictly-positive (ρ,p) fixture — the reconstruction
@@ -212,6 +222,36 @@ fn main() {
     assert!(worst_rel < ECT, "CPU↔GPU class-A RHS diverged beyond ECT");
     assert!(bit_identical, "GPU rerun not deterministic");
     println!("  PHASE 1 PASS");
+
+    // ================================================================
+    // PHASE 1b — stable_dt on-device (S13c: the CFL clock). Done HERE,
+    // before PHASE 2's march mutates `g` — so the CPU `Euler::stable_dt`
+    // and the GPU `gpu_stable_dt(cons, …)` score the SAME (fixture) state.
+    // The reduction is a MAX (exactly order-independent), so same-build
+    // reruns are bit-identical; CPU↔GPU differ only at the per-cell σ's
+    // FMA order (declared ECT).
+    // ================================================================
+    let cfl = 0.4;
+    let cpu_dt = op.stable_dt(&g, &f, cfl).expect("cpu stable_dt");
+    let mut sdt_bad = 0i32;
+    let gpu_dt = unsafe {
+        gpu_stable_dt(cons.as_ptr(), n_r as i32, n_z as i32, dr, dz, GAMMA, cfl, &mut sdt_bad)
+    };
+    assert_eq!(sdt_bad, 0, "GPU stable_dt flagged a non-physical cell");
+    let mut sdt_bad2 = 0i32;
+    let gpu_dt2 = unsafe {
+        gpu_stable_dt(cons.as_ptr(), n_r as i32, n_z as i32, dr, dz, GAMMA, cfl, &mut sdt_bad2)
+    };
+    let sdt_rel = (cpu_dt - gpu_dt).abs() / cpu_dt.abs().max(gpu_dt.abs());
+    println!("PHASE 1b — stable_dt (CFL clock), cfl={cfl}");
+    println!("  cpu Δt = {cpu_dt:.9e}   gpu Δt = {gpu_dt:.9e}   rel = {sdt_rel:.3e}   (ECT {ECT:.0e})");
+    println!(
+        "  GPU same-build rerun: {}",
+        if gpu_dt == gpu_dt2 { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+    );
+    assert!(sdt_rel < ECT, "CPU↔GPU stable_dt diverged beyond ECT");
+    assert!(gpu_dt == gpu_dt2, "GPU stable_dt rerun not deterministic");
+    println!("  PHASE 1b PASS");
 
     // ================================================================
     // PHASE 2 — the RESIDENT marched SDC step + the FND-6 checkpoint.
