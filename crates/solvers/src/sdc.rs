@@ -2275,6 +2275,167 @@ fn fill_gas_rhs(
     }
 }
 
+/// S13c GPU cross-check for the FULL RESIDENT class-D gas Picard iterate
+/// (doc-hidden; **additive** — runs the real `fill_lag_gradients` /
+/// `assemble_rates` / `fill_gas_rhs` / `fill_mass` / `cg_solve` in the exact
+/// SDC-inner order, changes no production number). Mirrors the sweep the
+/// device `gpu_class_d_iterate` performs: assemble(sol,lag) → {Ur,Uz,Om}
+/// solves → re-assemble → {T,C} solves, and returns the updated `sol`
+/// (dense) plus every dense operand for the cross-check. N_θ = 1 only.
+/// `c = i_r*n_z + i_z`.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
+pub fn xcheck_class_d_iterate_dense(
+    g: &Grid,
+    op: &GasDiffusion<'_>,
+    tr: &GasTransportField,
+    wqnew: f64,
+    sol_rho: impl Fn(usize, usize) -> f64,
+    sol_ur: impl Fn(usize, usize) -> f64,
+    sol_om: impl Fn(usize, usize) -> f64,
+    sol_uz: impl Fn(usize, usize) -> f64,
+    sol_tt: impl Fn(usize, usize) -> f64,
+    sol_cc: impl Fn(usize, usize) -> f64,
+    lag_ur: impl Fn(usize, usize) -> f64,
+    lag_uz: impl Fn(usize, usize) -> f64,
+    dlag_of: impl Fn(usize, usize) -> [f64; NCOMP],
+) -> ClassDIterateDense {
+    let mut sol = GasOperands::alloc(g);
+    let mut lag = GasOperands::alloc(g);
+    let mut dlag = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
+    let mut dstage = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
+    let mut work = GasWork::alloc(g);
+    g.for_each_active_cell(|cell| {
+        let (i_r, i_z, bi, idx) = (cell.i_r, cell.i_z, cell.bi, cell.idx);
+        sol.rho[bi][idx] = sol_rho(i_r, i_z);
+        sol.ur[bi][idx] = sol_ur(i_r, i_z);
+        sol.om[bi][idx] = sol_om(i_r, i_z);
+        sol.uz[bi][idx] = sol_uz(i_r, i_z);
+        sol.tt[bi][idx] = sol_tt(i_r, i_z);
+        sol.cc[bi][idx] = sol_cc(i_r, i_z);
+        lag.ur[bi][idx] = lag_ur(i_r, i_z);
+        lag.uz[bi][idx] = lag_uz(i_r, i_z);
+        dlag[bi][idx] = dlag_of(i_r, i_z);
+        // ke_base at the ORIGINAL operands (derive_gas_operands' capture).
+        let r = g.r_center(i_r);
+        let ut = sol.om[bi][idx] * r;
+        work.ke_base[bi][idx] = 0.5
+            * (sol.ur[bi][idx] * sol.ur[bi][idx] + ut * ut + sol.uz[bi][idx] * sol.uz[bi][idx]);
+    });
+    // Capture the initial sol for the dense-input echo (the GPU gets the same).
+    let sol0 = {
+        let mut s = GasOperands::alloc(g);
+        s.clone_from(&sol);
+        s
+    };
+    op.fill_lag_gradients(g, &lag, &mut work)
+        .expect("xcheck fill_lag_gradients");
+    // assemble(sol,lag) → dstage; velocity block {Ur,Uz,Om}.
+    op.assemble_rates(g, &sol, &lag, &work, tr, 0.0, &mut dstage, None)
+        .expect("xcheck assemble (velocity stage)");
+    for comp in [GasComp::Ur, GasComp::Uz, GasComp::Om] {
+        fill_gas_rhs(g, comp, wqnew, &dstage, &dlag, &sol, &work.ke_base, &mut work.b);
+        op.fill_mass(g, comp, &sol.rho, tr, &mut work);
+        let x = match comp {
+            GasComp::Ur => &mut sol.ur,
+            GasComp::Uz => &mut sol.uz,
+            _ => &mut sol.om,
+        };
+        op.cg_solve(g, comp, tr, wqnew, x, &mut work)
+            .expect("xcheck cg (velocity)");
+    }
+    // re-assemble at the new velocities; {T,C}.
+    op.assemble_rates(g, &sol, &lag, &work, tr, 0.0, &mut dstage, None)
+        .expect("xcheck assemble (scalar stage)");
+    for comp in [GasComp::T, GasComp::C] {
+        fill_gas_rhs(g, comp, wqnew, &dstage, &dlag, &sol, &work.ke_base, &mut work.b);
+        op.fill_mass(g, comp, &sol.rho, tr, &mut work);
+        let x = match comp {
+            GasComp::T => &mut sol.tt,
+            _ => &mut sol.cc,
+        };
+        op.cg_solve(g, comp, tr, wqnew, x, &mut work)
+            .expect("xcheck cg (scalar)");
+    }
+    let (n_r, n_z) = (g.spec().n_r, g.spec().n_z);
+    let ncell = n_r * n_z;
+    let z = || vec![0.0f64; ncell];
+    let mut out = ClassDIterateDense {
+        ur: z(), om: z(), uz: z(), tt: z(), cc: z(),
+        rho: z(), lag_ur: z(), lag_uz: z(),
+        mu: z(), k: z(), rhod: z(), dhdz: z(), cv: z(), gas: z(),
+        dlag: vec![[0.0f64; NCOMP]; ncell],
+        n_r, n_z,
+        ..Default::default()
+    };
+    g.for_each_active_cell(|cell| {
+        let c = cell.i_r * n_z + cell.i_z;
+        let (bi, idx) = (cell.bi, cell.idx);
+        out.ur[c] = sol.ur[bi][idx];
+        out.om[c] = sol.om[bi][idx];
+        out.uz[c] = sol.uz[bi][idx];
+        out.tt[c] = sol.tt[bi][idx];
+        out.cc[c] = sol.cc[bi][idx];
+        out.rho[c] = sol0.rho[bi][idx];
+        out.lag_ur[c] = lag.ur[bi][idx];
+        out.lag_uz[c] = lag.uz[bi][idx];
+        out.mu[c] = tr.mu[bi][idx];
+        out.k[c] = tr.k[bi][idx];
+        out.rhod[c] = tr.rho_d[bi][idx];
+        out.dhdz[c] = tr.dh_dz[bi][idx];
+        out.cv[c] = tr.cv[bi][idx];
+        out.gas[c] = 1.0;
+        out.dlag[c] = dlag[bi][idx];
+        // Seed the sol echo with the INITIAL operands (what the GPU is given).
+        // (ur/om/uz/tt/cc above are the FINAL — the CPU oracle to compare.)
+    });
+    // The initial operands the GPU iterate consumes (separate from the oracle).
+    out.init_ur = g_dense(g, n_z, &sol0.ur);
+    out.init_om = g_dense(g, n_z, &sol0.om);
+    out.init_uz = g_dense(g, n_z, &sol0.uz);
+    out.init_tt = g_dense(g, n_z, &sol0.tt);
+    out.init_cc = g_dense(g, n_z, &sol0.cc);
+    out
+}
+
+fn g_dense(g: &Grid, n_z: usize, f: &[Vec<f64>]) -> Vec<f64> {
+    let mut v = vec![0.0f64; g.spec().n_r * n_z];
+    g.for_each_active_cell(|cell| {
+        v[cell.i_r * n_z + cell.i_z] = f[cell.bi][cell.idx];
+    });
+    v
+}
+
+/// Dense result of the S13c resident-iterate cross-check (doc-hidden). The
+/// `ur..cc` fields are the CPU **oracle** (final, post-iterate); `init_*` are
+/// the **initial** operands the GPU iterate consumes. `c = i_r*n_z + i_z`.
+#[doc(hidden)]
+#[derive(Default)]
+pub struct ClassDIterateDense {
+    pub ur: Vec<f64>,
+    pub om: Vec<f64>,
+    pub uz: Vec<f64>,
+    pub tt: Vec<f64>,
+    pub cc: Vec<f64>,
+    pub rho: Vec<f64>,
+    pub lag_ur: Vec<f64>,
+    pub lag_uz: Vec<f64>,
+    pub mu: Vec<f64>,
+    pub k: Vec<f64>,
+    pub rhod: Vec<f64>,
+    pub dhdz: Vec<f64>,
+    pub cv: Vec<f64>,
+    pub gas: Vec<f64>,
+    pub dlag: Vec<[f64; NCOMP]>,
+    pub init_ur: Vec<f64>,
+    pub init_om: Vec<f64>,
+    pub init_uz: Vec<f64>,
+    pub init_tt: Vec<f64>,
+    pub init_cc: Vec<f64>,
+    pub n_r: usize,
+    pub n_z: usize,
+}
+
 /// The gas Picard residual: the STATE effect of the rate staleness over
 /// this step (`wqnew·|Δrate|`) relative to each conserved component's own
 /// magnitude on the current composed state — the three momentum

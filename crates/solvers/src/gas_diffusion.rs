@@ -2978,4 +2978,57 @@ mod tests {
             println!("comp {comp}: iters {}, resid {:.3e}", d.iters, d.resid);
         }
     }
+
+    /// The S13c full-resident-iterate accessor (`sdc::xcheck_class_d_iterate_dense`)
+    /// must run the real assemble → fill_rhs → CG sweep for all five components
+    /// and produce a finite, actually-updated `sol` — a CPU-side de-risk of the
+    /// (box-only) GPU `gpu_class_d_iterate` cross-check: it proves the CPU
+    /// reference + fixture are healthy before the box run.
+    #[test]
+    fn xcheck_class_d_iterate_runs_and_updates() {
+        let (n_r, n_z) = (48usize, 96usize);
+        let spec = GridSpec {
+            r_min: 0.5,
+            dr: 1.0 / n_r as f64,
+            n_r,
+            z_min: 0.0,
+            dz: 1.0 / n_z as f64,
+            n_z,
+            n_theta_max: 1,
+            axisymmetry_assertion: true,
+        };
+        let g = Grid::build(spec, &["dummy"]).expect("grid");
+        let tf = tr(&g);
+        let o = op();
+        let sol_rho = |r: usize, z: usize| 1.0 + 0.2 * (1.7 * r as f64 + 0.9 * z as f64).sin();
+        let sol_ur = |r: usize, z: usize| 0.30 * (1.1 * z as f64 - 0.4 * r as f64).sin();
+        let sol_om = |r: usize, z: usize| 0.25 * (0.8 * r as f64 + 0.5 * z as f64).cos();
+        let sol_uz = |r: usize, z: usize| 0.35 * (0.9 * r as f64 - 1.3 * z as f64).sin();
+        let sol_tt = |r: usize, z: usize| 300.0 + 20.0 * (0.3 * r as f64 + 0.2 * z as f64).sin();
+        let sol_cc = |r: usize, z: usize| 0.5 + 0.1 * (0.25 * r as f64).sin();
+        let lag_ur = |r: usize, z: usize| sol_ur(r, z) + 0.05 * (0.7 * r as f64).cos();
+        let lag_uz = |r: usize, z: usize| sol_uz(r, z) - 0.04 * (0.5 * r as f64).sin();
+        let dlag_of = |_r: usize, _z: usize| [0.0f64; NCOMP];
+        let d = crate::sdc::xcheck_class_d_iterate_dense(
+            &g, &o, &tf, 5.0e-2, sol_rho, sol_ur, sol_om, sol_uz, sol_tt, sol_cc, lag_ur, lag_uz,
+            dlag_of,
+        );
+        // Every updated component is finite and the solve moved the state.
+        let mut moved = false;
+        for c in 0..n_r * n_z {
+            for (fin, init) in [
+                (d.tt[c], d.init_tt[c]),
+                (d.cc[c], d.init_cc[c]),
+                (d.ur[c], d.init_ur[c]),
+                (d.uz[c], d.init_uz[c]),
+                (d.om[c], d.init_om[c]),
+            ] {
+                assert!(fin.is_finite(), "non-finite iterate output at cell {c}");
+                if (fin - init).abs() > 1e-12 {
+                    moved = true;
+                }
+            }
+        }
+        assert!(moved, "the resident iterate left the state entirely unchanged");
+    }
 }

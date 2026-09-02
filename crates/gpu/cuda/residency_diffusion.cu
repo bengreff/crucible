@@ -512,3 +512,174 @@ extern "C" void gpu_class_d_assemble(const double* s_ur, const double* s_om, con
     cudaFree(d_luz); cudaFree(d_mu); cudaFree(d_k); cudaFree(d_rd); cudaFree(d_dh); cudaFree(d_gas);
     cudaFree(d_grr); cudaFree(d_grz); cudaFree(d_gzr); cudaFree(d_gzz); cudaFree(d_rate);
 }
+
+// =====================================================================
+// S13c — the FULL RESIDENT class-D gas Picard iterate: compose the FORCING
+// (assemble_rates) + the SOLVER (cg_solve) into one on-device implicit
+// diffusion sweep, bit-for-formula from the SDC inner block (sdc.rs ~L1158-
+// 1225): fill_lag_gradients → assemble(sol,lag) → {Ur,Uz,Om: fill_rhs, mass,
+// cg} → re-assemble(sol',lag) → {T,C: fill_rhs, mass, cg}. The fields stay
+// RESIDENT across the whole iterate (operands + dstage + CG work vectors live
+// on-device; only the O(1) CG scalars round-trip). This is the resident
+// implicit-diffusion solve — the composition the class-D residency exists for.
+// ---------------------------------------------------------------------
+
+// fill_gas_rhs (sdc.rs ~L2231): b = wqnew·kv·(dstage−dlag)[k]  (ω: ×r̄;
+// T: + ρ·kv·(ke_base − ke_new), the dissipation the momentum solves moved
+// into internal energy). k = the comp's conserved slot. ke_new from the
+// CURRENT sol velocities (post-velocity-solve for T).
+__global__ void kd_fill_gas_rhs(int comp, double wqnew, int n_r, int n_z,
+                                double r_min, double dr, double dz,
+                                const double* __restrict__ dstage, const double* __restrict__ dlag,
+                                const double* __restrict__ s_ur, const double* __restrict__ s_om,
+                                const double* __restrict__ s_uz, const double* __restrict__ rho,
+                                const double* __restrict__ ke_base, const double* __restrict__ gas,
+                                double* __restrict__ b) {
+    long c = (long)blockIdx.x * blockDim.x + threadIdx.x;
+    long ncell = (long)n_r * n_z;
+    if (c >= ncell) return;
+    if (gas[c] == 0.0) { b[c] = 0.0; return; }
+    int i_r = (int)(c / n_z);
+    double kv = d_cell_volume(r_min, dr, dz, i_r);       // kappa = 1
+    // comp → conserved slot: Ur=1 Uz=3 Om=2 T=4 C=5
+    int k = (comp==COMP_UR)?1 : (comp==COMP_UZ)?3 : (comp==COMP_OM)?2 : (comp==COMP_T)?4 : 5;
+    double ddiff = dstage[c*NC+k] - dlag[c*NC+k];
+    double val = (comp==COMP_OM) ? wqnew * d_r_center(r_min, dr, i_r) * kv * ddiff
+                                 : wqnew * kv * ddiff;
+    if (comp == COMP_T) {
+        double r = d_r_center(r_min, dr, i_r);
+        double ut = s_om[c] * r;
+        double ke_new = 0.5 * (s_ur[c]*s_ur[c] + ut*ut + s_uz[c]*s_uz[c]);
+        val += rho[c] * kv * (ke_base[c] - ke_new);
+    }
+    b[c] = val;
+}
+
+// ke_base = 0.5(u_r² + u_θ² + u_z²) at the ORIGINAL operands (captured before
+// the velocity solves — derive_gas_operands' ke_base).
+__global__ void kd_ke_base(int n_r, int n_z, double r_min, double dr,
+                           const double* __restrict__ s_ur, const double* __restrict__ s_om,
+                           const double* __restrict__ s_uz, const double* __restrict__ gas,
+                           double* __restrict__ ke_base) {
+    long c = (long)blockIdx.x * blockDim.x + threadIdx.x;
+    long ncell = (long)n_r * n_z;
+    if (c >= ncell) return;
+    if (gas[c] == 0.0) { ke_base[c] = 0.0; return; }
+    int i_r = (int)(c / n_z);
+    double ut = s_om[c] * d_r_center(r_min, dr, i_r);
+    ke_base[c] = 0.5 * (s_ur[c]*s_ur[c] + ut*ut + s_uz[c]*s_uz[c]);
+}
+
+// Resident CG for one component on device pointers (no malloc; the SDC-inner
+// reuse of cg_solve). `x` (= the sol component buffer) is updated in place:
+// x += δ over gas cells. Own data-dependent termination (N_CG_ITERS_MAX cap),
+// bit-for-formula from cg_solve. `wnb` structures shared across the iterate.
+struct CgWork { double *mass,*diag,*r,*z,*p,*q,*delta,*partial,*scalar; int nblk; };
+static void run_cg_resident(double* d_x, const double* d_b, const double* d_rho, const double* d_cv,
+                            const double* d_mu, const double* d_k, const double* d_rd, const double* d_gas,
+                            int comp, int n_r, int n_z, double r_min, double dr, double dz,
+                            double wq, long ncell, long gblk, CgWork w) {
+    kd_fill_mass<<<gblk,DTPB>>>(comp,n_r,n_z,r_min,dr,dz,d_rho,d_cv,d_gas,w.mass);
+    kd_apply_linear<<<gblk,DTPB>>>(d_x,comp,n_r,n_z,r_min,dr,dz,d_mu,d_k,d_rd,d_gas,1,w.q,w.diag);
+    kd_diag_finish<<<gblk,DTPB>>>(w.diag,w.mass,d_gas,wq,ncell);
+    cudaMemset(w.delta,0,ncell*sizeof(double));
+    kd_copy<<<gblk,DTPB>>>(w.r,d_b,ncell);
+    double b_norm2 = dev_dot(d_b,d_b,d_gas,ncell,w.partial,w.scalar,w.nblk);
+    double eps2 = EPS_CG_RESID * EPS_CG_RESID * b_norm2;
+    kd_precond<<<gblk,DTPB>>>(w.z,w.r,w.diag,ncell);
+    kd_copy<<<gblk,DTPB>>>(w.p,w.z,ncell);
+    double rz = dev_dot(w.r,w.z,d_gas,ncell,w.partial,w.scalar,w.nblk);
+    double r_norm2 = dev_dot(w.r,w.r,d_gas,ncell,w.partial,w.scalar,w.nblk);
+    int iters = 0;
+    while (iters < N_CG_ITERS_MAX && r_norm2 > eps2 && rz > 0.0) {
+        kd_apply_linear<<<gblk,DTPB>>>(w.p,comp,n_r,n_z,r_min,dr,dz,d_mu,d_k,d_rd,d_gas,0,w.q,nullptr);
+        kd_q_finish<<<gblk,DTPB>>>(w.q,w.mass,w.p,d_gas,wq,ncell);
+        double pq = dev_dot(w.p,w.q,d_gas,ncell,w.partial,w.scalar,w.nblk);
+        if (pq != pq || pq <= 0.0) break;
+        double alpha = rz / pq;
+        kd_axpy<<<gblk,DTPB>>>(w.delta, alpha, w.p, ncell);
+        kd_axpy<<<gblk,DTPB>>>(w.r, -alpha, w.q, ncell);
+        kd_precond<<<gblk,DTPB>>>(w.z,w.r,w.diag,ncell);
+        double rz_new = dev_dot(w.r,w.z,d_gas,ncell,w.partial,w.scalar,w.nblk);
+        double beta = rz_new / rz; rz = rz_new;
+        kd_p_update<<<gblk,DTPB>>>(w.p,w.z,beta,ncell);
+        r_norm2 = dev_dot(w.r,w.r,d_gas,ncell,w.partial,w.scalar,w.nblk);
+        iters++;
+    }
+    kd_x_add_delta_gas<<<gblk,DTPB>>>(d_x, w.delta, d_gas, ncell);
+}
+
+// FFI: one full resident class-D gas iterate. sol operands (rho,ur,om,uz,tt,cc)
+// are inout (initial in, updated out); lag (ur,uz), transport (mu,k,rhod,dhdz,
+// cv), dlag [ncell*NC], gas are in. wqnew = the SDC implicit weight. All fields
+// resident across the iterate; returns worst CG iters (diagnostic).
+extern "C" int gpu_class_d_iterate(double* sol_rho, double* sol_ur, double* sol_om, double* sol_uz,
+                                   double* sol_tt, double* sol_cc, const double* lag_ur,
+                                   const double* lag_uz, const double* mu, const double* kk,
+                                   const double* rhod, const double* dhdz, const double* cv,
+                                   const double* dlag, const double* gas, int n_r, int n_z,
+                                   double r_min, double dr, double dz, double wqnew) {
+    long ncell = (long)n_r * n_z;
+    size_t nb = ncell*sizeof(double), nbc = ncell*NC*sizeof(double);
+    long gblk = (ncell + DTPB - 1)/DTPB;
+    int nblk = (int)gblk;
+    // resident operands + transport + lag + dlag + gas
+    double *d_rho,*d_ur,*d_om,*d_uz,*d_tt,*d_cc,*d_lur,*d_luz,*d_mu,*d_k,*d_rd,*d_dh,*d_cv,*d_dlag,*d_gas;
+    // lag grads + dstage + ke_base + b + CG work
+    double *d_grr,*d_grz,*d_gzr,*d_gzz,*d_dstage,*d_ke,*d_b;
+    double *d_mass,*d_diag,*d_r,*d_z,*d_p,*d_q,*d_delta,*d_partial,*d_scalar;
+    #define M(p,sz) cudaMalloc(&p,sz)
+    M(d_rho,nb);M(d_ur,nb);M(d_om,nb);M(d_uz,nb);M(d_tt,nb);M(d_cc,nb);
+    M(d_lur,nb);M(d_luz,nb);M(d_mu,nb);M(d_k,nb);M(d_rd,nb);M(d_dh,nb);M(d_cv,nb);
+    M(d_dlag,nbc);M(d_gas,nb);M(d_grr,nb);M(d_grz,nb);M(d_gzr,nb);M(d_gzz,nb);
+    M(d_dstage,nbc);M(d_ke,nb);M(d_b,nb);
+    M(d_mass,nb);M(d_diag,nb);M(d_r,nb);M(d_z,nb);M(d_p,nb);M(d_q,nb);M(d_delta,nb);
+    M(d_partial,nblk*sizeof(double));M(d_scalar,sizeof(double));
+    #undef M
+    #define CPY(d,s,sz) cudaMemcpy(d,s,sz,cudaMemcpyHostToDevice)
+    CPY(d_rho,sol_rho,nb);CPY(d_ur,sol_ur,nb);CPY(d_om,sol_om,nb);CPY(d_uz,sol_uz,nb);
+    CPY(d_tt,sol_tt,nb);CPY(d_cc,sol_cc,nb);CPY(d_lur,lag_ur,nb);CPY(d_luz,lag_uz,nb);
+    CPY(d_mu,mu,nb);CPY(d_k,kk,nb);CPY(d_rd,rhod,nb);CPY(d_dh,dhdz,nb);CPY(d_cv,cv,nb);
+    CPY(d_dlag,dlag,nbc);CPY(d_gas,gas,nb);
+    #undef CPY
+    CgWork w = {d_mass,d_diag,d_r,d_z,d_p,d_q,d_delta,d_partial,d_scalar,nblk};
+
+    // ke_base from the ORIGINAL velocities; lag gradients from the fixed lag.
+    kd_ke_base<<<gblk,DTPB>>>(n_r,n_z,r_min,dr,d_ur,d_om,d_uz,d_gas,d_ke);
+    kd_lag_grads<<<gblk,DTPB>>>(d_lur,d_luz,n_r,n_z,dr,dz,d_gas,d_grr,d_grz,d_gzr,d_gzz);
+
+    // assemble(sol,lag) → dstage; solve the velocity block {Ur,Uz,Om}.
+    kd_assemble_rates<<<gblk,DTPB>>>(d_ur,d_om,d_uz,d_tt,d_cc,d_lur,d_grr,d_grz,d_gzr,d_gzz,
+                                     d_mu,d_k,d_rd,d_dh,d_gas,n_r,n_z,r_min,dr,dz,d_dstage);
+    int comps_v[3] = {COMP_UR, COMP_UZ, COMP_OM};
+    double* xs_v[3] = {d_ur, d_uz, d_om};
+    for (int i=0;i<3;i++) {
+        kd_fill_gas_rhs<<<gblk,DTPB>>>(comps_v[i],wqnew,n_r,n_z,r_min,dr,dz,d_dstage,d_dlag,
+                                       d_ur,d_om,d_uz,d_rho,d_ke,d_gas,d_b);
+        run_cg_resident(xs_v[i],d_b,d_rho,d_cv,d_mu,d_k,d_rd,d_gas,comps_v[i],
+                        n_r,n_z,r_min,dr,dz,wqnew,ncell,gblk,w);
+    }
+    // re-assemble at the NEW velocities (lag grads unchanged); solve {T,C}.
+    kd_assemble_rates<<<gblk,DTPB>>>(d_ur,d_om,d_uz,d_tt,d_cc,d_lur,d_grr,d_grz,d_gzr,d_gzz,
+                                     d_mu,d_k,d_rd,d_dh,d_gas,n_r,n_z,r_min,dr,dz,d_dstage);
+    int comps_t[2] = {COMP_T, COMP_C};
+    double* xs_t[2] = {d_tt, d_cc};
+    for (int i=0;i<2;i++) {
+        kd_fill_gas_rhs<<<gblk,DTPB>>>(comps_t[i],wqnew,n_r,n_z,r_min,dr,dz,d_dstage,d_dlag,
+                                       d_ur,d_om,d_uz,d_rho,d_ke,d_gas,d_b);
+        run_cg_resident(xs_t[i],d_b,d_rho,d_cv,d_mu,d_k,d_rd,d_gas,comps_t[i],
+                        n_r,n_z,r_min,dr,dz,wqnew,ncell,gblk,w);
+    }
+    cudaDeviceSynchronize();
+    // download updated sol (ur,uz,om,tt,cc; rho unchanged).
+    cudaMemcpy(sol_ur,d_ur,nb,cudaMemcpyDeviceToHost);
+    cudaMemcpy(sol_uz,d_uz,nb,cudaMemcpyDeviceToHost);
+    cudaMemcpy(sol_om,d_om,nb,cudaMemcpyDeviceToHost);
+    cudaMemcpy(sol_tt,d_tt,nb,cudaMemcpyDeviceToHost);
+    cudaMemcpy(sol_cc,d_cc,nb,cudaMemcpyDeviceToHost);
+    double* all[] = {d_rho,d_ur,d_om,d_uz,d_tt,d_cc,d_lur,d_luz,d_mu,d_k,d_rd,d_dh,d_cv,d_dlag,
+        d_gas,d_grr,d_grz,d_gzr,d_gzz,d_dstage,d_ke,d_b,d_mass,d_diag,d_r,d_z,d_p,d_q,d_delta,
+        d_partial,d_scalar};
+    for (double* q : all) cudaFree(q);
+    return 0;
+}
