@@ -1997,7 +1997,8 @@ the committed artifacts in `certificates/` are the living record.
   S13c, COUP-3 0.4.7 (device-resident CG breadcrumb). **NEXT = S13c (finish residency: b-assembly + Robin
   + solid conduction + combustion + real EOS + geometry), then S14 (hardening + ◆C4).**- Session 27 (2026-09-01): **plan S13c — GPU RESIDENCY, the physics remainder: stable_dt + the class-D
   diffusion FORCING + the FULL resident class-D diffusion STEP + the real HDF5 TableEos projection +
-  the combustion source — five legs, all validated on the RTX 4070 Ti SUPER.** Continues S13/S13b on
+  the combustion source + the blend-EOS two-branch projection — SIX legs, all validated on the RTX 4070 Ti
+  SUPER.** Continues S13/S13b on
   `s13-gpu-residency`. Ben's rulings this session drove the order (physics-first; f64-only forever;
   degenerate lookups resolve by continuity not halt — PLAN §8 v1.16). Each leg = an additive doc-hidden
   CPU accessor (runs the REAL production code, changes no number) + a device kernel set + a CPU↔GPU
@@ -2033,12 +2034,24 @@ the committed artifacts in `certificates/` are the living record.
   refactored to delegate to `accumulate_inner` so the CPU accessor runs the IDENTICAL code (zero
   divergence). Vs the CPU on the design flame state (P0=1e5, H0=4.364e4, Z0=0.167) over 1379 genuinely-
   active reacting cells (max source 33 kg/m³/s): **worst rel 1.4×10⁻¹³**, rerun bit-identical.
-  **CARRIED to a follow-on (S13d / a later wave):** the class-R implicit auto-ignition node solve
-  (spontaneous light — the other combustion leg); the θ-stress tensor (N_θ>1) + cut apertures + mixed-N_θ
-  reflux + real NoSlip/Robin walls + solid-conduction CG (the geometry/wall generality — ◆C3 was ADIABATIC
-  free-slip, matching the CPU's own S11 deferral, so these are not on the GPU-◆C3-parity path); the
-  near-vacuum EOS tangency corner. The full-physics resident step on a coarse 3-D RL10 (the S13c acceptance)
-  is reached once the θ/geometry generality + the class-R lands. **CPU reference untouched but for additive
-  doc-hidden accessors + a refactor-extract; `check.sh` green; certificates byte-identical (gate 5).**
-  **Docs:** this entry, CLAUDE.md State, PLAN §8 v1.17. **NEXT = the S13c remainder (class-R + θ/geometry),
-  then S14 (throughput + ◆C4).**
+  **(6) The BLEND EOS (p,h,Z) two-branch projection** (`residency_blend_eos.cu` `k_blend_project`): the
+  shifting-equilibrium (unburnt ⊕ burnt) projection — the mass-weighted specific-volume density closure
+  1/ρ = (1−b)/ρ_u(p,h_u,Z) + b/ρ_b(p,h_b+off,Z) on the partitioned sub-state enthalpies + the same Illinois
+  + first-crossing scan (two-root → continuity per ruling #3; device carries no >1-crossing refusal, the
+  unique-root fixture matches the CPU). The **class-R auto-ignition prerequisite** (its per-refreeze state
+  query is this projection). Vs the CPU `BurnBlendEos::prim_checked` on the production unburnt v0.3.0 ⊕
+  burnt v0.4.0 surfaces over 64 mid-b (both-branch) states: **worst rel 5.9×10⁻¹⁴**, rerun bit-identical.
+  **CARRIED to a follow-on:** the class-R implicit auto-ignition node solve — now a SMALL step (a fixed-
+  N_TAU_REFREEZE(=2) BE-at-frozen-τ loop over the blend projection (6) + the ignition τ_ign interp), but its
+  faithful port needs the full `prim_checked` branch switch (pure-unburnt / mid-b / pure-burnt) since x→cap
+  crosses into the pure-burnt delegation — the pure-burnt path IS the resident TableEos (4), so it is a
+  branch-select wiring job. The θ-stress tensor (N_θ>1) + cut apertures + mixed-N_θ reflux (+ real
+  NoSlip/Robin walls + solid-conduction CG — off the GPU-◆C3-parity path since ◆C3 is ADIABATIC free-slip,
+  the CPU's own S11 deferral); the near-vacuum EOS tangency corner. The full-physics resident step on a
+  coarse 3-D RL10 (the S13c acceptance) is reached once the θ/geometry generality + class-R lands. **CPU
+  reference untouched but for additive doc-hidden accessors + one refactor-extract; `check.sh` green
+  (gates 1/2/3/5; gate 4 is Python-only, untouched); certificates byte-identical.** **Reusable device
+  pieces now in-tree:** the 8-corner multilinear interp (interp_rule space) + the Illinois projection +
+  the fixed-topology CG reduction + the max-tree; table marshaling via `BoundColumn::marshal`.
+  **Docs:** this entry, CLAUDE.md State, PLAN §8 v1.17. **NEXT = the S13c remainder (class-R branch-wire +
+  θ/geometry), then S14 (throughput + ◆C4).**

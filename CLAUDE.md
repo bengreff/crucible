@@ -72,7 +72,7 @@ unchanged (checkpoint byte-identical, 1.71×10⁸ cups). Clean on the first box 
 Robin-Robin + solid-conduction CG residency; combustion (Nagumo + class-R); real HDF5 `TableEos` on-device;
 cut/mixed-N_θ + SRD + BC + `stable_dt`. ◆C4 harness + profiling = **S14**.
 
-**Session 27 landed five S13c residency legs** (plan S13c, IN PROGRESS — the physics remainder; all validated
+**Session 27 landed six S13c residency legs** (plan S13c, IN PROGRESS — the physics remainder; all validated
 on the RTX 4070 Ti SUPER, each an additive doc-hidden CPU accessor running the REAL production code + a device
 kernel set + a CPU↔GPU cross-check): **(1) `stable_dt`** — the CFL clock (max-tree reduction; CPU↔GPU
 **bit-identical**); **(2) the class-D diffusion FORCING** (`assemble_rates` — the full τ stress tensor +
@@ -83,12 +83,16 @@ fully resident**; **(4) the real HDF5 `TableEos` (p,h,Z) projection** — the ac
 multilinear interp + Illinois, two-root→continuity) replacing the GammaLaw stand-in on the production
 `lox_lh2_v0.4.0` surface (**machine precision, rel 2.1×10⁻¹⁵**); **(5) the COMBUSTION SOURCE** (bistable-Nagumo
 front + matched front-thickening diffusion on the real unburnt + ignition surfaces; rel 1.4×10⁻¹³ over 1379
-active reacting cells). Reusable device pieces: the multilinear interp + Illinois projection + the fixed-topology
-CG reduction; table marshaling via `BoundColumn::marshal`. **Remaining S13c:** the **class-R auto-ignition** node
-solve (needs the blend-EOS projection on-device); the **θ-stress tensor (N_θ>1)** + cut/mixed-N_θ geometry (walls
-off the ◆C3-parity path — ◆C3 is adiabatic free-slip); the near-vacuum EOS tangency corner. CPU reference
-untouched but for additive accessors + one refactor-extract (`accumulate`→`accumulate_inner`); certificates
-byte-identical.
+active reacting cells); **(6) the BLEND EOS (p,h,Z) two-branch projection** (unburnt ⊕ burnt mass-weighted
+specific-volume closure + Illinois + first-crossing continuity; the **class-R prerequisite**) on the real
+unburnt v0.3.0 ⊕ burnt v0.4.0 surfaces (**machine precision, rel 5.9×10⁻¹⁴**). Reusable device pieces: the
+8-corner multilinear interp + Illinois projection + the fixed-topology CG reduction + the max-tree; table
+marshaling via `BoundColumn::marshal`. **Remaining S13c:** the **class-R auto-ignition** node solve — now a small
+BE-at-frozen-τ loop over (6) + the τ_ign interp, but its faithful port needs the `prim_checked` branch switch
+(pure-burnt at x→cap = the resident TableEos (4), a branch-select wire); the **θ-stress tensor (N_θ>1)** +
+cut/mixed-N_θ geometry (walls off the ◆C3-parity path — ◆C3 is adiabatic free-slip); the near-vacuum EOS tangency
+corner. CPU reference untouched but for additive accessors + one refactor-extract (`accumulate`→`accumulate_inner`);
+certificates byte-identical.
 
 **Doctrine (VISION_SCOPE v1.6 / plan ruling #14, 2026-08-27):** the **torch/ASI flame-holder object is
 DELETED** — flame-holding is **emergent** (resolved recirculation), the only start boundary-inputs are
