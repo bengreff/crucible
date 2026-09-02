@@ -70,8 +70,8 @@ mod table_eos;
 
 pub use blend_eos::{BurnBlendEos, EPS_B_PURE_BURNT, EPS_B_PURE_UNBURNT};
 pub use combustion::{
-    BURN_COMPLETE, C_NAGUMO_SLOPE, Combustion, EPS_BURN_BOUND, EPS_IGNITED, IgnitionColumns,
-    S_T_MACH_LIMIT, THETA_CELLS, consumption_rate, reacting_measure,
+    BURN_COMPLETE, C_NAGUMO_SLOPE, CombMarshal, Combustion, EPS_BURN_BOUND, EPS_IGNITED,
+    IgnitionColumns, S_T_MACH_LIMIT, THETA_CELLS, consumption_rate, reacting_measure,
 };
 pub use exact::{RiemannSide, RiemannSolution, solve as solve_riemann};
 pub use hllc::{hllc_flux, physical_flux};

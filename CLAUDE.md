@@ -17,7 +17,7 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-08-31 — session 26 = plan S13b done (split; S13c next); chemical sandbox at S13b/20, Phase 4)
+## State (2026-09-01 — session 27 = plan S13c IN PROGRESS (5 residency legs validated); chemical sandbox at S13c/20, Phase 4)
 
 **This section is current state only.** Per-session build history (measured deltas, findings,
 review waves) lives in `SESSION_LOG.md`; the by-area capability detail is under "What exists" below;
@@ -72,6 +72,24 @@ unchanged (checkpoint byte-identical, 1.71×10⁸ cups). Clean on the first box 
 Robin-Robin + solid-conduction CG residency; combustion (Nagumo + class-R); real HDF5 `TableEos` on-device;
 cut/mixed-N_θ + SRD + BC + `stable_dt`. ◆C4 harness + profiling = **S14**.
 
+**Session 27 landed five S13c residency legs** (plan S13c, IN PROGRESS — the physics remainder; all validated
+on the RTX 4070 Ti SUPER, each an additive doc-hidden CPU accessor running the REAL production code + a device
+kernel set + a CPU↔GPU cross-check): **(1) `stable_dt`** — the CFL clock (max-tree reduction; CPU↔GPU
+**bit-identical**); **(2) the class-D diffusion FORCING** (`assemble_rates` — the full τ stress tensor +
+geometric source + viscous work + Fourier + species-enthalpy flux; rel 2.1×10⁻¹²); **(3) the FULL RESIDENT
+class-D diffusion STEP** — one SDC-inner implicit-diffusion sweep marched entirely on-device (forcing →
+{Uᵣ,U_z,ω} CG → re-assemble → {T,C} CG, fields resident; rel 3.2×10⁻¹⁰) — **the gas class-D diffusion is now
+fully resident**; **(4) the real HDF5 `TableEos` (p,h,Z) projection** — the actual equilibrium EOS (8-corner
+multilinear interp + Illinois, two-root→continuity) replacing the GammaLaw stand-in on the production
+`lox_lh2_v0.4.0` surface (**machine precision, rel 2.1×10⁻¹⁵**); **(5) the COMBUSTION SOURCE** (bistable-Nagumo
+front + matched front-thickening diffusion on the real unburnt + ignition surfaces; rel 1.4×10⁻¹³ over 1379
+active reacting cells). Reusable device pieces: the multilinear interp + Illinois projection + the fixed-topology
+CG reduction; table marshaling via `BoundColumn::marshal`. **Remaining S13c:** the **class-R auto-ignition** node
+solve (needs the blend-EOS projection on-device); the **θ-stress tensor (N_θ>1)** + cut/mixed-N_θ geometry (walls
+off the ◆C3-parity path — ◆C3 is adiabatic free-slip); the near-vacuum EOS tangency corner. CPU reference
+untouched but for additive accessors + one refactor-extract (`accumulate`→`accumulate_inner`); certificates
+byte-identical.
+
 **Doctrine (VISION_SCOPE v1.6 / plan ruling #14, 2026-08-27):** the **torch/ASI flame-holder object is
 DELETED** — flame-holding is **emergent** (resolved recirculation), the only start boundary-inputs are
 the **bounded spark + injected fuel**, so the startability verdict is not circular; **refinement is
@@ -83,8 +101,8 @@ deleted; findings live in doc change logs + git). Every session gates-green + co
 `scripts/check.sh` = the 5-gate battery (fmt, clippy, cargo test, offline pytest, certificate regen +
 diff); **253 Rust + 50 Python tests**. **Blind rule v1.4.1**: blind = mechanical input-blindness;
 every certificate declares `development-observed: yes/no`; the RL10 campaign is **open development**.
-**NEXT = plan S13c (finish residency: the class-D b-assembly + Robin + solid conduction + combustion + real EOS +
-geometry generality), then S14 (hardening + ◆C4).**
+**NEXT = plan S13c remainder (the class-R auto-ignition node solve + the θ-stress tensor / cut-geometry
+generality; the blend-EOS projection on-device is the class-R prerequisite), then S14 (hardening + ◆C4).**
 
 **VISION_SCOPE v1.5 (Ben, 2026-08-19) — the session-13 rulings, all doc-amended:** accelerated
 convergence (pseudo-transient/local-Δt) is **DELETED** — every certified result is a **physical

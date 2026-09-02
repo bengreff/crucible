@@ -51,6 +51,12 @@ path = "src/residency_iterate_xcheck.rs"
 name = "residency_eos_xcheck"
 path = "src/residency_eos_xcheck.rs"
 
+# S13c residency cross-check: the combustion source (Nagumo + front diffusion)
+# resident vs the bit-exact CPU Combustion::accumulate_inner.
+[[bin]]
+name = "residency_combustion_xcheck"
+path = "src/residency_combustion_xcheck.rs"
+
 # Empty table = this crate is its OWN workspace root, so the repo-root
 # `cargo build --workspace` / check.sh never pull it in (no nvcc on the laptop).
 [workspace]

@@ -2319,8 +2319,8 @@ pub fn xcheck_class_d_iterate_dense(
         // ke_base at the ORIGINAL operands (derive_gas_operands' capture).
         let r = g.r_center(i_r);
         let ut = sol.om[bi][idx] * r;
-        work.ke_base[bi][idx] = 0.5
-            * (sol.ur[bi][idx] * sol.ur[bi][idx] + ut * ut + sol.uz[bi][idx] * sol.uz[bi][idx]);
+        work.ke_base[bi][idx] =
+            0.5 * (sol.ur[bi][idx] * sol.ur[bi][idx] + ut * ut + sol.uz[bi][idx] * sol.uz[bi][idx]);
     });
     // Capture the initial sol for the dense-input echo (the GPU gets the same).
     let sol0 = {
@@ -2334,7 +2334,16 @@ pub fn xcheck_class_d_iterate_dense(
     op.assemble_rates(g, &sol, &lag, &work, tr, 0.0, &mut dstage, None)
         .expect("xcheck assemble (velocity stage)");
     for comp in [GasComp::Ur, GasComp::Uz, GasComp::Om] {
-        fill_gas_rhs(g, comp, wqnew, &dstage, &dlag, &sol, &work.ke_base, &mut work.b);
+        fill_gas_rhs(
+            g,
+            comp,
+            wqnew,
+            &dstage,
+            &dlag,
+            &sol,
+            &work.ke_base,
+            &mut work.b,
+        );
         op.fill_mass(g, comp, &sol.rho, tr, &mut work);
         let x = match comp {
             GasComp::Ur => &mut sol.ur,
@@ -2348,7 +2357,16 @@ pub fn xcheck_class_d_iterate_dense(
     op.assemble_rates(g, &sol, &lag, &work, tr, 0.0, &mut dstage, None)
         .expect("xcheck assemble (scalar stage)");
     for comp in [GasComp::T, GasComp::C] {
-        fill_gas_rhs(g, comp, wqnew, &dstage, &dlag, &sol, &work.ke_base, &mut work.b);
+        fill_gas_rhs(
+            g,
+            comp,
+            wqnew,
+            &dstage,
+            &dlag,
+            &sol,
+            &work.ke_base,
+            &mut work.b,
+        );
         op.fill_mass(g, comp, &sol.rho, tr, &mut work);
         let x = match comp {
             GasComp::T => &mut sol.tt,
@@ -2361,11 +2379,23 @@ pub fn xcheck_class_d_iterate_dense(
     let ncell = n_r * n_z;
     let z = || vec![0.0f64; ncell];
     let mut out = ClassDIterateDense {
-        ur: z(), om: z(), uz: z(), tt: z(), cc: z(),
-        rho: z(), lag_ur: z(), lag_uz: z(),
-        mu: z(), k: z(), rhod: z(), dhdz: z(), cv: z(), gas: z(),
+        ur: z(),
+        om: z(),
+        uz: z(),
+        tt: z(),
+        cc: z(),
+        rho: z(),
+        lag_ur: z(),
+        lag_uz: z(),
+        mu: z(),
+        k: z(),
+        rhod: z(),
+        dhdz: z(),
+        cv: z(),
+        gas: z(),
         dlag: vec![[0.0f64; NCOMP]; ncell],
-        n_r, n_z,
+        n_r,
+        n_z,
         ..Default::default()
     };
     g.for_each_active_cell(|cell| {

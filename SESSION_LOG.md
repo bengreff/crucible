@@ -1995,4 +1995,50 @@ the committed artifacts in `certificates/` are the living record.
   (gate 5). Build: `crates/gpu` gained `cuda/residency_diffusion.cu` + the `residency_diffusion_xcheck`
   bin; `build.rs` archives the third `.cu`. **Docs:** this entry, CLAUDE.md State, PLAN §8 v1.15 + §5
   S13c, COUP-3 0.4.7 (device-resident CG breadcrumb). **NEXT = S13c (finish residency: b-assembly + Robin
-  + solid conduction + combustion + real EOS + geometry), then S14 (hardening + ◆C4).**
+  + solid conduction + combustion + real EOS + geometry), then S14 (hardening + ◆C4).**- Session 27 (2026-09-01): **plan S13c — GPU RESIDENCY, the physics remainder: stable_dt + the class-D
+  diffusion FORCING + the FULL resident class-D diffusion STEP + the real HDF5 TableEos projection +
+  the combustion source — five legs, all validated on the RTX 4070 Ti SUPER.** Continues S13/S13b on
+  `s13-gpu-residency`. Ben's rulings this session drove the order (physics-first; f64-only forever;
+  degenerate lookups resolve by continuity not halt — PLAN §8 v1.16). Each leg = an additive doc-hidden
+  CPU accessor (runs the REAL production code, changes no number) + a device kernel set + a CPU↔GPU
+  cross-check bin; the CPU reference stays bit-exact, certificates byte-identical.
+  **(1) stable_dt — the CFL clock** (`residency.cu` `gpu_stable_dt` + a max-tree reduction): Δt =
+  cfl / max_cell σ, σ = (|u_r|+c)/dr + (|u_z|+c)/dz. The reduction is a MAX (exactly order-independent),
+  so the resident march self-clocks deterministically. **CPU↔GPU rel = 0.0 (bit-identical)**, rerun
+  bit-identical (added as PHASE-1b of `residency_xcheck`).
+  **(2) The class-D diffusion FORCING** (`residency_diffusion.cu` `kd_lag_grads` + `kd_assemble_rates`):
+  the affine viscous-stress physics that builds the CG's RHS `b` — the full τ stress tensor
+  (τ_rr/τ_zz/τ_rz + the −τ_θθ/r geometric source), viscous work, Fourier conduction, species diffusion +
+  its enthalpy flux — bit-for-formula from `assemble_rates`. A pure gather; **worst rel 2.1×10⁻¹²** over
+  all 5 diffusion components (lag≠sol + nonzero ∂h/∂Z exercised), rerun bit-identical.
+  **(3) The FULL RESIDENT class-D diffusion STEP** (`gpu_class_d_iterate` + `kd_fill_gas_rhs` +
+  `run_cg_resident`): one complete SDC-inner implicit-diffusion sweep marched ENTIRELY on-device, fields
+  resident throughout — assemble(sol,lag) → {Ur,Uz,Om} CG solves → re-assemble → {T,C} CG solves. Composes
+  the FORCING (2) + the S13b SOLVER + the RHS builder. Vs the CPU `xcheck_class_d_iterate_dense` (the real
+  assemble/fill_gas_rhs/cg_solve in SDC-inner order): **worst rel 3.2×10⁻¹⁰** (converged-solve ECT 1e-8,
+  5 CG solves chained), rerun bit-identical. **The gas class-D diffusion is now fully resident.**
+  **(4) The real HDF5 TableEos (p,h,Z) projection** (`residency_eos.cu` `k_project`): the actual
+  equilibrium-surface EOS replacing the GammaLaw stand-in — the fixed 8-corner multilinear interp
+  (interp_rule space) + the deterministic Illinois regula-falsi projection (warm hint + cold bracket),
+  the two-root case resolved by CONTINUITY (warm keeps the near root, cold takes the first scan crossing —
+  Ben ruling, and the CPU already behaves so). Marshaled the production `lox_lh2_v0.4.0` surface
+  (`BoundColumn::marshal`, additive). Vs the CPU `TableEos` over 245 on-surface states: **worst rel
+  2.1×10⁻¹⁵ (machine precision)** on p, 5.0×10⁻¹⁶ sound, 7.0×10⁻¹⁶ temperature (the interp reduction order
+  is identical CPU↔GPU); rerun bit-identical. The rare near-vacuum golden-section tangency corner is a
+  documented follow-on (device returns NaN; the interior fixture never reaches it).
+  **(5) The COMBUSTION SOURCE (SOLV-4.4)** (`residency_combustion.cu` `k_comb_source`): the flame-
+  propagation physics — the bistable-Nagumo pushed front ρ_u·K·b(1−b)(b−a) + the matched front-thickening
+  diffusion ∇·(ρD_c∇b), reading the unburnt (p,h,Z) T_u/ρ_u surfaces + the ignition (p,T_u,Z) S_L surface
+  (all direct interps — the cell's p is already in the prim). Production `Combustion::accumulate`
+  refactored to delegate to `accumulate_inner` so the CPU accessor runs the IDENTICAL code (zero
+  divergence). Vs the CPU on the design flame state (P0=1e5, H0=4.364e4, Z0=0.167) over 1379 genuinely-
+  active reacting cells (max source 33 kg/m³/s): **worst rel 1.4×10⁻¹³**, rerun bit-identical.
+  **CARRIED to a follow-on (S13d / a later wave):** the class-R implicit auto-ignition node solve
+  (spontaneous light — the other combustion leg); the θ-stress tensor (N_θ>1) + cut apertures + mixed-N_θ
+  reflux + real NoSlip/Robin walls + solid-conduction CG (the geometry/wall generality — ◆C3 was ADIABATIC
+  free-slip, matching the CPU's own S11 deferral, so these are not on the GPU-◆C3-parity path); the
+  near-vacuum EOS tangency corner. The full-physics resident step on a coarse 3-D RL10 (the S13c acceptance)
+  is reached once the θ/geometry generality + the class-R lands. **CPU reference untouched but for additive
+  doc-hidden accessors + a refactor-extract; `check.sh` green; certificates byte-identical (gate 5).**
+  **Docs:** this entry, CLAUDE.md State, PLAN §8 v1.17. **NEXT = the S13c remainder (class-R + θ/geometry),
+  then S14 (throughput + ◆C4).**

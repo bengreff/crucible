@@ -160,7 +160,11 @@ impl BoundColumn<'_> {
     pub fn marshal(&self) -> ColumnMarshal {
         ColumnMarshal {
             axis_points: self.table.axes.iter().map(|a| a.points.clone()).collect(),
-            axis_is_log: self.axis_scales.iter().map(|s| matches!(s, Scale::Log)).collect(),
+            axis_is_log: self
+                .axis_scales
+                .iter()
+                .map(|s| matches!(s, Scale::Log))
+                .collect(),
             strides: self.strides.clone(),
             data: self.table.values[self.value_index].data.clone(),
             value_is_log: matches!(self.value_scale, Scale::Log),

@@ -539,7 +539,9 @@ impl TableEos<'_> {
     ) -> Result<(f64, f64, f64, f64), &'static str> {
         let inv = 1.0 / rho;
         let p = match hint {
-            Some(ph) if ph.is_finite() && ph > 0.0 => self.project_pressure_hinted(rho, e_q, z, ph)?,
+            Some(ph) if ph.is_finite() && ph > 0.0 => {
+                self.project_pressure_hinted(rho, e_q, z, ph)?
+            }
             _ => self.project_pressure(rho, e_q, z)?,
         };
         let h = e_q + p * inv;

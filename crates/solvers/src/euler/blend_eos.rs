@@ -676,6 +676,22 @@ impl<'t> BurnBlendEos<'t> {
         ]
     }
 
+    /// S13c GPU marshaling (doc-hidden, additive): the UNBURNT branch's
+    /// temperature + density columns (the combustion source's `T_u`, `ρ_u`
+    /// direct interps) and that surface's own (p, h, Z) envelopes. Changes no
+    /// production number.
+    #[doc(hidden)]
+    pub fn xcheck_unburnt_marshal(
+        &self,
+    ) -> (
+        crucible_tables::ColumnMarshal,
+        crucible_tables::ColumnMarshal,
+        [(f64, f64); 3],
+    ) {
+        let m = self.unburnt.xcheck_marshal();
+        (m.temperature, m.rho, self.unburnt.envelopes())
+    }
+
     /// The UNION of the two branches' (p, h, Z) envelopes (the burnt
     /// h-window shifted by −`h_offset`) — the box this occupant may
     /// interrogate a co-keyed surface (the FND-7 spine) over. Distinct from

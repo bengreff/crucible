@@ -2958,12 +2958,14 @@ mod tests {
         let g = Grid::build(spec, &["dummy"]).expect("grid");
         let tf = tr(&g);
         let o = op();
-        let rho_of = |i_r: usize, i_z: usize| 1.0 + 0.2 * (1.7 * i_r as f64 + 0.9 * i_z as f64).sin();
+        let rho_of =
+            |i_r: usize, i_z: usize| 1.0 + 0.2 * (1.7 * i_r as f64 + 0.9 * i_z as f64).sin();
         let b_of = |i_r: usize, i_z: usize| {
             0.7 * (0.30 * i_r as f64).sin() * (0.21 * i_z as f64).cos()
                 + 0.15 * (0.9 * i_r as f64 - 0.5 * i_z as f64).sin()
         };
-        let x0_of = |i_r: usize, i_z: usize| 0.4 + 0.1 * (0.5 * i_r as f64 + 0.3 * i_z as f64).cos();
+        let x0_of =
+            |i_r: usize, i_z: usize| 0.4 + 0.1 * (0.5 * i_r as f64 + 0.3 * i_z as f64).cos();
         let wq = 5.0e-2;
         for comp in 0..5usize {
             let d = o.xcheck_cg_dense(&g, comp, &tf, rho_of, b_of, x0_of, wq);
@@ -3005,7 +3007,7 @@ mod tests {
         let sol_om = |r: usize, z: usize| 0.25 * (0.8 * r as f64 + 0.5 * z as f64).cos();
         let sol_uz = |r: usize, z: usize| 0.35 * (0.9 * r as f64 - 1.3 * z as f64).sin();
         let sol_tt = |r: usize, z: usize| 300.0 + 20.0 * (0.3 * r as f64 + 0.2 * z as f64).sin();
-        let sol_cc = |r: usize, z: usize| 0.5 + 0.1 * (0.25 * r as f64).sin();
+        let sol_cc = |r: usize, _z: usize| 0.5 + 0.1 * (0.25 * r as f64).sin();
         let lag_ur = |r: usize, z: usize| sol_ur(r, z) + 0.05 * (0.7 * r as f64).cos();
         let lag_uz = |r: usize, z: usize| sol_uz(r, z) - 0.04 * (0.5 * r as f64).sin();
         let dlag_of = |_r: usize, _z: usize| [0.0f64; NCOMP];
@@ -3029,6 +3031,9 @@ mod tests {
                 }
             }
         }
-        assert!(moved, "the resident iterate left the state entirely unchanged");
+        assert!(
+            moved,
+            "the resident iterate left the state entirely unchanged"
+        );
     }
 }

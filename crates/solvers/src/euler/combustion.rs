@@ -59,7 +59,9 @@
 //! marches honestly at the carrier's own Δt instead of tripping the
 //! positivity guard.
 
-use super::{BurnBlendEos, Cons, EosLaw, FlowError, I_RB, I_RC, I_RHO, NCOMP, Prim, Scratch};
+use super::{
+    BurnBlendEos, Cons, EosLaw, FlowError, FlowLedger, I_RB, I_RC, I_RHO, NCOMP, Prim, Scratch,
+};
 use crucible_grid::{BRICK, BRICK_CELLS, FaceDir, FieldId, Grid};
 use crucible_tables::{BoundColumn, Table};
 
@@ -225,6 +227,13 @@ impl<'t> IgnitionColumns<'t> {
         self.s_l(p, t_u, z)
     }
 
+    /// S13c GPU marshaling (doc-hidden, additive): the `S_L(p, T_u, Z)` flame-
+    /// speed column + the declared `(p_floor, T_u_floor)` non-reactive floor.
+    #[doc(hidden)]
+    pub fn xcheck_marshal_flame(&self) -> (crucible_tables::ColumnMarshal, f64, f64) {
+        (self.flame_speed.marshal(), self.p_floor, self.tu_floor)
+    }
+
     /// Public `τ_ign(p, T_u, Z)` [s] — the VAL-2 anchor / diagnostic accessor.
     pub fn induction_time(&self, p: f64, t_u: f64, z: f64) -> Result<f64, &'static str> {
         self.tau_ign(p, t_u, z)
@@ -234,6 +243,22 @@ impl<'t> IgnitionColumns<'t> {
 /// The burn-progress source operator (SOLV-4 §3.6). Held by `Euler` as an
 /// optional occupant; a shifting-only run schedules none and the `ρb` slot
 /// stays inert.
+/// S13c GPU cross-check marshaling (doc-hidden): the combustion source's
+/// surfaces (unburnt `T_u`/`ρ_u` direct-interp columns + the `S_L` column) and
+/// scalars, flattened for `gpu_combustion_source`.
+#[doc(hidden)]
+pub struct CombMarshal {
+    pub unburnt_temp: crucible_tables::ColumnMarshal,
+    pub unburnt_rho: crucible_tables::ColumnMarshal,
+    pub flame: crucible_tables::ColumnMarshal,
+    pub hu_floor: f64,
+    pub hu_ceil: f64,
+    pub p_floor: f64,
+    pub tu_floor: f64,
+    pub wrinkling: f64,
+    pub theta: f64,
+}
+
 pub struct Combustion<'a> {
     /// The blended EOS — the `T_u`/`ρ_u` provider (the rate-law coordinate).
     pub blend: &'a BurnBlendEos<'a>,
@@ -256,6 +281,25 @@ impl Combustion<'_> {
         g: &Grid,
         ids: &[FieldId; NCOMP],
         s: &mut Scratch,
+    ) -> Result<(), FlowError> {
+        let Scratch {
+            prim, rate, ledger, ..
+        } = s;
+        self.accumulate_inner(g, ids, prim, rate, ledger)
+    }
+
+    /// The SOLV-4.4 combustion source body, taking the prim cache + rate +
+    /// ledger directly (not a `Scratch`) so the S13c GPU cross-check accessor
+    /// runs the IDENTICAL code the production `accumulate` does — zero
+    /// divergence. Reads grid state for the neighbour `b`-gradient/diffusion.
+    #[allow(clippy::too_many_lines)]
+    pub(crate) fn accumulate_inner(
+        &self,
+        g: &Grid,
+        ids: &[FieldId; NCOMP],
+        prim: &[Vec<Prim>],
+        rate: &mut [Vec<Cons>],
+        ledger: &mut FlowLedger,
     ) -> Result<(), FlowError> {
         // Uniform N_θ is guaranteed upstream (`Euler::validate`, S8: mixed
         // N_θ + combustion refuses with the S11 owner named).
@@ -283,9 +327,6 @@ impl Combustion<'_> {
             Some(b.field(rhob_id)[cell] / b.field(rho_id)[cell])
         };
 
-        let Scratch {
-            prim, rate, ledger, ..
-        } = s;
         for bi in 0..g.n_bricks() {
             let brick = g.brick(bi);
             let mask = brick.mask();
@@ -459,6 +500,53 @@ impl Combustion<'_> {
             }
         }
         Ok(())
+    }
+
+    /// S13c GPU cross-check (doc-hidden, additive): the marshaled surfaces +
+    /// scalars the device combustion source needs. Changes no production number.
+    #[doc(hidden)]
+    pub fn xcheck_marshal(&self) -> CombMarshal {
+        let (utemp, urho, uenv) = self.blend.xcheck_unburnt_marshal();
+        let (flame, p_floor, tu_floor) = self.ignition.xcheck_marshal_flame();
+        CombMarshal {
+            unburnt_temp: utemp,
+            unburnt_rho: urho,
+            flame,
+            hu_floor: uenv[1].0,
+            hu_ceil: uenv[1].1,
+            p_floor,
+            tu_floor,
+            wrinkling: self.wrinkling,
+            theta: self.theta,
+        }
+    }
+
+    /// S13c GPU cross-check (doc-hidden, additive): run the REAL combustion
+    /// source (`accumulate_inner`) on a prim field built from `prim_of` and
+    /// return the dense `rate[I_RB]` (`c = i_r*n_z + i_z`). The grid's ρ/ρb
+    /// fields must already match the prim (the harness fills them). N_θ = 1.
+    #[doc(hidden)]
+    pub fn xcheck_source_dense(
+        &self,
+        g: &Grid,
+        ids: &[FieldId; NCOMP],
+        prim_of: impl Fn(usize, usize) -> Prim,
+    ) -> Result<Vec<f64>, FlowError> {
+        let mut prim: Vec<Vec<Prim>> = (0..g.n_bricks())
+            .map(|bi| vec![[0.0f64; super::NPRIM]; g.brick(bi).n_theta() as usize * BRICK_CELLS])
+            .collect();
+        let mut rate = vec![vec![[0.0f64; NCOMP]; BRICK_CELLS]; g.n_bricks()];
+        g.for_each_active_cell(|cell| {
+            prim[cell.bi][cell.idx] = prim_of(cell.i_r, cell.i_z);
+        });
+        let mut ledger = FlowLedger::default();
+        self.accumulate_inner(g, ids, &prim, &mut rate, &mut ledger)?;
+        let (n_r, n_z) = (g.spec().n_r, g.spec().n_z);
+        let mut out = vec![0.0f64; n_r * n_z];
+        g.for_each_active_cell(|cell| {
+            out[cell.i_r * n_z + cell.i_z] = rate[cell.bi][cell.idx][I_RB];
+        });
+        Ok(out)
     }
 
     /// A cell's `ρ·D_c` from its primitive — the face-mean diffusion
