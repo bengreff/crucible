@@ -14,6 +14,8 @@ rust-version = "1.93"
 [dependencies]
 crucible-solvers = { path = "../solvers" }
 crucible-grid = { path = "../grid" }
+crucible-tables = { path = "../tables" }
+toml = "0.8"
 
 [[bin]]
 name = "gpu_spike"
@@ -42,6 +44,12 @@ path = "src/residency_assemble_xcheck.rs"
 [[bin]]
 name = "residency_iterate_xcheck"
 path = "src/residency_iterate_xcheck.rs"
+
+# S13c residency cross-check: the real HDF5 TableEos (p,h,Z) projection resident
+# vs the bit-exact CPU TableEos on the production equilibrium surface.
+[[bin]]
+name = "residency_eos_xcheck"
+path = "src/residency_eos_xcheck.rs"
 
 # Empty table = this crate is its OWN workspace root, so the repo-root
 # `cargo build --workspace` / check.sh never pull it in (no nvcc on the laptop).

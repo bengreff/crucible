@@ -13,6 +13,7 @@ fn main() {
         "cuda/hllc_kernel.cu",
         "cuda/residency.cu",
         "cuda/residency_diffusion.cu",
+        "cuda/residency_eos.cu",
     ];
     let mut objs = Vec::new();
     for cu in sources {

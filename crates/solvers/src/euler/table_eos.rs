@@ -31,7 +31,7 @@
 //! 0.0 = full equilibrium.
 
 use super::{Cons, EosLaw, FlowError, I_EI, I_EN, I_G1, I_MR, I_MT, I_MZ, I_RB, I_RC, I_RHO, Prim};
-use crucible_tables::{BoundColumn, Table, TableError};
+use crucible_tables::{BoundColumn, ColumnMarshal, Table, TableError};
 
 /// Fixed maximum iteration count of the equilibrium pressure projection.
 /// Illinois regula-falsi typically converges in < 15; plain bisection would
@@ -496,7 +496,64 @@ impl<'t> TableEos<'t> {
     }
 }
 
+/// S13c GPU cross-check for the real (p,h,Z) projection (doc-hidden;
+/// additive). Marshals the three surface columns + the (p,h,Z) envelopes for
+/// the device `gpu_table_project`, and exposes the oracle projection at one
+/// state (the same `project_pressure_hinted`/`project_pressure` +
+/// sound/temperature lookups `prim_checked_impl` runs). Changes no production
+/// number.
+#[doc(hidden)]
+pub struct TableEosMarshal {
+    pub rho: ColumnMarshal,
+    pub sound: ColumnMarshal,
+    pub temperature: ColumnMarshal,
+    pub p_env: (f64, f64),
+    pub h_env: (f64, f64),
+    pub z_env: (f64, f64),
+}
+
 impl TableEos<'_> {
+    #[doc(hidden)]
+    pub fn xcheck_marshal(&self) -> TableEosMarshal {
+        TableEosMarshal {
+            rho: self.rho.marshal(),
+            sound: self.sound.marshal(),
+            temperature: self.temperature.marshal(),
+            p_env: self.p_env,
+            h_env: self.h_env,
+            z_env: self.z_env,
+        }
+    }
+
+    /// The oracle projection at one `(ρ, e_q, Z)` state (+ optional pressure
+    /// hint): returns `(p, sound, temperature, Γ₁)` — exactly what
+    /// `prim_checked_impl` computes, minus the kinematics. `e_q` already
+    /// includes any `h_offset`.
+    #[doc(hidden)]
+    pub fn xcheck_project(
+        &self,
+        rho: f64,
+        e_q: f64,
+        z: f64,
+        hint: Option<f64>,
+    ) -> Result<(f64, f64, f64, f64), &'static str> {
+        let inv = 1.0 / rho;
+        let p = match hint {
+            Some(ph) if ph.is_finite() && ph > 0.0 => self.project_pressure_hinted(rho, e_q, z, ph)?,
+            _ => self.project_pressure(rho, e_q, z)?,
+        };
+        let h = e_q + p * inv;
+        let a = self
+            .sound
+            .interpolate(&[p, h, z])
+            .map_err(|_| "sound-speed query failed at the projected state")?;
+        let t = self
+            .temperature
+            .interpolate(&[p, h, z])
+            .map_err(|_| "temperature query failed at the projected state")?;
+        Ok((p, a, t, rho * a * a / p))
+    }
+
     fn prim_checked_impl(&self, u: &Cons, hint: Option<f64>) -> Result<Prim, &'static str> {
         let rho = u[I_RHO];
         if !rho.is_finite() || rho <= 0.0 {

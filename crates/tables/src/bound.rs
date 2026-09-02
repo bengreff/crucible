@@ -22,6 +22,24 @@ use crate::model::{Table, TableError};
 /// ((p, h, Z) + one spare); a wider table binds with a load-style refusal.
 pub const MAX_BOUND_AXES: usize = 8;
 
+/// **S13c GPU marshaling** (doc-hidden): the flat arrays a device kernel needs
+/// to reproduce [`BoundColumn::interpolate`] bit-for-formula. Owned (copied out
+/// of the borrowed table) so it can outlive the bind for upload.
+#[doc(hidden)]
+#[derive(Debug, Clone)]
+pub struct ColumnMarshal {
+    /// Grid points per axis, in table order.
+    pub axis_points: Vec<Vec<f64>>,
+    /// Per-axis: is the interp rule `log` on that axis?
+    pub axis_is_log: Vec<bool>,
+    /// Row-major strides over the axes (table order).
+    pub strides: Vec<usize>,
+    /// The value data block, row-major.
+    pub data: Vec<f64>,
+    /// Is the value column `log`-scaled?
+    pub value_is_log: bool,
+}
+
 /// A pre-resolved, allocation-free view of one value column of a [`Table`].
 /// Borrows the table (a `Table` is immutable after load, FND-5 §3.6).
 #[derive(Debug, Clone)]
@@ -129,6 +147,24 @@ impl BoundColumn<'_> {
     /// The axis name (bind-time schema checks by consumers).
     pub fn axis_name(&self, axis: usize) -> &str {
         &self.table.axes[axis].name
+    }
+
+    /// **S13c GPU marshaling** (doc-hidden, additive). Flatten the bound
+    /// column into the plain arrays a device kernel needs to reproduce
+    /// `interpolate` bit-for-formula: per-axis grid points + a log-scale flag,
+    /// the row-major value data + a log-scale flag, and the strides. The
+    /// device interp re-does the same fixed 8-corner reduction in the same
+    /// rule-space, so it is a per-cell gather (CPU↔GPU = FMA-order ECT). The
+    /// CPU path here is untouched — this only reads it out.
+    #[doc(hidden)]
+    pub fn marshal(&self) -> ColumnMarshal {
+        ColumnMarshal {
+            axis_points: self.table.axes.iter().map(|a| a.points.clone()).collect(),
+            axis_is_log: self.axis_scales.iter().map(|s| matches!(s, Scale::Log)).collect(),
+            strides: self.strides.clone(),
+            data: self.table.values[self.value_index].data.clone(),
+            value_is_log: matches!(self.value_scale, Scale::Log),
+        }
     }
 
     /// §3.3 `Interpolate(query)` under `Refuse` policy — deterministic

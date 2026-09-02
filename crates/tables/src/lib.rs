@@ -26,7 +26,7 @@ mod model;
 mod reader;
 pub mod writer;
 
-pub use bound::{BoundColumn, MAX_BOUND_AXES};
+pub use bound::{BoundColumn, ColumnMarshal, MAX_BOUND_AXES};
 pub use model::{
     Axis, EnvelopeHit, EnvelopePolicy, Provenance, TABLE_SCHEMA_MAJOR, Table, TableError,
     TableValue,

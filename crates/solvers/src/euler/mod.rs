@@ -76,7 +76,7 @@ pub use combustion::{
 pub use exact::{RiemannSide, RiemannSolution, solve as solve_riemann};
 pub use hllc::{hllc_flux, physical_flux};
 use recon::{NGHOST, ppm_faces};
-pub use table_eos::{EPS_P_PROJECTION, N_INFLOW_ITER, N_P_ITER_MAX, TableEos};
+pub use table_eos::{EPS_P_PROJECTION, N_INFLOW_ITER, N_P_ITER_MAX, TableEos, TableEosMarshal};
 
 use crucible_grid::{BRICK, BRICK_CELLS, FaceDir, FieldId, Grid, GridError};
 use rayon::prelude::*;
