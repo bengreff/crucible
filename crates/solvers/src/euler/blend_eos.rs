@@ -692,6 +692,31 @@ impl<'t> BurnBlendEos<'t> {
         (m.temperature, m.rho, self.unburnt.envelopes())
     }
 
+    /// S13c GPU marshaling (doc-hidden, additive): both branches' DENSITY
+    /// columns + their (p, h, Z) envelopes + `h_offset` — everything the device
+    /// blend projection `gpu_blend_project` needs to reproduce
+    /// `project_pressure`/`blend_inv_rho` bit-for-formula. Changes no production
+    /// number.
+    #[doc(hidden)]
+    #[allow(clippy::type_complexity)]
+    pub fn xcheck_blend_marshal(
+        &self,
+    ) -> (
+        crucible_tables::ColumnMarshal,
+        crucible_tables::ColumnMarshal,
+        [(f64, f64); 3],
+        [(f64, f64); 3],
+        f64,
+    ) {
+        (
+            self.unburnt.xcheck_marshal().rho,
+            self.burnt.xcheck_marshal().rho,
+            self.unburnt.envelopes(),
+            self.burnt.envelopes(),
+            self.h_offset,
+        )
+    }
+
     /// The UNION of the two branches' (p, h, Z) envelopes (the burnt
     /// h-window shifted by −`h_offset`) — the box this occupant may
     /// interrogate a co-keyed surface (the FND-7 spine) over. Distinct from
