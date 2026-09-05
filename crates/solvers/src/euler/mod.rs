@@ -129,6 +129,42 @@ pub fn srd_neighborhood(
     ))
 }
 
+/// S13c GPU cross-check (doc-hidden, additive): the State-Redistribution
+/// small-cell neighborhoods exactly as `Euler::scratch` builds them — the
+/// fixed θ-plane-major build order (sector 0's (r,z) sweep first, then
+/// sector 1, …), members as global `(i_r, i_z, i_θ)` with `members[0]` the
+/// owner, and the members' merge weights `κ_j·V` — so the device SRD pass
+/// (`crates/gpu`) reproduces the CPU's member order and weights. Uniform
+/// N_θ (the cut-world contract). Changes no production number.
+#[doc(hidden)]
+#[allow(clippy::type_complexity)]
+pub fn xcheck_srd_neighborhoods(
+    g: &Grid,
+) -> Result<Vec<(Vec<(usize, usize, u32)>, Vec<f64>)>, FlowError> {
+    let (n_r, n_z) = (g.spec().n_r, g.spec().n_z);
+    let nt = g.brick(0).n_theta();
+    let mut small = Vec::new();
+    if !g.has_cut_geometry() {
+        return Ok(small);
+    }
+    for j in 0..nt {
+        for i_r in 0..n_r {
+            for i_z in 0..n_z {
+                if !g.is_active(i_r, i_z) || g.kappa_at(i_r, j, i_z) >= KAPPA_SRD {
+                    continue;
+                }
+                let cells = neighborhood_cells(g, i_r, i_z, j)?;
+                let kv: Vec<f64> = cells
+                    .iter()
+                    .map(|&(r, z, jj)| g.kappa_at(r, jj, z) * g.cell_volume(r, nt))
+                    .collect();
+                small.push((cells, kv));
+            }
+        }
+    }
+    Ok(small)
+}
+
 /// θ-mapping of a neighbor segment's cell state for an N_θ-interface ghost
 /// (FND-2 §3.4, S8): piecewise-constant prolongation from a coarser
 /// neighbor (`j >> 1`), equal-volume pair-mean restriction from a finer

@@ -15,6 +15,10 @@ rust-version = "1.93"
 crucible-solvers = { path = "../solvers" }
 crucible-grid = { path = "../grid" }
 crucible-tables = { path = "../tables" }
+# S13c geometry leg: the revolved RL10 contour clip (Contour) + the contour
+# CSV parser — the ◆C3 cut 3-D fixture is built from the geometry of record.
+crucible-config = { path = "../config" }
+crucible-engine = { path = "../engine" }
 toml = "0.8"
 
 [[bin]]
@@ -62,6 +66,21 @@ path = "src/residency_combustion_xcheck.rs"
 [[bin]]
 name = "residency_blend_eos_xcheck"
 path = "src/residency_blend_eos_xcheck.rs"
+
+# S13c residency cross-check: the class-R implicit auto-ignition node solve
+# (BE-at-frozen-τ + the full prim_checked three-way branch select) resident vs
+# the bit-exact CPU Combustion::implicit_auto_update.
+[[bin]]
+name = "residency_class_r_xcheck"
+path = "src/residency_class_r_xcheck.rs"
+
+# S13c residency cross-check: the class-A step on the REAL 3-D cut geometry
+# (uniform N_θ > 1 revolved RL10 contour, axis parity, θ-sweep, wall ghosts,
+# wall closure, SRD) resident vs the bit-exact CPU eval_rhs / apply_srd /
+# Sdc::step_flow.
+[[bin]]
+name = "residency_geometry_xcheck"
+path = "src/residency_geometry_xcheck.rs"
 
 # Empty table = this crate is its OWN workspace root, so the repo-root
 # `cargo build --workspace` / check.sh never pull it in (no nvcc on the laptop).

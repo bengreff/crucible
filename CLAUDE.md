@@ -17,7 +17,7 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-09-01 — session 27 = plan S13c IN PROGRESS (5 residency legs validated); chemical sandbox at S13c/20, Phase 4)
+## State (2026-09-04 — session 28 = plan S13c IN PROGRESS (8 residency legs validated; every physics piece resident, the composition remains); chemical sandbox at S13c/20, Phase 4)
 
 **This section is current state only.** Per-session build history (measured deltas, findings,
 review waves) lives in `SESSION_LOG.md`; the by-area capability detail is under "What exists" below;
@@ -94,6 +94,25 @@ cut/mixed-N_θ geometry (walls off the ◆C3-parity path — ◆C3 is adiabatic 
 corner. CPU reference untouched but for additive accessors + one refactor-extract (`accumulate`→`accumulate_inner`);
 certificates byte-identical.
 
+**Session 28 landed two more S13c legs + a ruling (plan S13c, IN PROGRESS; both written blind while the box was
+down and validated on the first trip):** **(0) SOLV-4 0.4.9** — the mid-`c` multi-root REFUSAL is retired for
+**continuity** (Ben ruling #3, doc-first): `scan_first_crossing` takes the first crossing from the cold end, every
+previously-accepted root bit-identical, certificates byte-identical. **(7) The CLASS-R implicit auto-ignition node
+solve** (`residency_class_r.cu`): BE-at-frozen-τ + exact cap parking + the symmetric base projection + the cold
+floors, with the blend's full `prim_checked` **three-way branch select** (pure-unburnt / mid-b / pure-burnt) on
+device — **rel 4.8×10⁻¹³ (ρb) / 2.0×10⁻¹² (rate)** across w/τ ∈ [1e-3, 1e6], every cap parking reproduced exactly.
+**(8) The class-A step on the REAL 3-D CUT GEOMETRY** (`residency_geometry.cu`) — the ◆C3 world (RL10 contour of
+record revolved at uniform N_θ = 8, dial 5, 38k cells, r_min = 0): r/θ/z sweeps with per-sector κ + apertures, the
+axis parity-pair gather, slip-wall ghosts about the true contour normal, the per-sector wall-closure pressure
+source, **State Redistribution**, the 3-D `stable_dt` (θ-arc member), and the **resident march with stagewise
+SRD** — compared on **ALL active cells**: RHS component-scaled rel 7.6×10⁻¹⁵, `stable_dt` bit-identical, SRD
+3.3×10⁻¹⁶, 5-step march 1.1×10⁻¹⁵, rerun + checkpoint bit-identical. Measured un-tuned: **3.0×10⁷ cell-RHS/s**,
+the 3-D r/z rate kernels at **254 regs + 488 B spill** — the S14 flux-buffer lever confirmed on the 3-D kernels.
+Also: the S27 blend kernel's bracket margin corrected 1e-12 → 1e-9 (blend_eos.rs's own; latent). **Remaining S13c
+= a COMPOSITION job** (every physics piece is resident): wire blend EOS + general-EOS HLLC + combustion + class-R +
+igniter + inflow/outflow ghosts + `stable_dt`'s front-carrier + the ledger/reacting-measure reductions into the
+3-D resident march, then cross-check on `rl10_startup_3d`'s own march. Walls stay off the ◆C3-parity path.
+
 **Doctrine (VISION_SCOPE v1.6 / plan ruling #14, 2026-08-27):** the **torch/ASI flame-holder object is
 DELETED** — flame-holding is **emergent** (resolved recirculation), the only start boundary-inputs are
 the **bounded spark + injected fuel**, so the startability verdict is not circular; **refinement is
@@ -105,8 +124,9 @@ deleted; findings live in doc change logs + git). Every session gates-green + co
 `scripts/check.sh` = the 5-gate battery (fmt, clippy, cargo test, offline pytest, certificate regen +
 diff); **253 Rust + 50 Python tests**. **Blind rule v1.4.1**: blind = mechanical input-blindness;
 every certificate declares `development-observed: yes/no`; the RL10 campaign is **open development**.
-**NEXT = plan S13c remainder (the class-R auto-ignition node solve + the θ-stress tensor / cut-geometry
-generality; the blend-EOS projection on-device is the class-R prerequisite), then S14 (hardening + ◆C4).**
+**NEXT = plan S13c close (the COMPOSED full-physics 3-D resident step on `rl10_startup_3d` — every piece is
+resident; wiring + the inflow/outflow ghosts + the general-EOS HLLC + the reductions), then S14 (the flux-buffer
+register reduction — measured necessary on the 3-D kernels — + the overnight harness) and ◆C4.**
 
 **VISION_SCOPE v1.5 (Ben, 2026-08-19) — the session-13 rulings, all doc-amended:** accelerated
 convergence (pseudo-transient/local-Δt) is **DELETED** — every certified result is a **physical

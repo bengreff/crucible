@@ -16,6 +16,8 @@ fn main() {
         "cuda/residency_eos.cu",
         "cuda/residency_combustion.cu",
         "cuda/residency_blend_eos.cu",
+        "cuda/residency_class_r.cu",
+        "cuda/residency_geometry.cu",
     ];
     let mut objs = Vec::new();
     for cu in sources {

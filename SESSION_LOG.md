@@ -2055,3 +2055,77 @@ the committed artifacts in `certificates/` are the living record.
   the fixed-topology CG reduction + the max-tree; table marshaling via `BoundColumn::marshal`.
   **Docs:** this entry, CLAUDE.md State, PLAN §8 v1.17. **NEXT = the S13c remainder (class-R branch-wire +
   θ/geometry), then S14 (throughput + ◆C4).**
+- Session 28 (2026-09-03/04): **plan S13c — GPU RESIDENCY, two more legs: the CLASS-R implicit auto-ignition
+  node solve + the class-A step on the REAL 3-D CUT GEOMETRY (the ◆C3 world); the SOLV-4 multi-root refusal
+  relaxed to continuity (doc-first).** Continues `s13-gpu-residency`. The box was unreachable for the first
+  ~half of the session (Tailscale showed `backhouse` offline), so both legs were written BLIND against the CPU
+  code and validated on the first box trip — the S27 pattern (additive doc-hidden CPU accessors running the
+  REAL production code + a device kernel set + a CPU↔GPU cross-check bin; the CPU reference bit-exact,
+  certificates byte-identical, `check.sh` gates 1/2/3/5 green).
+  **(0) SOLV-4 0.4.9 — mid-transition multi-root resolves by CONTINUITY (Ben ruling 2026-08-31, PLAN §8
+  v1.16 (3), confirmed in the session brief).** The v0.4.8 `>1 crossing ⇒ typed refusal` is retired:
+  `scan_first_crossing` breaks at the FIRST crossing from the bracket's cold end (the pre-v0.4.8 loop
+  structure — identical floats for every single-root bracket, so every previously-accepted root is
+  bit-identical; `MULTI_ROOT_REFUSAL` deleted; the 7 counting tests replaced by first-crossing pins). Matches
+  `TableEos`'s warm-path rule and what the device projections (S27 legs 4/6) already carried. Gate 5: all five
+  certificates byte-identical (the stations never enter the mid-`c` path).
+  **(7) The CLASS-R implicit auto-ignition node solve** (`residency_class_r.cu` `k_class_r`, 116 regs):
+  `Combustion::implicit_auto_update` bit-for-formula — BE in ρb at frozen τ_ign, `N_TAU_REFREEZE = 2`, the
+  exact cap parking, the symmetric base projection onto [0, cap], both cold floors — with THE new device
+  surface: the blend's full `prim_checked` **three-way branch select** on b = x/ρ (pure-unburnt TableEos /
+  mid-b two-branch blend / pure-burnt TableEos at e + h_off), which a stiff node walks base → mid → cap within
+  one solve. Marshals the τ_ign column (`IgnitionColumns::xcheck_marshal_delay`, additive). Fixture: the hot
+  unburnt design state (T_u ≈ 1050 K, τ = 2.41e-4 s) × b₀ ∈ {0, 0.3, 0.6} × (p, h) spread + the three guard
+  corners (advected ρb past the cap, the measured −0.08ρ negative quadrature base, base == cap), the node weight
+  swept w/τ ∈ {1e-3, 0.3, 1, 3, 30, 1e6}: **worst rel 4.8×10⁻¹³ (ρb) / 2.0×10⁻¹² (realized rate)** over 186
+  comparisons (0 CPU-refused), final states mid-b 115 / parked pure-burnt 71, **every CPU cap-parking
+  reproduced EXACTLY** (61 parkings; at w/τ = 1e6 rel 0.0), rerun bit-identical. Finding while porting: the
+  S27 blend-EOS kernel shipped `H_BRACKET_MARGIN = 1e-12` where `blend_eos.rs` uses **1e-9** — latent (the S27
+  fixture's bracket was envelope-dominated); corrected in that kernel and the class-R inline copy.
+  **(8) The class-A step on the REAL 3-D CUT GEOMETRY** (`residency_geometry.cu`): the ◆C3 world — the
+  geometry-of-record RL10 contour revolved at **uniform N_θ = 8** through `build_with_geometry_theta` at the
+  ◆C3 desktop dial 5 (40×119×8 = 38 080 cells, 21 336 active, **r_min = 0**), GammaLaw. θ-plane-major dense
+  layout; host-precomputed geometry-time tables (the (r,z) activity map, per-sector κ + six apertures, the
+  pencil RUN tables — maximal active runs per line with the ghost KIND at each end + the wall normal there —
+  and the SRD member lists in the CPU's own build order via the additive `euler::xcheck_srd_neighborhoods`).
+  Kernels: `k3_rate_r` / `k3_rate_theta` / `k3_rate_z` / `k3_sources` — the r-sweep area-weighted
+  `(A·ap)·F` single difference over κV, the periodic θ-sweep with the canonical θ+ aperture side and the
+  `A_θ/V` ratio, the z-sweep metric-ratio form, the **FND-2 §3.2 axis parity-pair gather** (θ+π plane, u_r and
+  u_θ negated), interior wall run-boundary ghosts (**slip-reflect about the contour's true wall normal**, the
+  ◆C3 `slip_wall_z_faces = true` setting; grid-aligned mirror available), Reflecting/Transmissive domain
+  ghosts, the SOLV-1 §3.3 geometric sources + the **per-sector embedded-interface pressure closure**
+  `p·W/(κV)` (`wall_closure_cell`, the θ-limb applied only when nonzero); **State Redistribution** as two
+  gathers (`k3_srd_q` per small neighbourhood, `k3_srd_apply` per affected cell over the host-fixed inverse
+  map, the CPU's member/accumulation order); the **3-D `stable_dt`** with the θ-arc member (max-tree); the
+  **resident march with stagewise SRD** (compose → SRD after every composition, `Sdc::step_flow`'s sequence).
+  Every ghost rule is on-device, so the cross-check compares **ALL active cells** (149 352 scalars): **RHS
+  worst component-scaled rel 7.6×10⁻¹⁵** (the per-cell rel 2.4×10⁻⁹ is the well-balance cancellation — a
+  4×10⁻⁶ net r-momentum rate against a 2×10³ component max, an FMA-order absolute 5.8×10⁻¹¹; the harness now
+  reports both measures, the ECT is the component-scaled one, a 1e-6 per-cell rail stands as sanity);
+  **`stable_dt` bit-identical** (rel 0.0); **SRD 3.3×10⁻¹⁶** (8160 scalars moved, 680 small sector-cells);
+  **5-step march + SRD 1.1×10⁻¹⁵** (per-cell 4.2×10⁻¹²), resident-march rerun **bit-identical**, checkpoint
+  `march(2)▸march(3) == march(5)` **bit-identical**. **Throughput (measured, un-tuned): 3.0×10⁷ cell-RHS/s** on
+  this 21k-cell world — the 3-D r/z rate kernels compile to **254 registers + 488 B stack spill** (θ 212 regs):
+  the fused 7-pencil PPM + HLLC + ghost logic per cell is exactly the register-heavy shape S13 measured (228)
+  and the small world under-occupies the card; the S14 flux-buffer lever (each face once into a device flux
+  buffer + a gather divergence, localized PPM temporaries) is now measured to matter on the 3-D kernels too.
+  Scope as agreed with Ben (session 28): interior + reflective cut walls + Reflecting/Transmissive domain BCs;
+  the injector mass-flow inflow + pressure-outflow ghosts, the general-EOS HLLC aux-slot path (blend), and
+  the COUP-2 ledger reductions ride the composed-step session. Regression: the seven S13–S27 cross-check
+  bins re-run on the box (see the closing note below).
+  **REMAINING toward the S13c acceptance (the full-physics resident step on the coarse 3-D RL10) — now a
+  COMPOSITION job, every physics piece being resident:** wire the blend EOS (S27 leg 6 + the three-way select
+  of leg 7) into the 3-D `fill_prims` + the general-EOS HLLC (aux e/Γ₁ slots, `roe_sound_speed`), the
+  combustion source (leg 5) on the 3-D layout (θ-faces + per-sector κ), class-R (leg 7) after each accepted
+  composition, the igniter deposit, the inflow/outflow ghosts, `stable_dt`'s front-carrier member, and the
+  ledger/audit + reacting-measure reductions; then the CPU↔GPU cross-check on `rl10_startup_3d`'s own march.
+  Walls (NoSlip/Robin + solid conduction) stay off the ◆C3-parity path. Then **S14** (flux-buffer register
+  reduction + the overnight harness) and **◆C4**.
+  **CPU reference: the SOLV-4 0.4.9 continuity change (a ruling, doc-first) + additive doc-hidden accessors
+  (`xcheck_marshal_delay`, `xcheck_srd_neighborhoods`); `check.sh` gates 1/2/3/5 green; certificates
+  byte-identical.** **Docs:** this entry, CLAUDE.md State, PLAN §8 v1.18 + §5 S13c, SOLV-4 0.4.9.
+  **Closing regression (box):** all seven S13–S27 cross-check bins re-run green after the session's changes —
+  class-A 1.2×10⁻¹⁰ / marched 3.1×10⁻¹¹ (8.0×10⁷ cell-RHS/s), class-D CG 7.6×10⁻¹², forcing 2.1×10⁻¹²,
+  resident diffusion step 3.2×10⁻¹⁰, TableEos 2.1×10⁻¹⁵, combustion 1.4×10⁻¹³, blend EOS **1.3×10⁻¹³** (moved
+  from 5.9×10⁻¹⁴ by the 1e-9 bracket-margin correction — the scan grid shifts with the bracket; still the
+  machine-precision class), every rerun bit-identical.
