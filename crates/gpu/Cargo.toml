@@ -82,6 +82,21 @@ path = "src/residency_class_r_xcheck.rs"
 name = "residency_geometry_xcheck"
 path = "src/residency_geometry_xcheck.rs"
 
+# S13c CLOSE: the COMPOSED full-physics 3-D resident engine step (blend EOS +
+# general-EOS HLLC + inflow/outflow + igniter + combustion + class-R + SRD +
+# audit reductions + front-carrier stable_dt) vs the CPU Sdc::step on the real
+# rl10_startup_3d assembly.
+[[bin]]
+name = "residency_engine_xcheck"
+path = "src/residency_engine_xcheck.rs"
+
+# S14: the OVERNIGHT HARNESS — the resident engine marched under the run's
+# schedule with the COUP-4 verdict probes on the host, FND-6 checkpoint /
+# resume-with-verify to disk, halt artifacts. The ◆C4 driver.
+[[bin]]
+name = "gpu_engine_run"
+path = "src/gpu_engine_run.rs"
+
 # Empty table = this crate is its OWN workspace root, so the repo-root
 # `cargo build --workspace` / check.sh never pull it in (no nvcc on the laptop).
 [workspace]

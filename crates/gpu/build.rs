@@ -18,14 +18,28 @@ fn main() {
         "cuda/residency_blend_eos.cu",
         "cuda/residency_class_r.cu",
         "cuda/residency_geometry.cu",
+        "cuda/residency_engine.cu",
     ];
     let mut objs = Vec::new();
     for cu in sources {
         println!("cargo:rerun-if-changed={cu}");
-        let stem = std::path::Path::new(cu).file_stem().unwrap().to_str().unwrap();
+        let stem = std::path::Path::new(cu)
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap();
         let obj = format!("{out}/{stem}.o");
         let st = Command::new(&nvcc)
-            .args(["-O3", "-arch=sm_89", "-Xcompiler", "-fPIC", "-c", cu, "-o", &obj])
+            .args([
+                "-O3",
+                "-arch=sm_89",
+                "-Xcompiler",
+                "-fPIC",
+                "-c",
+                cu,
+                "-o",
+                &obj,
+            ])
             .status()
             .expect("failed to spawn nvcc — is CUDA on the box?");
         assert!(st.success(), "nvcc compile failed for {cu}");

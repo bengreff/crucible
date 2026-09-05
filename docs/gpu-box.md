@@ -58,11 +58,17 @@ it anyway).
 
 - **Simple** — keep the job in the **foreground** of an SSH session you hold open (a background task
   on your side). Dies if your connection drops.
-- **Robust (survives disconnects)** — launch a detached *Windows* process that holds WSL open for
-  the whole run, then poll its log:
+- **Robust (survives disconnects) — `tmux` inside WSL (session 28, measured):** the distro keeps
+  running after the launching ssh session closes, and a tmux server escapes the job-object kill:
   ```bash
-  ssh backhouse "powershell -c \"Start-Process wsl -ArgumentList '-d','Ubuntu','bash','-lc','cd ~/DIR && CMD > ~/DIR/run.log 2>&1' -WindowStyle Hidden\""
+  # stage a script on the box (through the stdin-piped bash), then:
+  ssh backhouse "wsl bash -l" <<< 'tmux new-session -d -s run "bash /home/greff/run_gpu.sh"'
+  ssh backhouse "wsl bash -l" <<< 'tmux ls; tail -5 ~/gpu_run.log'     # poll
   ```
+  A 40 s CUDA job launched this way outlived its ssh session; the engine harness runs this way.
+  *(The earlier `powershell Start-Process wsl …` recipe is NOT reliable for scripts: an inline
+  `bash -c 'sleep 100; echo …'` survived, but `bash -c /home/greff/script.sh` never executed under
+  Start-Process in session 28, through both cmd-quoted and `-File`-launched forms — retired.)*
 
 ## CRUCIBLE on the box
 

@@ -14,7 +14,7 @@
 use crucible_grid::{Grid, GridSpec};
 use crucible_solvers::euler::{
     BurnBlendEos, CombMarshal, Combustion, EULER_FIELDS, EulerFields, I_RB, I_RHO, IgnitionColumns,
-    NPRIM, TableEos, THETA_CELLS,
+    NPRIM, THETA_CELLS, TableEos,
 };
 use crucible_tables::{ColumnMarshal, Pin, Table};
 
@@ -29,14 +29,49 @@ const Z0: f64 = 0.167;
 unsafe extern "C" {
     #[allow(clippy::too_many_arguments)]
     fn gpu_combustion_source(
-        rho: *const f64, p: *const f64, z: *const f64, b: *const f64, e: *const f64,
-        gas: *const f64, n_r: i32, n_z: i32, r_min: f64, dr: f64, dz: f64,
-        up: *const f64, unp: i32, ulp: i32, uh: *const f64, unh: i32, ulh: i32,
-        uz: *const f64, unz: i32, ulz: i32, ustr: *const i32,
-        temp_data: *const f64, temp_vlog: i32, rhou_data: *const f64, rhou_vlog: i32,
-        ip: *const f64, inp: i32, ilp: i32, it: *const f64, inh: i32, ilh: i32,
-        iz: *const f64, inz: i32, ilz: i32, istr: *const i32, flame_data: *const f64, flame_vlog: i32,
-        hu_floor: f64, hu_ceil: f64, p_floor: f64, tu_floor: f64, wrinkling: f64, theta: f64,
+        rho: *const f64,
+        p: *const f64,
+        z: *const f64,
+        b: *const f64,
+        e: *const f64,
+        gas: *const f64,
+        n_r: i32,
+        n_z: i32,
+        r_min: f64,
+        dr: f64,
+        dz: f64,
+        up: *const f64,
+        unp: i32,
+        ulp: i32,
+        uh: *const f64,
+        unh: i32,
+        ulh: i32,
+        uz: *const f64,
+        unz: i32,
+        ulz: i32,
+        ustr: *const i32,
+        temp_data: *const f64,
+        temp_vlog: i32,
+        rhou_data: *const f64,
+        rhou_vlog: i32,
+        ip: *const f64,
+        inp: i32,
+        ilp: i32,
+        it: *const f64,
+        inh: i32,
+        ilh: i32,
+        iz: *const f64,
+        inz: i32,
+        ilz: i32,
+        istr: *const i32,
+        flame_data: *const f64,
+        flame_vlog: i32,
+        hu_floor: f64,
+        hu_ceil: f64,
+        p_floor: f64,
+        tu_floor: f64,
+        wrinkling: f64,
+        theta: f64,
         rate: *mut f64,
     );
 }
@@ -47,30 +82,50 @@ fn open(file: &str, group: &str, pins_toml: &str) -> Table {
     let entry = doc[group].as_table().expect("group entry");
     let pin = Pin {
         data_version: entry["data_version"].as_str().expect("ver").to_string(),
-        content_digest: entry.get("content_digest").and_then(|v| v.as_str()).map(str::to_string),
+        content_digest: entry
+            .get("content_digest")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
     };
     Table::open(&path, group, &pin).expect("table loads under its pin")
 }
 
 fn main() {
     let ut = open(
-        "lox_lh2_unburnt_v0.3.0.h5", "/chem/lox_lh2/unburnt",
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tables/chem/lox_lh2_unburnt_v0.3.0.pins.toml")),
+        "lox_lh2_unburnt_v0.3.0.h5",
+        "/chem/lox_lh2/unburnt",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tables/chem/lox_lh2_unburnt_v0.3.0.pins.toml"
+        )),
     );
     let bt = open(
-        "lox_lh2_v0.4.0.h5", "/chem/lox_lh2/equilibrium",
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tables/chem/lox_lh2_v0.4.0.pins.toml")),
+        "lox_lh2_v0.4.0.h5",
+        "/chem/lox_lh2/equilibrium",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tables/chem/lox_lh2_v0.4.0.pins.toml"
+        )),
     );
     let it = open(
-        "lox_lh2_ignition_v0.3.0.h5", "/chem/lox_lh2/ignition",
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tables/chem/lox_lh2_ignition_v0.3.0.pins.toml")),
+        "lox_lh2_ignition_v0.3.0.h5",
+        "/chem/lox_lh2/ignition",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tables/chem/lox_lh2_ignition_v0.3.0.pins.toml"
+        )),
     );
     let blend = BurnBlendEos::new(
         TableEos::bind(&ut).expect("unburnt binds"),
         TableEos::bind(&bt).expect("burnt binds"),
     );
     let ign = IgnitionColumns::bind(&it).expect("ignition binds");
-    let comb = Combustion { blend: &blend, ignition: ign, wrinkling: 1.0, theta: THETA_CELLS };
+    let comb = Combustion {
+        blend: &blend,
+        ignition: ign,
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
     let m: CombMarshal = comb.xcheck_marshal();
 
     // N_θ=1 box; b varies in both r and z (exercise both diffusion directions);
@@ -78,7 +133,16 @@ fn main() {
     // where b ∈ (a, 1−BURN_COMPLETE)).
     let (n_r, n_z) = (32usize, 48usize);
     let (r_min, dr, dz) = (0.5, 1.0 / n_r as f64, 1.0 / n_z as f64);
-    let spec = GridSpec { r_min, dr, n_r, z_min: 0.0, dz, n_z, n_theta_max: 1, axisymmetry_assertion: true };
+    let spec = GridSpec {
+        r_min,
+        dr,
+        n_r,
+        z_min: 0.0,
+        dz,
+        n_z,
+        n_theta_max: 1,
+        axisymmetry_assertion: true,
+    };
     let mut g = Grid::build(spec, EULER_FIELDS).expect("grid");
     let f = EulerFields::resolve(&g).expect("fields");
     let ids = f.ids();
@@ -86,8 +150,9 @@ fn main() {
     let rho0 = 0.08f64; // ~H2/O2 at 1 atm, 312 K, MR5 (any positive value is valid)
     let b_of = |i_r: usize, i_z: usize| {
         let s = 0.5
-            + 0.42 * (2.3 * i_r as f64 / n_r as f64 - 0.5).sin()
-            * (3.1 * i_z as f64 / n_z as f64).cos();
+            + 0.42
+                * (2.3 * i_r as f64 / n_r as f64 - 0.5).sin()
+                * (3.1 * i_z as f64 / n_z as f64).cos();
         s.clamp(0.05, 0.95)
     };
     let e0 = H0 - P0 / rho0; // so h = e + p/ρ = H0
@@ -110,7 +175,9 @@ fn main() {
         // [rho, ur, ut, uz, p, z, b, e, g1]
         [rho0, 0.0, 0.0, 0.0, P0, Z0, b, e0, 0.0]
     };
-    let cpu = comb.xcheck_source_dense(&g, &ids, prim_of).expect("cpu combustion source");
+    let cpu = comb
+        .xcheck_source_dense(&g, &ids, prim_of)
+        .expect("cpu combustion source");
 
     // Dense prim arrays for the GPU.
     let ncell = n_r * n_z;
@@ -138,16 +205,49 @@ fn main() {
 
     let run = |rate: &mut [f64]| unsafe {
         gpu_combustion_source(
-            rho.as_ptr(), p.as_ptr(), z.as_ptr(), b.as_ptr(), e.as_ptr(), gas.as_ptr(),
-            n_r as i32, n_z as i32, r_min, dr, dz,
-            up.as_ptr(), up.len() as i32, ulp, uh.as_ptr(), uh.len() as i32, ulh,
-            uz.as_ptr(), uz.len() as i32, ulz, ustr.as_ptr(),
-            m.unburnt_temp.data.as_ptr(), m.unburnt_temp.value_is_log as i32,
-            m.unburnt_rho.data.as_ptr(), m.unburnt_rho.value_is_log as i32,
-            ip.as_ptr(), ip.len() as i32, ilp, itax.as_ptr(), itax.len() as i32, ilh,
-            iz.as_ptr(), iz.len() as i32, ilz, istr.as_ptr(),
-            m.flame.data.as_ptr(), m.flame.value_is_log as i32,
-            m.hu_floor, m.hu_ceil, m.p_floor, m.tu_floor, m.wrinkling, m.theta,
+            rho.as_ptr(),
+            p.as_ptr(),
+            z.as_ptr(),
+            b.as_ptr(),
+            e.as_ptr(),
+            gas.as_ptr(),
+            n_r as i32,
+            n_z as i32,
+            r_min,
+            dr,
+            dz,
+            up.as_ptr(),
+            up.len() as i32,
+            ulp,
+            uh.as_ptr(),
+            uh.len() as i32,
+            ulh,
+            uz.as_ptr(),
+            uz.len() as i32,
+            ulz,
+            ustr.as_ptr(),
+            m.unburnt_temp.data.as_ptr(),
+            m.unburnt_temp.value_is_log as i32,
+            m.unburnt_rho.data.as_ptr(),
+            m.unburnt_rho.value_is_log as i32,
+            ip.as_ptr(),
+            ip.len() as i32,
+            ilp,
+            itax.as_ptr(),
+            itax.len() as i32,
+            ilh,
+            iz.as_ptr(),
+            iz.len() as i32,
+            ilz,
+            istr.as_ptr(),
+            m.flame.data.as_ptr(),
+            m.flame.value_is_log as i32,
+            m.hu_floor,
+            m.hu_ceil,
+            m.p_floor,
+            m.tu_floor,
+            m.wrinkling,
+            m.theta,
             rate.as_mut_ptr(),
         )
     };
@@ -187,10 +287,23 @@ fn main() {
     println!("  worst rel diff = {worst_rel:.3e}   (declared ECT {ECT:.0e})");
     println!(
         "  GPU same-build rerun: {}",
-        if bit_identical { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if bit_identical {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
-    assert!(max_src > 0.0, "combustion source identically zero — fixture not exercising the reaction");
-    assert!(worst_rel < ECT, "CPU↔GPU combustion source diverged beyond ECT: {worst_rel:.3e}");
-    assert!(bit_identical, "GPU combustion source rerun not deterministic");
+    assert!(
+        max_src > 0.0,
+        "combustion source identically zero — fixture not exercising the reaction"
+    );
+    assert!(
+        worst_rel < ECT,
+        "CPU↔GPU combustion source diverged beyond ECT: {worst_rel:.3e}"
+    );
+    assert!(
+        bit_identical,
+        "GPU combustion source rerun not deterministic"
+    );
     println!("ALL PASS");
 }

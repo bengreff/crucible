@@ -18,13 +18,44 @@ const ECT: f64 = 1e-9;
 unsafe extern "C" {
     #[allow(clippy::too_many_arguments)]
     fn gpu_blend_project(
-        rho: *const f64, e: *const f64, z: *const f64, b: *const f64, n: i32,
-        up: *const f64, unp: i32, ulp: i32, uh: *const f64, unh: i32, ulh: i32,
-        uz: *const f64, unz: i32, ulz: i32, ustr: *const i32, urho_data: *const f64, urho_vlog: i32,
-        bp: *const f64, bnp: i32, blp: i32, bh: *const f64, bnh: i32, blh: i32,
-        bz: *const f64, bnz: i32, blz: i32, bstr: *const i32, brho_data: *const f64, brho_vlog: i32,
-        pu_lo: f64, pu_hi: f64, huf: f64, huc: f64,
-        pb_lo: f64, pb_hi: f64, hbf: f64, hbc: f64, h_off: f64,
+        rho: *const f64,
+        e: *const f64,
+        z: *const f64,
+        b: *const f64,
+        n: i32,
+        up: *const f64,
+        unp: i32,
+        ulp: i32,
+        uh: *const f64,
+        unh: i32,
+        ulh: i32,
+        uz: *const f64,
+        unz: i32,
+        ulz: i32,
+        ustr: *const i32,
+        urho_data: *const f64,
+        urho_vlog: i32,
+        bp: *const f64,
+        bnp: i32,
+        blp: i32,
+        bh: *const f64,
+        bnh: i32,
+        blh: i32,
+        bz: *const f64,
+        bnz: i32,
+        blz: i32,
+        bstr: *const i32,
+        brho_data: *const f64,
+        brho_vlog: i32,
+        pu_lo: f64,
+        pu_hi: f64,
+        huf: f64,
+        huc: f64,
+        pb_lo: f64,
+        pb_hi: f64,
+        hbf: f64,
+        hbc: f64,
+        h_off: f64,
         p_out: *mut f64,
     );
 }
@@ -35,19 +66,36 @@ fn open(file: &str, group: &str, pins_toml: &str) -> Table {
     let entry = doc[group].as_table().expect("group entry");
     let pin = Pin {
         data_version: entry["data_version"].as_str().expect("ver").to_string(),
-        content_digest: entry.get("content_digest").and_then(|v| v.as_str()).map(str::to_string),
+        content_digest: entry
+            .get("content_digest")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
     };
     Table::open(&path, group, &pin).expect("table loads under its pin")
 }
 
 // Host mirror of BoundColumn::interpolate (for building on-surface fixtures).
 fn interp(col: &ColumnMarshal, qp: f64, qh: f64, qz: f64) -> f64 {
-    let find = |pts: &[f64], q: f64| pts.iter().filter(|&&p| p <= q).count().min(pts.len() - 1).max(1) - 1;
-    let frac = |pts: &[f64], i: usize, lg: bool, q: f64| {
-        if lg { (q.ln() - pts[i].ln()) / (pts[i + 1].ln() - pts[i].ln()) }
-        else { (q - pts[i]) / (pts[i + 1] - pts[i]) }
+    let find = |pts: &[f64], q: f64| {
+        pts.iter()
+            .filter(|&&p| p <= q)
+            .count()
+            .min(pts.len() - 1)
+            .max(1)
+            - 1
     };
-    let (pp, hp, zp) = (&col.axis_points[0], &col.axis_points[1], &col.axis_points[2]);
+    let frac = |pts: &[f64], i: usize, lg: bool, q: f64| {
+        if lg {
+            (q.ln() - pts[i].ln()) / (pts[i + 1].ln() - pts[i].ln())
+        } else {
+            (q - pts[i]) / (pts[i + 1] - pts[i])
+        }
+    };
+    let (pp, hp, zp) = (
+        &col.axis_points[0],
+        &col.axis_points[1],
+        &col.axis_points[2],
+    );
     let (ip, ih, iz) = (find(pp, qp), find(hp, qh), find(zp, qz));
     let cell = [ip, ih, iz];
     let tt = [
@@ -64,7 +112,11 @@ fn interp(col: &ColumnMarshal, qp: f64, qh: f64, qz: f64) -> f64 {
             w *= if up { tt[d] } else { 1.0 - tt[d] };
             idx += (cell[d] + usize::from(up)) * col.strides[d];
         }
-        let v = if col.value_is_log { col.data[idx].ln() } else { col.data[idx] };
+        let v = if col.value_is_log {
+            col.data[idx].ln()
+        } else {
+            col.data[idx]
+        };
         acc += w * v;
     }
     if col.value_is_log { acc.exp() } else { acc }
@@ -75,12 +127,20 @@ const EPS_B_PURE_BURNT: f64 = 2.0e-3;
 
 fn main() {
     let ut = open(
-        "lox_lh2_unburnt_v0.3.0.h5", "/chem/lox_lh2/unburnt",
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tables/chem/lox_lh2_unburnt_v0.3.0.pins.toml")),
+        "lox_lh2_unburnt_v0.3.0.h5",
+        "/chem/lox_lh2/unburnt",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tables/chem/lox_lh2_unburnt_v0.3.0.pins.toml"
+        )),
     );
     let bt = open(
-        "lox_lh2_v0.4.0.h5", "/chem/lox_lh2/equilibrium",
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tables/chem/lox_lh2_v0.4.0.pins.toml")),
+        "lox_lh2_v0.4.0.h5",
+        "/chem/lox_lh2/equilibrium",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tables/chem/lox_lh2_v0.4.0.pins.toml"
+        )),
     );
     let blend = BurnBlendEos::new(
         TableEos::bind(&ut).expect("unburnt binds"),
@@ -158,7 +218,15 @@ fn main() {
     let mut cp = vec![0.0f64; n];
     let mut ok = vec![true; n];
     for i in 0..n {
-        let u: Cons = [rho[i], 0.0, 0.0, 0.0, rho[i] * e[i], rho[i] * z[i], rho[i] * bb[i]];
+        let u: Cons = [
+            rho[i],
+            0.0,
+            0.0,
+            0.0,
+            rho[i] * e[i],
+            rho[i] * z[i],
+            rho[i] * bb[i],
+        ];
         match blend.prim_checked(&u) {
             Ok(w) => cp[i] = w[4],
             Err(_) => ok[i] = false,
@@ -179,12 +247,44 @@ fn main() {
     let mut gp2 = vec![0.0f64; n];
     let run = |out: &mut [f64]| unsafe {
         gpu_blend_project(
-            rho.as_ptr(), e.as_ptr(), z.as_ptr(), bb.as_ptr(), n as i32,
-            up.as_ptr(), up.len() as i32, ulp, uh.as_ptr(), uh.len() as i32, ulh,
-            uz.as_ptr(), uz.len() as i32, ulz, ustr.as_ptr(), urho.data.as_ptr(), urho.value_is_log as i32,
-            bp.as_ptr(), bp.len() as i32, blp, bh.as_ptr(), bh.len() as i32, blh,
-            bz.as_ptr(), bz.len() as i32, blz, bstr.as_ptr(), brho.data.as_ptr(), brho.value_is_log as i32,
-            pu.0, pu.1, hu.0, hu.1, pb.0, pb.1, hb.0, hb.1, h_off,
+            rho.as_ptr(),
+            e.as_ptr(),
+            z.as_ptr(),
+            bb.as_ptr(),
+            n as i32,
+            up.as_ptr(),
+            up.len() as i32,
+            ulp,
+            uh.as_ptr(),
+            uh.len() as i32,
+            ulh,
+            uz.as_ptr(),
+            uz.len() as i32,
+            ulz,
+            ustr.as_ptr(),
+            urho.data.as_ptr(),
+            urho.value_is_log as i32,
+            bp.as_ptr(),
+            bp.len() as i32,
+            blp,
+            bh.as_ptr(),
+            bh.len() as i32,
+            blh,
+            bz.as_ptr(),
+            bz.len() as i32,
+            blz,
+            bstr.as_ptr(),
+            brho.data.as_ptr(),
+            brho.value_is_log as i32,
+            pu.0,
+            pu.1,
+            hu.0,
+            hu.1,
+            pb.0,
+            pb.1,
+            hb.0,
+            hb.1,
+            h_off,
             out.as_mut_ptr(),
         )
     };
@@ -207,15 +307,27 @@ fn main() {
         n_cmp += 1;
     }
     println!("S13c — BLEND EOS mid-b (p,h,Z) projection on-device");
-    println!("  surfaces: unburnt v0.3.0 ⊕ burnt v0.4.0; {n} states, {n_cmp} compared (mid-b, both branches)");
+    println!(
+        "  surfaces: unburnt v0.3.0 ⊕ burnt v0.4.0; {n} states, {n_cmp} compared (mid-b, both branches)"
+    );
     println!("  worst abs diff = {worst_abs:.3e}");
     println!("  worst rel diff = {worst_rel:.3e}   (declared ECT {ECT:.0e})");
     println!(
         "  GPU same-build rerun: {}",
-        if bit_identical { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if bit_identical {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
     assert!(n_cmp >= 8, "too few valid comparisons: {n_cmp}");
-    assert!(worst_rel < ECT, "CPU↔GPU blend projection diverged beyond ECT: {worst_rel:.3e}");
-    assert!(bit_identical, "GPU blend projection rerun not deterministic");
+    assert!(
+        worst_rel < ECT,
+        "CPU↔GPU blend projection diverged beyond ECT: {worst_rel:.3e}"
+    );
+    assert!(
+        bit_identical,
+        "GPU blend projection rerun not deterministic"
+    );
     println!("ALL PASS");
 }

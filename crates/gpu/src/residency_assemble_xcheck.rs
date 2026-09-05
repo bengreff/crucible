@@ -115,10 +115,24 @@ fn main() {
     let mut gpu_rate = vec![0.0f64; ncell * NCOMP];
     unsafe {
         gpu_class_d_assemble(
-            d.ur.as_ptr(), d.om.as_ptr(), d.uz.as_ptr(), d.tt.as_ptr(), d.cc.as_ptr(),
-            d.lag_ur.as_ptr(), d.lag_uz.as_ptr(), d.mu.as_ptr(), d.k.as_ptr(),
-            d.rhod.as_ptr(), d.dhdz.as_ptr(), d.gas.as_ptr(),
-            n_r as i32, n_z as i32, r_min, dr, dz, gpu_rate.as_mut_ptr(),
+            d.ur.as_ptr(),
+            d.om.as_ptr(),
+            d.uz.as_ptr(),
+            d.tt.as_ptr(),
+            d.cc.as_ptr(),
+            d.lag_ur.as_ptr(),
+            d.lag_uz.as_ptr(),
+            d.mu.as_ptr(),
+            d.k.as_ptr(),
+            d.rhod.as_ptr(),
+            d.dhdz.as_ptr(),
+            d.gas.as_ptr(),
+            n_r as i32,
+            n_z as i32,
+            r_min,
+            dr,
+            dz,
+            gpu_rate.as_mut_ptr(),
         );
     }
 
@@ -126,10 +140,24 @@ fn main() {
     let mut gpu_rate2 = vec![0.0f64; ncell * NCOMP];
     unsafe {
         gpu_class_d_assemble(
-            d.ur.as_ptr(), d.om.as_ptr(), d.uz.as_ptr(), d.tt.as_ptr(), d.cc.as_ptr(),
-            d.lag_ur.as_ptr(), d.lag_uz.as_ptr(), d.mu.as_ptr(), d.k.as_ptr(),
-            d.rhod.as_ptr(), d.dhdz.as_ptr(), d.gas.as_ptr(),
-            n_r as i32, n_z as i32, r_min, dr, dz, gpu_rate2.as_mut_ptr(),
+            d.ur.as_ptr(),
+            d.om.as_ptr(),
+            d.uz.as_ptr(),
+            d.tt.as_ptr(),
+            d.cc.as_ptr(),
+            d.lag_ur.as_ptr(),
+            d.lag_uz.as_ptr(),
+            d.mu.as_ptr(),
+            d.k.as_ptr(),
+            d.rhod.as_ptr(),
+            d.dhdz.as_ptr(),
+            d.gas.as_ptr(),
+            n_r as i32,
+            n_z as i32,
+            r_min,
+            dr,
+            dz,
+            gpu_rate2.as_mut_ptr(),
         );
     }
     let bit_identical = gpu_rate == gpu_rate2;
@@ -160,18 +188,31 @@ fn main() {
 
     println!("S13c — class-D affine FORCING (fill_lag_gradients + assemble_rates)");
     println!("  grid {n_r}×{n_z} (N_θ=1 box), {n_cmp} interior cells compared");
-    println!("  {:>5}   {:>11}   {:>11}", "comp", "worst_abs", "worst_rel");
+    println!(
+        "  {:>5}   {:>11}   {:>11}",
+        "comp", "worst_abs", "worst_rel"
+    );
     let mut overall = 0.0f64;
     for k in 0..NCOMP {
-        println!("  {:>5}   {:>11.3e}   {:>11.3e}", names[k], worst_abs[k], worst_rel[k]);
+        println!(
+            "  {:>5}   {:>11.3e}   {:>11.3e}",
+            names[k], worst_abs[k], worst_rel[k]
+        );
         overall = overall.max(worst_rel[k]);
     }
     println!("  overall worst rel = {overall:.3e}   (declared ECT {ECT:.0e})");
     println!(
         "  GPU same-build rerun: {}",
-        if bit_identical { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if bit_identical {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
-    assert!(overall < ECT, "CPU↔GPU class-D affine rate diverged beyond ECT: {overall:.3e}");
+    assert!(
+        overall < ECT,
+        "CPU↔GPU class-D affine rate diverged beyond ECT: {overall:.3e}"
+    );
     assert!(bit_identical, "GPU assemble rerun not deterministic");
     println!("ALL PASS");
 }

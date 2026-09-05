@@ -29,11 +29,27 @@ const ECT: f64 = 1e-8;
 
 unsafe extern "C" {
     fn gpu_class_d_iterate(
-        sol_rho: *mut f64, sol_ur: *mut f64, sol_om: *mut f64, sol_uz: *mut f64,
-        sol_tt: *mut f64, sol_cc: *mut f64, lag_ur: *const f64, lag_uz: *const f64,
-        mu: *const f64, kk: *const f64, rhod: *const f64, dhdz: *const f64, cv: *const f64,
-        dlag: *const f64, gas: *const f64, n_r: i32, n_z: i32,
-        r_min: f64, dr: f64, dz: f64, wqnew: f64,
+        sol_rho: *mut f64,
+        sol_ur: *mut f64,
+        sol_om: *mut f64,
+        sol_uz: *mut f64,
+        sol_tt: *mut f64,
+        sol_cc: *mut f64,
+        lag_ur: *const f64,
+        lag_uz: *const f64,
+        mu: *const f64,
+        kk: *const f64,
+        rhod: *const f64,
+        dhdz: *const f64,
+        cv: *const f64,
+        dlag: *const f64,
+        gas: *const f64,
+        n_r: i32,
+        n_z: i32,
+        r_min: f64,
+        dr: f64,
+        dz: f64,
+        wqnew: f64,
     ) -> i32;
 }
 
@@ -41,7 +57,14 @@ fn main() {
     let (n_r, n_z) = (48usize, 96usize);
     let (r_min, dr, dz) = (0.5, 1.0 / n_r as f64, 1.0 / n_z as f64);
     let spec = GridSpec {
-        r_min, dr, n_r, z_min: 0.0, dz, n_z, n_theta_max: 1, axisymmetry_assertion: true,
+        r_min,
+        dr,
+        n_r,
+        z_min: 0.0,
+        dz,
+        n_z,
+        n_theta_max: 1,
+        axisymmetry_assertion: true,
     };
     let g = Grid::build(spec, &["dummy"]).expect("valid spec");
 
@@ -53,16 +76,24 @@ fn main() {
     g.for_each_active_cell(|cell| {
         let f = 1.0 + 0.31 * (cell.i_r as f64) + 0.17 * (cell.i_z as f64);
         let props = TransportProps {
-            mu: MU * f, k: K * f, cp: 1005.0, cp_film: 1005.0, cv: CV,
-            rho_d: RHOD * f, dh_dz: 3.0e5 * (1.0 + 0.05 * (cell.i_r as f64 - cell.i_z as f64)),
+            mu: MU * f,
+            k: K * f,
+            cp: 1005.0,
+            cp_film: 1005.0,
+            cv: CV,
+            rho_d: RHOD * f,
+            dh_dz: 3.0e5 * (1.0 + 0.05 * (cell.i_r as f64 - cell.i_z as f64)),
             pr: 0.71,
         };
-        tr.set(cell.bi, cell.idx, cell.i_r, cell.i_z, &props).expect("valid transport");
+        tr.set(cell.bi, cell.idx, cell.i_r, cell.i_z, &props)
+            .expect("valid transport");
     });
 
     let op = GasDiffusion::new(GasDiffBcs {
-        r_inner: FaceGasBc::free(), r_outer: FaceGasBc::free(),
-        z_lo: FaceGasBc::free(), z_hi: FaceGasBc::free(),
+        r_inner: FaceGasBc::free(),
+        r_outer: FaceGasBc::free(),
+        z_lo: FaceGasBc::free(),
+        z_hi: FaceGasBc::free(),
     });
 
     let sol_rho = |r: usize, z: usize| 1.0 + 0.2 * (1.7 * r as f64 + 0.9 * z as f64).sin();
@@ -86,8 +117,8 @@ fn main() {
     let wqnew = 5.0e-2;
 
     let d = xcheck_class_d_iterate_dense(
-        &g, &op, &tr, wqnew, sol_rho, sol_ur, sol_om, sol_uz, sol_tt, sol_cc,
-        lag_ur, lag_uz, dlag_of,
+        &g, &op, &tr, wqnew, sol_rho, sol_ur, sol_om, sol_uz, sol_tt, sol_cc, lag_ur, lag_uz,
+        dlag_of,
     );
     let ncell = n_r * n_z;
 
@@ -107,10 +138,27 @@ fn main() {
         let mut gcc = d.init_cc.clone();
         unsafe {
             gpu_class_d_iterate(
-                gr.as_mut_ptr(), gur.as_mut_ptr(), gom.as_mut_ptr(), guz.as_mut_ptr(),
-                gtt.as_mut_ptr(), gcc.as_mut_ptr(), d.lag_ur.as_ptr(), d.lag_uz.as_ptr(),
-                d.mu.as_ptr(), d.k.as_ptr(), d.rhod.as_ptr(), d.dhdz.as_ptr(), d.cv.as_ptr(),
-                dlag_flat.as_ptr(), d.gas.as_ptr(), n_r as i32, n_z as i32, r_min, dr, dz, wqnew,
+                gr.as_mut_ptr(),
+                gur.as_mut_ptr(),
+                gom.as_mut_ptr(),
+                guz.as_mut_ptr(),
+                gtt.as_mut_ptr(),
+                gcc.as_mut_ptr(),
+                d.lag_ur.as_ptr(),
+                d.lag_uz.as_ptr(),
+                d.mu.as_ptr(),
+                d.k.as_ptr(),
+                d.rhod.as_ptr(),
+                d.dhdz.as_ptr(),
+                d.cv.as_ptr(),
+                dlag_flat.as_ptr(),
+                d.gas.as_ptr(),
+                n_r as i32,
+                n_z as i32,
+                r_min,
+                dr,
+                dz,
+                wqnew,
             );
         }
         (gur, gom, guz, gtt, gcc)
@@ -124,16 +172,23 @@ fn main() {
     let gpu = [&gur, &gom, &guz, &gtt, &gcc];
     let names = ["u_r", "ω", "u_z", "T", "C"];
     println!("S13c — FULL RESIDENT class-D iterate (grid {n_r}×{n_z}, N_θ=1 box, wqnew={wqnew})");
-    println!("  {:>4}   {:>11}   {:>11}", "comp", "worst_abs", "worst_rel");
+    println!(
+        "  {:>4}   {:>11}   {:>11}",
+        "comp", "worst_abs", "worst_rel"
+    );
     let mut overall = 0.0f64;
     for j in 0..5 {
         let (mut wa, mut wr) = (0.0f64, 0.0f64);
         for c in 0..ncell {
-            if d.gas[c] == 0.0 { continue; }
+            if d.gas[c] == 0.0 {
+                continue;
+            }
             let (a, b) = (cpu[j][c], gpu[j][c]);
             wa = wa.max((a - b).abs());
             let s = a.abs().max(b.abs());
-            if s > 1e-6 { wr = wr.max((a - b).abs() / s); }
+            if s > 1e-6 {
+                wr = wr.max((a - b).abs() / s);
+            }
         }
         overall = overall.max(wr);
         println!("  {:>4}   {wa:>11.3e}   {wr:>11.3e}", names[j]);
@@ -141,9 +196,16 @@ fn main() {
     println!("  overall worst rel = {overall:.3e}   (declared ECT {ECT:.0e})");
     println!(
         "  GPU same-build rerun: {}",
-        if bit_identical { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if bit_identical {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
-    assert!(overall < ECT, "CPU↔GPU resident class-D iterate diverged beyond ECT: {overall:.3e}");
+    assert!(
+        overall < ECT,
+        "CPU↔GPU resident class-D iterate diverged beyond ECT: {overall:.3e}"
+    );
     assert!(bit_identical, "GPU iterate rerun not deterministic");
     println!("ALL PASS");
 }

@@ -2129,3 +2129,62 @@ the committed artifacts in `certificates/` are the living record.
   resident diffusion step 3.2×10⁻¹⁰, TableEos 2.1×10⁻¹⁵, combustion 1.4×10⁻¹³, blend EOS **1.3×10⁻¹³** (moved
   from 5.9×10⁻¹⁴ by the 1e-9 bracket-margin correction — the scan grid shifts with the bracket; still the
   machine-precision class), every rerun bit-identical.
+- Session 28, continued (2026-09-04/05): **S13c CLOSE — the COMPOSED full-physics 3-D resident ENGINE step
+  validated on the real `rl10_startup_3d` assembly; S14 — the overnight harness (FND-6 checkpoint/resume,
+  COUP-2 audit every step, COUP-4 verdict probes) built + smoke-tested; ◆C4 launched.** Ben's directive:
+  "just get the full GPU port done", then "kick off a longer run".
+  **(9) The composed engine step** (`crates/gpu/cuda/residency_engine.cu` + the host bridge
+  `crates/gpu/src/engine_host.rs`, the crate's new lib half): ONE device-resident SDC step behind a persistent
+  handle composing every validated leg — the blend EOS `prim_checked_hinted` (three-way branch select, warm-start
+  hints on the pure limits kept RESIDENT in the prim cache, the mass-weighted blended sound speed → the e/Γ₁ aux
+  slots), the general-EOS HLLC-Batten (Γ₁ slot, datum-free Roe c²), the r/θ/z sweeps on the cut geometry with the
+  axis parity pair + slip walls, the COUP-7 **injector mass-flow inflow ghost** (the unburnt TableEos
+  fixed-count solve, sonic-capped) and the **pressure-outflow ghost** (the pump-down ambient), the geometric +
+  wall-closure sources + the sector-gated ramped **igniter deposit**, the SOLV-4.4 combustion source on the 3-D
+  layout (θ-faces, per-sector κ, the loud [0,1] guard), the 2-node Lobatto IMEX-SDC composition with stagewise
+  SRD and the **class-R node solve after every accepted composition** (trapezoid base, realized-rate roll-over),
+  the **COUP-2 ledger** (port + source, net + gross) and the κV-weighted stored totals as fixed-topology tree
+  reductions, `stable_dt` with the θ-arc + **front-carrier** members and the scale-separation guard. The audit
+  CHECK runs host-side on the reduced operands through the CPU's own `Sdc` arithmetic (additive doc-hidden
+  `Sdc::xcheck_audit_flow` — `audit_check` refactored into a cell-count-taking body, behaviour-preserving). The
+  run SCHEDULE (`crucible_engine::run`'s injector ramp, pump-down ambient, igniter kernel, audit reference
+  scales) is replicated ONCE in `engine_host::Schedule` — the cross-check scores that replication against the
+  CPU `Sdc::step`, the harness drives it.
+  **Cross-check (`residency_engine_xcheck`)** on the real assembly (40×119×8, tables of record, the run's own
+  BCs/walls/igniter), the CPU pre-marched through the real start to **t = 3.0 ms** (2306 steps, 0.277 s/step
+  on the box's 28 cores; the spark at 2 ms, reacting measure 2.5×10⁻⁸ kg/s, max b 1.0×10⁻⁴ — the reacting
+  regime; the state saved so reruns skip the 10-min pre-march): **PHASE 0 prims** (cold both sides) worst
+  component-scaled rel **8.5×10⁻¹²** (= the projection tolerance class); **PHASE 1 full RHS** worst
+  component-scaled rel **9.5×10⁻⁹**, at the θ-momentum of an AXIS cell beside the spark kernel — diagnosed as
+  the (p,h,Z) projection's own 1e-11 tolerance (FMA-distinct Illinois paths on the two sides) divided by the
+  ~10⁴ well-balance cancellation of the θ-flux difference × 1/(r̄Δθ) at the axis ring: **the composed step's
+  honest cross-device ECT is declared 1e-7 component-scaled** (prims stay at 1e-9; per-cell rel is diagnostic
+  only — at a cancellation cell it is ECT × comp_max/|value| by construction); the ledger (port/src net+gross,
+  gross-scaled per COUP-2 §3.1.1) **1.8×10⁻¹⁵**; rerun bit-identical. **PHASE 1b `stable_dt`** (θ-arc + front
+  carrier) rel **1.6×10⁻¹⁶**. **PHASE 2 — 10 audited coupled steps**: the final state worst component-scaled rel
+  **5.2×10⁻¹¹** (the RHS's axis discrepancy does NOT accumulate — the projection re-anchors every stage),
+  **every GPU step passes the CPU's own COUP-2 identity** (worst |Δ−applied|/tol 4.2×10⁻⁵), resident-march rerun
+  **bit-identical**, the checkpoint split (cons + the prim hints) **bit-identical**. **PHASE 3 throughput:
+  0.137 s/step** at 3 ms (21 336 active gas cells × 8 sectors) — only ~2× the 28-core CPU: the cold mid-b blend
+  scan (64 nodes × two branches, always-first by the SOLV-4 0.4.7 rule; the class-R re-projects every live cell
+  twice per sweep) dominates once class-R seeds b ~ 1e-5 across the hot region — **the throughput lever for the
+  composed step is a warm-started mid-b projection (a SOLV-4 amendment, accuracy-neutral) + the S14
+  flux-buffer register work**, both recorded, neither taken this session.
+  **(10) The overnight harness (`gpu_engine_run`, S14):** the resident engine marched under the run's schedule;
+  the COUP-2 audit every step (a violation halts); the COUP-4 verdict probes at the run's `PROBE_EVERY` cadence
+  on the downloaded state through the engine's OWN probe functions (`plane_mdot`, `plane_thrust`,
+  `injector_end_stagnation_p`, `reacting_measure`) — ignition floor, NEVER_IGNITED, FLAMEOUT, dwell → WORKS,
+  FAILED_TO_REACH; **FND-6 §3.8 checkpoints** (the dense state + the warm-start prim cache + the clock + the
+  verdict trackers + the pinned-input digests: config sha256, the three table pins, the world shape), written
+  atomically, `--resume` verifying the digests (a mismatch REFUSES); halt artifacts (`fields.csv` /
+  `crash_fields.csv` via `run::fields_csv`, `verdict.txt`, `progress.csv`). **Smoke (box):** 600 steps in 22 s;
+  a 300-step run resumed to 600 reproduces every probe of the uninterrupted run and its **checkpoint is
+  byte-identical** (`cmp`) — the FND-6 continuation contract across a real process restart.
+  **Box mechanics (docs/gpu-box.md updated):** the `powershell Start-Process wsl` recipe does NOT run scripts
+  (measured: an inline `bash -c 'sleep 100; echo …'` survives, a script path never executes, in every quoting
+  form); **`tmux` inside WSL is the long-job mechanism** — a tmux session outlives the launching ssh session
+  (a 40 s CUDA job proved it), the ◆C4 run is launched that way and polled by log.
+  **◆C4 LAUNCHED:** `gpu_engine_run configs/rl10_startup_3d.toml` (the ◆C3 desktop spec: dial 5, N_θ = 8, the
+  bounded spark, 30 flow-throughs = 84.06 ms horizon, checkpoint every 2000 steps) under tmux on the box; the
+  GPU trajectory tracks the CPU pre-march to the printed digits (R = 2.13×10⁻⁹ at step 1000 on both).
+  Outcome: see the closing note.

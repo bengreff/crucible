@@ -1969,13 +1969,107 @@ impl Sdc {
         burn_gross: f64,
         report: &mut StepReport,
     ) -> Result<(), SdcError> {
-        let spec = &self.audit_spec;
-        let eps = f64::EPSILON;
         let mut n_cells = 0usize;
         for b in g.bricks() {
             n_cells += (b.mask().count_ones() + b.solid_mask().count_ones()) as usize
                 * b.n_theta() as usize;
         }
+        self.audit_check_n(
+            n_cells,
+            has_flow,
+            has_diffusion,
+            has_gas,
+            dt,
+            before,
+            after,
+            l0,
+            l_last,
+            hl0,
+            hl_prev,
+            hl_last,
+            gd0,
+            gd_prev,
+            gd_last,
+            debit_applied,
+            burn_applied,
+            burn_gross,
+            report,
+        )
+    }
+
+    /// S13c GPU residency (doc-hidden, additive): the COUP-2 audit check on
+    /// the flow + reaction schedule from the O(1) reduced operands the
+    /// resident device step hands back — the SAME arithmetic `Sdc::step`
+    /// runs (this wrapper delegates to it), so the GPU march is audited by
+    /// the CPU's own identity and tolerance, never a re-derivation. Returns
+    /// the audit rows on success (the step report's), the typed violation
+    /// otherwise.
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn xcheck_audit_flow(
+        &self,
+        n_cells: usize,
+        dt: f64,
+        before: ([f64; NCOMP], [f64; NCOMP]),
+        after: ([f64; NCOMP], [f64; NCOMP]),
+        l0: &FlowLedger,
+        l_last: &FlowLedger,
+        burn_applied: f64,
+        burn_gross: f64,
+    ) -> Result<Vec<AuditRow>, SdcError> {
+        let mut report = StepReport::default();
+        let zero_h = HeatLedger::default();
+        let zero_g = FlowLedger::default();
+        self.audit_check_n(
+            n_cells,
+            true,
+            false,
+            false,
+            dt,
+            &(before.0, before.1, 0.0),
+            &(after.0, after.1, 0.0),
+            l0,
+            l_last,
+            &zero_h,
+            &zero_h,
+            &zero_h,
+            &zero_g,
+            &zero_g,
+            &zero_g,
+            0.0,
+            burn_applied,
+            burn_gross,
+            &mut report,
+        )?;
+        Ok(report.audit)
+    }
+
+    /// The audit identity on a given cell count (the body of `audit_check`).
+    #[allow(clippy::too_many_arguments)]
+    fn audit_check_n(
+        &self,
+        n_cells: usize,
+        has_flow: bool,
+        has_diffusion: bool,
+        has_gas: bool,
+        dt: f64,
+        before: &([f64; NCOMP], [f64; NCOMP], f64),
+        after: &([f64; NCOMP], [f64; NCOMP], f64),
+        l0: &FlowLedger,
+        l_last: &FlowLedger,
+        hl0: &HeatLedger,
+        hl_prev: &HeatLedger,
+        hl_last: &HeatLedger,
+        gd0: &FlowLedger,
+        gd_prev: &FlowLedger,
+        gd_last: &FlowLedger,
+        debit_applied: f64,
+        burn_applied: f64,
+        burn_gross: f64,
+        report: &mut StepReport,
+    ) -> Result<(), SdcError> {
+        let spec = &self.audit_spec;
+        let eps = f64::EPSILON;
         let sqrt_n = (n_cells as f64).sqrt();
         // Final-composition weights (the fixed sweep structure guarantees
         // the last sweep is a trapezoid correction).

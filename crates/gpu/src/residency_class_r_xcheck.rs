@@ -15,8 +15,8 @@
 //! a negative quadrature base, base == cap). Every regime must be represented
 //! in the compared set or the harness refuses.
 use crucible_solvers::euler::{
-    BURN_COMPLETE, BurnBlendEos, Combustion, Cons, EosLaw, I_RB, IgnitionColumns, TableEos,
-    THETA_CELLS,
+    BURN_COMPLETE, BurnBlendEos, Combustion, Cons, EosLaw, I_RB, IgnitionColumns, THETA_CELLS,
+    TableEos,
 };
 use crucible_tables::{ColumnMarshal, Pin, Table};
 
@@ -31,18 +31,61 @@ const H_HOT: f64 = 2.5e6;
 unsafe extern "C" {
     #[allow(clippy::too_many_arguments)]
     fn gpu_class_r_update(
-        u: *const f64, base: *const f64, n: i32, w_new: f64,
-        up: *const f64, unp: i32, ulp: i32, uh: *const f64, unh: i32, ulh: i32,
-        uz: *const f64, unz: i32, ulz: i32, ustr: *const i32,
-        urho_data: *const f64, urho_vlog: i32, utemp_data: *const f64, utemp_vlog: i32,
-        bp: *const f64, bnp: i32, blp: i32, bh: *const f64, bnh: i32, blh: i32,
-        bz: *const f64, bnz: i32, blz: i32, bstr: *const i32, brho_data: *const f64, brho_vlog: i32,
-        ip: *const f64, inp: i32, ilp: i32, it: *const f64, inh: i32, ilh: i32,
-        iz: *const f64, inz: i32, ilz: i32, istr: *const i32, dly_data: *const f64, dly_vlog: i32,
-        pu_lo: f64, pu_hi: f64, hu_floor: f64, hu_ceil: f64,
-        pb_lo: f64, pb_hi: f64, hb_lo: f64, hb_hi: f64, h_off: f64,
-        p_floor: f64, tu_floor: f64,
-        x_out: *mut f64, rate_out: *mut f64,
+        u: *const f64,
+        base: *const f64,
+        n: i32,
+        w_new: f64,
+        up: *const f64,
+        unp: i32,
+        ulp: i32,
+        uh: *const f64,
+        unh: i32,
+        ulh: i32,
+        uz: *const f64,
+        unz: i32,
+        ulz: i32,
+        ustr: *const i32,
+        urho_data: *const f64,
+        urho_vlog: i32,
+        utemp_data: *const f64,
+        utemp_vlog: i32,
+        bp: *const f64,
+        bnp: i32,
+        blp: i32,
+        bh: *const f64,
+        bnh: i32,
+        blh: i32,
+        bz: *const f64,
+        bnz: i32,
+        blz: i32,
+        bstr: *const i32,
+        brho_data: *const f64,
+        brho_vlog: i32,
+        ip: *const f64,
+        inp: i32,
+        ilp: i32,
+        it: *const f64,
+        inh: i32,
+        ilh: i32,
+        iz: *const f64,
+        inz: i32,
+        ilz: i32,
+        istr: *const i32,
+        dly_data: *const f64,
+        dly_vlog: i32,
+        pu_lo: f64,
+        pu_hi: f64,
+        hu_floor: f64,
+        hu_ceil: f64,
+        pb_lo: f64,
+        pb_hi: f64,
+        hb_lo: f64,
+        hb_hi: f64,
+        h_off: f64,
+        p_floor: f64,
+        tu_floor: f64,
+        x_out: *mut f64,
+        rate_out: *mut f64,
     );
 }
 
@@ -52,7 +95,10 @@ fn open(file: &str, group: &str, pins_toml: &str) -> Table {
     let entry = doc[group].as_table().expect("group entry");
     let pin = Pin {
         data_version: entry["data_version"].as_str().expect("ver").to_string(),
-        content_digest: entry.get("content_digest").and_then(|v| v.as_str()).map(str::to_string),
+        content_digest: entry
+            .get("content_digest")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
     };
     Table::open(&path, group, &pin).expect("table loads under its pin")
 }
@@ -70,23 +116,40 @@ fn branch_of(b: f64) -> &'static str {
 
 fn main() {
     let ut = open(
-        "lox_lh2_unburnt_v0.3.0.h5", "/chem/lox_lh2/unburnt",
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tables/chem/lox_lh2_unburnt_v0.3.0.pins.toml")),
+        "lox_lh2_unburnt_v0.3.0.h5",
+        "/chem/lox_lh2/unburnt",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tables/chem/lox_lh2_unburnt_v0.3.0.pins.toml"
+        )),
     );
     let bt = open(
-        "lox_lh2_v0.4.0.h5", "/chem/lox_lh2/equilibrium",
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tables/chem/lox_lh2_v0.4.0.pins.toml")),
+        "lox_lh2_v0.4.0.h5",
+        "/chem/lox_lh2/equilibrium",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tables/chem/lox_lh2_v0.4.0.pins.toml"
+        )),
     );
     let it = open(
-        "lox_lh2_ignition_v0.3.0.h5", "/chem/lox_lh2/ignition",
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tables/chem/lox_lh2_ignition_v0.3.0.pins.toml")),
+        "lox_lh2_ignition_v0.3.0.h5",
+        "/chem/lox_lh2/ignition",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tables/chem/lox_lh2_ignition_v0.3.0.pins.toml"
+        )),
     );
     let blend = BurnBlendEos::new(
         TableEos::bind(&ut).expect("unburnt binds"),
         TableEos::bind(&bt).expect("burnt binds"),
     );
     let ign = IgnitionColumns::bind(&it).expect("ignition binds");
-    let comb = Combustion { blend: &blend, ignition: ign, wrinkling: 1.0, theta: THETA_CELLS };
+    let comb = Combustion {
+        blend: &blend,
+        ignition: ign,
+        wrinkling: 1.0,
+        theta: THETA_CELLS,
+    };
 
     // Marshal: both ρ columns + envelopes + h_off; the unburnt T column; the τ_ign column.
     let (urho, brho, uenv, benv, h_off) = blend.xcheck_blend_marshal();
@@ -95,7 +158,9 @@ fn main() {
     let dly = comb.ignition.xcheck_marshal_delay();
 
     // τ at the design state (the same query path the solve uses).
-    let u0 = blend.cons_from_phzb(P0, H_HOT, Z0, 0.0, [0.0, 0.0, 0.0]).expect("design state");
+    let u0 = blend
+        .cons_from_phzb(P0, H_HOT, Z0, 0.0, [0.0, 0.0, 0.0])
+        .expect("design state");
     let w0 = blend.prim_checked(&u0).expect("design prim");
     let t_u0 = blend.unburnt_temperature(&w0).expect("T_u");
     let tau0 = comb.ignition.induction_time(P0, t_u0, Z0).expect("τ_ign");
@@ -110,7 +175,9 @@ fn main() {
             for ih in 0..3 {
                 let p = P0 * (1.0 + 0.5 * ip as f64);
                 let h = H_HOT * (0.94 + 0.06 * ih as f64);
-                let Ok(u) = blend.cons_from_phzb(p, h, Z0, b0, [30.0, 0.0, -12.0]) else { continue };
+                let Ok(u) = blend.cons_from_phzb(p, h, Z0, b0, [30.0, 0.0, -12.0]) else {
+                    continue;
+                };
                 cells.push(u);
                 bases.push(u[I_RB]); // base = the advected ρb (no quadrature terms)
                 tags.push("regular");
@@ -138,7 +205,9 @@ fn main() {
         tags.push("base-at-cap");
     }
     {
-        let u = blend.cons_from_phzb(P0, H_HOT, Z0, 0.3, [0.0, 0.0, 0.0]).expect("mid cell");
+        let u = blend
+            .cons_from_phzb(P0, H_HOT, Z0, 0.3, [0.0, 0.0, 0.0])
+            .expect("mid cell");
         cells.push(u);
         bases.push(u[I_RB] + 0.4 * rho0); // quadrature-lifted base (mid-b start)
         tags.push("lifted-base");
@@ -163,22 +232,68 @@ fn main() {
     let (itx, ilh) = ax(&dly, 1);
     let (iz, ilz) = ax(&dly, 2);
     let istr: Vec<i32> = dly.strides.iter().map(|&s| s as i32).collect();
-    assert_eq!(utemp.strides, urho.strides, "unburnt T and ρ columns must share axes");
+    assert_eq!(
+        utemp.strides, urho.strides,
+        "unburnt T and ρ columns must share axes"
+    );
 
     let run = |w_new: f64, x: &mut [f64], r: &mut [f64]| unsafe {
         gpu_class_r_update(
-            u_flat.as_ptr(), bases.as_ptr(), n as i32, w_new,
-            up.as_ptr(), up.len() as i32, ulp, uh.as_ptr(), uh.len() as i32, ulh,
-            uz.as_ptr(), uz.len() as i32, ulz, ustr.as_ptr(),
-            urho.data.as_ptr(), urho.value_is_log as i32, utemp.data.as_ptr(), utemp.value_is_log as i32,
-            bp.as_ptr(), bp.len() as i32, blp, bh.as_ptr(), bh.len() as i32, blh,
-            bz.as_ptr(), bz.len() as i32, blz, bstr.as_ptr(), brho.data.as_ptr(), brho.value_is_log as i32,
-            ip.as_ptr(), ip.len() as i32, ilp, itx.as_ptr(), itx.len() as i32, ilh,
-            iz.as_ptr(), iz.len() as i32, ilz, istr.as_ptr(), dly.data.as_ptr(), dly.value_is_log as i32,
-            uenv[0].0, uenv[0].1, uenv[1].0, uenv[1].1,
-            benv[0].0, benv[0].1, benv[1].0, benv[1].1, h_off,
-            p_floor, tu_floor,
-            x.as_mut_ptr(), r.as_mut_ptr(),
+            u_flat.as_ptr(),
+            bases.as_ptr(),
+            n as i32,
+            w_new,
+            up.as_ptr(),
+            up.len() as i32,
+            ulp,
+            uh.as_ptr(),
+            uh.len() as i32,
+            ulh,
+            uz.as_ptr(),
+            uz.len() as i32,
+            ulz,
+            ustr.as_ptr(),
+            urho.data.as_ptr(),
+            urho.value_is_log as i32,
+            utemp.data.as_ptr(),
+            utemp.value_is_log as i32,
+            bp.as_ptr(),
+            bp.len() as i32,
+            blp,
+            bh.as_ptr(),
+            bh.len() as i32,
+            blh,
+            bz.as_ptr(),
+            bz.len() as i32,
+            blz,
+            bstr.as_ptr(),
+            brho.data.as_ptr(),
+            brho.value_is_log as i32,
+            ip.as_ptr(),
+            ip.len() as i32,
+            ilp,
+            itx.as_ptr(),
+            itx.len() as i32,
+            ilh,
+            iz.as_ptr(),
+            iz.len() as i32,
+            ilz,
+            istr.as_ptr(),
+            dly.data.as_ptr(),
+            dly.value_is_log as i32,
+            uenv[0].0,
+            uenv[0].1,
+            uenv[1].0,
+            uenv[1].1,
+            benv[0].0,
+            benv[0].1,
+            benv[1].0,
+            benv[1].1,
+            h_off,
+            p_floor,
+            tu_floor,
+            x.as_mut_ptr(),
+            r.as_mut_ptr(),
         )
     };
 
@@ -191,7 +306,9 @@ fn main() {
     let mut n_parked = 0usize;
     let mut seen_branch = [0usize; 3]; // final-state branch: unburnt / mid / burnt
     println!("S13c — CLASS-R implicit auto-ignition node solve on-device");
-    println!("  surfaces: unburnt v0.3.0 ⊕ burnt v0.4.0 + ignition v0.3.0; {n} cells; τ(design) = {tau0:.3e} s");
+    println!(
+        "  surfaces: unburnt v0.3.0 ⊕ burnt v0.4.0 + ignition v0.3.0; {n} cells; τ(design) = {tau0:.3e} s"
+    );
     for &ratio in &W_OVER_TAU {
         let w_new = ratio * tau0;
         let mut gx = vec![0.0f64; n];
@@ -225,7 +342,9 @@ fn main() {
                 assert!(
                     gx[i] == cap,
                     "cell {i} ({}) w/τ={ratio:.1e}: CPU parked at cap, GPU x = {:.17e} vs cap {:.17e}",
-                    tags[i], gx[i], cap
+                    tags[i],
+                    gx[i],
+                    cap
                 );
             }
             let sx = cx.abs().max(gx[i].abs());
@@ -257,19 +376,34 @@ fn main() {
         "  final-state branch coverage: pure-unburnt {}, mid-b {}, pure-burnt {}",
         seen_branch[0], seen_branch[1], seen_branch[2]
     );
-    println!("  worst rel diff ρb = {worst_rel_x:.3e}, rate = {worst_rel_r:.3e}   (declared ECT {ECT:.0e})");
+    println!(
+        "  worst rel diff ρb = {worst_rel_x:.3e}, rate = {worst_rel_r:.3e}   (declared ECT {ECT:.0e})"
+    );
     println!(
         "  GPU same-build rerun: {}",
-        if bit_identical { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if bit_identical {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
     assert!(n_cmp >= 6 * 16, "too few valid comparisons: {n_cmp}");
     assert!(
         seen_branch[1] > 0 && seen_branch[2] > 0,
         "fixture must exercise BOTH the mid-b and the parked pure-burnt regimes"
     );
-    assert!(n_parked > 0, "fixture never parks — the stiff regime is not exercised");
-    assert!(worst_rel_x < ECT, "CPU↔GPU class-R ρb diverged beyond ECT: {worst_rel_x:.3e}");
-    assert!(worst_rel_r < ECT, "CPU↔GPU class-R rate diverged beyond ECT: {worst_rel_r:.3e}");
+    assert!(
+        n_parked > 0,
+        "fixture never parks — the stiff regime is not exercised"
+    );
+    assert!(
+        worst_rel_x < ECT,
+        "CPU↔GPU class-R ρb diverged beyond ECT: {worst_rel_x:.3e}"
+    );
+    assert!(
+        worst_rel_r < ECT,
+        "CPU↔GPU class-R rate diverged beyond ECT: {worst_rel_r:.3e}"
+    );
     assert!(bit_identical, "GPU class-R rerun not deterministic");
     println!("ALL PASS");
 }

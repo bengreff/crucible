@@ -125,7 +125,10 @@ fn main() {
     let mut all_bit_identical = true;
 
     println!("S13b — class-D per-component CG residency (grid {n_r}×{n_z}, N_θ=1 box, wq={wq})");
-    println!("  {:>3}  {:>6} {:>6}   {:>11}   {:>11}   {:>10}/{:>10}   {:>9}", "cmp", "cpu_it", "gpu_it", "cpu_resid", "gpu_resid", "x_rel", "d_rel", "rerun");
+    println!(
+        "  {:>3}  {:>6} {:>6}   {:>11}   {:>11}   {:>10}/{:>10}   {:>9}",
+        "cmp", "cpu_it", "gpu_it", "cpu_resid", "gpu_resid", "x_rel", "d_rel", "rerun"
+    );
 
     for comp in 0..5usize {
         let d = op.xcheck_cg_dense(&g, comp, &tr, rho_of, b_of, x0_of, wq);
@@ -137,13 +140,31 @@ fn main() {
         let (mut gi, mut gr) = (0i32, 0.0f64);
         let fail = unsafe {
             gpu_class_d_cg(
-                xg.as_mut_ptr(), d.b.as_ptr(), d.rho.as_ptr(), d.cv.as_ptr(),
-                d.mu.as_ptr(), d.k.as_ptr(), d.rhod.as_ptr(), d.gas.as_ptr(),
-                comp as i32, d.n_r as i32, d.n_z as i32, r_min, dr, dz,
-                wq, d.iters as i32, &mut gi, &mut gr,
+                xg.as_mut_ptr(),
+                d.b.as_ptr(),
+                d.rho.as_ptr(),
+                d.cv.as_ptr(),
+                d.mu.as_ptr(),
+                d.k.as_ptr(),
+                d.rhod.as_ptr(),
+                d.gas.as_ptr(),
+                comp as i32,
+                d.n_r as i32,
+                d.n_z as i32,
+                r_min,
+                dr,
+                dz,
+                wq,
+                d.iters as i32,
+                &mut gi,
+                &mut gr,
             )
         };
-        assert_eq!(fail, 0, "GPU CG ({}) missed EPS acceptance", comp_names[comp]);
+        assert_eq!(
+            fail, 0,
+            "GPU CG ({}) missed EPS acceptance",
+            comp_names[comp]
+        );
 
         // GPU with its OWN data-dependent termination (sanity: should land at
         // the same iteration count / residual floor as the CPU, ±1).
@@ -151,10 +172,24 @@ fn main() {
         let (mut gi_own, mut gr_own) = (0i32, 0.0f64);
         unsafe {
             gpu_class_d_cg(
-                xg_own.as_mut_ptr(), d.b.as_ptr(), d.rho.as_ptr(), d.cv.as_ptr(),
-                d.mu.as_ptr(), d.k.as_ptr(), d.rhod.as_ptr(), d.gas.as_ptr(),
-                comp as i32, d.n_r as i32, d.n_z as i32, r_min, dr, dz,
-                wq, -1, &mut gi_own, &mut gr_own,
+                xg_own.as_mut_ptr(),
+                d.b.as_ptr(),
+                d.rho.as_ptr(),
+                d.cv.as_ptr(),
+                d.mu.as_ptr(),
+                d.k.as_ptr(),
+                d.rhod.as_ptr(),
+                d.gas.as_ptr(),
+                comp as i32,
+                d.n_r as i32,
+                d.n_z as i32,
+                r_min,
+                dr,
+                dz,
+                wq,
+                -1,
+                &mut gi_own,
+                &mut gr_own,
             );
         }
 
@@ -163,10 +198,24 @@ fn main() {
         let (mut gi2, mut gr2) = (0i32, 0.0f64);
         unsafe {
             gpu_class_d_cg(
-                xg2.as_mut_ptr(), d.b.as_ptr(), d.rho.as_ptr(), d.cv.as_ptr(),
-                d.mu.as_ptr(), d.k.as_ptr(), d.rhod.as_ptr(), d.gas.as_ptr(),
-                comp as i32, d.n_r as i32, d.n_z as i32, r_min, dr, dz,
-                wq, d.iters as i32, &mut gi2, &mut gr2,
+                xg2.as_mut_ptr(),
+                d.b.as_ptr(),
+                d.rho.as_ptr(),
+                d.cv.as_ptr(),
+                d.mu.as_ptr(),
+                d.k.as_ptr(),
+                d.rhod.as_ptr(),
+                d.gas.as_ptr(),
+                comp as i32,
+                d.n_r as i32,
+                d.n_z as i32,
+                r_min,
+                dr,
+                dz,
+                wq,
+                d.iters as i32,
+                &mut gi2,
+                &mut gr2,
             );
         }
         let bit_identical = xg == xg2;
@@ -196,8 +245,18 @@ fn main() {
 
         println!(
             "  {:>3}  {:>6} {:>6}   {:>11.3e}   {:>11.3e}   {:>10.3e}/{:>10.3e}   {:>9}",
-            comp_names[comp], d.iters, gi_own, d.resid, gr_own, worst_rel, worst_delta_rel,
-            if bit_identical { "BIT-IDENT" } else { "*DIFFERS*" }
+            comp_names[comp],
+            d.iters,
+            gi_own,
+            d.resid,
+            gr_own,
+            worst_rel,
+            worst_delta_rel,
+            if bit_identical {
+                "BIT-IDENT"
+            } else {
+                "*DIFFERS*"
+            }
         );
 
         assert!(
@@ -205,13 +264,21 @@ fn main() {
             "CPU↔GPU class-D CG ({}) diverged beyond ECT {ECT_SOLVE:.0e}: x {worst_rel:.3e}, δ {worst_delta_rel:.3e}",
             comp_names[comp]
         );
-        assert!(bit_identical, "GPU CG ({}) rerun not deterministic", comp_names[comp]);
+        assert!(
+            bit_identical,
+            "GPU CG ({}) rerun not deterministic",
+            comp_names[comp]
+        );
     }
 
     println!("  overall worst rel = {overall_worst:.3e}   (declared ECT {ECT_SOLVE:.0e})");
     println!(
         "  GPU same-build reruns: {}",
-        if all_bit_identical { "ALL BIT-IDENTICAL" } else { "*** SOME DIFFER ***" }
+        if all_bit_identical {
+            "ALL BIT-IDENTICAL"
+        } else {
+            "*** SOME DIFFER ***"
+        }
     );
     assert!(overall_worst < ECT_SOLVE);
     assert!(all_bit_identical);

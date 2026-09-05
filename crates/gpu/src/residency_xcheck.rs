@@ -18,9 +18,7 @@
 //! real interior data, so the BC / reflux / axis machinery (S13b) is out of
 //! the compared set.
 use crucible_grid::{Grid, GridSpec};
-use crucible_solvers::euler::{
-    EULER_FIELDS, Euler, EulerFields, FlowBc, FlowBcs, GammaLaw, NCOMP,
-};
+use crucible_solvers::euler::{EULER_FIELDS, Euler, EulerFields, FlowBc, FlowBcs, GammaLaw, NCOMP};
 use crucible_solvers::sdc::{FlowClass, Sdc};
 
 const NGH: usize = 3;
@@ -217,7 +215,11 @@ fn main() {
     println!("  worst rel diff = {worst_rel:.3e}   (declared ECT {ECT:.0e})");
     println!(
         "  GPU same-build rerun: {}",
-        if bit_identical { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if bit_identical {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
     assert!(worst_rel < ECT, "CPU↔GPU class-A RHS diverged beyond ECT");
     assert!(bit_identical, "GPU rerun not deterministic");
@@ -235,19 +237,43 @@ fn main() {
     let cpu_dt = op.stable_dt(&g, &f, cfl).expect("cpu stable_dt");
     let mut sdt_bad = 0i32;
     let gpu_dt = unsafe {
-        gpu_stable_dt(cons.as_ptr(), n_r as i32, n_z as i32, dr, dz, GAMMA, cfl, &mut sdt_bad)
+        gpu_stable_dt(
+            cons.as_ptr(),
+            n_r as i32,
+            n_z as i32,
+            dr,
+            dz,
+            GAMMA,
+            cfl,
+            &mut sdt_bad,
+        )
     };
     assert_eq!(sdt_bad, 0, "GPU stable_dt flagged a non-physical cell");
     let mut sdt_bad2 = 0i32;
     let gpu_dt2 = unsafe {
-        gpu_stable_dt(cons.as_ptr(), n_r as i32, n_z as i32, dr, dz, GAMMA, cfl, &mut sdt_bad2)
+        gpu_stable_dt(
+            cons.as_ptr(),
+            n_r as i32,
+            n_z as i32,
+            dr,
+            dz,
+            GAMMA,
+            cfl,
+            &mut sdt_bad2,
+        )
     };
     let sdt_rel = (cpu_dt - gpu_dt).abs() / cpu_dt.abs().max(gpu_dt.abs());
     println!("PHASE 1b — stable_dt (CFL clock), cfl={cfl}");
-    println!("  cpu Δt = {cpu_dt:.9e}   gpu Δt = {gpu_dt:.9e}   rel = {sdt_rel:.3e}   (ECT {ECT:.0e})");
+    println!(
+        "  cpu Δt = {cpu_dt:.9e}   gpu Δt = {gpu_dt:.9e}   rel = {sdt_rel:.3e}   (ECT {ECT:.0e})"
+    );
     println!(
         "  GPU same-build rerun: {}",
-        if gpu_dt == gpu_dt2 { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if gpu_dt == gpu_dt2 {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
     assert!(sdt_rel < ECT, "CPU↔GPU stable_dt diverged beyond ECT");
     assert!(gpu_dt == gpu_dt2, "GPU stable_dt rerun not deterministic");
@@ -266,7 +292,10 @@ fn main() {
 
     // CPU reference march (mutates g to the final state).
     let mut sdc = Sdc::new();
-    let flow = FlowClass { op: &op, fields: &f };
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
     let mut t = 0.0;
     for _ in 0..m {
         sdc.step_flow(&mut g, &flow, t, dt).expect("cpu step_flow");
@@ -286,7 +315,15 @@ fn main() {
     let bad = unsafe {
         gpu_class_a_march(
             gpu_final.as_mut_ptr(),
-            n_r as i32, n_z as i32, r_min, dr, z_min, dz, GAMMA, dt, m,
+            n_r as i32,
+            n_z as i32,
+            r_min,
+            dr,
+            z_min,
+            dz,
+            GAMMA,
+            dt,
+            m,
         )
     };
     assert_eq!(bad, 0, "GPU march flagged a non-physical cell");
@@ -324,33 +361,82 @@ fn main() {
     // uninterrupted march BIT-IDENTICALLY on the same device/build.
     let mut split = cons0.clone();
     unsafe {
-        gpu_class_a_march(split.as_mut_ptr(), n_r as i32, n_z as i32, r_min, dr, z_min, dz, GAMMA, dt, 2);
-        gpu_class_a_march(split.as_mut_ptr(), n_r as i32, n_z as i32, r_min, dr, z_min, dz, GAMMA, dt, 3);
+        gpu_class_a_march(
+            split.as_mut_ptr(),
+            n_r as i32,
+            n_z as i32,
+            r_min,
+            dr,
+            z_min,
+            dz,
+            GAMMA,
+            dt,
+            2,
+        );
+        gpu_class_a_march(
+            split.as_mut_ptr(),
+            n_r as i32,
+            n_z as i32,
+            r_min,
+            dr,
+            z_min,
+            dz,
+            GAMMA,
+            dt,
+            3,
+        );
     }
     let checkpoint_bit_identical = split == gpu_final;
 
     // Same-build resident-march rerun determinism.
     let mut gpu_final2 = cons0.clone();
     unsafe {
-        gpu_class_a_march(gpu_final2.as_mut_ptr(), n_r as i32, n_z as i32, r_min, dr, z_min, dz, GAMMA, dt, m);
+        gpu_class_a_march(
+            gpu_final2.as_mut_ptr(),
+            n_r as i32,
+            n_z as i32,
+            r_min,
+            dr,
+            z_min,
+            dz,
+            GAMMA,
+            dt,
+            m,
+        );
     }
     let march_bit_identical = gpu_final == gpu_final2;
 
     println!("PHASE 2 — resident marched SDC step ({m} steps, dt={dt}) + FND-6 checkpoint");
     println!("  compared cells ≥ {margin} from every edge, {m_cmp} scalar comparisons");
     println!("  worst abs diff = {mworst_abs:.3e}");
-    println!("  worst rel diff = {mworst_rel:.3e}   (ECT does not grow: phase-1 was {worst_rel:.3e})");
+    println!(
+        "  worst rel diff = {mworst_rel:.3e}   (ECT does not grow: phase-1 was {worst_rel:.3e})"
+    );
     println!(
         "  GPU resident-march rerun: {}",
-        if march_bit_identical { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if march_bit_identical {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
     println!(
         "  checkpoint march(2)+march(3) == march(5): {}",
-        if checkpoint_bit_identical { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if checkpoint_bit_identical {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
-    assert!(mworst_rel < 1e-8, "marched CPU↔GPU diverged beyond FMA-order band");
+    assert!(
+        mworst_rel < 1e-8,
+        "marched CPU↔GPU diverged beyond FMA-order band"
+    );
     assert!(march_bit_identical, "GPU resident march not deterministic");
-    assert!(checkpoint_bit_identical, "checkpoint/restart not bit-faithful");
+    assert!(
+        checkpoint_bit_identical,
+        "checkpoint/restart not bit-faithful"
+    );
     println!("  PHASE 2 PASS");
 
     // ================================================================
@@ -377,15 +463,30 @@ fn main() {
     }
     let iters = 300i32;
     let ms = unsafe {
-        gpu_class_a_bench(bcons.as_ptr(), bn_r as i32, bn_z as i32, r_min, bdr, 0.0, bdz, GAMMA, iters)
+        gpu_class_a_bench(
+            bcons.as_ptr(),
+            bn_r as i32,
+            bn_z as i32,
+            r_min,
+            bdr,
+            0.0,
+            bdz,
+            GAMMA,
+            iters,
+        )
     };
     let evals = iters as f64 * bncell as f64;
     let cell_rhs_per_s = evals / (ms / 1000.0);
     // Each RHS eval = r-sweep + z-sweep + sources ≈ 2 sweep passes; the S12
     // spike quoted a single-sweep number (~1e8 cups), so the comparable
     // per-sweep rate is ~2× cell_rhs_per_s.
-    println!("PHASE 3 — staged class-A rate throughput ({bn_r}×{bn_z} = {bncell} cells, {iters} evals)");
-    println!("  {ms:.2} ms total → {:.3e} cell-RHS/s (≈ {:.3e} cell-updates/s per-sweep-equiv)",
-        cell_rhs_per_s, 2.0 * cell_rhs_per_s);
+    println!(
+        "PHASE 3 — staged class-A rate throughput ({bn_r}×{bn_z} = {bncell} cells, {iters} evals)"
+    );
+    println!(
+        "  {ms:.2} ms total → {:.3e} cell-RHS/s (≈ {:.3e} cell-updates/s per-sweep-equiv)",
+        cell_rhs_per_s,
+        2.0 * cell_rhs_per_s
+    );
     println!("ALL PASS");
 }

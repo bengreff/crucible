@@ -19,9 +19,14 @@
 use crucible_solvers::euler::{TableEos, TableEosMarshal};
 use crucible_tables::{Pin, Table};
 
-const FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tables/chem/lox_lh2_v0.4.0.h5");
-const PINS_TOML: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../tables/chem/lox_lh2_v0.4.0.pins.toml"));
+const FILE: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tables/chem/lox_lh2_v0.4.0.h5"
+);
+const PINS_TOML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tables/chem/lox_lh2_v0.4.0.pins.toml"
+));
 const GROUP: &str = "/chem/lox_lh2/equilibrium";
 /// FMA + libm(ln/exp) ECT for the projection (a fixed 8-corner interp + a
 /// deterministic root-find; the interp reduction order is identical CPU↔GPU,
@@ -31,13 +36,35 @@ const ECT: f64 = 1e-9;
 unsafe extern "C" {
     #[allow(clippy::too_many_arguments)]
     fn gpu_table_project(
-        rho: *const f64, e_q: *const f64, z: *const f64, hint: *const f64, n: i32,
-        pp: *const f64, np: i32, lp: i32, hp: *const f64, nh: i32, lh: i32,
-        zp: *const f64, nz: i32, lz: i32, strides: *const i32,
-        rho_data: *const f64, rho_vlog: i32, snd_data: *const f64, snd_vlog: i32,
-        tmp_data: *const f64, tmp_vlog: i32,
-        p_lo: f64, p_hi: f64, h_lo: f64, h_hi: f64,
-        p_out: *mut f64, a_out: *mut f64, t_out: *mut f64, g1_out: *mut f64,
+        rho: *const f64,
+        e_q: *const f64,
+        z: *const f64,
+        hint: *const f64,
+        n: i32,
+        pp: *const f64,
+        np: i32,
+        lp: i32,
+        hp: *const f64,
+        nh: i32,
+        lh: i32,
+        zp: *const f64,
+        nz: i32,
+        lz: i32,
+        strides: *const i32,
+        rho_data: *const f64,
+        rho_vlog: i32,
+        snd_data: *const f64,
+        snd_vlog: i32,
+        tmp_data: *const f64,
+        tmp_vlog: i32,
+        p_lo: f64,
+        p_hi: f64,
+        h_lo: f64,
+        h_hi: f64,
+        p_out: *mut f64,
+        a_out: *mut f64,
+        t_out: *mut f64,
+        g1_out: *mut f64,
     );
 }
 
@@ -79,10 +106,17 @@ fn main() {
             cnt.min(pts.len() - 1).max(1) - 1
         };
         let frac = |pts: &[f64], i: usize, is_log: bool, q: f64| -> f64 {
-            if is_log { (q.ln() - pts[i].ln()) / (pts[i + 1].ln() - pts[i].ln()) }
-            else { (q - pts[i]) / (pts[i + 1] - pts[i]) }
+            if is_log {
+                (q.ln() - pts[i].ln()) / (pts[i + 1].ln() - pts[i].ln())
+            } else {
+                (q - pts[i]) / (pts[i + 1] - pts[i])
+            }
         };
-        let (pp, hp, zp) = (&col.axis_points[0], &col.axis_points[1], &col.axis_points[2]);
+        let (pp, hp, zp) = (
+            &col.axis_points[0],
+            &col.axis_points[1],
+            &col.axis_points[2],
+        );
         let (ip, ih, iz) = (find(pp, qp), find(hp, qh), find(zp, qz));
         let cell = [ip, ih, iz];
         let tt = [
@@ -99,7 +133,11 @@ fn main() {
                 w *= if up { tt[d] } else { 1.0 - tt[d] };
                 idx += (cell[d] + usize::from(up)) * col.strides[d];
             }
-            let v = if col.value_is_log { col.data[idx].ln() } else { col.data[idx] };
+            let v = if col.value_is_log {
+                col.data[idx].ln()
+            } else {
+                col.data[idx]
+            };
             acc += w * v;
         }
         if col.value_is_log { acc.exp() } else { acc }
@@ -144,15 +182,35 @@ fn main() {
     let mut gg1 = vec![0.0f64; n];
     let run = |gp: &mut [f64], ga: &mut [f64], gt: &mut [f64], gg1: &mut [f64]| unsafe {
         gpu_table_project(
-            rho.as_ptr(), e_q.as_ptr(), z.as_ptr(), hint.as_ptr(), n as i32,
-            pp.as_ptr(), pp.len() as i32, rho_col.axis_is_log[0] as i32,
-            hp.as_ptr(), hp.len() as i32, rho_col.axis_is_log[1] as i32,
-            zp.as_ptr(), zp.len() as i32, rho_col.axis_is_log[2] as i32, strides.as_ptr(),
-            m.rho.data.as_ptr(), m.rho.value_is_log as i32,
-            m.sound.data.as_ptr(), m.sound.value_is_log as i32,
-            m.temperature.data.as_ptr(), m.temperature.value_is_log as i32,
-            pe.0, pe.1, he.0, he.1,
-            gp.as_mut_ptr(), ga.as_mut_ptr(), gt.as_mut_ptr(), gg1.as_mut_ptr(),
+            rho.as_ptr(),
+            e_q.as_ptr(),
+            z.as_ptr(),
+            hint.as_ptr(),
+            n as i32,
+            pp.as_ptr(),
+            pp.len() as i32,
+            rho_col.axis_is_log[0] as i32,
+            hp.as_ptr(),
+            hp.len() as i32,
+            rho_col.axis_is_log[1] as i32,
+            zp.as_ptr(),
+            zp.len() as i32,
+            rho_col.axis_is_log[2] as i32,
+            strides.as_ptr(),
+            m.rho.data.as_ptr(),
+            m.rho.value_is_log as i32,
+            m.sound.data.as_ptr(),
+            m.sound.value_is_log as i32,
+            m.temperature.data.as_ptr(),
+            m.temperature.value_is_log as i32,
+            pe.0,
+            pe.1,
+            he.0,
+            he.1,
+            gp.as_mut_ptr(),
+            ga.as_mut_ptr(),
+            gt.as_mut_ptr(),
+            gg1.as_mut_ptr(),
         )
     };
     run(&mut gp, &mut ga, &mut gt, &mut gg1);
@@ -166,7 +224,10 @@ fn main() {
         [("p", &cp, &gp), ("sound", &ca, &ga), ("temp", &ct, &gt)];
     println!("S13c — REAL TableEos (p,h,Z) projection on-device ({n} on-surface states)");
     println!("  surface: lox_lh2_v0.4.0 (station-5 / ◆C3 equilibrium)");
-    println!("  {:>6}   {:>11}   {:>11}", "field", "worst_abs", "worst_rel");
+    println!(
+        "  {:>6}   {:>11}   {:>11}",
+        "field", "worst_abs", "worst_rel"
+    );
     let mut overall = 0.0f64;
     let mut recovered = 0.0f64;
     for (name, c, gcol) in cols {
@@ -194,9 +255,16 @@ fn main() {
     println!("  GPU vs CPU-recovered p       = {recovered:.3e}");
     println!(
         "  GPU same-build rerun: {}",
-        if bit_identical { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if bit_identical {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
-    assert!(overall < ECT, "CPU↔GPU TableEos projection diverged beyond ECT: {overall:.3e}");
+    assert!(
+        overall < ECT,
+        "CPU↔GPU TableEos projection diverged beyond ECT: {overall:.3e}"
+    );
     assert!(bit_identical, "GPU projection rerun not deterministic");
     println!("ALL PASS");
 }

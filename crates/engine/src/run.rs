@@ -1712,7 +1712,8 @@ fn max_solid(g: &Grid, f: crucible_grid::FieldId) -> f64 {
 /// One row per active/solid cell: the viz feed (Ben's post-checkpoint
 /// dataviz goal rides this surface; keep it boring and complete). T comes
 /// from the equilibrium surface at each cell's projected state.
-fn fields_csv(
+#[doc(hidden)]
+pub fn fields_csv(
     g: &Grid,
     f: &EulerFields,
     eos: &ChemEos<'_>,

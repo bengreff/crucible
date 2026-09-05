@@ -17,7 +17,7 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-09-04 — session 28 = plan S13c IN PROGRESS (8 residency legs validated; every physics piece resident, the composition remains); chemical sandbox at S13c/20, Phase 4)
+## State (2026-09-05 — session 28 = plan S13c CLOSED (the composed full-physics 3-D resident engine step validated) + S14 harness built + ◆C4 launched; chemical sandbox at S14/20, Phase 4)
 
 **This section is current state only.** Per-session build history (measured deltas, findings,
 review waves) lives in `SESSION_LOG.md`; the by-area capability detail is under "What exists" below;
@@ -113,6 +113,23 @@ Also: the S27 blend kernel's bracket margin corrected 1e-12 → 1e-9 (blend_eos.
 igniter + inflow/outflow ghosts + `stable_dt`'s front-carrier + the ledger/reacting-measure reductions into the
 3-D resident march, then cross-check on `rl10_startup_3d`'s own march. Walls stay off the ◆C3-parity path.
 
+**Session 28 (cont.) CLOSED S13c and built the S14 harness:** **(9) the COMPOSED full-physics 3-D resident
+ENGINE step** (`crates/gpu/cuda/residency_engine.cu` + `crates/gpu/src/engine_host.rs`, the crate's lib half) —
+one device-resident SDC step behind a persistent handle: blend EOS with resident warm-start hints + general-EOS
+HLLC + injector inflow / pressure-outflow ghosts + igniter deposit + combustion source + stagewise SRD + class-R
+per composition + the COUP-2 ledger/stored-total reductions + front-carrier `stable_dt`; the audit CHECK runs
+host-side through the CPU's own `Sdc` arithmetic. Validated vs the CPU `Sdc::step` on the REAL
+`rl10_startup_3d` assembly pre-marched to 3 ms (reacting): prims 8.5×10⁻¹², RHS 9.5×10⁻⁹ component-scaled
+(**declared composed-step ECT 1e-7** — the projection tolerance × the axis well-balance cancellation), **10
+audited coupled steps: state 5.2×10⁻¹¹, every step passes the CPU's COUP-2 identity**, rerun + checkpoint
+bit-identical. Throughput 0.137 s/step at 3 ms (~2× the 28-core CPU; the cold mid-b blend scan dominates —
+levers recorded: warm-started mid-b projection (SOLV-4 amendment), the S14 flux-buffer register work). **(10) the
+overnight harness `gpu_engine_run`** (S14): run schedule + audit every step + COUP-4 verdict probes through the
+engine's own probe functions + FND-6 §3.8 checkpoints (state + prim cache + clock/trackers + pinned-input
+digests, atomic, resume-with-verify; FND-6 0.5.1) + halt artifacts; 300 ▸ resume ▸ 600 == 600 byte-identical.
+**Box: `tmux` inside WSL is the long-job mechanism** (docs/gpu-box.md). **◆C4 launched** on the ◆C3 desktop
+spec — outcome in SESSION_LOG.
+
 **Doctrine (VISION_SCOPE v1.6 / plan ruling #14, 2026-08-27):** the **torch/ASI flame-holder object is
 DELETED** — flame-holding is **emergent** (resolved recirculation), the only start boundary-inputs are
 the **bounded spark + injected fuel**, so the startability verdict is not circular; **refinement is
@@ -124,9 +141,9 @@ deleted; findings live in doc change logs + git). Every session gates-green + co
 `scripts/check.sh` = the 5-gate battery (fmt, clippy, cargo test, offline pytest, certificate regen +
 diff); **253 Rust + 50 Python tests**. **Blind rule v1.4.1**: blind = mechanical input-blindness;
 every certificate declares `development-observed: yes/no`; the RL10 campaign is **open development**.
-**NEXT = plan S13c close (the COMPOSED full-physics 3-D resident step on `rl10_startup_3d` — every piece is
-resident; wiring + the inflow/outflow ghosts + the general-EOS HLLC + the reductions), then S14 (the flux-buffer
-register reduction — measured necessary on the 3-D kernels — + the overnight harness) and ◆C4.**
+**NEXT = S14 remainder (profiling-to-target: the warm-started mid-b projection (SOLV-4 amendment, doc-first) +
+the flux-buffer register reduction; the FND-6 bundle/manifest emission from the harness) → ◆C4's outcome
+recorded → S15 (two-phase; the Phase-5 standing rule: new physics lands with its GPU kernels).**
 
 **VISION_SCOPE v1.5 (Ben, 2026-08-19) — the session-13 rulings, all doc-amended:** accelerated
 convergence (pseudo-transient/local-Δt) is **DELETED** — every certified result is a **physical

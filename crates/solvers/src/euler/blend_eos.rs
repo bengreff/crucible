@@ -688,6 +688,25 @@ impl<'t> BurnBlendEos<'t> {
         )
     }
 
+    /// S13c GPU residency (doc-hidden, additive): both branches' full column
+    /// marshals (ρ, a, T + envelopes) and the blend's `h_offset` — everything
+    /// the resident engine's `prim_checked_hinted` port needs. Changes no
+    /// production number.
+    #[doc(hidden)]
+    pub fn xcheck_branches_marshal(
+        &self,
+    ) -> (
+        super::table_eos::TableEosMarshal,
+        super::table_eos::TableEosMarshal,
+        f64,
+    ) {
+        (
+            self.unburnt.xcheck_marshal(),
+            self.burnt.xcheck_marshal(),
+            self.h_offset,
+        )
+    }
+
     /// The UNION of the two branches' (p, h, Z) envelopes (the burnt
     /// h-window shifted by −`h_offset`) — the box this occupant may
     /// interrogate a co-keyed surface (the FND-7 spine) over. Distinct from

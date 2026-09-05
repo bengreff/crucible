@@ -83,7 +83,11 @@ unsafe extern "C" {
     fn gpu_class_a_rhs_3d(cons: *const f64, hw: *const HostWorld, rate: *mut f64) -> i32;
     fn gpu_srd_3d(cons: *mut f64, hw: *const HostWorld, hs: *const HostSrd);
     fn gpu_class_a_march_3d(
-        cons: *mut f64, hw: *const HostWorld, hs: *const HostSrd, dt: f64, nsteps: i32,
+        cons: *mut f64,
+        hw: *const HostWorld,
+        hs: *const HostSrd,
+        dt: f64,
+        nsteps: i32,
     ) -> i32;
     fn gpu_class_a_bench_3d(cons: *const f64, hw: *const HostWorld, iters: i32) -> f64;
     fn gpu_stable_dt_3d(cons: *const f64, hw: *const HostWorld, cfl: f64, bad: *mut i32) -> f64;
@@ -138,12 +142,18 @@ struct Tables {
 
 fn main() {
     // --- The geometry of record, revolved at N_θ = 8 (engine assembly's clip).
-    let path = format!("{}/../../data/anchors/rl10_contour.csv", env!("CARGO_MANIFEST_DIR"));
+    let path = format!(
+        "{}/../../data/anchors/rl10_contour.csv",
+        env!("CARGO_MANIFEST_DIR")
+    );
     let content = std::fs::read_to_string(&path).expect("contour of record");
     let stations = crucible_config::parse_contour_csv(&content, crucible_config::INCH_M)
         .expect("contour parses");
     let contour = Contour::new(stations.clone(), 0.0).expect("contour");
-    let r_throat = stations.iter().map(|&(_, r)| r).fold(f64::INFINITY, f64::min);
+    let r_throat = stations
+        .iter()
+        .map(|&(_, r)| r)
+        .fold(f64::INFINITY, f64::min);
     let r_max = stations.iter().map(|&(_, r)| r).fold(0.0f64, f64::max);
     let z_min = stations[0].0;
     let span = stations[stations.len() - 1].0 - z_min;
@@ -189,7 +199,10 @@ fn main() {
         EULER_FIELDS,
         |i_r, _j, i_z| {
             let (_, kappa, a) = geom_rz(i_r, i_z);
-            CellGeomTheta { kappa, aperture: [a[0], a[1], a[2], a[3], kappa, kappa] }
+            CellGeomTheta {
+                kappa,
+                aperture: [a[0], a[1], a[2], a[3], kappa, kappa],
+            }
         },
         |i_r, i_z| geom_rz(i_r, i_z).0,
     )
@@ -201,7 +214,9 @@ fn main() {
     let nt = N_THETA as usize;
     let nrz = n_r * n_z;
     let n = nt * nrz;
-    let n_active: usize = (0..nrz).filter(|&rz| g.is_active(rz / n_z, rz % n_z)).count();
+    let n_active: usize = (0..nrz)
+        .filter(|&rz| g.is_active(rz / n_z, rz % n_z))
+        .count();
     println!("S13c — class-A step on the REAL 3-D CUT GEOMETRY (◆C3 world) on-device");
     println!(
         "  RL10 contour of record, dial {DIAL}: {n_r}×{n_z} (r,z) × N_θ={nt} = {n} cells, \
@@ -309,7 +324,10 @@ fn main() {
             let (khi, nhi) = if start + len == n_r {
                 (bc_kind(&op.bcs.r_outer), (0.0, 0.0))
             } else {
-                (GK_WALL_SLIP, normal_fn(r_min + (start + len) as f64 * dr, z))
+                (
+                    GK_WALL_SLIP,
+                    normal_fn(r_min + (start + len) as f64 * dr, z),
+                )
             };
             for ii in start..start + len {
                 let rz = ii * n_z + i_z;
@@ -534,9 +552,22 @@ fn main() {
     println!("PHASE 1 — class-A RHS: r/θ/z sweeps + axis parity + wall ghosts + closure");
     let (w1, c1) = compare("rhs", &cpu_rate, &gpu_rate);
     let bit1 = gpu_rate == gpu_rate2;
-    println!("  GPU same-build rerun: {}", if bit1 { "BIT-IDENTICAL" } else { "*** DIFFERS ***" });
-    assert!(w1 < ECT, "CPU↔GPU 3-D class-A RHS diverged beyond ECT (component-scaled): {w1:.3e}");
-    assert!(c1 < CANCEL_BOUND, "per-cell rel {c1:.3e} beyond the cancellation-inflated bound");
+    println!(
+        "  GPU same-build rerun: {}",
+        if bit1 {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
+    );
+    assert!(
+        w1 < ECT,
+        "CPU↔GPU 3-D class-A RHS diverged beyond ECT (component-scaled): {w1:.3e}"
+    );
+    assert!(
+        c1 < CANCEL_BOUND,
+        "per-cell rel {c1:.3e} beyond the cancellation-inflated bound"
+    );
     assert!(bit1, "GPU rerun not deterministic");
     println!("  PHASE 1 PASS");
 
@@ -544,7 +575,9 @@ fn main() {
     // PHASE 1b — stable_dt with the θ-arc member (the 3-D CFL clock).
     // ================================================================
     let cfl = 0.4;
-    let cpu_dt = op.stable_dt(&g, &f, cfl).expect("cpu stable_dt (θ-CFL live)");
+    let cpu_dt = op
+        .stable_dt(&g, &f, cfl)
+        .expect("cpu stable_dt (θ-CFL live)");
     let mut sb = 0i32;
     let gpu_dt = unsafe { gpu_stable_dt_3d(cons0.as_ptr(), &hw, cfl, &mut sb) };
     assert_eq!(sb, 0, "GPU stable_dt flagged a non-physical cell");
@@ -555,7 +588,11 @@ fn main() {
     println!("  cpu Δt = {cpu_dt:.9e}   gpu Δt = {gpu_dt:.9e}   rel = {sdt_rel:.3e}");
     println!(
         "  GPU same-build rerun: {}",
-        if gpu_dt == gpu_dt2 { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if gpu_dt == gpu_dt2 {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
     assert!(sdt_rel < ECT, "CPU↔GPU 3-D stable_dt diverged beyond ECT");
     assert!(gpu_dt == gpu_dt2, "GPU stable_dt rerun not deterministic");
@@ -578,10 +615,23 @@ fn main() {
     println!("PHASE 2 — State Redistribution pass ({moved} scalars moved on the CPU)");
     let (w2, c2) = compare("srd", &cpu_srd, &gpu_srd);
     let bit2 = gpu_srd == gpu_srd2;
-    println!("  GPU same-build rerun: {}", if bit2 { "BIT-IDENTICAL" } else { "*** DIFFERS ***" });
-    assert!(moved > 0, "SRD pass moved nothing — the fixture is not exercising small cells");
+    println!(
+        "  GPU same-build rerun: {}",
+        if bit2 {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
+    );
+    assert!(
+        moved > 0,
+        "SRD pass moved nothing — the fixture is not exercising small cells"
+    );
     assert!(w2 < ECT, "CPU↔GPU SRD diverged beyond ECT: {w2:.3e}");
-    assert!(c2 < CANCEL_BOUND, "SRD per-cell rel {c2:.3e} beyond the cancellation-inflated bound");
+    assert!(
+        c2 < CANCEL_BOUND,
+        "SRD per-cell rel {c2:.3e} beyond the cancellation-inflated bound"
+    );
     assert!(bit2, "GPU SRD rerun not deterministic");
     println!("  PHASE 2 PASS");
 
@@ -589,9 +639,14 @@ fn main() {
     // PHASE 3 — the resident marched SDC step with stagewise SRD.
     // ================================================================
     let m = 5i32;
-    let dt = op.stable_dt(&g, &f, 0.4).expect("cpu stable_dt (θ-CFL live)");
+    let dt = op
+        .stable_dt(&g, &f, 0.4)
+        .expect("cpu stable_dt (θ-CFL live)");
     let mut sdc = Sdc::new();
-    let flow = FlowClass { op: &op, fields: &f };
+    let flow = FlowClass {
+        op: &op,
+        fields: &f,
+    };
     let mut tt = 0.0;
     for _ in 0..m {
         sdc.step_flow(&mut g, &flow, tt, dt).expect("cpu step_flow");
@@ -612,13 +667,30 @@ fn main() {
     let (w3, c3) = compare("march", &cpu_final, &gpu_final);
     let bit3 = gpu_final == gpu_final2;
     let ck3 = split == gpu_final;
-    println!("  GPU resident-march rerun: {}", if bit3 { "BIT-IDENTICAL" } else { "*** DIFFERS ***" });
+    println!(
+        "  GPU resident-march rerun: {}",
+        if bit3 {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
+    );
     println!(
         "  checkpoint march(2)+march(3) == march(5): {}",
-        if ck3 { "BIT-IDENTICAL" } else { "*** DIFFERS ***" }
+        if ck3 {
+            "BIT-IDENTICAL"
+        } else {
+            "*** DIFFERS ***"
+        }
     );
-    assert!(w3 < 1e-8, "marched CPU↔GPU diverged beyond the FMA-order band: {w3:.3e}");
-    assert!(c3 < CANCEL_BOUND, "march per-cell rel {c3:.3e} beyond the cancellation-inflated bound");
+    assert!(
+        w3 < 1e-8,
+        "marched CPU↔GPU diverged beyond the FMA-order band: {w3:.3e}"
+    );
+    assert!(
+        c3 < CANCEL_BOUND,
+        "march per-cell rel {c3:.3e} beyond the cancellation-inflated bound"
+    );
     assert!(bit3, "GPU resident march not deterministic");
     assert!(ck3, "checkpoint/restart not bit-faithful");
     println!("  PHASE 3 PASS");
@@ -629,7 +701,10 @@ fn main() {
     let iters = 200i32;
     let ms = unsafe { gpu_class_a_bench_3d(cons0.as_ptr(), &hw, iters) };
     let evals = iters as f64 * (n_active * nt) as f64;
-    println!("PHASE 4 — 3-D class-A rate throughput ({} active cells, {iters} evals)", n_active * nt);
+    println!(
+        "PHASE 4 — 3-D class-A rate throughput ({} active cells, {iters} evals)",
+        n_active * nt
+    );
     println!(
         "  {ms:.2} ms total → {:.3e} cell-RHS/s (3 sweeps + sources per eval)",
         evals / (ms / 1000.0)
