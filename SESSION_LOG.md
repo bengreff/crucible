@@ -2220,3 +2220,19 @@ the committed artifacts in `certificates/` are the living record.
   profile hooks (`CRUCIBLE_GPU_PROFILE=1`, cudaEvent pairs, dumped at destroy) and a `CRUCIBLE_NVCC_FMAD=0`
   build switch (IEEE per-operation arithmetic, no contraction — the cross-device-ECT experiment) for the
   post-◆C4 profiling session.
+  **◆C4 IN FLIGHT (2026-09-05, the closing note as of this commit):** launched 13:04 box time under tmux
+  (`~/run_gpu.sh` → `~/gpu_run.log`, artifacts `runs/rl10-startup-3d-gpu/` on the box: `checkpoint.bin` every
+  2000 steps, `progress.csv` every 200). The GPU trajectory tracks the CPU pre-march to the printed digits
+  (R = 2.13×10⁻⁹ at step 1000 on both). Timeline so far: the cold fill at 0.02 s/step; the injector ramp
+  (11.2 ms) brings ṁ_exit to the design 16.9 kg/s by ~17 ms with p_c ~0.8 MPa and R ~5×10⁻⁷ (the ◆C3
+  "doesn't fully light" regime); then at **~23–25 ms the chamber LIGHTS**: R 5.9×10⁻⁷ → 2.1×10⁻⁴ (23 ms) →
+  **5.97×10⁻² kg/s at 25.0 ms** — above the COUP-4 ignition floor 1.7×10⁻³ (the `ignited` tracker latches;
+  FLAMEOUT is now armed), p_c 0.95 MPa and rising, ṁ_exit 17.8 kg/s, and **dt collapsed 9.3×10⁻⁷ →
+  2.6×10⁻⁷ s** (the burn's front-carrier σ_front + the hot sound speed) — the remaining 59 ms is ~230 k steps
+  at ~0.146 s/step ≈ 9 h: the genuine overnight. The COUP-2 audit passes every step (a violation would have
+  halted). Box contention removed mid-run (Chrome + Roblox closed at Ben's request; GPU memory 2.3 → 1.3 GB;
+  the engine itself holds ~50 MB). **Resume if interrupted:** `cd ~/inquiry-project/crates/gpu &&
+  ./target/release/gpu_engine_run configs/rl10_startup_3d.toml --out runs/rl10-startup-3d-gpu
+  --checkpoint-every 2000 --resume runs/rl10-startup-3d-gpu/checkpoint.bin` (under tmux; the digests are
+  verified; the continuation is byte-identical). The outcome (WORKS / FAILED_TO_REACH / FLAMEOUT + the SOLV-7
+  readout) lands in `verdict.txt` / `readout.txt` — recorded in the next entry.

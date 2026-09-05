@@ -128,7 +128,11 @@ overnight harness `gpu_engine_run`** (S14): run schedule + audit every step + CO
 engine's own probe functions + FND-6 §3.8 checkpoints (state + prim cache + clock/trackers + pinned-input
 digests, atomic, resume-with-verify; FND-6 0.5.1) + halt artifacts; 300 ▸ resume ▸ 600 == 600 byte-identical.
 **Box: `tmux` inside WSL is the long-job mechanism** (docs/gpu-box.md). **◆C4 launched** on the ◆C3 desktop
-spec — outcome in SESSION_LOG.
+spec and **LIT at ~23–25 ms** (R 6×10⁻² kg/s ≫ the 1.7×10⁻³ floor; dt collapsed to 2.6×10⁻⁷ s → ~9 h to the
+84 ms horizon) — outcome in SESSION_LOG. Also landed: **SOLV-4 0.4.10 mid-`c` warm start** (the composed
+step's measured EOS lever; acceleration-only, 3.0×10⁻¹² vs cold) and the **S14 flux-buffer sweep path**
+(`k_face_rz` 88 regs from 230; ECT-class across paths, bit-identical within); their throughput is measured
+once the card is free.
 
 **Doctrine (VISION_SCOPE v1.6 / plan ruling #14, 2026-08-27):** the **torch/ASI flame-holder object is
 DELETED** — flame-holding is **emergent** (resolved recirculation), the only start boundary-inputs are
