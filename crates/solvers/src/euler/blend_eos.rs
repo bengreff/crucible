@@ -390,6 +390,45 @@ impl<'t> BurnBlendEos<'t> {
         // further root past the first crossing resolves by CONTINUITY
         // ([`scan_first_crossing`], SOLV-4 §3.6 v0.4.9) — the first
         // crossing from the cold end is the accepted branch, never a halt.
+        // Warm start (SOLV-4 0.4.10): under the SAME uniqueness precondition
+        // as `TableEos::project_pressure_hinted` — the full admissible
+        // bracket straddles (g effectively monotone) — run Illinois on the
+        // tight bracket about the hint (or on the full bracket if the tight
+        // one does not straddle) instead of the 64-node cold scan. The
+        // root-residual acceptance applies to the warm root exactly as to
+        // the cold one. A non-straddling full bracket falls through to the
+        // cold scan unchanged. An acceleration, never physics (META-1).
+        if let Some(ph) = hint
+            && ph.is_finite()
+            && ph > 0.0
+            && ga0 * gb0 < 0.0
+        {
+            let a = (ph / super::table_eos::HINT_SPREAD).max(lo);
+            let b = (ph * super::table_eos::HINT_SPREAD).min(hi);
+            if a < b {
+                let ga = g(a)?;
+                let gb = g(b)?;
+                let (p_root, g_root) = if ga == 0.0 {
+                    (a, 0.0)
+                } else if gb == 0.0 {
+                    (b, 0.0)
+                } else if ga * gb < 0.0 {
+                    let p_root = TableEos::illinois_root(a, b, ga, gb, &g)?;
+                    (p_root, g(p_root)?)
+                } else {
+                    let p_root = TableEos::illinois_root(lo, hi, ga0, gb0, &g)?;
+                    (p_root, g(p_root)?)
+                };
+                return match self.root_within_bound(p_root, g_root, rho, e, z, b)? {
+                    None | Some(true) => Ok(p_root),
+                    Some(false) => Err(
+                        "blend root fails the volume-weighted rule-space acceptance — \
+                         pseudo-root or a state beyond the declared interpolation error \
+                         (the blend's cold edge refuses here)",
+                    ),
+                };
+            }
+        }
         let ratio = hi / lo;
         let p_best = match scan_first_crossing(lo, hi, ga0, &g)? {
             PScan::ExactRoot(pk) => return Ok(pk),
@@ -781,11 +820,12 @@ impl EosLaw for BurnBlendEos<'_> {
         self.prim_checked_impl(u, None)
     }
 
-    /// Warm start (S7): the hint reaches the PURE-LIMIT delegated
-    /// projections (where `TableEos`'s root-uniqueness guard makes it a pure
-    /// acceleration); the mid-transition generalized projection ignores it —
-    /// front cells are a thin minority, so the pure limits are where the
-    /// march's cost lives.
+    /// Warm start: the hint reaches the PURE-LIMIT delegated projections
+    /// (S7) AND, since SOLV-4 0.4.10, the mid-transition projection — under
+    /// the same full-bracket-straddle uniqueness precondition, so it is a
+    /// pure acceleration everywhere (the S7 "front cells are a thin
+    /// minority" premise was measured false once class-R seeds sub-1e-4 `b`
+    /// across the whole hot region).
     fn prim_checked_hinted(&self, u: &Cons, hint: Option<f64>) -> Result<Prim, &'static str> {
         self.prim_checked_impl(u, hint)
     }

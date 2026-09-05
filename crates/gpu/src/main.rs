@@ -12,6 +12,7 @@ unsafe extern "C" {
 }
 
 fn main() {
+    crucible_gpu::keep_kernels(); // keeps this bin's CUDA entry points in the link (lib.rs)
     let n: usize = 1 << 20; // 1,048,576 face pairs
     let eos = GammaLaw { gamma: 1.4 };
 

@@ -1885,3 +1885,46 @@ fn s11_theta_varying_cut_combustion_still_refuses() {
         "the refusal must name the θ-varying-combustion owner, got: {msg}"
     );
 }
+
+#[test]
+fn mid_transition_warm_start_is_a_pure_acceleration() {
+    // SOLV-4 §3.6 v0.4.10: the mid-c projection's warm start (the cell's
+    // previous projected pressure) must return the SAME root the cold scan
+    // finds, to the projection tolerance — under the full-bracket straddle
+    // precondition it shares with TableEos's warm path. Probed over mid-b
+    // states spanning the seeded (class-R) band b ~ 1e-6..1e-1 and hints on
+    // both sides of the root (tight bracket straddling / not straddling).
+    let ut = unburnt();
+    let bt = burnt();
+    let blend = BurnBlendEos::new(TableEos::bind(&ut).unwrap(), TableEos::bind(&bt).unwrap());
+    let mut n = 0usize;
+    let mut worst = 0.0f64;
+    for &b in &[1.0e-6, 1.0e-4, 1.0e-2, 1.0e-1, 0.5] {
+        for &h in &[-2.0e5, 2.0e5, 1.0e6, 2.5e6] {
+            for &p in &[2.0e4, 1.0e5, 6.0e5] {
+                let Ok(u) = blend.cons_from_phzb(p, h, Z0, b, [10.0, 0.0, -5.0]) else {
+                    continue;
+                };
+                let Ok(cold) = blend.prim_checked(&u) else {
+                    continue;
+                };
+                for &spread in &[1.0 + 1.0e-6, 1.02, 0.98, 1.2, 0.8] {
+                    let warm = blend
+                        .prim_checked_hinted(&u, Some(cold[4] * spread))
+                        .expect("hinted projection must not refuse where the cold one accepted");
+                    let rel = ((warm[4] - cold[4]) / cold[4]).abs();
+                    worst = worst.max(rel);
+                    n += 1;
+                }
+            }
+        }
+    }
+    assert!(n >= 40, "too few mid-b probes: {n}");
+    // Two Illinois paths to the same root: agreement at the projection
+    // tolerance class (EPS_P_PROJECTION = 1e-11 on the bracket width).
+    assert!(
+        worst < 1.0e-9,
+        "warm-started mid-c root differs from the cold root by {worst:.3e} (must be an acceleration only)"
+    );
+    println!("mid_transition_warm_start: {n} probes, worst rel {worst:.3e}");
+}

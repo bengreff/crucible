@@ -92,6 +92,7 @@ fn fixture(r: f64, th: f64, z: f64) -> [f64; NPRIM_OUT] {
 const NPRIM_OUT: usize = 6;
 
 fn main() {
+    crucible_gpu::keep_kernels(); // keeps this bin's CUDA entry points in the link (lib.rs)
     // Uniform box, N_θ = 1, r_min > 0 (no axis — a clean box; the axis pair
     // gather is S13b). Modest size so interior cells dominate the compare.
     let (n_r, n_z) = (48usize, 96usize);

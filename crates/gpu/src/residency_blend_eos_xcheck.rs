@@ -126,6 +126,7 @@ const EPS_B_PURE_UNBURNT: f64 = 1.0e-9;
 const EPS_B_PURE_BURNT: f64 = 2.0e-3;
 
 fn main() {
+    crucible_gpu::keep_kernels(); // keeps this bin's CUDA entry points in the link (lib.rs)
     let ut = open(
         "lox_lh2_unburnt_v0.3.0.h5",
         "/chem/lox_lh2/unburnt",

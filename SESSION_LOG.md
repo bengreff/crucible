@@ -2188,3 +2188,21 @@ the committed artifacts in `certificates/` are the living record.
   bounded spark, 30 flow-throughs = 84.06 ms horizon, checkpoint every 2000 steps) under tmux on the box; the
   GPU trajectory tracks the CPU pre-march to the printed digits (R = 2.13×10⁻⁹ at step 1000 on both).
   Outcome: see the closing note.
+  **(11) The mid-transition WARM START — SOLV-4 0.4.10 (doc-first), the composed step's measured EOS lever:**
+  the S7 rule "the mid-`c` projection ignores the hint (front cells are a thin minority)" is measured false in
+  a lit chamber — class-R seeds `c ~ 10⁻⁵–10⁻⁴` across every cell whose closures are live, and `c ∈ (10⁻⁹,
+  1 − 2·10⁻³)` is the mid-`c` path, so the majority of the ◆C3 world's active cells ran the always-first 64-node
+  × two-branch cold scan every projection. Amended: the mid-`c` projection takes the cell's previous projected
+  pressure under EXACTLY `TableEos`'s warm-path uniqueness precondition (full-bracket straddle ⇒ Illinois on
+  the tight bracket `[p/1.05, 1.05p] ∩ admissible`, or on the full bracket; else the cold first-crossing scan
+  unchanged); the root-residual acceptance applies to the warm root; `HINT_SPREAD` hoisted to one owner. **An
+  acceleration, never physics**: CPU test `mid_transition_warm_start_is_a_pure_acceleration` — 300 mid-b probes
+  (b 1e-6..0.5, hints ±20 % around the cold root) agree with the cold root to **worst rel 3.0×10⁻¹²**;
+  certificates byte-identical (gate 5 — the stations never enter mid-`c`). Device: `prim_blend`'s mid path takes
+  the resident prim cache's hint under the same rule; the composed-step cross-check re-run from the saved 3 ms
+  state **ALL PASS** — RHS 9.5×10⁻⁹ (unchanged: the axis cancellation), **10 audited steps: state 4.0×10⁻¹²**
+  (tighter than 5.2×10⁻¹¹: with hints live on both sides the two projections re-anchor together), rerun +
+  checkpoint bit-identical. Its throughput gain is measured after ◆C4 releases the GPU (the shared-card
+  number is not a measurement). Build plumbing: the crate's new lib target made the per-leg bins' CUDA
+  symbols drop out of the link (an rlib surrenders only the objects it references) — `crucible_gpu::
+  keep_kernels()` (a function reading a table of every per-leg entry point) is called once from each bin.

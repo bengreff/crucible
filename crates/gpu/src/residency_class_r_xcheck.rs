@@ -115,6 +115,7 @@ fn branch_of(b: f64) -> &'static str {
 }
 
 fn main() {
+    crucible_gpu::keep_kernels(); // keeps this bin's CUDA entry points in the link (lib.rs)
     let ut = open(
         "lox_lh2_unburnt_v0.3.0.h5",
         "/chem/lox_lh2/unburnt",

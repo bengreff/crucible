@@ -213,8 +213,11 @@ __device__ double project_table_hinted(const Col3& rc, double rho, double e_q, d
     if (ga * gb < 0.0) return illinois(a, b, ga, gb, g);
     return illinois(lo_adm, hi_adm, ga_full, gb_full, g);
 }
-// BurnBlendEos::project_pressure, the mid-b path (scan always first).
-__device__ double project_mid(const Tables& T, double rho, double e, double z, double b, double inv) {
+// BurnBlendEos::project_pressure, the mid-b path: the SOLV-4 0.4.10 warm start
+// (full-bracket straddle ⇒ Illinois on the tight bracket about the hint, or on
+// the full bracket), else the cold first-crossing scan.
+__device__ double project_mid(const Tables& T, double rho, double e, double z, double b, double inv,
+                              double hint, int has_hint) {
     const BlendEnv& v = T.v;
     double h_lo = v.hb_lo - v.h_off, h_hi = v.hb_hi - v.h_off;
     double p_lo_env = fmax(v.pu_lo, v.pb_lo), p_hi_env = fmin(v.pu_hi, v.pb_hi);
@@ -227,6 +230,17 @@ __device__ double project_mid(const Tables& T, double rho, double e, double z, d
     double ga0 = g(lo), gb0 = g(hi);
     if (ga0 == 0.0) return lo;
     if (gb0 == 0.0) return hi;
+    if (has_hint && isfinite(hint) && hint > 0.0 && ga0 * gb0 < 0.0) {
+        double a = fmax(hint / HINT_SPREAD, lo), bb = fmin(hint * HINT_SPREAD, hi);
+        if (a < bb) {
+            double ga = g(a);
+            double gb = g(bb);
+            if (ga == 0.0) return a;
+            if (gb == 0.0) return bb;
+            if (ga * gb < 0.0) return illinois(a, bb, ga, gb, g);
+            return illinois(lo, hi, ga0, gb0, g);
+        }
+    }
     return scan_first(lo, hi, ga0, g);
 }
 // BurnBlendEos::prim_checked_hinted → w (NP). Returns 0 on non-physical/NaN.
@@ -254,7 +268,7 @@ __device__ int prim_blend(const Tables& T, const double* u, double hint, int has
         p = hinted ? project_table_hinted(T.brho, rho, e_q, z, inv, hint, v.pb_lo, v.pb_hi, v.hb_lo, v.hb_hi)
                    : project_table_cold(T.brho, rho, e_q, z, inv, v.pb_lo, v.pb_hi, v.hb_lo, v.hb_hi);
     } else {
-        p = project_mid(T, rho, e, z, b, inv);
+        p = project_mid(T, rho, e, z, b, inv, hint, hinted ? 1 : 0);
     }
     if (!isfinite(p) || p <= 0.0) return 0;
     double h = e + p * inv;

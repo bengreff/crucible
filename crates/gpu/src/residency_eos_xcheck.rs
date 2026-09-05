@@ -79,6 +79,7 @@ fn open() -> Table {
 }
 
 fn main() {
+    crucible_gpu::keep_kernels(); // keeps this bin's CUDA entry points in the link (lib.rs)
     let t = open();
     let eos = TableEos::bind(&t).expect("bind the equilibrium surface");
     let m: TableEosMarshal = eos.xcheck_marshal();

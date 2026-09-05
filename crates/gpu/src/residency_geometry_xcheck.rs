@@ -141,6 +141,7 @@ struct Tables {
 }
 
 fn main() {
+    crucible_gpu::keep_kernels(); // keeps this bin's CUDA entry points in the link (lib.rs)
     // --- The geometry of record, revolved at N_θ = 8 (engine assembly's clip).
     let path = format!(
         "{}/../../data/anchors/rl10_contour.csv",

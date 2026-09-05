@@ -53,6 +53,11 @@ const H_BRACKET_MARGIN: f64 = 1e-12;
 /// bracket (2⁻⁶⁴ of even a seven-decade span is below one ulp).
 pub const N_P_BISECT: usize = 64;
 
+/// Warm-start bracket half-width factor (relative): the hinted projection
+/// first tries `[p_hint/HINT_SPREAD, p_hint·HINT_SPREAD]` — one owner for the
+/// equilibrium surface's warm path AND the SOLV-4 §3.6 blend's (0.4.10).
+pub(crate) const HINT_SPREAD: f64 = 1.05;
+
 /// Fixed sign-change scan resolution of the projection's slow path (the
 /// near-vacuum non-monotone corner; see `project_pressure`). Sized by
 /// need, not tuned: 16 missed the shallow crossing of a dial-12 RL10
@@ -168,7 +173,6 @@ impl<'t> TableEos<'t> {
         z: f64,
         p_hint: f64,
     ) -> Result<f64, &'static str> {
-        const HINT_SPREAD: f64 = 1.05;
         let inv = 1.0 / rho;
         // The same closed-form admissible bounds as the cold path.
         let p_from_h_lo = rho * (self.h_env.0 - e_q);

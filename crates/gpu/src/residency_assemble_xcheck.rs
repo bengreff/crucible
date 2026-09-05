@@ -51,6 +51,7 @@ unsafe extern "C" {
 }
 
 fn main() {
+    crucible_gpu::keep_kernels(); // keeps this bin's CUDA entry points in the link (lib.rs)
     let (n_r, n_z) = (48usize, 96usize);
     let (r_min, dr, dz) = (0.5, 1.0 / n_r as f64, 1.0 / n_z as f64);
     let spec = GridSpec {
