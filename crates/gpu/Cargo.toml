@@ -18,6 +18,7 @@ crucible-tables = { path = "../tables" }
 # S13c geometry leg: the revolved RL10 contour clip (Contour) + the contour
 # CSV parser — the ◆C3 cut 3-D fixture is built from the geometry of record.
 crucible-config = { path = "../config" }
+crucible-constants = { path = "../constants" }
 crucible-engine = { path = "../engine" }
 toml = "0.8"
 

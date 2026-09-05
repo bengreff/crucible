@@ -205,6 +205,9 @@ pub fn read_rel(path: &str) -> Result<String, String> {
 /// here so the borrowing EOS/combustion occupants can be built by the caller).
 pub struct LoadedRun {
     pub name: String,
+    /// The FND-4/FND-6 run manifest (canonical TOML) — the harness writes it
+    /// into the run directory exactly as the CLI does.
+    pub manifest_toml: String,
     pub spec: EngineSpec,
     pub table: Table,
     pub unburnt: Table,
@@ -242,6 +245,7 @@ pub fn load_run(config: &str) -> Result<LoadedRun, String> {
     let (unburnt, ignition) = open_blend_tables(&spec)?.ok_or("blend tables not selected")?;
     Ok(LoadedRun {
         name,
+        manifest_toml: loaded.manifest.to_toml(),
         spec,
         table,
         unburnt,

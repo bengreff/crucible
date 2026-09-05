@@ -248,6 +248,8 @@ fn main() {
         .clone()
         .unwrap_or_else(|| format!("runs/{}-gpu", lr.name));
     std::fs::create_dir_all(&out_dir).expect("out dir");
+    // The FND-4/FND-6 run manifest — the replay input, as the CLI writes it.
+    std::fs::write(format!("{out_dir}/manifest.toml"), &lr.manifest_toml).expect("manifest");
     let ckpt_path = format!("{out_dir}/checkpoint.bin");
     let n_cons = lay.n * NCOMP;
     let n_hint = lay.n * NPRIM;
@@ -555,6 +557,29 @@ fn main() {
     )
     .expect("verdict");
     println!("{verdict}");
+    // SOLV-7 readout (emergent, never imposed) — the CLI's close-out, on the
+    // final state (whatever the verdict: the numbers are the run's own).
+    {
+        let mdot_exit = plane_mdot(&spec.grid, &spec.fields, exit_i, FaceDir::ZPlus);
+        let thrust = plane_thrust(&spec.grid, &spec.fields, &eos, exit_i, FaceDir::ZPlus)
+            .unwrap_or(f64::NAN);
+        let p_c = injector_end_stagnation_p(&spec.grid, &spec.fields, &eos, 0).unwrap_or(f64::NAN);
+        let a_t = spec.contour.throat_area();
+        let v_e = thrust / mdot_exit;
+        let readout = format!(
+            "== SOLV-7 performance readout (emergent, never imposed) ==\n  thrust {thrust:.1} N\n  Isp {:.2} s\n  v_e {v_e:.1} m/s\n  c* {:.1} m/s\n  C_F {:.4}\n  p_c (N11 stag.) {:.4} MPa ({:.1} psia)\n  mdot exit/inj {mdot_exit:.3} / {:.3} kg/s (inflow-plane measured {:.3})\n  peak reacting measure R {:.3e} kg/s\n",
+            v_e / crucible_constants::G0,
+            p_c * a_t / mdot_exit,
+            thrust / (p_c * a_t),
+            p_c / 1e6,
+            p_c / 6894.757,
+            sched.mdot_delivered(clk.t),
+            plane_mdot(&spec.grid, &spec.fields, 0, FaceDir::ZMinus),
+            clk.peak_r
+        );
+        print!("{readout}");
+        std::fs::write(format!("{out_dir}/readout.txt"), readout).expect("readout");
+    }
     println!(
         "  {} steps, t = {:.6e} s, {:.1} s wall ({:.4} s/step); artifacts in {out_dir}",
         clk.steps,

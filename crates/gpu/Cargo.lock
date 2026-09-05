@@ -131,6 +131,7 @@ name = "crucible-gpu"
 version = "0.1.0"
 dependencies = [
  "crucible-config",
+ "crucible-constants",
  "crucible-engine",
  "crucible-grid",
  "crucible-solvers",
