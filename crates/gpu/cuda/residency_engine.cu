@@ -38,6 +38,7 @@
 #include <cuda_runtime.h>
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define NP 9
 #define NC 7
@@ -78,6 +79,11 @@
 #define GK_OUTFLOW 6    // pressure outflow (z_hi)
 
 #define RTPB 256
+// ledger columns (column-major [4*NC][N]): port_net, port_abs, src_net, src_abs
+#define LED_PN 0
+#define LED_PA (NC)
+#define LED_SN (2*NC)
+#define LED_SA (3*NC)
 
 __device__ __constant__ double E_TAU = 6.283185307179586;
 
@@ -495,6 +501,148 @@ __device__ Closure closure_at(const Tables& T, const StepParams& P, const double
     front_coeffs(c.s_t, delta, P.theta, &c.d_c, &c.k);
     if (want_tau) c.tau = t_interp(T.delay, p, t_u, z);
     return c;
+}
+
+// ---- S14 FLUX-BUFFER path: each face's PPM+HLLC ONCE, register-lean ---------------------------
+// The fused rate kernels hold a 7-cell pencil + two full face reconstructions
+// (5 slopes × 4 interface values × 6 edges × NP doubles live) — 230 registers +
+// spill (measured). Here a cell computes only its LOW face from a 6-cell
+// pencil, component by component with ~12 live scalars (the SAME formulas as
+// `pencil_faces`: the low face of cell c+1 IS the high face of cell c, bit for
+// bit), into a device flux buffer; a gather-divergence kernel then forms the
+// well-balanced single difference. Run-end cells additionally compute their
+// high (ghost-side) face. Selected by CRUCIBLE_GPU_FLUXBUF=1 (both paths kept
+// for the A/B measurement; their outputs are bit-identical by construction).
+__device__ __forceinline__ void edge_k(double lo_if, double hi_if, double cc, double* elo, double* ehi) {
+    double lo = lo_if, hi = hi_if;
+    if ((hi-cc)*(cc-lo) <= 0.0) { lo = cc; hi = cc; }
+    else {
+        double d = hi-lo, six = 6.0*(cc-0.5*(lo+hi));
+        if (d*six > d*d) lo = 3.0*cc-2.0*hi;
+        else if (d*six < -(d*d)) hi = 3.0*cc-2.0*lo;
+    }
+    *elo = lo; *ehi = hi;
+}
+// pen: 6 cells (pencil offsets −3..+2 about the face's high-side cell); the
+// face lies between pen[2] and pen[3]. wl = hi edge of pen[2], wr = lo edge of pen[3].
+__device__ void face_lean(const double* pen, double* wl, double* wr) {
+    for (int k = 0; k < NP; k++) {
+        double p0 = pen[0*NP+k], p1 = pen[1*NP+k], p2 = pen[2*NP+k], p3 = pen[3*NP+k], p4 = pen[4*NP+k], p5 = pen[5*NP+k];
+        double s1 = mc_slope(p0, p1, p2), s2 = mc_slope(p1, p2, p3), s3 = mc_slope(p2, p3, p4), s4 = mc_slope(p3, p4, p5);
+        double if1 = 0.5*(p1+p2) - (s2-s1)/6.0;
+        double if2 = 0.5*(p2+p3) - (s3-s2)/6.0;
+        double if3 = 0.5*(p3+p4) - (s4-s3)/6.0;
+        double lo2, hi2, lo3, hi3;
+        edge_k(if1, if2, p2, &lo2, &hi2);
+        edge_k(if2, if3, p3, &lo3, &hi3);
+        wl[k] = hi2; wr[k] = lo3;
+    }
+}
+// Per cell: the LOW-face flux (dir 1 = r, 3 = z) into flux_lo; run-end cells
+// also their HIGH-face flux into flux_hi. Inactive cells: untouched.
+__global__ void k_face_rz(const double* __restrict__ prim, const World W, const Tables T, const StepParams P,
+                          long N, int dir, double* __restrict__ flux_lo, double* __restrict__ flux_hi,
+                          int* __restrict__ bad) {
+    long c = (long)blockIdx.x*blockDim.x + threadIdx.x;
+    if (c >= N) return;
+    long NRZ = (long)W.n_r * W.n_z;
+    int j = (int)(c / NRZ), rz = (int)(c % NRZ);
+    int i_r = rz / W.n_z, i_z = rz % W.n_z;
+    if (!W.act[rz]) return;
+    double pen[6*NP];
+    for (int m = -3; m <= 2; m++)
+        if (!gather_rz(W, T, P, prim, j, i_r, i_z, dir, m, pen + (m+3)*NP)) { atomicExch(bad, 1); return; }
+    double wl[NP], wr[NP], f[NC];
+    face_lean(pen, wl, wr);
+    e_hllc(wl, wr, dir, f);
+    for (int k = 0; k < NC; k++) flux_lo[c*NC+k] = f[k];
+    int start = (dir == 1) ? W.rs_r[rz] : W.rs_z[rz];
+    int len = (dir == 1) ? W.rl_r[rz] : W.rl_z[rz];
+    int pos = (dir == 1) ? i_r : i_z;
+    if (pos + 1 == start + len) {
+        for (int m = -2; m <= 3; m++)
+            if (!gather_rz(W, T, P, prim, j, i_r, i_z, dir, m, pen + (m+2)*NP)) { atomicExch(bad, 1); return; }
+        face_lean(pen, wl, wr);
+        e_hllc(wl, wr, dir, f);
+        for (int k = 0; k < NC; k++) flux_hi[c*NC+k] = f[k];
+    }
+}
+// The divergence: r WRITES the rate (+ zeroes the ledger), z ADDS — the same
+// single-difference/aperture/ledger arithmetic as k_rate_r / k_rate_z.
+__global__ void k_div_rz(const double* __restrict__ flux_lo, const double* __restrict__ flux_hi, const World W,
+                         long N, int dir, double* __restrict__ rate, double* __restrict__ led) {
+    long c = (long)blockIdx.x*blockDim.x + threadIdx.x;
+    if (c >= N) return;
+    long NRZ = (long)W.n_r * W.n_z;
+    int rz = (int)(c % NRZ);
+    int i_r = rz / W.n_z, i_z = rz % W.n_z;
+    if (dir == 1) for (int col = 0; col < 4*NC; col++) led[(long)col*N + c] = 0.0;
+    if (!W.act[rz]) { if (dir == 1) for (int k = 0; k < NC; k++) rate[c*NC+k] = 0.0; return; }
+    int start = (dir == 1) ? W.rs_r[rz] : W.rs_z[rz];
+    int len = (dir == 1) ? W.rl_r[rz] : W.rl_z[rz];
+    int pos = (dir == 1) ? i_r : i_z;
+    long stride = (dir == 1) ? (long)W.n_z : 1L;
+    int last = (pos + 1 == start + len);
+    const double* fL = flux_lo + c*NC;
+    const double* fR = last ? flux_hi + c*NC : flux_lo + (c + stride)*NC;
+    if (dir == 1) {
+        double ap_lo = W.ap[0*N + c];
+        double ap_hi = last ? W.ap[1*N + c] : W.ap[0*N + (c + W.n_z)];
+        double a_lo = area_r(W, i_r) * ap_lo, a_hi = area_r(W, i_r + 1) * ap_hi;
+        double kv = W.kappa[c] * vol_of(W, i_r);
+        for (int k = 0; k < NC; k++) {
+            double afl = a_lo * fL[k], afh = a_hi * fR[k];
+            rate[c*NC+k] = (afl - afh) / kv;
+            if (i_r == start) { led[(long)(LED_PN+k)*N + c] += afl;  led[(long)(LED_PA+k)*N + c] += fabs(afl); }
+            if (last)         { led[(long)(LED_PN+k)*N + c] -= afh;  led[(long)(LED_PA+k)*N + c] += fabs(afh); }
+        }
+    } else {
+        double ap_lo = W.ap[2*N + c];
+        double ap_hi = last ? W.ap[3*N + c] : W.ap[2*N + (c + 1)];
+        double inv_dz = 1.0 / W.dz, kap = W.kappa[c], a_z = area_z(W, i_r);
+        for (int k = 0; k < NC; k++) {
+            double afl = fL[k] * ap_lo, afh = fR[k] * ap_hi;
+            rate[c*NC+k] += (afl - afh) * inv_dz / kap;
+            if (i_z == start) { led[(long)(LED_PN+k)*N + c] += a_z * afl;  led[(long)(LED_PA+k)*N + c] += a_z * fabs(afl); }
+            if (last)         { led[(long)(LED_PN+k)*N + c] -= a_z * afh;  led[(long)(LED_PA+k)*N + c] += a_z * fabs(afh); }
+        }
+    }
+}
+// θ: the LOW face of ring cell j (between j−1 and j), periodic; then the divergence (ADDS).
+__global__ void k_face_theta(const double* __restrict__ prim, const World W, long N, double* __restrict__ flux_lo) {
+    long c = (long)blockIdx.x*blockDim.x + threadIdx.x;
+    if (c >= N) return;
+    long NRZ = (long)W.n_r * W.n_z;
+    int j = (int)(c / NRZ), rz = (int)(c % NRZ);
+    if (!W.act[rz]) return;
+    int n = W.nt;
+    double pen[6*NP];
+    for (int m = -3; m <= 2; m++) {
+        int jj = ((j + m) % n + n) % n;
+        long cs = (long)jj * NRZ + rz;
+        for (int k = 0; k < NP; k++) pen[(m+3)*NP+k] = prim[cs*NP+k];
+    }
+    double wl[NP], wr[NP], f[NC];
+    face_lean(pen, wl, wr);
+    e_hllc(wl, wr, 2, f);
+    for (int k = 0; k < NC; k++) flux_lo[c*NC+k] = f[k];
+}
+__global__ void k_div_theta(const double* __restrict__ flux_lo, const World W, long N, double* __restrict__ rate) {
+    long c = (long)blockIdx.x*blockDim.x + threadIdx.x;
+    if (c >= N) return;
+    long NRZ = (long)W.n_r * W.n_z;
+    int j = (int)(c / NRZ), rz = (int)(c % NRZ);
+    int i_r = rz / W.n_z;
+    if (!W.act[rz]) return;
+    int n = W.nt;
+    int jm = (j + n - 1) % n, jp = (j + 1) % n;
+    const double* fL = flux_lo + c*NC;
+    const double* fR = flux_lo + ((long)jp * NRZ + rz)*NC;
+    double ap_lo = W.ap[5*N + ((long)jm * NRZ + rz)];
+    double ap_hi = W.ap[5*N + c];
+    double inv = area_th(W) / vol_of(W, i_r);
+    double kap = W.kappa[c];
+    for (int k = 0; k < NC; k++) rate[c*NC+k] += ((fL[k]*ap_lo) - (fR[k]*ap_hi)) * inv / kap;
 }
 
 // ---- kernels: prims -------------------------------------------------------------------------
@@ -975,15 +1123,38 @@ struct Engine {
     int* bad;
     int primed;
     void* keep[128]; int nk;
+    // CRUCIBLE_GPU_PROFILE=1: per-kernel-group wall time (ms) accumulated over
+    // the handle's life (cudaEvent pairs; a synchronizing measurement, so it
+    // is a PROFILE, never left on in a production march).
+    int profile; double prof_ms[10]; long prof_steps;
+    int fluxbuf; double *flux_lo, *flux_hi;   // CRUCIBLE_GPU_FLUXBUF=1: the S14 path
 };
-static void reduce_cols(const Engine* E, const double* x, int ncol, double* out_host) {
+enum ProfSlot { P_FILL = 0, P_RATE_R, P_RATE_TH, P_RATE_Z, P_SRC, P_COMB, P_CLASS_R, P_SRD, P_REDUCE, P_OTHER };
+static const char* PROF_NAME[10] = {"fill_prims", "rate_r", "rate_theta", "rate_z", "sources", "combustion",
+                                    "class_r", "srd", "reductions", "compose+copies"};
+struct ProfScope {
+    Engine* E; int slot; cudaEvent_t a, b;
+    ProfScope(Engine* e, int s) : E(e), slot(s) {
+        if (E->profile) { cudaEventCreate(&a); cudaEventCreate(&b); cudaEventRecord(a); }
+    }
+    ~ProfScope() {
+        if (E->profile) {
+            cudaEventRecord(b); cudaEventSynchronize(b);
+            float ms = 0; cudaEventElapsedTime(&ms, a, b); E->prof_ms[slot] += ms;
+            cudaEventDestroy(a); cudaEventDestroy(b);
+        }
+    }
+};
+static void reduce_cols(Engine* E, const double* x, int ncol, double* out_host) {
+    ProfScope ps(E, P_REDUCE);
     dim3 grid((unsigned)E->nblk, (unsigned)ncol);
     k_sum_partial<<<grid, RTPB>>>(x, E->N, E->partial, E->nblk);
     k_sum_final<<<ncol, RTPB>>>(E->partial, E->nblk, E->scal);
     cudaMemcpy(out_host, E->scal, ncol * sizeof(double), cudaMemcpyDeviceToHost);
 }
-static void launch_srd(const Engine* E) {
+static void launch_srd(Engine* E) {
     if (E->S.ns == 0) return;
+    ProfScope ps(E, P_SRD);
     int tpb = 128;
     k_srd_q<<<(E->S.ns + tpb - 1)/tpb, tpb>>>(E->cons, E->S, E->q);
     k_srd_apply<<<(E->S.na + tpb - 1)/tpb, tpb>>>(E->S, E->q, E->cons);
@@ -992,13 +1163,26 @@ static void launch_srd(const Engine* E) {
 // ledger per-cell arrays `led` and the prim cache (hinted by the previous fill).
 static void eval_rhs(Engine* E, const StepParams& P, double* rate, double* led) {
     int tpb = 128; long cblk = (E->N + tpb - 1)/tpb;
-    k_fill_prims<<<cblk,tpb>>>(E->cons, E->W, E->T, E->N, E->prim, E->primed, E->prim, E->bad);
+    { ProfScope ps(E, P_FILL);
+      k_fill_prims<<<cblk,tpb>>>(E->cons, E->W, E->T, E->N, E->prim, E->primed, E->prim, E->bad); }
     E->primed = 1;
-    k_rate_r<<<cblk,tpb>>>(E->prim, E->W, E->T, P, E->N, rate, led, E->bad);
-    k_rate_theta<<<cblk,tpb>>>(E->prim, E->W, E->N, rate);
-    k_rate_z<<<cblk,tpb>>>(E->prim, E->W, E->T, P, E->N, rate, led, E->bad);
-    k_sources<<<cblk,tpb>>>(E->prim, E->W, E->G, P, E->N, rate, led);
-    k_combustion<<<cblk,tpb>>>(E->prim, E->cons, E->W, E->T, P, E->N, rate, led, E->bad);
+    if (E->fluxbuf) {
+        { ProfScope ps(E, P_RATE_R);
+          k_face_rz<<<cblk,tpb>>>(E->prim, E->W, E->T, P, E->N, 1, E->flux_lo, E->flux_hi, E->bad);
+          k_div_rz<<<cblk,tpb>>>(E->flux_lo, E->flux_hi, E->W, E->N, 1, rate, led); }
+        { ProfScope ps(E, P_RATE_TH);
+          k_face_theta<<<cblk,tpb>>>(E->prim, E->W, E->N, E->flux_lo);
+          k_div_theta<<<cblk,tpb>>>(E->flux_lo, E->W, E->N, rate); }
+        { ProfScope ps(E, P_RATE_Z);
+          k_face_rz<<<cblk,tpb>>>(E->prim, E->W, E->T, P, E->N, 3, E->flux_lo, E->flux_hi, E->bad);
+          k_div_rz<<<cblk,tpb>>>(E->flux_lo, E->flux_hi, E->W, E->N, 3, rate, led); }
+    } else {
+        { ProfScope ps(E, P_RATE_R);  k_rate_r<<<cblk,tpb>>>(E->prim, E->W, E->T, P, E->N, rate, led, E->bad); }
+        { ProfScope ps(E, P_RATE_TH); k_rate_theta<<<cblk,tpb>>>(E->prim, E->W, E->N, rate); }
+        { ProfScope ps(E, P_RATE_Z);  k_rate_z<<<cblk,tpb>>>(E->prim, E->W, E->T, P, E->N, rate, led, E->bad); }
+    }
+    { ProfScope ps(E, P_SRC);     k_sources<<<cblk,tpb>>>(E->prim, E->W, E->G, P, E->N, rate, led); }
+    { ProfScope ps(E, P_COMB);    k_combustion<<<cblk,tpb>>>(E->prim, E->cons, E->W, E->T, P, E->N, rate, led, E->bad); }
 }
 
 extern "C" void* gpu_engine_create(const HostWorld* hw, const HostSrd* hs, const HostTables* ht,
@@ -1060,13 +1244,33 @@ extern "C" void* gpu_engine_create(const HostWorld* hw, const HostSrd* hs, const
     cudaMemset(E->bad, 0, sizeof(int));
     cudaMemset(E->prim, 0, N*NP*sizeof(double));
     E->primed = 0;
+    const char* pf = getenv("CRUCIBLE_GPU_PROFILE");
+    E->profile = (pf && pf[0] == '1') ? 1 : 0;
+    const char* fb = getenv("CRUCIBLE_GPU_FLUXBUF");
+    E->fluxbuf = (fb && fb[0] == '1') ? 1 : 0;
+    cudaMalloc(&E->flux_lo, nb); cudaMalloc(&E->flux_hi, nb);
+    cudaMemset(E->flux_lo, 0, nb); cudaMemset(E->flux_hi, 0, nb);
+    for (int i = 0; i < 10; i++) E->prof_ms[i] = 0.0;
+    E->prof_steps = 0;
     return E;
+}
+// Dump the profile (stderr) — called by destroy when profiling.
+static void prof_dump(const Engine* E) {
+    if (!E->profile) return;
+    double tot = 0.0; for (int i = 0; i < 10; i++) tot += E->prof_ms[i];
+    fprintf(stderr, "[gpu profile] %ld steps, %.1f ms total in kernels (%.4f s/step)\n",
+            E->prof_steps, tot, tot / 1000.0 / (E->prof_steps > 0 ? E->prof_steps : 1));
+    for (int i = 0; i < 10; i++)
+        fprintf(stderr, "[gpu profile]   %-16s %9.1f ms  %5.1f%%\n", PROF_NAME[i], E->prof_ms[i],
+                tot > 0 ? 100.0 * E->prof_ms[i] / tot : 0.0);
 }
 extern "C" void gpu_engine_destroy(void* h) {
     Engine* E = (Engine*)h;
+    prof_dump(E);
     cudaFree(E->cons); cudaFree(E->u0); cudaFree(E->prim); cudaFree(E->prim_dt); cudaFree(E->rate_e0); cudaFree(E->rate_l);
     cudaFree(E->led0); cudaFree(E->ledl); cudaFree(E->st); cudaFree(E->q); cudaFree(E->r0); cudaFree(E->r_prev);
     cudaFree(E->r_trial); cudaFree(E->rec_net); cudaFree(E->rec_gross); cudaFree(E->partial); cudaFree(E->scal); cudaFree(E->bad);
+    cudaFree(E->flux_lo); cudaFree(E->flux_hi);
     for (int i = 0; i < E->nk; i++) cudaFree(E->keep[i]);
     free(E);
 }
@@ -1100,9 +1304,10 @@ extern "C" double gpu_engine_stable_dt(void* h, double t, double cfl, int* bad) 
     P.wrinkling = E->wrinkling; P.theta = E->theta;
     int tpb = 128; long cblk = (E->N + tpb - 1)/tpb;
     cudaMemset(E->bad, 0, sizeof(int));
-    k_fill_prims<<<cblk,tpb>>>(E->cons, E->W, E->T, E->N, E->prim, E->primed, E->prim_dt, E->bad);
-    k_sig_partial<<<E->nblk,RTPB>>>(E->prim_dt, E->W, E->T, P, E->N, E->partial, E->bad);
-    k_max_final<<<1,RTPB>>>(E->partial, E->nblk, E->scal);
+    { ProfScope ps(E, P_FILL); k_fill_prims<<<cblk,tpb>>>(E->cons, E->W, E->T, E->N, E->prim, E->primed, E->prim_dt, E->bad); }
+    { ProfScope ps(E, P_REDUCE);
+      k_sig_partial<<<E->nblk,RTPB>>>(E->prim_dt, E->W, E->T, P, E->N, E->partial, E->bad);
+      k_max_final<<<1,RTPB>>>(E->partial, E->nblk, E->scal); }
     cudaDeviceSynchronize();
     double max_sig = 0.0; cudaMemcpy(&max_sig, E->scal, sizeof(double), cudaMemcpyDeviceToHost);
     cudaMemcpy(bad, E->bad, sizeof(int), cudaMemcpyDeviceToHost);
@@ -1125,11 +1330,11 @@ extern "C" int gpu_engine_step(void* h, double t, double dt, double mdot_per_are
     k_stored<<<cblk,tpb>>>(E->cons, E->W, E->N, E->st);
     reduce_cols(E, E->st, 2*NC, out + 0);
     // node 0
-    cudaMemcpy(E->u0, E->cons, (size_t)E->nscal*sizeof(double), cudaMemcpyDeviceToDevice);
+    { ProfScope ps(E, P_OTHER); cudaMemcpy(E->u0, E->cons, (size_t)E->nscal*sizeof(double), cudaMemcpyDeviceToDevice); }
     eval_rhs(E, P0, E->rate_e0, E->led0);
     reduce_cols(E, E->led0, 4*NC, out + 28);
-    k_r0<<<cblk,tpb>>>(E->prim, E->W, E->T, P0, E->N, dt, E->r0, E->bad);
-    cudaMemcpy(E->r_prev, E->r0, (size_t)E->N*sizeof(double), cudaMemcpyDeviceToDevice);
+    { ProfScope ps(E, P_CLASS_R); k_r0<<<cblk,tpb>>>(E->prim, E->W, E->T, P0, E->N, dt, E->r0, E->bad); }
+    { ProfScope ps(E, P_OTHER); cudaMemcpy(E->r_prev, E->r0, (size_t)E->N*sizeof(double), cudaMemcpyDeviceToDevice); }
     double burn_applied = 0.0, burn_gross = 0.0;
     double half = 0.5 * dt;
     for (int sweep = 0; sweep <= 2; sweep++) {
@@ -1137,13 +1342,16 @@ extern "C" int gpu_engine_step(void* h, double t, double dt, double mdot_per_are
         double wq0 = predictor ? 0.0 : half, wqprev = predictor ? 0.0 : -half, wqnew = dt;
         if (!predictor) {
             eval_rhs(E, P1, E->rate_l, E->ledl);
+            ProfScope ps(E, P_OTHER);
             k_compose_corr<<<sblk,tpb>>>(E->u0, E->rate_e0, E->rate_l, half, E->nscal, E->cons);
         } else {
+            ProfScope ps(E, P_OTHER);
             k_compose_pred<<<sblk,tpb>>>(E->u0, E->rate_e0, dt, E->nscal, E->cons);
         }
         launch_srd(E);
-        k_class_r<<<cblk,tpb>>>(E->cons, E->W, E->T, P1, E->N, E->r0, E->r_prev, wq0, wqprev, wqnew,
-                                E->r_trial, E->rec_net, E->rec_gross, E->bad);
+        { ProfScope ps(E, P_CLASS_R);
+          k_class_r<<<cblk,tpb>>>(E->cons, E->W, E->T, P1, E->N, E->r0, E->r_prev, wq0, wqprev, wqnew,
+                                  E->r_trial, E->rec_net, E->rec_gross, E->bad); }
         double rec[2];
         // two single-column reductions (net, gross)
         reduce_cols(E, E->rec_net, 1, rec + 0);
@@ -1155,10 +1363,13 @@ extern "C" int gpu_engine_step(void* h, double t, double dt, double mdot_per_are
     k_stored<<<cblk,tpb>>>(E->cons, E->W, E->N, E->st);
     reduce_cols(E, E->st, 2*NC, out + 14);
     out[84] = burn_applied; out[85] = burn_gross;
+    E->prof_steps += 1;
     cudaDeviceSynchronize();
     int bad = 0; cudaMemcpy(&bad, E->bad, sizeof(int), cudaMemcpyDeviceToHost);
     return bad;
 }
+// Select the sweep path at runtime (0 = fused kernels, 1 = the S14 flux buffer).
+extern "C" void gpu_engine_set_fluxbuf(void* h, int flag) { ((Engine*)h)->fluxbuf = flag ? 1 : 0; }
 // Single-shot class-A + combustion RHS at the current state (cross-check oracle);
 // rate dense [N*NC]; returns the halt flag.
 extern "C" int gpu_engine_rhs(void* h, double t, double mdot_per_area, double p_amb, double* rate, double* led_out) {

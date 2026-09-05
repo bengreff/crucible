@@ -142,6 +142,7 @@ unsafe extern "C" {
         p_amb_t1: f64,
         out: *mut f64,
     ) -> i32;
+    fn gpu_engine_set_fluxbuf(h: *mut std::ffi::c_void, flag: i32);
     fn gpu_engine_rhs(
         h: *mut std::ffi::c_void,
         t: f64,
@@ -829,6 +830,12 @@ impl DeviceEngine {
             return Err("device step flagged a non-physical state / projection failure".into());
         }
         Ok(StepOut::from(&out))
+    }
+    /// Select the sweep path: `false` = the fused rate kernels, `true` = the
+    /// S14 flux-buffer path (each face once, register-lean). Same formulas —
+    /// the two paths' outputs are bit-identical (the cross-check asserts it).
+    pub fn set_fluxbuf(&self, on: bool) {
+        unsafe { gpu_engine_set_fluxbuf(self.handle, i32::from(on)) }
     }
     /// Single-shot RHS (+ ledger) at the current state.
     pub fn rhs(&self, sched: &Schedule, t: f64) -> Result<(Vec<f64>, FlowLedger), String> {

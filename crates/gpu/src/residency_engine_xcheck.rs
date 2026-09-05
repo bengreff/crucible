@@ -318,8 +318,14 @@ fn main() {
         }
         println!("PHASE 0 — prims (cold) at t = {t1:.4e}");
         let (w0, c0) = compare("prim", &cprim, &gprim, NPRIM);
-        assert!(w0 < ECT_PRIM, "prims diverged beyond the projection-tolerance class: {w0:.3e}");
-        assert!(c0 < CANCEL_BOUND, "prim per-cell rel {c0:.3e} (prims carry no cancellation)");
+        assert!(
+            w0 < ECT_PRIM,
+            "prims diverged beyond the projection-tolerance class: {w0:.3e}"
+        );
+        assert!(
+            c0 < CANCEL_BOUND,
+            "prim per-cell rel {c0:.3e} (prims carry no cancellation)"
+        );
         // The worst RHS cell's neighbourhood prims (θ-momentum diagnosis).
         let (j, i_r, i_z) = (2usize, 0usize, 4usize);
         for dj in [nt - 1, 0, 1, nt / 2] {
@@ -388,6 +394,53 @@ fn main() {
     assert!(led_worst < 1e-8, "ledger diverged: {led_worst:.3e}");
     assert!(bit1, "GPU RHS rerun not deterministic");
     println!("  PHASE 1 PASS");
+
+    // ================================================================
+    // PHASE 1c — the S14 flux-buffer sweep path vs the fused kernels: the
+    // same formulas on the same device ⇒ BYTE-IDENTICAL rate + ledger.
+    // ================================================================
+    dev.set_fluxbuf(true);
+    dev.upload(&cons1, None);
+    let (gpu_rate_fb, gl_fb) = dev.rhs(&sched, t1).expect("gpu rhs (flux buffer)");
+    // The two paths are the same formulas, but nvcc's FMA contraction is
+    // decided per expression context (the per-component scalar PPM vs the
+    // array form) — measured NOT bit-identical (4e-11 per-cell), so the
+    // contract is: bit-identical WITHIN a path (same-build reruns), ECT-class
+    // ACROSS paths (a build-variant, like CPU↔GPU). Both compared to the CPU.
+    let fb_same = gpu_rate_fb == gpu_rate;
+    println!(
+        "PHASE 1c — S14 flux-buffer sweeps vs fused kernels (same device): {}",
+        if fb_same {
+            "BIT-IDENTICAL"
+        } else {
+            "not bit-identical (FMA contraction differs per path — ECT-class)"
+        }
+    );
+    let (w1c, _) = compare("flux-buffer vs fused", &gpu_rate, &gpu_rate_fb, NCOMP);
+    let (w1d, _) = compare("flux-buffer vs CPU", &cpu_rate, &gpu_rate_fb, NCOMP);
+    let mut fb_led = 0.0f64;
+    for k in 0..NCOMP {
+        for (a, b, sc) in [
+            (gl.port_net[k], gl_fb.port_net[k], gl.port_abs[k]),
+            (gl.src_net[k], gl_fb.src_net[k], gl.src_abs[k]),
+        ] {
+            let s = a.abs().max(b.abs()).max(sc);
+            if s > 1e-300 {
+                fb_led = fb_led.max((a - b).abs() / s);
+            }
+        }
+    }
+    println!("  flux-buffer ledger vs fused (gross-scaled): worst rel {fb_led:.3e}");
+    assert!(
+        w1c < ECT,
+        "flux-buffer path diverged from the fused path beyond ECT: {w1c:.3e}"
+    );
+    assert!(
+        w1d < ECT,
+        "flux-buffer path diverged from the CPU beyond ECT: {w1d:.3e}"
+    );
+    dev.set_fluxbuf(false);
+    println!("  PHASE 1c PASS");
 
     // ================================================================
     // PHASE 1b — stable_dt (θ-arc + front carrier) at the pre-marched state.
@@ -542,20 +595,28 @@ fn main() {
     // ================================================================
     // PHASE 3 — throughput of the composed step (resident, own dt).
     // ================================================================
-    dev.upload(&cons1, None);
     let iters = 50usize;
-    let mut tt = t1;
-    let t0 = std::time::Instant::now();
-    for _ in 0..iters {
-        let dt = dev.stable_dt(tt, sched.cfl).expect("dt");
-        dev.step(&sched, tt, dt).expect("step");
-        tt += dt;
+    for fluxbuf in [false, true] {
+        dev.set_fluxbuf(fluxbuf);
+        dev.upload(&cons1, None);
+        let mut tt = t1;
+        let t0 = std::time::Instant::now();
+        for _ in 0..iters {
+            let dt = dev.stable_dt(tt, sched.cfl).expect("dt");
+            dev.step(&sched, tt, dt).expect("step");
+            tt += dt;
+        }
+        let el = t0.elapsed().as_secs_f64();
+        println!(
+            "PHASE 3 — {iters} full engine steps ({}) in {el:.3} s: {:.4} s/step, {:.3e} cell-steps/s",
+            if fluxbuf {
+                "S14 flux-buffer sweeps"
+            } else {
+                "fused sweep kernels"
+            },
+            el / iters as f64,
+            iters as f64 * sched.n_cells as f64 / el
+        );
     }
-    let el = t0.elapsed().as_secs_f64();
-    println!(
-        "PHASE 3 — {iters} full engine steps (stable_dt + audited SDC step) in {el:.3} s: {:.4} s/step, {:.3e} cell-steps/s",
-        el / iters as f64,
-        iters as f64 * sched.n_cells as f64 / el
-    );
     println!("ALL PASS");
 }

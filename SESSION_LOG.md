@@ -2206,3 +2206,17 @@ the committed artifacts in `certificates/` are the living record.
   number is not a measurement). Build plumbing: the crate's new lib target made the per-leg bins' CUDA
   symbols drop out of the link (an rlib surrenders only the objects it references) — `crucible_gpu::
   keep_kernels()` (a function reading a table of every per-leg entry point) is called once from each bin.
+  **(12) The S14 FLUX-BUFFER sweep path** (`residency_engine.cu`, `CRUCIBLE_GPU_FLUXBUF=1` /
+  `DeviceEngine::set_fluxbuf`): each face's PPM + HLLC computed ONCE — a cell computes its LOW face from a 6-cell
+  pencil, component by component with ~12 live scalars (the same formulas as the fused `pencil_faces`: the low
+  face of cell c+1 IS the high face of cell c), run-end cells also their ghost-side high face — into a device
+  flux buffer; a gather-divergence kernel forms the single well-balanced difference + the ledger ports.
+  **ptxas: `k_face_rz` 88 registers (from the fused 230 + 720 B spill), `k_div_rz` 54, θ 134/40.** Cross-path
+  contract measured: the two device paths are NOT bit-identical (nvcc contracts FMAs per expression context —
+  the scalar-per-component PPM vs the array form; 7.6×10⁻¹⁵ component-scaled, ledger 1.4×10⁻¹⁶), so the
+  contract is bit-identical WITHIN a path (same-build reruns) and ECT-class ACROSS paths — a build variant,
+  like CPU↔GPU; against the CPU both paths score the identical 9.5×10⁻⁹. Its throughput is measured after
+  ◆C4 releases the card (shared-card numbers are not measurements). Also added: env-gated per-kernel-group
+  profile hooks (`CRUCIBLE_GPU_PROFILE=1`, cudaEvent pairs, dumped at destroy) and a `CRUCIBLE_NVCC_FMAD=0`
+  build switch (IEEE per-operation arithmetic, no contraction — the cross-device-ECT experiment) for the
+  post-◆C4 profiling session.
