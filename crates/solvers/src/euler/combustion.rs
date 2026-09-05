@@ -238,6 +238,13 @@ impl<'t> IgnitionColumns<'t> {
     pub fn induction_time(&self, p: f64, t_u: f64, z: f64) -> Result<f64, &'static str> {
         self.tau_ign(p, t_u, z)
     }
+
+    /// S13c GPU marshaling (doc-hidden, additive): the `τ_ign(p, T_u, Z)`
+    /// ignition-delay column — the class-`R` node solve's per-refreeze query.
+    #[doc(hidden)]
+    pub fn xcheck_marshal_delay(&self) -> crucible_tables::ColumnMarshal {
+        self.ignition_delay.marshal()
+    }
 }
 
 /// The burn-progress source operator (SOLV-4 §3.6). Held by `Euler` as an

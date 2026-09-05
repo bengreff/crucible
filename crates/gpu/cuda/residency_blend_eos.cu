@@ -19,7 +19,11 @@
 #include <math.h>
 
 #define EPS_P_PROJECTION 1e-11
-#define H_BRACKET_MARGIN 1e-12
+// blend_eos.rs's OWN margin (1e-9, wider than TableEos's 1e-12 — the partition
+// arithmetic's ulp slack); S27 shipped 1e-12 here, latent because the fixture's
+// bracket was envelope-dominated. Corrected S28 (the class-R port inlines the
+// same projection with the same 1e-9).
+#define H_BRACKET_MARGIN 1e-9
 #define N_P_ITER_MAX 48
 #define N_P_BISECT 64
 #define N_P_SCAN 64
