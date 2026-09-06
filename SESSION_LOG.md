@@ -2236,3 +2236,27 @@ the committed artifacts in `certificates/` are the living record.
   --checkpoint-every 2000 --resume runs/rl10-startup-3d-gpu/checkpoint.bin` (under tmux; the digests are
   verified; the continuation is byte-identical). The outcome (WORKS / FAILED_TO_REACH / FLAMEOUT + the SOLV-7
   readout) lands in `verdict.txt` / `readout.txt` — recorded in the next entry.
+- **◆C4 DONE (2026-09-05): the first real overnight GPU sim — a coarse 3-D RL10 spark-to-horizon march on the
+  RTX 4070 Ti SUPER, 6.1 h wall, audited every step, verdict FAILED_TO_REACH (honest).** `gpu_engine_run
+  configs/rl10_startup_3d.toml` (the ◆C3 desktop spec: dial 5, N_θ = 8, 40×119×8 = 38 080 cells / 21 336
+  active, the bounded 21 kJ spark at 2 ms, 30 flow-throughs = 84.06 ms horizon): **155 229 steps in 21 995 s
+  (0.1417 s/step)**, 78 checkpoints, the COUP-2 audit passed every step, no halt. **Timeline (progress.csv, 777
+  probes):** cold fill + injector ramp (11.2 ms) → ṁ_exit at the design 16.9 kg/s by ~17 ms, p_c ~0.85 MPa,
+  R ~10⁻⁵ (the ◆C3 regime, "doesn't fully light"); **light-off at 23.2–23.3 ms** — R 6.7×10⁻⁴ → 4.6×10⁻²
+  kg/s within 0.15 ms (the class-R runaway; dt 8.7×10⁻⁷ → 2.6×10⁻⁷ s through the ignition transient, back to
+  4.6×10⁻⁷ once the front settled), **peak R 6.12×10⁻² kg/s at 25.0 ms**, then a steady partial burn R ≈
+  0.036 kg/s to the horizon with p_c creeping 0.85 → 0.945 MPa. **COUP-4 verdict: DOESN'T WORK —
+  FAILED_TO_REACH** (p_c 0.945 MPa vs 3.15 commanded, −70.0 %; F 22.5 kN vs 75.6, −70.2 %; the dwell never
+  started). **SOLV-7 readout on the final state** (regenerated from the checkpoint by the new harness binary —
+  `manifest.toml` + `readout.txt` now in the run dir): F 22 514 N, Isp 135.6 s, v_e 1329 m/s, **c\\* 690 m/s**
+  (the RL10's is ~2300 — the exhaust is ~cold reactants), C_F 1.927, p_c 137.0 psia, ṁ exit/inj/inflow-plane
+  16.937/16.947/16.995 kg/s (mass-balanced, the injector face unchoked). **The physics reading:** the spark
+  DOES ignite a self-sustaining kernel (the `ignited` tracker latched; FLAMEOUT never fired — the flame
+  holds), but it consumes ~0.04 kg/s of the 17 kg/s injected: the flame does not spread through the premixed
+  prior-tier jet at this dial with one point spark and no resolved injector/recirculation — exactly the
+  S16 "emergent flame-holding + distributed elements" gap ruling #14 named; the verdict is not circular
+  (only the bounded spark + injected fuel were inputs). Vs ◆C3's CPU laptop mini (−95 % F, never lit): the
+  desktop spec on the GPU lit and held. ◆C4's OWN deliverable — "coarse-to-mid 3-D spark-to-steady on GPU in
+  hours, under the harness" — is met: 6.1 h, one physical trajectory, checkpointed, audited, the verdict
+  machinery live on the device state. Artifacts: box `runs/rl10-startup-3d-gpu/` (+ `-readout/`); the
+  progress record + verdict + log copied to the laptop `runs/rl10-startup-3d-gpu/` (gitignored, kept).

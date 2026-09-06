@@ -17,7 +17,7 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-09-05 — session 28 = plan S13c CLOSED (the composed full-physics 3-D resident engine step validated) + S14 harness built + ◆C4 launched; chemical sandbox at S14/20, Phase 4)
+## State (2026-09-05 — session 28 = plan S13c CLOSED + S14 harness built + **◆C4 DONE** (6.1 h GPU spark-to-horizon, lit, FAILED_TO_REACH −70 %); chemical sandbox at S14/20, Phase 4)
 
 **This section is current state only.** Per-session build history (measured deltas, findings,
 review waves) lives in `SESSION_LOG.md`; the by-area capability detail is under "What exists" below;
@@ -128,8 +128,9 @@ overnight harness `gpu_engine_run`** (S14): run schedule + audit every step + CO
 engine's own probe functions + FND-6 §3.8 checkpoints (state + prim cache + clock/trackers + pinned-input
 digests, atomic, resume-with-verify; FND-6 0.5.1) + halt artifacts; 300 ▸ resume ▸ 600 == 600 byte-identical.
 **Box: `tmux` inside WSL is the long-job mechanism** (docs/gpu-box.md). **◆C4 launched** on the ◆C3 desktop
-spec and **LIT at ~23–25 ms** (R 6×10⁻² kg/s ≫ the 1.7×10⁻³ floor; dt collapsed to 2.6×10⁻⁷ s → ~9 h to the
-84 ms horizon) — outcome in SESSION_LOG. Also landed: **SOLV-4 0.4.10 mid-`c` warm start** (the composed
+spec: **◆C4 DONE — 155 229 steps / 84 ms in 6.1 h (0.142 s/step), audited every step, lit at 23.2 ms (peak R
+6.1×10⁻² kg/s, the flame holds), verdict FAILED_TO_REACH (p_c 0.945 MPa / F 22.5 kN, −70 %; c\* 690 m/s — the
+kernel burns ~0.04 of 17 kg/s: the S16 flame-spreading gap, verdict honest).** Also landed: **SOLV-4 0.4.10 mid-`c` warm start** (the composed
 step's measured EOS lever; acceleration-only, 3.0×10⁻¹² vs cold) and the **S14 flux-buffer sweep path**
 (`k_face_rz` 88 regs from 230; ECT-class across paths, bit-identical within); their throughput is measured
 once the card is free.
