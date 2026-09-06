@@ -17,7 +17,7 @@ plan S1–S20; read §1 rulings + the current session's §5 entry before anythin
 never restate. `SESSION_LOG.md` holds the detailed per-session history (measured data, findings,
 review waves) — consult it for the story behind a surface; this file carries only current state.
 
-## State (2026-09-05 — session 28 = plan S13c CLOSED + S14 harness built + **◆C4 DONE** (6.1 h GPU spark-to-horizon, lit, FAILED_TO_REACH −70 %); chemical sandbox at S14/20, Phase 4)
+## State (2026-09-05 — session 28 = plan S13c CLOSED + **S14 DONE** (harness + profiling) + **◆C4 DONE** (6.1 h GPU spark-to-horizon, lit, FAILED_TO_REACH −70 %); chemical sandbox at S14/20 done, Phase 5 next)
 
 **This section is current state only.** Per-session build history (measured deltas, findings,
 review waves) lives in `SESSION_LOG.md`; the by-area capability detail is under "What exists" below;
@@ -148,9 +148,11 @@ deleted; findings live in doc change logs + git). Every session gates-green + co
 `scripts/check.sh` = the 5-gate battery (fmt, clippy, cargo test, offline pytest, certificate regen +
 diff); **253 Rust + 50 Python tests**. **Blind rule v1.4.1**: blind = mechanical input-blindness;
 every certificate declares `development-observed: yes/no`; the RL10 campaign is **open development**.
-**NEXT = S14 remainder (profiling-to-target: the warm-started mid-b projection (SOLV-4 amendment, doc-first) +
-the flux-buffer register reduction; the FND-6 bundle/manifest emission from the harness) → ◆C4's outcome
-recorded → S15 (two-phase; the Phase-5 standing rule: new physics lands with its GPU kernels).**
+**NEXT = S15 (Phase 5: liquid/vapor physics — the drift-flux extension, evaporation/condensation, cryogenic
+liquid injection states; the Phase-5 standing rule: new physics lands WITH its GPU kernels in the same
+session — the composed resident engine (`crates/gpu`) is now the production march). Recorded S14 remainder:
+the canonical FND-6 bundle layout from the harness; the EOS levers (cheaper two-branch interp, class-R skip on
+node-0-non-reactive cells). Pending from the brief: the anchor-fitting audit before the plasma pivot.**
 
 **VISION_SCOPE v1.5 (Ben, 2026-08-19) — the session-13 rulings, all doc-amended:** accelerated
 convergence (pseudo-transient/local-Δt) is **DELETED** — every certified result is a **physical
