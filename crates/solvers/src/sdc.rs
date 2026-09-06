@@ -1457,7 +1457,13 @@ impl Sdc {
         wrnew: f64,
     ) -> Result<(f64, f64), SdcError> {
         let ids = fc.fields.ids();
-        let rb = self.rb.as_mut().expect("ensured");
+        // The warm-start hints for the node solve's projections (SOLV-4
+        // 0.4.10): this sweep's class-A prim cache — the same state the
+        // resident device step hints from.
+        let (rb, ws) = (
+            self.rb.as_mut().expect("ensured"),
+            self.ws.as_ref().expect("ensured"),
+        );
         let mut net = 0.0f64;
         let mut gross = 0.0f64;
         for bi in 0..g.n_bricks() {
@@ -1465,6 +1471,7 @@ impl Sdc {
             let mask = brick.mask();
             let nt = brick.n_theta();
             let fields: [&[f64]; NCOMP] = std::array::from_fn(|k| brick.field(ids[k]));
+            let prim = &ws.0.prim[bi];
             let (r0, r_prev, r_trial, x_new) = (
                 &rb.r0[bi],
                 &rb.r_prev[bi],
@@ -1489,7 +1496,7 @@ impl Sdc {
                     let base = u[I_RB] + wr0 * r0[idx] + wrprev * r_prev[idx];
                     let (x, r) = rc
                         .op
-                        .implicit_auto_update(&u, base, wrnew)
+                        .implicit_auto_update_hinted(&u, base, wrnew, Some(prim[idx][4]))
                         .map_err(|what| FlowError::NonPhysicalState {
                             i_r,
                             i_z,

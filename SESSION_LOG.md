@@ -2260,3 +2260,20 @@ the committed artifacts in `certificates/` are the living record.
   hours, under the harness" — is met: 6.1 h, one physical trajectory, checkpointed, audited, the verdict
   machinery live on the device state. Artifacts: box `runs/rl10-startup-3d-gpu/` (+ `-readout/`); the
   progress record + verdict + log copied to the laptop `runs/rl10-startup-3d-gpu/` (gitignored, kept).
+  **(13) Post-◆C4 throughput profile + the class-R WARM START (SOLV-4 0.4.10 extended) — the resident step
+  4.9× faster:** with the card free, `CRUCIBLE_GPU_PROFILE=1` on the 3 ms reacting state: **class-R node solve
+  79 %** of kernel time, `fill_prims` 12 %, the three sweeps 5 %, combustion 2 % — the sweeps were never the
+  bottleneck on this world, so the S14 flux-buffer path measures neutral (0.0826 vs 0.0837 s/step; its
+  register win is banked for finer dials where the sweeps dominate), and **`-fmad=false` costs nothing
+  (0.0828) and leaves the CPU↔GPU RHS number unchanged (9.49×10⁻⁹ vs 9.51×10⁻⁹)** — the cross-device gap is
+  libm/projection-path, not FMA; the default build stays FMA-on. The mid-`c` warm start alone had taken the
+  step 0.137 → **0.083 s/step**. The class-R solve re-projected every live cell COLD (2 refreezes × 3 sweeps =
+  6 cold mid-`c` scans per cell per step — on the CPU too, `implicit_auto_update` had no hint path):
+  `Combustion::implicit_auto_update_hinted` (the SDC step's `apply_reaction` passes its own prim-cache
+  pressure; the pure `implicit_auto_update` stays cold, so the class-R unit tests and the S9 refreeze witness
+  are bit-unchanged) and the device `k_class_r` hinted from the same prim buffer. Validated: composed-step
+  xcheck **ALL PASS** (state 4.0×10⁻¹², every audit passes, rerun + checkpoint bit-identical); **0.0277
+  s/step** (class-R 8820 → 1457 ms per 130 steps; now fill_prims 36 % / class-R 39 % / rate_z 11 %) —
+  **0.137 → 0.028 s/step, 4.9× over the session; ◆C4's 6.1 h would be ~1.2 h.** Remaining EOS levers (both
+  projection-bound): a cheaper `prim_blend` (the two-branch interps re-evaluate log/exp per corner) and
+  skipping the class-R projection for node-0-non-reactive cells (a CPU-reference structure change — not taken).

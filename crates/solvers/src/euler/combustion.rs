@@ -679,6 +679,23 @@ impl Combustion<'_> {
         base: f64,
         w_new: f64,
     ) -> Result<(f64, f64), &'static str> {
+        self.implicit_auto_update_hinted(u, base, w_new, None)
+    }
+
+    /// [`Self::implicit_auto_update`] with a warm-start hint for the
+    /// per-refreeze state projection (SOLV-4 0.4.10): the cell's cached
+    /// projected pressure from the sweep's own class-A fill. An
+    /// acceleration, never physics — identical to the cold solve to the
+    /// projection tolerance (the SDC step passes its prim cache; the pure
+    /// solve above passes `None`). Measured: the cold node solve was 79 % of
+    /// the resident step (6 cold mid-`c` scans per live cell per step).
+    pub fn implicit_auto_update_hinted(
+        &self,
+        u: &Cons,
+        base: f64,
+        w_new: f64,
+        hint: Option<f64>,
+    ) -> Result<(f64, f64), &'static str> {
         if !base.is_finite() {
             return Err("non-finite composed burn progress entering the class-R solve");
         }
@@ -726,7 +743,7 @@ impl Combustion<'_> {
         for _ in 0..N_TAU_REFREEZE {
             let mut ut = *u;
             ut[I_RB] = x;
-            let w = self.blend.prim_checked(&ut)?;
+            let w = self.blend.prim_checked_hinted(&ut, hint)?;
             if self.blend.below_unburnt_floor(&w) {
                 // Colder than any representable reactant: source zero — the
                 // exact trajectory from the projected base is the projected

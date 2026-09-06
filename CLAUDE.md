@@ -132,8 +132,10 @@ spec: **◆C4 DONE — 155 229 steps / 84 ms in 6.1 h (0.142 s/step), audited ev
 6.1×10⁻² kg/s, the flame holds), verdict FAILED_TO_REACH (p_c 0.945 MPa / F 22.5 kN, −70 %; c\* 690 m/s — the
 kernel burns ~0.04 of 17 kg/s: the S16 flame-spreading gap, verdict honest).** Also landed: **SOLV-4 0.4.10 mid-`c` warm start** (the composed
 step's measured EOS lever; acceleration-only, 3.0×10⁻¹² vs cold) and the **S14 flux-buffer sweep path**
-(`k_face_rz` 88 regs from 230; ECT-class across paths, bit-identical within); their throughput is measured
-once the card is free.
+(`k_face_rz` 88 regs from 230; ECT-class across paths, bit-identical within). **Post-◆C4 profile:** class-R
+was 79 % of the step (cold re-projections) — the class-R warm start (same 0.4.10 rule, CPU + device) takes
+the composed step **0.137 → 0.028 s/step (4.9×)**; the sweeps are 5 % (flux-buffer neutral here);
+`-fmad=false` costs nothing and does not move the CPU↔GPU gap (libm, not FMA).
 
 **Doctrine (VISION_SCOPE v1.6 / plan ruling #14, 2026-08-27):** the **torch/ASI flame-holder object is
 DELETED** — flame-holding is **emergent** (resolved recirculation), the only start boundary-inputs are

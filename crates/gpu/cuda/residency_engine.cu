@@ -909,6 +909,7 @@ __global__ void k_r0(const double* __restrict__ prim, const World W, const Table
 __global__ void k_class_r(double* __restrict__ cons, const World W, const Tables T, const StepParams P, long N,
                           const double* __restrict__ r0, const double* __restrict__ r_prev,
                           double wr0, double wrprev, double wrnew,
+                          const double* __restrict__ prim, int has_hint,
                           double* __restrict__ r_trial, double* __restrict__ rec_net, double* __restrict__ rec_gross,
                           int* __restrict__ bad) {
     long c = (long)blockIdx.x*blockDim.x + threadIdx.x;
@@ -922,6 +923,7 @@ __global__ void k_class_r(double* __restrict__ cons, const World W, const Tables
     if (kappa <= 0.0) return;
     double* uc = cons + c*NC;
     double u[NC]; for (int k = 0; k < NC; k++) u[k] = uc[k];
+    double hint_p = prim[c*NP + 4];
     double base_raw = u[I_RB] + wr0 * r0[c] + wrprev * r_prev[c];
     if (!isfinite(base_raw)) { atomicExch(bad, 1); return; }
     double rho = u[I_RHO], inv = 1.0 / rho;
@@ -939,7 +941,9 @@ __global__ void k_class_r(double* __restrict__ cons, const World W, const Tables
                 double ut[NC]; for (int k = 0; k < NC; k++) ut[k] = u[k];
                 ut[I_RB] = x;
                 double w[NP];
-                if (!prim_blend(T, ut, 0.0, 0, w)) { atomicExch(bad, 1); return; }
+                // Warm start (SOLV-4 0.4.10): the sweep's prim-cache pressure —
+                // the same hint the CPU's apply_reaction passes.
+                if (!prim_blend(T, ut, hint_p, has_hint, w)) { atomicExch(bad, 1); return; }
                 Closure cl = closure_at(T, P, w, delta, 1);
                 if (!cl.live) { x = base; done = 2; break; }   // floors: source zero
                 x = fmin((base + wrnew * rho / cl.tau) / (1.0 + wrnew / cl.tau), cap);
@@ -1351,7 +1355,7 @@ extern "C" int gpu_engine_step(void* h, double t, double dt, double mdot_per_are
         launch_srd(E);
         { ProfScope ps(E, P_CLASS_R);
           k_class_r<<<cblk,tpb>>>(E->cons, E->W, E->T, P1, E->N, E->r0, E->r_prev, wq0, wqprev, wqnew,
-                                  E->r_trial, E->rec_net, E->rec_gross, E->bad); }
+                                  E->prim, E->primed, E->r_trial, E->rec_net, E->rec_gross, E->bad); }
         double rec[2];
         // two single-column reductions (net, gross)
         reduce_cols(E, E->rec_net, 1, rec + 0);
