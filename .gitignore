@@ -1,20 +1,24 @@
-# OS / editor cruft
+# Local environments, build outputs, and generated runs (including the archive).
+target/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+node_modules/
+dist/
+build/
+runs/
+
+# Local configuration and credentials are not archive source material.
+.claude/settings.local.json
+.env
+.env.*
+!.env.example
+
+# OS/editor files.
 .DS_Store
 Thumbs.db
 *.swp
 *~
 .idea/
 .vscode/
-
-# Rust build (Cargo.lock is committed: the build fingerprint hashes it, FND-6 §3.4)
-/target
-
-# Python offline pipelines (OFFL-*, Goal B station 3)
-__pycache__/
-*.pyc
-.venv/
-*.egg-info/
-runs/
-
-# The GPU crate is its own workspace (box-only builds); its laptop stub-check target dir
-/crates/gpu/target

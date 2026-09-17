@@ -1,0 +1,20 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Rust build (Cargo.lock is committed: the build fingerprint hashes it, FND-6 §3.4)
+/target
+
+# Python offline pipelines (OFFL-*, Goal B station 3)
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+runs/
+
+# The GPU crate is its own workspace (box-only builds); its laptop stub-check target dir
+/crates/gpu/target
