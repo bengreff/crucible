@@ -86,7 +86,7 @@ Retire mandatory full 3D, automatic axisymmetric-to-3D ambition, universal singl
 
 **What remains genuinely unresolved**
 
-The plasma/fluid/particle treatment, appropriate transport closures, first antimatter species and configuration, defensible post-ICF data/handoff, and specific validation anchors need selection. Chemical reacting-chamber models must be assessed in their own right; the old burn-progress closure is not accepted just because code exists. None of these is settled by writing the new vision.
+The plasma/fluid/particle treatment, appropriate transport closures, first antimatter species and configuration, defensible post-ICF data/handoff, and specific validation anchors need evidence. [RESEARCH.md](RESEARCH.md) now identifies starting closure candidates and tests; [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) owns current implementation choices. These notes remain the historical extraction. Chemical reacting-chamber models must be assessed in their own right; the old burn-progress closure is not accepted just because code exists. None of these is settled by writing the new vision.
 
 The new instrument's usefulness also needs a literature comparison and human testing. The first implementation should let a person define, run, inspect, and compare a small supported experiment, while magnetic and particle cases test the physical design early. A chosen investigation can then test the tool's research value without becoming the only question the instrument can ask.
 

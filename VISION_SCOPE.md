@@ -8,6 +8,8 @@ The problem is determining which engine arrangements can turn a reaction's avail
 
 CRUCIBLE will be a technical sandbox that a human can use to construct, operate, observe, and compare such experiments. The user describes the device and its supplies or controls. The simulator calculates the medium's coupled behavior and makes the causes of the resulting performance inspectable.
 
+There is one simulation engine. Every added physical capability becomes part of its shared calculation and is available to any compatible experiment. Chemical, fusion and antimatter arrangements are applications of that engine, not separate solvers or installable extensions. Internal numerical methods and physical closures can differ where the physics requires them; their exchanges, control history and measurements remain coupled consistently.
+
 The project is the reusable instrument. The minimum size of an antimatter engine, comparisons of magnetic nozzles, and the effect of pulse timing are possible investigations, not permanent definitions of the project. Neither broad applicability nor an attractive interface establishes scientific novelty by itself; an early comparison with existing tools must identify the useful experiments and human workflow this project adds.
 
 **Who it is for**
@@ -16,15 +18,25 @@ The intended user has an intuition for physics and is willing to learn the instr
 
 The normal workflow is visual: open or create an experiment; shape its axisymmetric geometry; place supplies and equipment; choose supported materials and physical models; specify operation; run; inspect; change something; compare. Everyday use must not require code edits, handwritten solver configuration, or knowledge of mesh algorithms. Expert configuration and batch runs may expose the same underlying experiment.
 
+The product is one native desktop app with local simulation on Mac, Windows, and Linux. Editing, operation, and observation belong to the same open experiment. The user operates an instrument rather than submitting reports. Feed, heating, and current can change live through supported equipment controls; changing geometry requires pausing and restarting with an explicit initial state. Controls and viewing must stay responsive even when physical results take minutes.
+
+Ben intends to publish the tool. His Mac is the main development/use machine, with a Windows PC available for larger calculations. Design for multiple hardware classes and meshes with millions of cells. The performance ambition is short, physically credible runs in minutes; actual cell counts, physical durations and achieved accuracy must be established by measurement and convergence. High fidelity means adequacy for the claimed observables within the supported models, not simply a large mesh.
+
+Ordinary setup should center on chamber/nozzle shape, supplies, injection conditions and equipment controls. Supported injector and wall descriptions provide explicit, inspectable assumptions where full hardware detail is unnecessary. Composition, supply thermodynamic state, spatial delivery and thermal boundary behavior still matter when they affect the answer; an easy interface must not silently invent them.
+
 **The physical scope**
 
 The simulated subject is the working medium and its reactions. The combustion chamber's reacting contents are included. Bulk flow, species/composition, appropriate temperatures, reactions, energy transport, and relevant electromagnetic response evolve together. Energetic particles and radiation are represented separately when treating them as local heat would lose important behavior.
 
 The spatial scope is two-dimensional axisymmetry. Vector components around the axis may be retained, but azimuthally varying structures are not resolved. Turbulent transport and other unresolved processes use explicit, responsive models rather than resolved eddies. Axisymmetry and model applicability remain limits on conclusions about real devices.
 
-The initial bulk-medium target is nonrelativistic gas/plasma; energetic products can require relativistic particle transport. This does not automatically support every relativistic plasma or arbitrary material phase. The first chemical implementation will use gaseous or already-vaporized reactants, with modeled mixing, combustion, and expansion. Liquid breakup and evaporation require a supported extension before raw liquid injection is claimed.
+The unifying principle is consistent physical exchanges and feedback, not one universal turbulence formula. The display distinguishes modeled averages from resolved motion. Results should reveal whether a design comparison survives plausible uncertainty in mixing, heat transport and losses. A minimum size inferred from this model is conditional on its scope; it does not by itself establish stability, manufacturability or a complete working engine.
+
+The initial bulk-medium target is nonrelativistic gas/plasma; energetic products can require relativistic particle transport. This does not automatically support every relativistic plasma or arbitrary material phase. The first chemical implementation will use gaseous or already-vaporized reactants, with modeled mixing, combustion, and expansion. Liquid breakup and evaporation must be added to the shared engine before raw liquid injection is claimed.
 
 Generalization means rearranging supported physics through geometry and operating inputs. A new arrangement must not need private engine-specific physics code. A new mechanism or an unsupported regime may require new models. Different physical descriptions are allowed where justified; numerical smoothness alone does not prove a physically valid transition.
+
+Fields and radiation may extend beyond the material, and expanding matter may leave a fluid model's domain of validity. Account for those exchanges and transitions explicitly. Boundary-object classification does not justify omitting a physical effect that controls the requested result.
 
 **The system boundary**
 
@@ -42,7 +54,7 @@ Approximating turbulence, chemistry, or particle deposition is an internal physi
 | Antimatter propulsion | Specified matter and antimatter supply; supported annihilation reactions, product transport, deposition, and coupled medium/field response | How geometry and operation affect usable energy, force, losses, and physical limits |
 | Post-ICF propulsion | A justified prepared post-burn state or time-dependent event output; subsequent plasma/field interaction | How a prescribed event becomes impulse, exhaust, and loads |
 
-For ICF, implosion and production of the supplied pulse are outside the simulated time window. The supplied state must describe mass, composition, spatial state, motion, and energy partition—not only total yield. Choose a handoff after the excluded burn and before significant omitted nozzle interaction, within the receiving model's validity. If no defensible handoff exists, the experiment needs compatible upstream output or is unsupported. Remaining reactions cannot silently be discarded. Energy already escaped must be accounted for without depositing it again.
+For ICF and other supplied pellet events such as the AMCF events in Ben's proposal, implosion and production of the supplied pulse are outside the simulated time window. The supplied state must describe mass, composition, spatial state, motion, and energy partition—not only total yield. Choose a handoff after the excluded burn and before significant omitted nozzle interaction, within the receiving model's validity. If no defensible handoff exists, the experiment needs compatible upstream output or is unsupported. Remaining reactions cannot silently be discarded. Energy already escaped must be accounted for without depositing it again.
 
 The first antimatter species and physical configuration must be selected during model design; support for one does not establish support for all. Interaction libraries supply constituent models, not automatic validation of the coupled engine.
 
@@ -76,15 +88,17 @@ Results must be reproducible to declared numerical tolerances. Bitwise identity 
 **How the rebuild proceeds**
 
 1. Specify representative experiments and the shared physical state; compare existing capabilities and choose defensible fluid, particle, reaction, and unresolved-transport models. Use the archived lessons as evidence, not requirements.
-2. Establish a small human workflow through a supported reacting-gas experiment: define, run, inspect, change, compare. A prepared operating state is acceptable; complete cold startup of all equipment is not required.
-3. Exercise magnetic-plasma expansion and then energetic-product coupling early enough to test the shared design before polishing the chemical application. Distinguish synthetic or prescribed demonstrations from validated device predictions.
+2. Make chemical propulsion the first substantive milestone: an operable reacting chamber/nozzle, the visual define/run/inspect/change/compare workflow, and validation using published geometry, operating conditions and measured performance for multiple real engines. Start with sufficiently documented cases; RL10 is a candidate, not a mandatory inherited target. Component experiments support particular model checks. A prepared operating state is acceptable; complete cold startup of all equipment is not required.
+3. Add magnetic-plasma evolution and energetic-product coupling to the same engine after establishing the chemical milestone. Use small early architecture checks where they prevent costly redesign, without displacing the chemical-validation priority. Distinguish synthetic or prescribed demonstrations from validated device predictions.
 4. Verify and validate the supported cases, measure computational cost, and test usability with unfamiliar users. Reuse archived code only after its assumptions and behavior fit the new model.
 5. Conduct substantive investigations chosen by Ben using the same instrument. Use the findings to improve the supported models and observation tools without turning each engine into its own implementation.
 
 Success requires both scientific credibility and human usability. The primary demonstrations must use a shared experiment workflow, changes in geometry/operation must produce inspectable physical consequences, and at least one investigation must explain a useful mechanism or limit with its assumptions. The schedule and detailed acceptance tolerances follow the initial model and compute feasibility work. A solver-only deliverable or a visual shell without supported physics is incomplete.
 
+The primary applications describe the intended reach of the instrument, not simultaneous first-release coverage. Chemical propulsion with real-data validation is the first demonstration. Ben's proposal is complete, and the desired development horizon is a few months. Treat that as a planning target to test against measured progress, not evidence that all proposed investigations can be completed in that time. Later physical capabilities belong to the same engine and must earn their credibility while preserving earlier results within declared tolerances.
+
 **Authority and changes**
 
 The pre-pivot repository is preserved under `archive/pre-pivot-2026-09-17/`. Consult `REBUILD_NOTES.md` for lessons, specific references, and unresolved issues. No old milestone, prohibition on visualization, all-regime promise, mandatory three-dimensional simulation, source-code language split, or universal determinism requirement carries over unless restated here.
 
-Keep this vision short enough for a human to understand and challenge. Record consequential scope changes here with their reasons. Implementation documents explain how the current scope is achieved; they do not silently enlarge it.
+Keep this vision short enough for a human to understand and challenge. Record consequential scope changes here with their reasons. [RESEARCH.md](RESEARCH.md) records evidence and open model decisions; [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) defines the implementation architecture. They explain how the current scope is achieved and do not silently enlarge it.
