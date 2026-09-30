@@ -155,13 +155,23 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),totalPressure_(d.totalPressure)
     }
     resetAccounting();
 }
+double Flow::BoundaryRates::grossMomentum() const {
+    return std::abs(inletMomentum)+std::abs(outletMomentum)+std::abs(wallAxial)+std::abs(bodyAxial);
+}
+Flow::BoundaryRates Flow::BoundaryRates::average(const BoundaryRates& a,const BoundaryRates& b) {
+    auto mean=[](double x,double y){return 0.5*(x+y);};
+    return {mean(a.mass,b.mass),mean(a.energy,b.energy),mean(a.inlet,b.inlet),mean(a.outlet,b.outlet),
+        mean(a.inletMomentum,b.inletMomentum),mean(a.outletMomentum,b.outletMomentum),
+        mean(a.wallAxial,b.wallAxial),mean(a.bodyAxial,b.bodyAxial)};
+}
 void Flow::resetAccounting() {
-    initialMass_=initialEnergy_=0;
+    initialMass_=initialEnergy_=initialMomentum_=0;
     for(std::size_t q=0;q<state_.size();++q) {
         initialMass_+=state_[q][0]*mesh_.cells[q].volume;
+        initialMomentum_+=state_[q][1]*mesh_.cells[q].volume;
         initialEnergy_+=state_[q][3]*mesh_.cells[q].volume;
     }
-    integratedMassFlux_=integratedEnergyFlux_=0;
+    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=0;
     lastRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
 }
 void Flow::setUniform(Primitive w) {
@@ -271,10 +281,11 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Co
             if(i>0) derivative[il][k]-=area*flux[k];
             if(i<m.nz) derivative[ir][k]+=area*flux[k];
         }
-        if(i==0) { rates.mass+=area*flux[0];rates.energy+=area*flux[3];rates.inlet+=area*flux[0]; }
+        if(i==0) {
+            rates.mass+=area*flux[0];rates.energy+=area*flux[3];rates.inlet+=area*flux[0];rates.inletMomentum+=area*flux[1];
+        }
         if(i==m.nz) {
-            rates.mass-=area*flux[0];rates.energy-=area*flux[3];rates.outlet+=area*flux[0];
-            rates.outletForce+=area*(flux[1]-d.backPressure);
+            rates.mass-=area*flux[0];rates.energy-=area*flux[3];rates.outlet+=area*flux[0];rates.outletMomentum+=area*flux[1];
         }
     }
     for(int i=0;i<m.nz;++i) for(int j=1;j<=m.nr;++j) {
@@ -289,7 +300,10 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Co
             derivative[il][k]-=area*flux[k];
             if(j<m.nr) derivative[ir][k]+=area*flux[k];
         }
+        if(j==m.nr) rates.wallAxial-=area*flux[1];
     }
+    // Volumetric axial forces (e.g. a future Lorentz force) must add their volume integral to
+    // rates.bodyAxial here; their reaction acts on the equipment (coils) in deviceThrust.
     for(std::size_t q=0;q<state.size();++q) {
         derivative[q][2]+=primitives_[q].p*m.cells[q].radialPressureMeasure;
         for(double& v:derivative[q]) v/=m.cells[q].volume;
@@ -316,10 +330,11 @@ double Flow::step(double maxDt) {
         }
         if(ok) {
             state_.swap(next_);time_+=dt;dt_=dt;++steps_;
-            integratedMassFlux_+=0.5*dt*(first.mass+second.mass);
-            integratedEnergyFlux_+=0.5*dt*(first.energy+second.energy);
-            lastRates_={0.5*(first.mass+second.mass),0.5*(first.energy+second.energy),
-                0.5*(first.inlet+second.inlet),0.5*(first.outlet+second.outlet),0.5*(first.outletForce+second.outletForce)};
+            lastRates_=BoundaryRates::average(first,second);
+            integratedMassFlux_+=dt*lastRates_.mass;
+            integratedEnergyFlux_+=dt*lastRates_.energy;
+            integratedMomentumSource_+=dt*lastRates_.netMomentum();
+            integratedMomentumGross_+=dt*lastRates_.grossMomentum();
             return dt;
         }
         ++rejectedSteps_;dt*=0.5;
@@ -333,7 +348,9 @@ void Flow::advanceTo(double target) {
 Measurements Flow::measurements() const {
     Measurements result{};
     result.time=time_;result.dt=dt_;result.steps=steps_;result.rejectedSteps=rejectedSteps_;
-    result.inletMassFlow=lastRates_.inlet;result.outletMassFlow=lastRates_.outlet;result.outletForce=lastRates_.outletForce;
+    result.inletMassFlow=lastRates_.inlet;result.outletMassFlow=lastRates_.outlet;
+    result.inletMomentumFlux=lastRates_.inletMomentum;result.outletMomentumFlux=lastRates_.outletMomentum;
+    result.wallAxialForce=lastRates_.wallAxial;result.bodyAxialForce=lastRates_.bodyAxial;
     result.minPressure=std::numeric_limits<double>::infinity();
     double exitArea=0;
     for(int i=0;i<mesh_.nz;++i) for(int j=0;j<mesh_.nr;++j) {
@@ -341,11 +358,21 @@ Measurements Flow::measurements() const {
         double mach=std::hypot(w.uz,w.ur)/std::sqrt(definition_.gas.gamma*w.p/w.rho);
         result.mass+=state_[q][0]*mesh_.cells[q].volume;
         result.energy+=state_[q][3]*mesh_.cells[q].volume;
+        result.axialMomentum+=state_[q][1]*mesh_.cells[q].volume;
         result.minPressure=std::min(result.minPressure,w.p);result.maxPressure=std::max(result.maxPressure,w.p);
         result.maxMach=std::max(result.maxMach,mach);
         if(i==mesh_.nz-1) { double a=mesh_.axialArea(mesh_.nz,j);exitArea+=a;result.exitMach+=a*mach; }
     }
     result.exitMach/=exitArea;
+    // Ambient pressure acts on the closed exterior of the device except the exit opening.
+    result.ambientAxialForce=definition_.backPressure*exitArea;
+    if(steps_>0) {
+        result.exitPlaneThrust=result.outletMomentumFlux-result.ambientAxialForce;
+        result.deviceThrust=result.inletMomentumFlux+result.wallAxialForce+result.bodyAxialForce-result.ambientAxialForce;
+    }
+    // Normalized by initial |P_z| plus the integrated gross momentum exchange (P_z can start at zero).
+    result.momentumBalanceError=(result.axialMomentum-initialMomentum_-integratedMomentumSource_)/
+        std::max(std::abs(initialMomentum_)+integratedMomentumGross_,std::numeric_limits<double>::min());
     result.massBalanceError=(result.mass-initialMass_-integratedMassFlux_)/initialMass_;
     result.energyBalanceError=(result.energy-initialEnergy_-integratedEnergyFlux_)/initialEnergy_;
     return result;

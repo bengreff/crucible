@@ -12,6 +12,7 @@
 #include <vector>
 
 using namespace crucible;
+double sq(double x) {return x*x;}
 void require(bool condition,const char* message) {if(!condition) throw std::runtime_error(message);}
 void near(double actual,double expected,double tolerance,const char* message) {
     if(std::abs(actual-expected)>tolerance) {
@@ -218,6 +219,20 @@ int main(int argc,char** argv) {
          double me=exitMachFor(ideal,.7*d.totalPressure,std::numbers::pi*d.exitRadius*d.exitRadius,d);
          std::cout<<"Internal shock: mdot/choked-1="<<m.outletMassFlow/ideal-1<<" exit M="<<m.exitMach<<" quasi-1D="<<me<<" max M="<<m.maxMach<<'\n';
          require(std::abs(m.outletMassFlow/ideal-1)<.003 && std::abs(m.exitMach/me-1)<.005 && m.maxMach>1.5,"Internal normal shock must match quasi-1D exit state");}
+        // Device thrust: the axial momentum ledger closes, and the gradual nozzle approaches the
+        // quasi-1D ideal thrust coefficient at matched p0, pa and area ratio.
+        {Definition d;d.nz=80;d.nr=12;Flow f(d);f.advanceTo(.008);auto m=f.measurements();double g=d.gas.gamma;
+         require(std::abs(m.momentumBalanceError)<1e-13,"Axial momentum budget must close");
+         near(m.deviceThrust,m.inletMomentumFlux+m.wallAxialForce-m.ambientAxialForce,1e-9,"Device thrust composition");
+         double me=machFromArea(sq(d.exitRadius/d.throatRadius),true,g),pe=d.totalPressure*std::pow(1+(g-1)/2*me*me,-g/(g-1));
+         double at=std::numbers::pi*sq(d.throatRadius),ae=std::numbers::pi*sq(d.exitRadius);
+         double ideal=std::sqrt(2*g*g/(g-1)*std::pow(2/(g+1),(g+1)/(g-1))*(1-std::pow(pe/d.totalPressure,(g-1)/g)))+(pe-d.backPressure)*ae/(d.totalPressure*at);
+         double cf=m.deviceThrust/(d.totalPressure*at),steady=(m.deviceThrust-m.exitPlaneThrust)/m.deviceThrust;
+         std::cout<<"Thrust coefficient: device="<<cf<<" quasi-1D ideal="<<ideal<<" ratio-1="<<cf/ideal-1
+                  <<" (device-exit)/device="<<steady<<" momentum residual="<<m.momentumBalanceError<<'\n';
+         require(std::abs(cf/ideal-1)<.01 && std::abs(steady)<1e-3,"Gradual-nozzle device thrust must approach quasi-1D ideal");}
+        {Definition d;d.nz=40;d.nr=3;d.length=1;d.experiment=Case::ShockTube;Flow f(d);f.advanceTo(.1);
+         require(std::abs(f.measurements().momentumBalanceError)<1e-13,"Momentum budget from rest (Sod)");}
         double radialCoarse=radialWaveError(16),radialFine=radialWaveError(48);
         std::cout<<"Radial acoustic normalized velocity error: 16="<<radialCoarse<<" 48="<<radialFine<<'\n';
         require(radialFine<radialCoarse*.6 && radialFine<.02,"Radial acoustic mode must converge");

@@ -23,7 +23,7 @@ int main(int argc,char** argv) {
         else if(arg=="--first-order") first=true;
         else {std::fprintf(stderr,"crucible_convergence [--base 40] [--levels 4] [--time 0.008 | --times 0.004,0.008] [--first-order]\n");return 1;}
     }
-    std::printf("nz,nr,time_s,steps,compute_s,mdot_out_rel_err,mdot_in_rel_err,entropy_L1,entropy_wall_L1,entropy_axis_L1,enthalpy_L1,exit_mach,outlet_force_N,mass_res,energy_res\n");
+    std::printf("nz,nr,time_s,steps,compute_s,mdot_out_rel_err,mdot_in_rel_err,entropy_L1,entropy_wall_L1,entropy_axis_L1,enthalpy_L1,exit_mach,exit_plane_thrust_N,device_thrust_N,cf_over_quasi1d_minus_1,mass_res,energy_res,momentum_res\n");
     for(int level=0;level<levels;++level) {
         Definition d;d.nz=base<<level;d.nr=d.nz*3/20;d.secondOrder=!first;
         Flow flow(d);auto start=std::chrono::steady_clock::now();
@@ -42,10 +42,15 @@ int main(int argc,char** argv) {
             if(j==0){axisVolume+=v;axis+=v*s;}
         }
         auto r=flow.measurements();double ideal=chokedMassFlow(d);
-        std::printf("%d,%d,%.6g,%llu,%.3f,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.8f,%.6f,%.2e,%.2e\n",d.nz,d.nr,r.time,
+        // Quasi-1D ideal thrust at matched reservoir, ambient pressure and area ratio.
+        double at=3.141592653589793*d.throatRadius*d.throatRadius,ae=at*std::pow(d.exitRadius/d.throatRadius,2);
+        double me=machFromArea(ae/at,true,g),pe=d.totalPressure*std::pow(1+(g-1)/2*me*me,-g/(g-1));
+        double idealThrust=d.totalPressure*at*std::sqrt(2*g*g/(g-1)*std::pow(2/(g+1),(g+1)/(g-1))*
+            (1-std::pow(pe/d.totalPressure,(g-1)/g)))+(pe-d.backPressure)*ae;
+        std::printf("%d,%d,%.6g,%llu,%.3f,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.8f,%.6f,%.6f,%.6e,%.2e,%.2e,%.2e\n",d.nz,d.nr,r.time,
             static_cast<unsigned long long>(r.steps),seconds,r.outletMassFlow/ideal-1,r.inletMassFlow/ideal-1,
-            entropy/volume,wall/wallVolume,axis/axisVolume,enthalpy/volume,r.exitMach,r.outletForce,
-            r.massBalanceError,r.energyBalanceError);
+            entropy/volume,wall/wallVolume,axis/axisVolume,enthalpy/volume,r.exitMach,r.exitPlaneThrust,r.deviceThrust,r.deviceThrust/idealThrust-1,
+            r.massBalanceError,r.energyBalanceError,r.momentumBalanceError);
         std::fflush(stdout);
     }}
 }

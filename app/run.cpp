@@ -31,7 +31,10 @@ int main(int argc,char** argv) {
           <<"\ncell_updates_per_s="<<d.nz*static_cast<double>(d.nr)*m.steps/seconds
           <<"\ninlet_mass_flow_kg_s="<<m.inletMassFlow<<"\noutlet_mass_flow_kg_s="<<m.outletMassFlow
           <<"\nideal_choked_mass_flow_kg_s="<<crucible::chokedMassFlow(d)
-          <<"\noutlet_force_N="<<m.outletForce<<"\nexit_mach="<<m.exitMach
+          <<"\ndevice_thrust_N="<<m.deviceThrust<<"\nexit_plane_thrust_N="<<m.exitPlaneThrust
+          <<"\ninlet_momentum_flux_N="<<m.inletMomentumFlux<<"\nwall_axial_force_on_gas_N="<<m.wallAxialForce
+          <<"\nambient_axial_force_N="<<m.ambientAxialForce<<"\nmomentum_budget_relative_error="<<m.momentumBalanceError
+          <<"\nexit_mach="<<m.exitMach
           <<"\nmass_budget_relative_error="<<m.massBalanceError
           <<"\nenergy_budget_relative_error="<<m.energyBalanceError<<"\nrejected_steps="<<m.rejectedSteps<<'\n';
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
