@@ -239,6 +239,21 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Co
         auto l=values(primitives_[m.index(i,j-1)]),r=values(primitives_[m.index(i,j+1)]);
         for(int k=0;k<4;++k) slopesR_[q][k]=minmod(c[k]-l[k],r[k]-c[k]);
     }
+    // Boundary rows/columns have no outer neighbour. A zero slope there makes wall, inlet and
+    // outlet face states first-order (measured: wall-row entropy error order ~1.1). Use the
+    // limited one-sided slope minmod(c-n1, n1-n2), which is second-order for smooth data and
+    // falls back towards zero across a jump. Density/pressure face values stay >= half the cell value.
+    auto oneSided=[&](std::size_t q,std::size_t n1,std::size_t n2,double sign,Conserved& slope) {
+        auto c=values(primitives_[q]),a=values(primitives_[n1]),b=values(primitives_[n2]);
+        for(int k=0;k<4;++k) slope[k]=sign*minmod(c[k]-a[k],a[k]-b[k]);
+        for(int k:{0,3}) slope[k]=std::clamp(slope[k],-c[k],c[k]);
+    };
+    if(d.secondOrder) for(int j=0;j<m.nr;++j) {
+        oneSided(m.index(0,j),m.index(1,j),m.index(2,j),-1,slopesZ_[m.index(0,j)]);
+        oneSided(m.index(m.nz-1,j),m.index(m.nz-2,j),m.index(m.nz-3,j),1,slopesZ_[m.index(m.nz-1,j)]);
+    }
+    if(d.secondOrder && m.nr>=3) for(int i=0;i<m.nz;++i)
+        oneSided(m.index(i,m.nr-1),m.index(i,m.nr-2),m.index(i,m.nr-3),1,slopesR_[m.index(i,m.nr-1)]);
     auto reconstructed=[&](std::size_t q,bool axial,double direction) {
         auto w=values(primitives_[q]); const auto& slope=axial?slopesZ_[q]:slopesR_[q];
         for(int k=0;k<4;++k) w[k]+=direction*0.5*slope[k];
@@ -247,10 +262,10 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Co
     BoundaryRates rates{};
     for(int i=0;i<=m.nz;++i) for(int j=0;j<m.nr;++j) {
         auto il=m.index(std::max(0,i-1),j),ir=m.index(std::min(m.nz-1,i),j);
-        Primitive l=i==0?inlet(primitives_[ir]):reconstructed(il,true,1);
-        Primitive r=i==m.nz?outlet(primitives_[il]):reconstructed(ir,true,-1);
-        if(i==0) r=primitives_[ir];
-        if(i==m.nz) l=primitives_[il];
+        // Boundary models receive the reconstructed interior face state.
+        Primitive l=reconstructed(il,true,1),r=reconstructed(ir,true,-1);
+        if(i==0) l=inlet(r);
+        if(i==m.nz) r=outlet(l);
         auto flux=hllc(l,r,1,0,d.gas);double area=m.axialArea(i,j);
         for(int k=0;k<4;++k) {
             if(i>0) derivative[il][k]-=area*flux[k];
