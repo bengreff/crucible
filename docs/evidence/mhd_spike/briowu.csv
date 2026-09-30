@@ -1,0 +1,10 @@
+# Brio-Wu reference: axial tube, nz=12800, steps=25027, hll fallbacks=0
+case,direction,n,L1_rho,L1_un,L1_btransverse,mass_res,energy_res,steps,hll_fallbacks
+briowu,axial,200,7.8250e-03,1.5936e-02,1.0547e-02,-1.2e-14,-2.2e-15,1127,0
+briowu,radial,200,7.8250e-03,1.5936e-02,1.0547e-02,5.9e-16,1.5e-15,1228,0
+briowu,axial,400,4.6546e-03,8.7628e-03,6.0067e-03,-1.5e-14,-3.4e-15,1505,0
+briowu,radial,400,4.6546e-03,8.7630e-03,6.0067e-03,2.4e-15,1.4e-15,1576,0
+briowu,axial,800,2.6575e-03,4.6116e-03,3.2548e-03,9.9e-15,-2.6e-14,2281,0
+briowu,radial,800,2.6575e-03,4.6116e-03,3.2547e-03,-1.6e-16,2.7e-15,2313,0
+briowu,axial,1600,1.4368e-03,2.3250e-03,1.6682e-03,6.0e-14,-2.9e-14,3833,0
+briowu,radial,1600,1.4368e-03,2.3252e-03,1.6682e-03,-1.2e-15,9.2e-16,3866,0

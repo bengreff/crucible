@@ -1,0 +1,9 @@
+case,nz,nr,max_accel_m_s2,at_i,at_j,rms_accel,max_dEdt_W_m3,accel_scale_b2_over_rhoL
+residual-zero-slope,40,6,4.2849e+06,14,5,4.9500e+05,1.15e+09,1.371e+07
+residual-zero-slope,80,12,3.0998e+06,28,11,2.4647e+05,6.93e+08,1.371e+07
+residual-zero-slope,160,24,1.3902e+06,57,23,7.0277e+04,5.12e+08,1.371e+07
+residual-zero-slope,320,48,1.0123e+06,125,0,2.9128e+04,2.91e+08,1.371e+07
+residual-parity,40,6,4.2849e+06,14,5,4.9433e+05,1.15e+09,1.371e+07
+residual-parity,80,12,3.0998e+06,28,11,2.4614e+05,6.93e+08,1.371e+07
+residual-parity,160,24,1.3902e+06,57,23,6.9975e+04,5.12e+08,1.371e+07
+residual-parity,320,48,1.0107e+06,125,0,2.8944e+04,2.91e+08,1.371e+07
