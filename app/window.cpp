@@ -126,10 +126,14 @@ struct Window::Impl {
                 values->SetValue(k,v);values->SetValue(k+s->cells.size(),v);lo=std::min(lo,v);hi=std::max(hi,v);}
             if(field->currentIndex()==0){lo=0;hi=3;}else if(hi-lo<1e-10)hi=lo+1;
             mapper->SetScalarRange(lo,hi);colors->SetRange(lo,hi);legend->SetTitle(field->currentText().toUtf8().constData());values->Modified();render->Render();
-            metrics->setText(QString("Physical time  %1 ms     |     Inlet  %2 kg/s     Outlet  %3 kg/s     |     Exit Mach  %4\nOutlet-plane force  %5 N (not total device thrust)     |     Mass / energy balance error  %6 / %7")
-                .arg(m.time*1000,0,'f',3).arg(m.inletMassFlow,0,'f',4).arg(m.outletMassFlow,0,'f',4).arg(m.exitMach,0,'f',3).arg(m.outletForce,0,'f',2).arg(m.massBalanceError,0,'e',1).arg(m.energyBalanceError,0,'e',1));
+            metrics->setText(QString("Physical time  %1 ms     |     Inlet  %2 kg/s     Outlet  %3 kg/s     |     Exit Mach  %4\n"
+                "Device thrust  %5 N  =  supply plane %6 N  +  walls %7 N  −  ambient %8 N     (exit-plane estimate %9 N)\n"
+                "Mass / energy / axial-momentum balance error  %10 / %11 / %12")
+                .arg(m.time*1000,0,'f',3).arg(m.inletMassFlow,0,'f',4).arg(m.outletMassFlow,0,'f',4).arg(m.exitMach,0,'f',3)
+                .arg(m.deviceThrust,0,'f',2).arg(m.inletMomentumFlux,0,'f',2).arg(m.wallAxialForce,0,'f',2).arg(m.ambientAxialForce,0,'f',2)
+                .arg(m.exitPlaneThrust,0,'f',2).arg(m.massBalanceError,0,'e',1).arg(m.energyBalanceError,0,'e',1).arg(m.momentumBalanceError,0,'e',1));
         }
-        if(m.steps==0) metrics->setText("Prepared initial state · press Run to measure boundary flow and outlet force.");
+        if(m.steps==0) metrics->setText("Prepared initial state · press Run to measure boundary flow and device thrust.");
         QString state="Initializing";switch(session->status()){case crucible::RunState::Paused:state="Paused";break;case crucible::RunState::Running:state="Running";break;case crucible::RunState::PauseRequested:state="Pausing";break;case crucible::RunState::Failed:state="Failed: "+QString::fromStdString(session->error());break;default:break;}
         status->setText(QString("%1 · %2 accepted steps · applied inlet %3 kPa · control %4").arg(state).arg(m.steps).arg(s->appliedTotalPressure/1000).arg(s->appliedControlSequence));
         if(requestedControl>s->appliedControlSequence)

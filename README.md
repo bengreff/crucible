@@ -36,7 +36,7 @@ ctest --test-dir build/core -C Release --output-on-failure
 build/core/crucible_run --nz 160 --nr 24 --time 0.004
 ```
 
-The app starts paused. Press **Run**, change the inlet reservoir pressure and press **Apply live**, then **Pause** to inspect. **Restart** restores the default initial state and pressure. Field choices are Mach, pressure, temperature and density. Outlet-plane force is not total device thrust. CSV saves a field snapshot, not a restart.
+The app starts paused. Press **Run**, change the inlet reservoir pressure and press **Apply live**, then **Pause** to inspect. **Restart** restores the default initial state and pressure. Field choices are Mach, pressure, temperature and density. The metrics show device thrust (supply plane + wall forces - ambient), its exit-plane estimate, and mass/energy/momentum balance errors. CSV saves a field snapshot, not a restart.
 
 A native integration check can run with `crucible --smoke-test /absolute/path/smoke.png` using the executable inside the Mac bundle. It needs a graphical desktop and exits after running, applying a control and pausing. Sanitized core builds use `-DCRUCIBLE_SANITIZERS=ON` with Clang/GCC.
 
