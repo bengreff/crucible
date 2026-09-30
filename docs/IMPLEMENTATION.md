@@ -10,11 +10,11 @@ The mesh is a fixed body-fitted grid in axial/radial coordinates. Every control 
 
 ## Discretization
 
-Evolved variables are mass, axial momentum, radial momentum, and total gas energy per volume. Face fluxes use an HLLC Riemann solver with HLLE fallback when the candidate star state is inadmissible. Piecewise linear primitive reconstruction uses minmod slopes in logical mesh directions; boundaries use unreconstructed adjacent states. Time advancement is two-stage SSPRK2. A first-order spatial option is available in the headless runner.
+Evolved variables are mass, axial momentum, radial momentum, and total gas energy per volume. Face fluxes use an HLLC Riemann solver with HLLE fallback when the candidate star state is inadmissible. Piecewise linear primitive reconstruction uses minmod slopes in logical mesh directions. Boundary rows/columns (wall, inlet, outlet) use the limited one-sided slope minmod(c-n1, n1-n2), with density/pressure face values kept at least half the cell value; the axis row keeps a zero slope (measured second order there). Inlet/outlet characteristic models receive the reconstructed interior face state. (Before 30 September 2026 boundary rows used zero slopes, which made wall-row errors first order.) Time advancement is two-stage SSPRK2. A first-order spatial option is available in the headless runner.
 
 The finite-volume update uses exact axisymmetric volumes and integrated face-area vectors. The radial momentum source is pressure times the integral of 1/r over each volume. Its geometric cancellation with pressure fluxes preserves stationary gas in the curved mesh. Internal face exchanges are computed once and applied with opposite signs. The timestep is CFL times volume divided by the sum of face acoustic/advection rates. A nonpositive density/internal-energy stage causes timestep halving, up to 14 attempts; no cell energy/density floors repair an invalid accepted solution. Unsupported boundary states stop the run with an explanation.
 
-These choices do not establish global second-order accuracy on arbitrary curved grids. Boundary treatment, axis treatment, reconstruction geometry, and multidimensional convergence still need systematic study. Shock convergence and stationary balance are narrower evidence.
+Measured second-order convergence on the default nozzle (below) is evidence for this smooth body-fitted grid, not for arbitrary curved grids. Upwind (HLLC) dissipation scales with sound speed, so low-Mach observables are sensitive: at exit Mach ~0.15 mass flow amplifies total-pressure error ~1/(gamma M^2) ~ 33x (venturi evidence below). Combustion chambers run at Mach 0.1-0.3; decide on a low-Mach correction with chamber evidence, not before.
 
 ## Boundaries and initial state
 
@@ -49,6 +49,24 @@ Automated core checks cover cylinder volume, state conversion, identical-state f
 - Native smoke test runs the actual worker/rendering path, changes pressure, waits for acceptance, pauses, and saves a screenshot. Screenshot was visually inspected. This is not exhaustive manual interaction testing.
 
 Performance observations on this development Mac (single numerical worker, Release; not controlled hardware benchmarks): 3,840 cells / 54,960 steps / 20 ms physical duration took 26.6 s. One million cells / 10 steps took 1.24 s compute plus 0.043 s initialization (after moving repeated column initialization out of the radial loop; previously 3.58 s), advancing only 0.199 microseconds. Both yield about 8 million cell updates/s. The million-cell/minutes aspiration is **not achieved for useful flow durations**. Priorities are profiling, scalable storage/display, parallel execution, and justified timestep strategies; increasing throughput alone does not remove acoustic timestep restrictions.
+
+## Verification review, 30 September 2026 (branch `claude/verify-core`)
+
+Re-measured on this Mac: every number above reproduced (Sod, acoustic mode, nozzle mass flow, residuals, 26.6 → 27.1 s, 8.2 M cell-updates/s, smoke screenshot). The review found no wrong formula: face area vectors close exactly per cell, the p/r source equals the exact meridional-area integral, HLLC star states and inlet/outlet invariants are standard. It found first-order boundary reconstruction (fixed above) and untested subsonic-outlet, contact and strong-rarefaction behavior (now tested).
+
+Nozzle grid study (`crucible_convergence`, 8 ms, nr = 0.15 nz; CSVs in `docs/evidence/`). The exact steady solution is isentropic with uniform total enthalpy:
+
+| Grid | Entropy L1 | order | Wall-row entropy | order | Mass flow vs quasi-1D |
+|---|---|---|---|---|---|
+| 40x6 | 8.96e-4 | | 8.90e-4 | | -1.25e-3 |
+| 80x12 | 2.11e-4 | 2.09 | 2.19e-4 | 2.02 | -3.68e-4 |
+| 160x24 | 5.14e-5 | 2.04 | 5.48e-5 | 2.00 | -7.46e-5 |
+| 320x48 | 1.28e-5 | 2.01 | 1.37e-5 | 2.00 | -3.30e-5 |
+| 640x96 | 3.21e-6 | 1.99 | 3.47e-6 | 1.98 | -2.15e-5 |
+
+First-order scheme: entropy order 1.02, 1.01 (confirms the measure). Before the boundary fix the wall row converged at order 1.23, 1.12. Total enthalpy and mass flow stop improving at ~2e-5 on fine grids: the prepared initial state excites transverse acoustic modes (measured 5-7.6 kHz; first radial mode estimate ~6 kHz) that decay slowly, more slowly on finer grids. Time-averaged (4-24 ms) mass-flow error: -3.67e-4, -7.49e-5, -3.18e-5 (80, 160, 320); Richardson extrapolation lands ~2.4e-5 below quasi-1D, consistent with Hall's leading 2D discharge correction (~2.5e-5 for the upstream throat curvature, Rc/rt = 31.5). Consistent, not proven, given the residual ringing.
+
+New tests: exact Riemann solver cross-checked against the Sod constants; planar Sod in a 5-row duct (rows identical, radial velocity zero; L1 0.00737 → 0.00227); Toro 1-2-3 rarefaction (0.0135 → 0.00451, no failures); 1e5 pressure-ratio shock (0.170 → 0.060); HLLC antisymmetry, rotation invariance, supersonic upwinding and exact stationary contact; nozzle entropy order > 1.8 including the wall row; choked nozzle with internal normal shock (back pressure 0.7 p0, from rest): exit Mach 0.26773 vs quasi-1D 0.26803, mass flow -0.11%. Slow-labelled (`ctest -L slow`, 37 s): subsonic venturi (0.985 p0 back pressure, from rest, 160 ms) mass flow -9.49% (40x6) → -2.63% (80x12), order 1.85; the error is total-pressure loss after the throat and a spurious gain upstream, both converging. Acoustic mode error with the new boundary slopes: 0.00422 (16) → 0.000401 (48), order 2.14. ASan/UBSan: pass (fast suite).
 
 ## Next work
 
