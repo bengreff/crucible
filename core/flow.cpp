@@ -121,6 +121,43 @@ Conserved hllc(Primitive l,Primitive r,double nz,double nr,Gas gas) {
     for(int k=0;k<4;++k) result[k]=f[k]+s*(star[k]-u[k]);
     return result;
 }
+// HLLC written as central flux plus dissipation, with the two acoustic wave terms scaled by phi.
+// phi = 1 recovers HLLC exactly; Ma_limit = 0.1 is the published value, not tuned here.
+Conserved hllcLm(Primitive l,Primitive r,double nz,double nr,Gas gas) {
+    const auto ul=conservative(l,gas),ur=conservative(r,gas);
+    const auto fl=physicalFlux(l,nz,nr,gas),fr=physicalFlux(r,nz,nr,gas);
+    double vl=l.uz*nz+l.ur*nr,vr=r.uz*nz+r.ur*nr;
+    double al=std::sqrt(gas.gamma*l.p/l.rho),ar=std::sqrt(gas.gamma*r.p/r.rho);
+    double sl=std::min(vl-al,vr-ar),sr=std::max(vl+al,vr+ar);
+    if(sl>=0) return fl;
+    if(sr<=0) return fr;
+    double denom=l.rho*(sl-vl)-r.rho*(sr-vr);
+    if(std::abs(denom)<1e-30) return hllc(l,r,nz,nr,gas);
+    double sm=(r.p-l.p+l.rho*vl*(sl-vl)-r.rho*vr*(sr-vr))/denom;
+    auto star=[&](const Primitive& w,const Conserved& u,double s,double v) {
+        double pstar=w.p+w.rho*(s-v)*(sm-v),density=w.rho*(s-v)/(s-sm);
+        return Conserved{density,density*(w.uz+(sm-v)*nz),density*(w.ur+(sm-v)*nr),
+            ((s-v)*u[3]-w.p*v+pstar*sm)/(s-sm)};
+    };
+    if(std::abs(sl-sm)<1e-20 || std::abs(sr-sm)<1e-20) return hllc(l,r,nz,nr,gas);
+    auto sL=star(l,ul,sl,vl),sR=star(r,ur,sr,vr);
+    if(!admissible(sL,gas) || !admissible(sR,gas)) return hllc(l,r,nz,nr,gas);
+    double mach=std::max(std::hypot(l.uz,l.ur)/al,std::hypot(r.uz,r.ur)/ar);
+    double phi=std::sin(0.5*pi*std::min(1.0,mach/0.1));
+    Conserved result{};
+    for(int k=0;k<4;++k)
+        result[k]=0.5*(fl[k]+fr[k])+0.5*(phi*sl*(sL[k]-ul[k])+std::abs(sm)*(sL[k]-sR[k])+phi*sr*(sR[k]-ur[k]));
+    return result;
+}
+void thornberScale(Primitive& l,Primitive& r,Gas gas) {
+    double mach=std::max(std::hypot(l.uz,l.ur)/std::sqrt(gas.gamma*l.p/l.rho),
+                         std::hypot(r.uz,r.ur)/std::sqrt(gas.gamma*r.p/r.rho));
+    double z=std::min(1.0,mach);
+    for(double Primitive::*c:{&Primitive::uz,&Primitive::ur}) {
+        double mean=0.5*(l.*c+r.*c),half=0.5*(l.*c-r.*c);
+        l.*c=mean+z*half;r.*c=mean-z*half;
+    }
+}
 double areaMach(double m,double g) {
     return std::pow(2/(g+1)*(1+(g-1)*m*m/2),(g+1)/(2*(g-1)))/m;
 }
@@ -322,6 +359,12 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Co
         for(int k=0;k<4;++k) w[k]+=direction*0.5*slopesZ_[q][k];
         return unpack(w);
     };
+    // Low-Mach corrections act on interior faces and the mirror (slip) wall; inlet/outlet models keep their own states.
+    auto faceFlux=[&](Primitive l,Primitive r,double nz,double nr,bool interior) {
+        if(d.lowMach==LowMach::HllcLm && interior) return hllcLm(l,r,nz,nr,d.gas);
+        if(d.lowMach==LowMach::Thornber && interior) thornberScale(l,r,d.gas);
+        return hllc(l,r,nz,nr,d.gas);
+    };
     BoundaryRates rates{};
     for(int i=0;i<=m.nz;++i) for(int j=0;j<m.nr;++j) {
         auto il=m.index(std::max(0,i-1),j),ir=m.index(std::min(m.nz-1,i),j);
@@ -329,7 +372,7 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Co
         Primitive l=reconstructed(il,1),r=reconstructed(ir,-1);
         if(i==0) l=inlet(r);
         if(i==m.nz) r=outlet(l);
-        auto flux=hllc(l,r,1,0,d.gas);double area=m.axialArea(i,j);
+        auto flux=faceFlux(l,r,1,0,i>0 && i<m.nz);double area=m.axialArea(i,j);
         for(int k=0;k<4;++k) {
             if(i>0) derivative[il][k]-=area*flux[k];
             if(i<m.nz) derivative[ir][k]+=area*flux[k];
@@ -346,7 +389,7 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Co
         auto ar=m.radialAreaVector(i,j);double area=std::hypot(ar[0],ar[1]);
         double nz=ar[0]/area,nr=ar[1]/area;
         Primitive l=radialHigh_[il],r=j==m.nr?reflect(l,nz,nr):radialLow_[ir];
-        auto flux=hllc(l,r,nz,nr,d.gas);
+        auto flux=faceFlux(l,r,nz,nr,true);
         // A stationary slip wall has exactly zero mass and energy exchange.
         if(j==m.nr) { flux[0]=0;flux[3]=0; }
         for(int k=0;k<4;++k) {

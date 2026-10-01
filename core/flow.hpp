@@ -11,6 +11,10 @@ using Conserved = std::array<double, 4>; // rho, rho*u_z, rho*u_r, total energy 
 struct Primitive { double rho{}, uz{}, ur{}, p{}; };
 struct Gas { double gamma{1.4}, specificR{287.05}; };
 enum class Case { Nozzle, UniformDuct, ShockTube };
+// Low-Mach treatment of the HLLC dissipation (docs/LOW_MACH.md). Thornber: velocity jumps at interior
+// faces scaled by min(1, local Mach) before the flux (Thornber et al., JCP 227, 2008). HllcLm: acoustic
+// wave terms of the HLLC dissipation scaled by sin(pi/2 min(1, M/0.1)) (Fleischmann et al., JCP 423, 2020).
+enum class LowMach { None, Thornber, HllcLm };
 struct Definition {
     int nz{160}, nr{24};
     double length{0.6}, inletRadius{0.035}, throatRadius{0.020}, exitRadius{0.035};
@@ -18,6 +22,7 @@ struct Definition {
     double totalPressure{300000}, totalTemperature{300}, backPressure{15000};
     double cfl{0.4};
     bool secondOrder{true};
+    LowMach lowMach{LowMach::None};
     Case experiment{Case::Nozzle};
     Gas gas{};
     void validate() const;
@@ -63,6 +68,9 @@ struct FieldSnapshot {
 Conserved conservative(Primitive w, Gas gas);
 Primitive primitive(const Conserved& u, Gas gas);
 Conserved hllc(Primitive left, Primitive right, double nz, double nr, Gas gas);
+Conserved hllcLm(Primitive left, Primitive right, double nz, double nr, Gas gas);
+// Thornber low-Mach reconstruction correction applied to a face's left/right states.
+void thornberScale(Primitive& left, Primitive& right, Gas gas);
 double areaMach(double mach, double gamma);
 double machFromArea(double areaRatio, bool supersonic, double gamma);
 double chokedMassFlow(const Definition& definition);
