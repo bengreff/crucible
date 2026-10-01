@@ -255,6 +255,30 @@ The energy residual is below 1.2e-14 in every run.
 - One fix along the way (measured): the first version took 1/r at each triangle's centroid. A uniform field (psi = r^2) then has a spurious current of order h/r, which measured as a first-order psi error growing toward the axis (16% at r = 0.06 with 32 cells). Taking 1/r at the cell centre for both triangles makes psi = r^2 exact on straight columns. The error is now uniform in r and second order.
 - What is still first order (measured): the energy entering through the open, zero-gradient end planes in the axial case (0.12% of the Joule energy at 128 cells). The end-node current comes from a one-sided boundary closure. Physically that flux is zero. Field evolution is unaffected (second order). Open boundaries need a better closure before a plume run.
 
+### 8. Resistive nozzle at 1 T: wall conditions retried (`wall_1T_eta.csv`, `wall_1T_eta.png`), 30 September 2026
+
+Same nozzle and coil as case 6, 8 ms, robust mode on. eta_m is constant. It is an **assumed** scan parameter, not a property of the gas: the spike gas is cold air, which does not conduct, so Spitzer does not apply to it. eta_m = 1 and 0.1 m^2/s give magnetic Reynolds numbers of about 10 and 100 (derived: u L / eta_m with u = 500 m/s, L = 2 cm). The insulating wall keeps the stress and Poynting corrections from case 6 (fix 2), now with the resistive boundary condition.
+
+Results (measured):
+
+| eta_m (m^2/s) | wall | device thrust, 80 / 160 cells (N) | coil reaction body_axial, 80 / 160 (N) | min beta, 160 | robust steps |
+|---|---|---|---|---|---|
+| 1 | transparent | 395.8 / 448.3 | -53.7 / -21.2 | 3.65 | 0 |
+| 1 | insulating | 316.4 / 315.5 | -158.3 / -154.0 | 0.268 | 0 |
+| 1 | conducting | 312.0 / 308.7 | -157.7 / -158.4 | 0.279 | 0 |
+| 0.1 | transparent | 507.1 / 515.7 | 41.2 / 30.3 | 151 | 0 |
+| 0.1 | insulating | 166.7 / 160.0 | -259.6 / -284.7 | 0.200 | 0 |
+| 0.1 | conducting | 151.9 / 148.3 | -321.1 / -325.5 | 0.237 | 0 |
+
+No-field thrust is 517.5 N. All 12 runs reached 8 ms with zero retries and zero sync energy, and the energy residual is below 7e-15.
+
+What this says:
+
+1. **With resistivity the insulating wall works.** This answers the case 6 stop. The wall current sheet now has a resistive thickness and needs no fallback. Insulating and conducting walls agree to within 1% at Rm ~ 10 and to within 8% at Rm ~ 100. They change by 0.3 to 4% from 80 to 160 cells.
+2. **The transparent wall is unphysical, now measured directly.** At Rm ~ 100 the figure's bottom row shows a total |B| of at most 0.055 T. Plasma currents have cancelled the 1 T coil field, because a zero-gradient wall lets induced field leave and return without any exterior constraint. Its thrust (516 N) is the no-field value for the wrong reason. Transparent is dropped as a physical option. It stays as a numerical reference only.
+3. **The Director's point is confirmed.** With the field maintained by a proper wall condition, the coil field holds near 1 T at the throat. It turns the flow into a fast core jet with a slow wall layer downstream (figure, rows 1 to 4). This geometry is a coil on a gas nozzle, not a thruster design. The thrust numbers are spike sensitivities, not predictions: the conductivity is assumed, and the gas is not a plasma.
+4. **The outlet did not block these runs.** The conducting, ideal, 160-cell failure from case 6 did not recur once resistivity was in. The extrapolating outlet is still ill-posed for backflow, and a plume domain will need a characteristic condition. That is recorded, not fixed, because nothing here was blocked.
+
 ## What broke, and whose problem it is
 
 1. **Axis reconstruction (mesh-independent RZ issue; also in the gas core). Fixed in the gas core on 30 September 2026.**
