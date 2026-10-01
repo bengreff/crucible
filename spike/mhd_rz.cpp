@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include <numbers>
 #include <stdexcept>
@@ -43,6 +44,24 @@ enum class Clean { None, GLM, CT, Split };
 enum class WallB { Transparent, Insulating, Conducting };
 const char* name(WallB w) { return w==WallB::Transparent?"transparent":w==WallB::Insulating?"insulating":"conducting"; }
 const char* name(Clean c) { return c==Clean::None?"none":c==Clean::GLM?"glm":c==Clean::CT?"ct":"split"; }
+
+// Resistivity. Electron-ion Coulomb logarithm, NRL Plasma Formulary (2019) p.34, n_e in cm^-3,
+// T_e in eV: 24 - ln(sqrt(n_e)/T_e) for T_e > 10 Z^2 eV, else 23 - ln(sqrt(n_e) Z T_e^-1.5),
+// floored at 2 (below that Spitzer does not hold; the validity monitor flags it). Transverse
+// Spitzer resistivity, same page: eta_perp = 1.03e-2 Z lnL T_e^-1.5 ohm cm (J_theta is
+// perpendicular to the poloidal field here). Magnetic diffusivity eta_m = eta / mu0 (m^2/s).
+double coulombLog(double neM3,double TeV,double Z) {
+    double ne=neM3*1e-6;
+    double l=TeV>10*Z*Z?24-std::log(std::sqrt(ne)/TeV):23-std::log(std::sqrt(ne)*Z*std::pow(TeV,-1.5));
+    return std::max(l,2.0);
+}
+double spitzerEta(double neM3,double TeV,double Z) { return 1.03e-4*Z*coulombLog(neM3,TeV,Z)*std::pow(TeV,-1.5); }  // ohm m
+enum class Eta { Off, Constant, Spitzer };
+struct Resistivity {
+    Eta mode{Eta::Off};
+    double etaM{0};               // Constant: magnetic diffusivity, m^2/s
+    double Z{1},ionMass{1.6726e-27};  // Spitzer: fully ionised at charge Z, n_e = Z rho / m_i, T_e = p/(rho Rg)
+};
 
 // Same construction as core Mesh, plus an optional inner radius (annulus).
 struct Grid {
@@ -273,13 +292,13 @@ Vacuum buildVacuum(int nz,double dz,const std::function<double(double)>& wall,do
     return v;
 }
 
-struct Rates { double mass{},energy{},inMom{},outMom{},wallMom{},inMass{},outMass{},body{}; };
+struct Rates { double mass{},energy{},inMom{},outMom{},wallMom{},inMass{},outMass{},body{},joule{}; };
 struct Report {
     double t{},mass{},energy{},Pz{},massErr{},energyErr{},momErr{},deviceThrust{},exitPlaneThrust{};
     double inMom{},outMom{},wallMom{},ambient{},inMdot{},outMdot{};
     double divMax{},divMean{},ctFaceDivMax{},maxMach{},minBeta{},lorentzZ{},coilLorentzZ{},maxSpeed{},body{};
     std::uint64_t steps{},rejected{},robustSteps{};
-    double sync{};
+    double sync{},joule{},magnetic{},internal{};
 };
 
 class Mhd {
@@ -291,7 +310,9 @@ public:
     bool robust{false};       // dual energy + first-order HLL retry of a failed step before halving dt
     bool firstOrder{false};   // current attempt uses zero slopes
     std::vector<double> wallPsi;
-    std::uint64_t robustSteps{}; double intSync{};
+    std::uint64_t robustSteps{}; double intSync{},intJoule{};
+    Resistivity eta;
+    std::vector<double> etaC,nodeJ,nodeE,nodeK,nodeM;  // cell eta_m; nodal J_theta (b units), E_theta = eta_m J, FEM sums
     std::vector<U> u,stage,next,du,w,sz,sr;
     std::vector<double> psi,psiStage,psiNext,dpsi,emfA,emfR;
     std::vector<std::array<double,2>> b0;  // applied (coil) field at cells
@@ -371,6 +392,61 @@ public:
     static U wallGhost(U x,double nz,double nr) {
         double un=x[1]*nz+x[2]*nr; x[1]-=2*un*nz; x[2]-=2*un*nr; return x;  // B copied: magnetically transparent wall
     }
+    double cellEta(const U& p) const {
+        if(eta.mode==Eta::Constant) return eta.etaM;
+        if(eta.mode!=Eta::Spitzer) return 0;
+        double TeV=p[4]/(p[RHO]*Rg)/11604.518,ne=eta.Z*p[RHO]/eta.ionMass;
+        return spitzerEta(ne,TeV,eta.Z)/mu0;
+    }
+    // Resistive E_theta = eta_m J_theta at nodes. In b units dpsi/dt = -r E_theta and
+    // J_theta = -div((1/r) grad psi) in the meridional plane, discretised with the two linear
+    // triangles of each cell and a lumped mass. The boundary term is the tangential field at the
+    // boundary, (1/r) dpsi/dn = b_z n_r - b_r n_z: interior wall-cell value (transparent wall,
+    // end planes; zero-gradient), b1 = 0 at the inlet of a nozzle whose source is unmagnetised,
+    // the matched exterior field (insulating wall: no surface current, so b_t is continuous),
+    // and none for a conducting wall, whose nodes keep E = 0 (flux frozen).
+    std::vector<std::array<double,2>> wallBnd;  // b used at the outer wall faces (resistive BC and Poynting flux)
+    void resistive(const std::vector<double>& ps) {
+        auto nn=m.rn.size(); nodeK.assign(nn,0); nodeM.assign(nn,0); nodeJ.assign(nn,0); nodeE.assign(nn,0);
+        etaC.assign(m.vol.size(),0); wallBnd.assign(m.nz,{0,0});
+        for(std::size_t q=0;q<etaC.size();++q) etaC[q]=cellEta(w[q]);
+        // 1/r is taken at the cell centre for both triangles: then a uniform field (psi = r^2) has
+        // exactly zero current on straight columns. The triangle centroid (2 r_j + r_j+1)/3 does
+        // not, and gave an O(h/r) error that measured first order near the axis.
+        auto tri=[&](std::array<std::array<int,2>,3> t,double rc) {
+            double z[3],r[3],P[3],gz[3],gr[3],Gz=0,Gr=0; std::size_t id[3];
+            for(int a=0;a<3;++a) { z[a]=t[a][0]*m.dz; r[a]=m.r(t[a][0],t[a][1]); id[a]=m.node(t[a][0],t[a][1]); P[a]=ps[id[a]]; }
+            double A2=(z[1]-z[0])*(r[2]-r[0])-(z[2]-z[0])*(r[1]-r[0]),A=0.5*std::abs(A2);
+            for(int a=0;a<3;++a) { int b=(a+1)%3,c=(a+2)%3; gz[a]=(r[b]-r[c])/A2; gr[a]=(z[c]-z[b])/A2; Gz+=P[a]*gz[a]; Gr+=P[a]*gr[a]; }
+            for(int a=0;a<3;++a) { nodeK[id[a]]+=A/rc*(gz[a]*Gz+gr[a]*Gr); nodeM[id[a]]+=A/3; }
+        };
+        for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) { double rc=0.25*(m.r(i,j)+m.r(i+1,j)+m.r(i,j+1)+m.r(i+1,j+1));
+            tri({{{i,j},{i+1,j},{i+1,j+1}}},rc); tri({{{i,j},{i+1,j+1},{i,j+1}}},rc); }
+        auto edge=[&](int i0,int j0,int i1,int j1,double gn) { double len=std::hypot((i1-i0)*m.dz,m.r(i1,j1)-m.r(i0,j0));
+            nodeK[m.node(i0,j0)]-=0.5*len*gn; nodeK[m.node(i1,j1)]-=0.5*len*gn; };
+        bool closedInlet=nozzle && split() && wallB!=WallB::Transparent;
+        for(int j=0;j<m.nr;++j) {
+            edge(0,j,0,j+1,closedInlet?0:w[m.cell(0,j)][BR]);  // n = -z
+            edge(m.nz,j,m.nz,j+1,-w[m.cell(m.nz-1,j)][BR]);   // n = +z
+        }
+        for(int i=0;i<m.nz;++i) {
+            auto a=m.radialArea(i,m.nr); double A=std::hypot(a[0],a[1]),nz=a[0]/A,nr=a[1]/A;
+            const U& x=w[m.cell(i,m.nr-1)]; double bz=x[BZ],br=x[BR];
+            if(split() && wallB==WallB::Insulating) { auto e=vac.field(i,wallPsi); double bn=bz*nz+br*nr,bt=-e[0]*nr+e[1]*nz; bz=bn*nz-bt*nr; br=bn*nr+bt*nz; }
+            wallBnd[i]={bz,br};
+            edge(i,m.nr,i+1,m.nr,bz*nr-br*nz);
+            if(m.inner>0) { auto c=m.radialArea(i,0); double C=std::hypot(c[0],c[1]); const U& y=w[m.cell(i,0)]; edge(i,0,i+1,0,-(y[BZ]*c[1]-y[BR]*c[0])/C); }
+        }
+        for(int i=0;i<=m.nz;++i) for(int j=0;j<=m.nr;++j) { auto k=m.node(i,j);
+            if(m.r(i,j)<=0) continue;  // J_theta = 0 on the axis
+            nodeJ[k]=nodeK[k]/nodeM[k];
+            if(j==m.nr && split() && wallB==WallB::Conducting) continue;
+            double e=0,v=0;
+            for(int ci:{i-1,i}) for(int cj:{j-1,j}) { if(ci<0||ci>=m.nz||cj<0||cj>=m.nr) continue; auto q=m.cell(ci,cj); e+=etaC[q]*m.vol[q]; v+=m.vol[q]; }
+            nodeE[k]=e/v*nodeJ[k];
+        }
+    }
+    double cflDiff{0.25};
     double stableDt() {
         double dt=1e300; ch=0;
         for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
@@ -380,6 +456,8 @@ public:
             double rate=(m.axialArea(i,j)+m.axialArea(i+1,j))*(std::abs(p[1])+c);
             for(int f:{j,j+1}) { auto a=m.radialArea(i,f); rate+=std::abs(p[1]*a[0]+p[2]*a[1])+c*std::hypot(a[0],a[1]); }
             dt=std::min(dt,cfl*m.vol[q]/rate);
+            if(eta.mode!=Eta::Off) { double dr=0.5*(m.r(i,j+1)-m.r(i,j)+m.r(i+1,j+1)-m.r(i+1,j)),e=cellEta(p);
+                if(e>0) dt=std::min(dt,cflDiff/(e*(1/sq(m.dz)+1/sq(dr)))); }
         }
         if(clean!=Clean::GLM) ch=0;
         return dt;
@@ -413,6 +491,12 @@ public:
         auto rec=[&](std::size_t q,bool axial,double dir) { U x=w[q]; const U& sl=axial?sz[q]:sr[q]; for(int k=0;k<NV;++k) x[k]+=dir*0.5*sl[k]; return x; };
         Rates rt{};
         std::fill(cross.begin(),cross.end(),std::array<double,2>{0,0});
+        if(split() && wallB==WallB::Insulating) for(int i=0;i<=m.nz;++i) wallPsi[i]=ps[m.node(i,m.nr)];
+        const bool resist=eta.mode!=Eta::Off;
+        if(resist) resistive(ps);
+        // Resistive Poynting flux E_theta theta x b . n = E (b_z n_r - b_r n_z), with b the induced
+        // field b1 in the split form (curl b0 = 0, so J . E_res comes only from b1).
+        auto poynting=[&](double E,double bz,double br,double nz,double nr) { return E*(bz*nr-br*nz); };
         // Split: add the face b0 to both states, then remove T(b0) and the cross stress from the
         // momentum flux and b0 . (induction flux) from the energy flux. Returns the cross stress . n.
         auto faceFlux=[&](U l,U r,double nz,double nr,std::array<double,2> f0,std::array<double,2>& crossN) {
@@ -431,16 +515,17 @@ public:
         for(int i=0;i<=m.nz;++i) for(int j=0;j<m.nr;++j) {
             auto il=m.cell(std::max(0,i-1),j),ir=m.cell(std::min(m.nz-1,i),j);
             U l=rec(il,true,1),r=rec(ir,true,-1);
-            if(i==0) { l=inletGhost(r); if(split() && wallB!=WallB::Transparent) { l[BZ]=0; l[BR]=0; } }  // inflow carries only b0
+            if(i==0) { l=inletGhost(r); if(nozzle && split() && wallB!=WallB::Transparent) { l[BZ]=0; l[BR]=0; } }  // inflow carries only b0
             if(i==m.nz) r=outletGhost(l);
             std::array<double,2> cn; auto ff=faceFlux(l,r,1,0,b0A[static_cast<std::size_t>(i)*m.nr+j],cn); double A=m.axialArea(i,j);
+            if(resist) { double br=i==0?(nozzle&&split()&&wallB!=WallB::Transparent?0:w[ir][BR]):i==m.nz?w[il][BR]:0.5*(l[BR]+r[BR]);
+                ff.f[EN]+=poynting(0.5*(nodeE[m.node(i,j)]+nodeE[m.node(i,j+1)]),0,br,1,0); }
             for(int k=0;k<NV;++k) { if(i>0) d[il][k]-=A*ff.f[k]; if(i<m.nz) d[ir][k]+=A*ff.f[k]; }
             for(int k=0;k<2;++k) { if(i>0) cross[il][k]-=A*cn[k]; if(i<m.nz) cross[ir][k]+=A*cn[k]; }
             emfA[static_cast<std::size_t>(i)*m.nr+j]=ff.emf;
             if(i==0) { rt.mass+=A*ff.f[RHO]; rt.energy+=A*ff.f[EN]; rt.inMom+=A*ff.f[MZ]; rt.inMass+=A*ff.f[RHO]; }
             if(i==m.nz) { rt.mass-=A*ff.f[RHO]; rt.energy-=A*ff.f[EN]; rt.outMom+=A*ff.f[MZ]; rt.outMass+=A*ff.f[RHO]; }
         }
-        if(split() && wallB==WallB::Insulating) for(int i=0;i<=m.nz;++i) wallPsi[i]=ps[m.node(i,m.nr)];
         for(int i=0;i<m.nz;++i) for(int j=0;j<=m.nr;++j) {
             if(j==0 && m.inner<=0) continue;  // axis: zero-area face
             auto a=m.radialArea(i,j); double A=std::hypot(a[0],a[1]),nz=a[0]/A,nr=a[1]/A;
@@ -465,6 +550,10 @@ public:
                 for(int k=0;k<2;++k) { ff.f[MZ+k]+=Me[k]-Mi[k]+cn[k]-Ce[k]; cn[k]=Ce[k]; }
                 ff.f[EN]+=ff.emf*(bet-bit);
             }
+            if(resist) { double E=0.5*(nodeE[m.node(i,j)]+nodeE[m.node(i+1,j)]);
+                const U& c0=w[m.cell(i,0)];  // inner annulus wall: zero-gradient, as in the resistive BC
+                std::array<double,2> b=j==m.nr?wallBnd[i]:j==0?std::array<double,2>{c0[BZ],c0[BR]}:std::array<double,2>{0.5*(l[BZ]+r[BZ]),0.5*(l[BR]+r[BR])};
+                ff.f[EN]+=poynting(E,b[0],b[1],nz,nr); }
             for(int k=0;k<2;++k) { if(j>0) cross[m.cell(i,j-1)][k]-=A*cn[k]; if(j<m.nr) cross[m.cell(i,j)][k]+=A*cn[k]; }
             bool wall=j==0||j==m.nr;
             if(wall) { ff.f[RHO]=0; ff.f[ENT]=0; }  // impermeable
@@ -485,6 +574,11 @@ public:
                 double fz=cross[q][0],fr=cross[q][1]+(b0[q][0]*x[BZ]+b0[q][1]*x[BR])*M;
                 d[q][MZ]+=fz; d[q][MR]+=fr; d[q][EN]+=0; rt.body+=fz;
             }
+            if(resist) {  // Joule heating diagnostic (E already gets it through the Poynting flux) and entropy source
+                int i=int(q)/m.nr,j=int(q)%m.nr;
+                double jc=0.25*(nodeJ[m.node(i,j)]+nodeJ[m.node(i+1,j)]+nodeJ[m.node(i,j+1)]+nodeJ[m.node(i+1,j+1)]),heat=etaC[q]*jc*jc*m.vol[q];
+                rt.joule+=heat; d[q][ENT]+=(g-1)*heat/std::pow(x[RHO],g-1);
+            }
             for(double& v:d[q]) v/=m.vol[q];
         }
         std::fill(dps.begin(),dps.end(),0.0);
@@ -497,6 +591,7 @@ public:
             if(i>0)    { e+=emfR[static_cast<std::size_t>(i-1)*(m.nr+1)+j]; ++n; }
             if(i<m.nz) { e+=emfR[static_cast<std::size_t>(i)*(m.nr+1)+j]; ++n; }
             dps[m.node(i,j)]=r0*e/n;
+            if(resist) dps[m.node(i,j)]-=r0*nodeE[m.node(i,j)];
         }
         return rt;
     }
@@ -525,8 +620,8 @@ public:
                         firstOrder=forceHll=false;
                         u.swap(next); psi.swap(psiNext); t+=dt; ++steps;
                         last={0.5*(r1.mass+r2.mass),0.5*(r1.energy+r2.energy),0.5*(r1.inMom+r2.inMom),0.5*(r1.outMom+r2.outMom),
-                              0.5*(r1.wallMom+r2.wallMom),0.5*(r1.inMass+r2.inMass),0.5*(r1.outMass+r2.outMass),0.5*(r1.body+r2.body)};
-                        intM+=dt*last.mass; intE+=dt*last.energy;
+                              0.5*(r1.wallMom+r2.wallMom),0.5*(r1.inMass+r2.inMass),0.5*(r1.outMass+r2.outMass),0.5*(r1.body+r2.body),0.5*(r1.joule+r2.joule)};
+                        intM+=dt*last.mass; intE+=dt*last.energy; intJoule+=dt*last.joule;
                         intP+=dt*(last.inMom-last.outMom+last.wallMom+last.body);
                         intPg+=dt*(std::abs(last.inMom)+std::abs(last.outMom)+std::abs(last.wallMom)+std::abs(last.body));
                         return dt;
@@ -570,6 +665,7 @@ public:
         for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
             auto q=m.cell(i,j); U p; toPrim(u[q],g,p);
             R.mass+=u[q][RHO]*m.vol[q]; R.energy+=u[q][EN]*m.vol[q]; R.Pz+=u[q][MZ]*m.vol[q];
+            R.magnetic+=0.5*(sq(u[q][BZ])+sq(u[q][BR])+sq(u[q][BT]))*m.vol[q]; R.internal+=p[4]/(g-1)*m.vol[q];
             auto bt=total(p,q); double a=std::sqrt(g*p[4]/p[RHO]),b2=sq(bt[0])+sq(bt[1])+sq(p[BT]);
             R.maxMach=std::max(R.maxMach,std::hypot(p[1],p[2])/a); R.maxSpeed=std::max(R.maxSpeed,std::sqrt(sq(p[1])+sq(p[2])+sq(p[3])));
             if(b2>0) R.minBeta=std::min(R.minBeta,2*p[4]/b2);
@@ -597,7 +693,7 @@ public:
         R.divMean/=vsum;
         R.inMom=last.inMom; R.outMom=last.outMom; R.wallMom=last.wallMom; R.inMdot=last.inMass; R.outMdot=last.outMass;
         R.ambient=pBack*exitArea;
-        R.massErr=(R.mass-M0-intM)/M0; R.energyErr=(R.energy-E0-intE-intSync)/E0; R.sync=intSync; R.robustSteps=robustSteps;
+        R.massErr=(R.mass-M0-intM)/M0; R.energyErr=(R.energy-E0-intE-intSync)/E0; R.sync=intSync; R.robustSteps=robustSteps; R.joule=intJoule;
         R.momErr=(R.Pz-P0-intP)/std::max(std::abs(P0)+intPg,1e-300);
         R.body=last.body; R.deviceThrust=R.inMom+R.wallMom+R.body-R.ambient; R.exitPlaneThrust=R.outMom-R.ambient;
         return R;
@@ -757,12 +853,12 @@ void axisProbe(int nz,double zProbe) {
 }
 // Default nozzle (core Definition) with prepared 1D flow and a coil at the throat.
 void nozzleCoil(const std::vector<int>& levels,const std::vector<double>& teslas,double tEnd,bool dump,std::vector<Clean> cleans={Clean::None,Clean::GLM,Clean::CT,Clean::Split},
-                std::vector<WallB> walls={WallB::Transparent},bool robust=false) {
+                std::vector<WallB> walls={WallB::Transparent},bool robust=false,double etaM=0) {
     dualEnergy=robust;
     crucible::Definition d; const double g=d.gas.gamma;
     std::printf("case,B_centre_T,nz,nr,clean,t_ms,device_thrust_N,exit_plane_thrust_N,core_gas_thrust_N,inlet_mom_N,wall_force_on_gas_N,mdot_out,"
                 "mass_res,energy_res,mom_res,div_max,div_mean,ct_face_div,lorentz_z_N,coil_lorentz_z_N,body_axial_N,min_beta,steps,rejected,hll_fallbacks,wall_s,cell_updates_per_s,"
-                "wall_b,robust,sync_J,robust_steps,wall_flux_mWb_z044\n");
+                "wall_b,robust,sync_J,robust_steps,wall_flux_mWb_z044,eta_m,joule_J\n");
     for(int nz:levels) {
         d.nz=nz; d.nr=nz*3/20;
         crucible::Flow core(d); core.advanceTo(tEnd); double coreThrust=core.measurements().deviceThrust;
@@ -771,7 +867,7 @@ void nozzleCoil(const std::vector<int>& levels,const std::vector<double>& teslas
             if(c!=Clean::Split && wb!=walls.front()) continue;
             hllFallbacks=0;
             Grid grid(d.nz,d.nr,d.length,nozzleRadius);
-            Mhd s(grid,g,c); s.wallB=wb; s.robust=robust; s.nozzle=true; s.p0=d.totalPressure; s.T0=d.totalTemperature; s.Rg=d.gas.specificR; s.pBack=d.backPressure;
+            Mhd s(grid,g,c); s.wallB=wb; s.robust=robust; if(etaM>0) { s.eta.mode=Eta::Constant; s.eta.etaM=etaM; } s.nozzle=true; s.p0=d.totalPressure; s.T0=d.totalTemperature; s.Rg=d.gas.specificR; s.pBack=d.backPressure;
             double I=coilCurrent(tesla);
             s.init([&](int i,int j){
                 double rad=(grid.r(i,grid.nr)+grid.r(i+1,grid.nr))/2;
@@ -786,12 +882,12 @@ void nozzleCoil(const std::vector<int>& levels,const std::vector<double>& teslas
             double wall=seconds(start); auto R=s.report();
             // Induced flux through the wall circle at z = 0.44 m (where the 1 T transparent run failed).
             double wflux=2*pi*s.psi[grid.node(std::min(grid.nz,int(std::lround(0.44/grid.dz))),grid.nr)]*std::sqrt(mu0)*1e3;
-            std::printf("coil,%.2f,%d,%d,%s,%.3f,%.4f,%.4f,%.4f,%.3f,%.3f,%.6f,%.1e,%.1e,%.1e,%.2e,%.2e,%.1e,%.3f,%.3f,%.3f,%.3g,%llu,%llu,%ld,%.1f,%.3g,%s,%d,%.4g,%llu,%.4f%s%s\n",
+            std::printf("coil,%.2f,%d,%d,%s,%.3f,%.4f,%.4f,%.4f,%.3f,%.3f,%.6f,%.1e,%.1e,%.1e,%.2e,%.2e,%.1e,%.3f,%.3f,%.3f,%.3g,%llu,%llu,%ld,%.1f,%.3g,%s,%d,%.4g,%llu,%.4f,%.3g,%.4g%s%s\n",
                 tesla,d.nz,d.nr,name(c),R.t*1e3,R.deviceThrust,R.exitPlaneThrust,coreThrust,R.inMom,R.wallMom,R.outMdot,R.massErr,R.energyErr,R.momErr,
                 R.divMax,R.divMean,R.ctFaceDivMax,R.lorentzZ,R.coilLorentzZ,R.body,R.minBeta,(unsigned long long)R.steps,(unsigned long long)R.rejected,hllFallbacks,wall,
-                double(R.steps)*2*d.nz*d.nr/wall,name(wb),int(robust),R.sync,(unsigned long long)R.robustSteps,wflux,failure.empty()?"":",FAILED: ",failure.c_str());
+                double(R.steps)*2*d.nz*d.nr/wall,name(wb),int(robust),R.sync,(unsigned long long)R.robustSteps,wflux,etaM,R.joule,failure.empty()?"":",FAILED: ",failure.c_str());
             std::fflush(stdout);
-            if(dump) dumpField(s,"/tmp/crucible_mhd/coil_"+std::to_string(int(tesla*100))+"_"+name(c)+(c==Clean::Split?std::string("_")+name(wb)+(robust?"_robust":""):"")+"_"+std::to_string(d.nz)+".csv");
+            if(dump) dumpField(s,"/tmp/crucible_mhd/coil_"+std::to_string(int(tesla*100))+"_"+name(c)+(c==Clean::Split?std::string("_")+name(wb)+(robust?"_robust":"")+(etaM>0?"_eta"+std::to_string(etaM).substr(0,4):""):"")+"_"+std::to_string(d.nz)+".csv");
         }
     }
 }
@@ -815,6 +911,51 @@ void vacuumCheck(const std::vector<int>& levels) {
         std::printf("vacuum,%d,%.1f,%d,%.4e,%.4e,%.4e,%.2f\n",nz,Rf,nv,mx/bmax,std::sqrt(rms)/bmax,mid/bmax,bs);
     }
 }
+// Resistive decay of a single eigenmode of the diffusion operator, gas heavy and at rest so the
+// flow does not move the field (rho = 1e4, p = 1, b = 0.01: u x b / eta J ~ 1e-5). Exact answer:
+// psi(t) = psi(0) exp(-eta_m lambda t), magnetic energy exp(-2 eta_m lambda t), and the internal
+// energy gain equals the magnetic energy lost (Joule heating) with nothing leaving the box.
+//   radial : annulus at r ~ 1e6 (Cartesian limit), b_z = b cos(k x), k = pi/W, lambda = k^2;
+//   axial  : same annulus, b_r = b cos(k z), k = 2 pi/L, lambda = k^2;
+//   bessel : full cylinder with axis, b_z = b J0(alpha r), J1(alpha R) = 0, lambda = alpha^2.
+// The zero-gradient boundaries match these modes exactly (the field has zero normal derivative at
+// every boundary). Bessel with the conducting wall also tests frozen wall flux (psi(R) = 0).
+double besselJ(int n,double x) { double s=0,t=std::pow(x/2,n); for(int k=1;k<=n;++k) t/=k;
+    for(int m=0;m<40;++m) { s+=t; t*=-sq(x/2)/((m+1.0)*(m+1+n)); } return s; }
+void resistiveDecay(const std::vector<int>& levels) {
+    std::printf("# Spitzer check (NRL 2019 p.34, hand values): T=100 eV n=1e20 Z=1: lnL=%.3f (hand 12.49) eta=%.4e ohm m (hand 1.287e-6);"
+                " T=1 eV: lnL=%.3f (hand 6.88) eta=%.4e (hand 7.09e-4)\n",coulombLog(1e20,100,1),spitzerEta(1e20,100,1),coulombLog(1e20,1,1),spitzerEta(1e20,1,1));
+    std::printf("case,wall,n,eta_m,lambda,rate_measured_over_exact_minus_1,psi_L2_rel_err,dE_mag,dE_int,joule_integral,dEint_over_minus_dEmag_minus_1,joule_over_minus_dEmag_minus_1,energy_res,steps\n");
+    const double g=5.0/3,b=0.01,etaM=0.01,inner=1e6,alpha=3.831705970207512;
+    struct Case { const char* name; WallB wall; };
+    for(Case c:{Case{"radial",WallB::Transparent},Case{"axial",WallB::Transparent},Case{"bessel",WallB::Conducting},Case{"bessel",WallB::Transparent}})
+    for(int n:levels) {
+        std::string nm=c.name; bool annulus=nm!="bessel";
+        int nz=nm=="axial"?n:4,nr=nm=="axial"?4:n;
+        double L=nm=="axial"?1.0:0.25,W=nm=="axial"?0.25:1.0,k=nm=="axial"?2*pi/L:pi/W,lambda=nm=="bessel"?alpha*alpha:k*k;
+        std::function<double(double,double)> psi0=[&](double z,double r) {
+            if(nm=="radial") return inner*b/k*std::sin(k*(r-inner));
+            if(nm=="axial") return -inner*b/k*std::sin(k*z);
+            return r*besselJ(1,alpha*r)*b/alpha; };
+        Grid grid(nz,nr,L,[&](double){return annulus?inner+W:1.0;},annulus?inner:0);
+        Mhd s(grid,g,Clean::Split); s.wallB=c.wall; s.eta.mode=Eta::Constant; s.eta.etaM=etaM;
+        s.init([&](int,int){ U p{}; p[RHO]=1e4; p[4]=1; return p; },nullptr);
+        for(int i=0;i<=nz;++i) for(int j=0;j<=nr;++j) s.psi[grid.node(i,j)]=psi0(i*grid.dz,grid.r(i,j));
+        s.poloidalFromPsi(s.psi,s.u);
+        for(auto& x:s.u) x[EN]=1/(g-1)+0.5*(sq(x[BZ])+sq(x[BR]));
+        s.E0=0; for(std::size_t q=0;q<s.u.size();++q) s.E0+=s.u[q][EN]*grid.vol[q];
+        auto R0=s.report(); double T=1/(etaM*lambda);
+        s.advanceTo(T); auto R=s.report();
+        double e2=0,n2=0,f=std::exp(-etaM*lambda*T);
+        for(int i=0;i<=nz;++i) for(int j=0;j<=nr;++j) { double ex=psi0(i*grid.dz,grid.r(i,j))*f; e2+=sq(s.psi[grid.node(i,j)]-ex); n2+=sq(ex); }
+        if(std::getenv("DECAY_PROFILE") && nm=="bessel") for(int j=0;j<=nr;j+=std::max(1,nr/16)) { double ex=psi0(0,grid.r(0,j))*f;
+            std::fprintf(stderr,"%s n=%d j=%d r=%.4f psi=%.6e exact=%.6e rel=%.3e\n",name(c.wall),n,j,grid.r(0,j),s.psi[grid.node(0,j)],ex,ex!=0?s.psi[grid.node(0,j)]/ex-1:0.0); }
+        double rate=-std::log(R.magnetic/R0.magnetic)/(2*T),dM=R.magnetic-R0.magnetic,dI=R.internal-R0.internal;
+        std::printf("%s,%s,%d,%.3g,%.6g,%.3e,%.3e,%.6e,%.6e,%.6e,%.3e,%.3e,%.1e,%llu\n",c.name,name(c.wall),n,etaM,lambda,rate/(etaM*lambda)-1,std::sqrt(e2/n2),
+            dM,dI,R.joule,dI/(-dM)-1,R.joule/(-dM)-1,R.energyErr,(unsigned long long)R.steps);
+        std::fflush(stdout);
+    }
+}
 std::vector<int> ints(const std::string& s) { std::vector<int> v; std::size_t p=0; while(p<s.size()){auto q=s.find(',',p); v.push_back(std::stoi(s.substr(p,q-p))); if(q==std::string::npos)break; p=q+1;} return v; }
 std::vector<double> reals(const std::string& s) { std::vector<double> v; for(int x:ints(s)) v.push_back(x/100.0); return v; }
 }
@@ -830,10 +971,11 @@ int main(int argc,char** argv) {
         else if(mode=="coil") nozzleCoil(ints(argc>2?argv[2]:"80"),reals(argc>3?argv[3]:"0,30,100"),argc>4?std::stod(argv[4]):0.008,argc>5);
         else if(mode=="split") nozzleCoil(ints(argc>2?argv[2]:"80"),reals(argc>3?argv[3]:"30,100"),argc>4?std::stod(argv[4]):0.008,argc>5,{Clean::CT,Clean::Split});
         else if(mode=="vacuum") vacuumCheck(ints(argc>2?argv[2]:"80,160"));
-        else if(mode=="wall") {  // wall levels tesla*100 t_end dump|nodump transparent,insulating,conducting robust(0|1)
+        else if(mode=="decay") resistiveDecay(ints(argc>2?argv[2]:"16,32,64"));
+        else if(mode=="wall") {  // wall levels tesla*100 t_end dump|nodump transparent,insulating,conducting robust(0|1) eta_m(m^2/s)
             std::vector<WallB> ws; std::string list=argc>6?argv[6]:"transparent,insulating,conducting";
             for(auto [n,w]:{std::pair{"transparent",WallB::Transparent},{"insulating",WallB::Insulating},{"conducting",WallB::Conducting}}) if(list.find(n)!=std::string::npos) ws.push_back(w);
-            nozzleCoil(ints(argc>2?argv[2]:"80"),reals(argc>3?argv[3]:"100"),argc>4?std::stod(argv[4]):0.008,argc>5&&std::string(argv[5])=="dump",{Clean::Split},ws,argc>7&&std::string(argv[7])=="1");
+            nozzleCoil(ints(argc>2?argv[2]:"80"),reals(argc>3?argv[3]:"100"),argc>4?std::stod(argv[4]):0.008,argc>5&&std::string(argv[5])=="dump",{Clean::Split},ws,argc>7&&std::string(argv[7])=="1",argc>8?std::stod(argv[8]):0);
         }
         else { std::fprintf(stderr,"crucible_mhd_spike briowu|aligned|static|coil [levels] [tesla*100 list] [t_end] [dump]\n"); return 1; }
     } catch(const std::exception& e) { std::fprintf(stderr,"error: %s\n",e.what()); return 2; }

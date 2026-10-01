@@ -202,6 +202,59 @@ What this says:
 
 Answer to the review's point: the sweep-out under the earlier transparent condition does not by itself show that ideal MHD is unsuitable, and the review is right about that. A wall that holds its flux keeps the applied field in place in this run (conducting, 80 cells). But the earlier crash was not a boundary-condition failure. It was pressure recovery, and that is fixed. The physically intended condition here (an insulating nozzle with an external coil) cannot be run in ideal MHD on this mesh. That is consistent with the resistive-first default.
 
+### 7. Resistive term (`resistive_decay.csv`), 30 September 2026
+
+What was added:
+
+- E_theta = eta_m J_theta at the nodes, with eta_m = eta/mu0 the magnetic diffusivity.
+  - The term enters the flux function as dpsi/dt = -r E_theta, so CT and div B = 0 are unchanged.
+  - J_theta = -div((1/r) grad psi) in the meridional plane, from two linear triangles per cell with a lumped mass.
+- Boundary conditions:
+  - The boundary term carries the tangential field: the interior value (zero-gradient) at a transparent wall and at the end planes; zero at the inlet of a nozzle whose source is unmagnetised; the matched exterior vacuum field at an insulating wall (no surface current, so b_t is continuous).
+  - At a conducting wall, E = 0 (flux frozen).
+- Energy:
+  - Total energy keeps its conservative form. The resistive Poynting flux E_theta (b_z n_r - b_r n_z) of the induced field is added at every face.
+  - Joule heating is then implicit (magnetic energy lost becomes internal energy). It is also integrated separately as a diagnostic, eta_m J^2 V, and added to the entropy variable.
+- Explicit time step limit: dt <= 0.25 / (eta_m (1/dz^2 + 1/dr^2)).
+- Conductivity options: constant, or transverse Spitzer.
+  - Spitzer is eta_perp = 1.03e-4 Z lnL T_e^-1.5 ohm m (NRL Formulary 2019 p.34).
+  - Electron-ion Coulomb log: 24 - ln(sqrt(n_e[cm^-3]) / T_e[eV]) above 10 Z^2 eV, 23 - ln(sqrt(n_e) Z T_e^-1.5) below, floored at 2. This is the same formula as in `docs/VALIDITY_MONITOR.md`.
+  - Spitzer assumes full ionisation at a stated Z, with n_e = Z rho / m_i.
+- Not included: resistive diffusion of b_theta. It is zero in every case so far.
+
+Spitzer check against hand values from the Formulary (measured, against derived):
+
+| n_e = 1e20 m^-3, Z = 1 | code lnL / hand lnL | code eta (ohm m) / hand eta (ohm m) |
+|---|---|---|
+| T = 100 eV | 12.487 / 12.49 | 1.2862e-6 / 1.287e-6 |
+| T = 1 eV | 6.882 / 6.88 | 7.0884e-4 / 7.09e-4 |
+
+Decay cases. Setup:
+
+- A single diffusion eigenmode in heavy gas at rest (rho = 1e4, p = 1, b = 0.01, so u x b / eta J ~ 1e-5).
+- eta_m = 0.01 m^2/s, run for one field e-folding time.
+- Exact answer: psi ~ exp(-eta_m lambda t). The internal energy gained must equal the magnetic energy lost.
+
+The cases:
+
+- radial: an annulus at r ~ 1e6 (the Cartesian limit), b_z = b cos(pi x / W). This is the Director's sinusoid B ~ exp(-(eta/mu0) k^2 t).
+- axial: the same annulus, b_r = b cos(2 pi z / L).
+- bessel: a full cylinder with the axis, b_z = b J0(alpha r), J1(alpha R) = 0. Run with both conducting and transparent walls.
+
+Results (measured):
+
+| case | n | decay rate / exact - 1 | psi L2 rel. error | Joule integral / magnetic loss - 1 | internal gain / magnetic loss - 1 |
+|---|---|---|---|---|---|
+| radial | 16, 32, 64, 128 | -3.2e-3, -8.0e-4, -2.0e-4, -5.0e-5 | same | -9.6e-3 ... -1.5e-4 | below 1e-7 |
+| axial | 16, 32, 64, 128 | -1.3e-2, -3.2e-3, -8.0e-4, -2.0e-4 | same | -3.8e-2 ... -6.0e-4 | 7.2e-3, 3.4e-3, 1.8e-3, 1.2e-3 |
+| bessel (both walls) | 16, 32, 64, 128 | -4.8e-3, -1.2e-3, -3.0e-4, -7.4e-5 | same | -9.3e-3 ... -1.5e-4 | -1.1e-7 |
+
+The energy residual is below 1.2e-14 in every run.
+
+- The decay rate, the field profile and the Joule integral all converge at second order.
+- One fix along the way (measured): the first version took 1/r at each triangle's centroid. A uniform field (psi = r^2) then has a spurious current of order h/r, which measured as a first-order psi error growing toward the axis (16% at r = 0.06 with 32 cells). Taking 1/r at the cell centre for both triangles makes psi = r^2 exact on straight columns. The error is now uniform in r and second order.
+- What is still first order (measured): the energy entering through the open, zero-gradient end planes in the axial case (0.12% of the Joule energy at 128 cells). The end-node current comes from a one-sided boundary closure. Physically that flux is zero. Field evolution is unaffected (second order). Open boundaries need a better closure before a plume run.
+
 ## What broke, and whose problem it is
 
 1. **Axis reconstruction (mesh-independent RZ issue; also in the gas core). Fixed in the gas core on 30 September 2026.**
