@@ -45,3 +45,22 @@ endif()
 # Architecture spike (docs/MHD_SPIKE.md): throwaway ideal-MHD probe on the RZ layout.
 add_executable(crucible_mhd_spike spike/mhd_rz.cpp)
 target_link_libraries(crucible_mhd_spike PRIVATE crucible_core)
+# Real-gas thermochemistry adapter (Cantera, built from source; TECHNICAL_PLAN adapters/).
+option(CRUCIBLE_WITH_CANTERA "Build the Cantera thermochemistry adapter" ON)
+set(CANTERA_ROOT "$ENV{HOME}/src/cantera" CACHE PATH "Cantera source tree with a scons build")
+if(CRUCIBLE_WITH_CANTERA)
+  find_library(ACCELERATE_FRAMEWORK Accelerate)
+  find_path(BOOST_INCLUDE boost/shared_ptr.hpp HINTS /opt/homebrew/include /usr/local/include)
+  add_library(crucible_thermo adapters/thermo.cpp)
+  target_include_directories(crucible_thermo PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+    PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+  target_compile_definitions(crucible_thermo PRIVATE CRUCIBLE_CANTERA_DATA="${CANTERA_ROOT}/data")
+  target_link_libraries(crucible_thermo PRIVATE ${CANTERA_ROOT}/build/lib/libcantera.a
+    ${ACCELERATE_FRAMEWORK} Threads::Threads)
+  if(BUILD_TESTING)
+    add_executable(crucible_thermo_tests tests/thermo_tests.cpp)
+    target_link_libraries(crucible_thermo_tests PRIVATE crucible_thermo)
+    target_compile_definitions(crucible_thermo_tests PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME thermo_cea_verification COMMAND crucible_thermo_tests)
+  endif()
+endif()
