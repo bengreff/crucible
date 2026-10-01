@@ -106,13 +106,50 @@ Throwaway code: `spike/mhd_rz.cpp` (target `crucible_mhd_spike`), plot script `s
 - **The 160×24, 1 T CT failure** is at the outer wall at z ≈ 0.34 m:
   - The swept flux piles up against the wall.
   - There p falls to 0.013 Pa while B ≈ 0.9 T.
-  - p = E − ½ρu² − ½b² then loses all precision.
+  - p = E − ½ρu² − ½b² then loses all precision. (Corrected by case 5: precision is not the cause. The split form never subtracts b0² and still fails.)
 - The 80×12 run survives only because it is more diffusive.
 - Cost: HLLD with 9 variables runs at 6.0 to 6.8e6 cell-stage updates/s on one core. The fast speed adds 0.6% (0.3 T) to 12% (1 T) more steps.
 
+### 5. Split field B = B0 + B1 (`static_split.csv`, `split_coil.csv`, `split_1T_160_failure.png`), 30 September 2026
+
+- **Built** (`split` mode, run with `crucible_mhd_spike split 80,160 30,100 0.008 dump`):
+  - CT on the induced flux ψ1 only. The coil field b0 is steady, curl-free, and taken analytically at face centres.
+  - The energy slot is E1 = p/(γ−1) + ½ρu² + ½b1² (Tanaka 1994), so b0² never enters the pressure.
+  - HLLD runs on the total field (b0 is identical on both sides of a face, so only b1 jumps). The momentum flux then drops T(b0), and the cross stress b0b1 moves into a cell body force J1×b0. The energy flux drops b0 · (induction flux).
+  - The axial integral of J1×b0 is `bodyAxial`, and device thrust = inlet + wall + bodyAxial − ambient.
+- **Static coil (1 T):** max speed 1.2e-12 and 2.9e-12 m/s at 40 and 80, against 19 and 16 m/s for CT. Exact by construction (b1 stays 0), so this verifies only the bookkeeping.
+- **Coil nozzle, 8 ms:**
+
+| B centre | grid | CT thrust / result | split thrust / result | split bodyAxial | J1×b0 diagnostic | split min β |
+|---|---|---|---|---|---|---|
+| 0.3 T | 80×12 | 517.31 N | 519.50 N | 38.52 N | 36.18 N | 5.4 |
+| 0.3 T | 160×24 | 517.70 N | 516.08 N | 44.61 N | 41.83 N | 5.9 |
+| 1.0 T | 80×12 | 517.13 N | fails 7.73 ms | | | |
+| 1.0 T | 160×24 | fails 0.58 ms | fails 0.91 ms | 24.867 N | 24.863 N | |
+
+- **Ledger:** momentum residual ≤ 5e-16 in every split run.
+  - `bodyAxial` agrees with the independent cell-curl J1×b0 diagnostic to 6% at 0.3 T and to 2e-4 just before the 1 T failure.
+  - The coil reaction now has a place in device thrust.
+- **The split does not fix low-β positivity.** It fails at 160 a little later than CT, and it also fails at 80, where CT survived.
+- **Mechanism (measured):** the failure cell is at the wall at z = 0.44 m, downstream of the coil, not at it. There:
+  - p = 7.6e-4 Pa and u_z = −84 m/s;
+  - the induced field is b1 = 0.61 T while b0 = 0.009 T.
+- **Enclosed flux 2πψ along the wall, initial → at failure (1 T, 160):**
+  - z = 0.15 m: 0.35 → 0.08 mWb;
+  - z = 0.44 m: 0.027 → 1.20 mWb;
+  - exit: 0.008 → 1.02 mWb.
+- The throat's coil flux (about 1.2 mWb) has been carried downstream by the flow. Its magnetic pressure (about 1.4e5 Pa at 0.6 T, derived) is far above the expanded gas pressure, so it pushes gas back and off the wall, and the fluid pressure goes to zero.
+- So the failure is ideal flux freezing plus the sliding-footpoint wall (items 4 and 5 below), not a discretization error. Split cannot fix it, and neither can an internal-energy fallback.
+- At 0.3 T both forms also sweep the flux out (enclosed wall flux at 8 ms is −0.02 mWb for CT and −0.06 mWb for split at 160, from 0.39 mWb at the throat).
+- **Inferred:**
+  - CT keeps less field (max |B| 0.04 T against 0.24 T for split) because its reconstruction of the smooth b0 creates face jumps. HLLD dissipation then turns those jumps into spurious EMF, which acts as numerical resistivity. The same defect causes CT's non-converging static residual.
+  - The 80×12 CT survival at 1 T is that numerical resistivity.
+  - Neither form's 0.3 T thrust is converged between 80 and 160 (split moves 3.4 N), because the 8 ms state is mid-way through the sweep.
+- Two-fix rule: this was the first fix tried on low-β positivity. The mechanism is in the model, so I stopped here rather than trying numerical fixes.
+
 ## What broke, and whose problem it is
 
-1. **Axis reconstruction (mesh-independent RZ issue; also in the gas core).**
+1. **Axis reconstruction (mesh-independent RZ issue; also in the gas core). Fixed in the gas core on 30 September 2026.**
    - Midpoint-based slopes on r-weighted averages give O(1) face errors at the axis.
    - Needed before any field or swirl work: centroid-referenced reconstruction, verified by the static-coil residual converging in its maximum as well as its RMS.
 2. **div B: only CT is usable.**
@@ -120,11 +157,9 @@ Throwaway code: `spike/mhd_rz.cpp` (target `crucible_mhd_spike`), plot script `s
    - GLM fails on every coil case (a single axis cell reached Mach 2000 in the 80×12, 1 T run).
    - CT through nodal ψ is exact to 1e-17 and cheap on this mesh.
 3. **Low-β positivity.**
-   - The total-energy form cannot hold p when ½b² ≫ p.
-   - Candidates:
-     - the split B = B0 + B1 form, where B0 is the analytic curl-free coil field, so B0² never enters E;
-     - an entropy or internal-energy fallback.
-   - Not attempted.
+   - The split form (case 5) removes b0² from the energy and T(b0) from the fluxes. It is kept: it makes the static coil exact and puts the coil reaction in `bodyAxial`.
+   - It does not prevent the failure. Ideal flux freezing sweeps the coil flux downstream, and that flux evacuates the wall region.
+   - This needs the model items 4 and 5 (wall magnetic conditions; resistivity, now the Director default), and possibly a stated treatment of near-vacuum regions (`RESEARCH.md`, "Expansion into vacuum is a model decision").
 4. **Magnetic boundary conditions are physics, not numerics.**
    - Copying B at the wall makes it neither insulating nor line-tying. Field-line footpoints slide along it.
    - An insulating wall needs matching to the vacuum field outside. A conducting wall needs line-tying.
@@ -139,6 +174,7 @@ Throwaway code: `spike/mhd_rz.cpp` (target `crucible_mhd_spike`), plot script `s
 - The conservative MHD ledger closes. Momentum residual is ≤ 5e-16 in every coil run.
 - It cannot say what force the coil receives, because the Lorentz force is hidden in the Maxwell stress of the fluxes.
 - The spike's diagnostics ∫(J×b)_z and ∫(J×b0)_z use a cell-centred curl of the total field. They disagree with each other and between grids (for example −0.055 and −16.8 N at 1 T, 80×12, CT). **They are not trusted.**
+- Implemented in the split form (case 5). There `bodyAxial` is the discrete J1×b0 integral, consistent with the momentum ledger to roundoff.
 - Recommended structure (derived):
   - Carry B = B0 + B1, with B0 the coil vacuum field (curl-free in the domain) and B1 induced by plasma currents, CT on ψ1.
   - The force on the medium is J1×(B0+B1).

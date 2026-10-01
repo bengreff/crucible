@@ -17,6 +17,7 @@ The native converging-diverging nozzle experiment exists: verified axisymmetric 
 - **MHD architecture spike:** `docs/MHD_SPIKE.md`, throwaway code in `spike/`.
   - Recommendation: keep the body-fitted RZ mesh; use CT through nodal ψ.
   - Before any field work: fix axis reconstruction (done), then the split B0 + B1 form feeding `bodyAxialForce`, explicit magnetic boundary conditions, and a conductivity model.
+  - Split B0 + B1 (`split` mode in the spike, memo case 5): static coil exact, coil reaction in `bodyAxial` (ledger closes). It does **not** fix low-β positivity. Measured mechanism: ideal flux freezing carries the throat's coil flux (about 1.2 mWb at 1 T) downstream, and its magnetic pressure evacuates the wall region. Needs resistivity and wall magnetic conditions, not numerics.
   - Conductivity: Director default (reversible by Ben) is resistive MHD first, Hall term next; recorded in `RESEARCH.md`. An outside check on the model class is pending.
 - **Axis reconstruction fixed in core** (centroid-referenced radial slopes, parity on the axis row, exact p/r source). Evidence in `docs/IMPLEMENTATION.md`: axis-row acoustic error first order → about third order; coil-force rest residual converges; nozzle grid study and venturi unchanged or slightly better.
 

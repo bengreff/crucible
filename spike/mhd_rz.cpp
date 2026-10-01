@@ -8,6 +8,11 @@
 //   ct   : poloidal B from the flux function psi = r A_theta stored at mesh nodes, advanced by
 //          node EMFs averaged from the HLLD face fluxes. Face fluxes 2 pi dpsi are exactly
 //          solenoidal on any body-fitted quadrilateral mesh. B_theta stays cell-centred.
+//   split: ct for the induced field b1 only; the coil (vacuum) field b0 is steady and curl-free,
+//          analytic at faces (Tanaka 1994). Energy slot holds E1 = p/(g-1) + rho u^2/2 + b1^2/2,
+//          so pressure never comes from subtracting b0^2/2. The b0 stress T(b0) (divergence-free)
+//          is dropped; the cross stress b0 b1 becomes a cell body force (J1 x b0, the force of the
+//          coil field on the plasma), whose axial integral is bodyAxialForce.
 #include "core/flow.hpp"
 #include <algorithm>
 #include <array>
@@ -28,8 +33,8 @@ using U=std::array<double,NV>;
 enum {RHO,MZ,MR,MT,EN,BZ,BR,BT,PS};
 double sq(double x) { return x*x; }
 double minmod(double a,double b) { return a*b<=0?0:std::copysign(std::min(std::abs(a),std::abs(b)),a); }
-enum class Clean { None, GLM, CT };
-const char* name(Clean c) { return c==Clean::None?"none":c==Clean::GLM?"glm":"ct"; }
+enum class Clean { None, GLM, CT, Split };
+const char* name(Clean c) { return c==Clean::None?"none":c==Clean::GLM?"glm":c==Clean::CT?"ct":"split"; }
 
 // Same construction as core Mesh, plus an optional inner radius (annulus).
 struct Grid {
@@ -180,11 +185,11 @@ double exactDensity(G1 L,G1 R,double g,double xi) {
     return xi<=us?side(L,xi,1):side(R,xi,-1);
 }
 
-struct Rates { double mass{},energy{},inMom{},outMom{},wallMom{},inMass{},outMass{}; };
+struct Rates { double mass{},energy{},inMom{},outMom{},wallMom{},inMass{},outMass{},body{}; };
 struct Report {
     double t{},mass{},energy{},Pz{},massErr{},energyErr{},momErr{},deviceThrust{},exitPlaneThrust{};
     double inMom{},outMom{},wallMom{},ambient{},inMdot{},outMdot{};
-    double divMax{},divMean{},ctFaceDivMax{},maxMach{},minBeta{},lorentzZ{},coilLorentzZ{},maxSpeed{};
+    double divMax{},divMean{},ctFaceDivMax{},maxMach{},minBeta{},lorentzZ{},coilLorentzZ{},maxSpeed{},body{};
     std::uint64_t steps{},rejected{};
 };
 
@@ -195,7 +200,11 @@ public:
     bool axisParity{true};
     std::vector<U> u,stage,next,du,w,sz,sr;
     std::vector<double> psi,psiStage,psiNext,dpsi,emfA,emfR;
-    std::vector<std::array<double,2>> b0;  // applied (coil) field at cells, for diagnostics
+    std::vector<std::array<double,2>> b0;  // applied (coil) field at cells
+    std::vector<std::array<double,2>> b0A,b0R,cross;  // split: b0 at axial/radial face centres; cell cross force
+    bool ct() const { return clean==Clean::CT || clean==Clean::Split; }
+    bool split() const { return clean==Clean::Split; }
+    std::array<double,2> total(const U& x,std::size_t q) const { return split()?std::array<double,2>{x[BZ]+b0[q][0],x[BR]+b0[q][1]}:std::array<double,2>{x[BZ],x[BR]}; }
     double t{},ch{};
     std::uint64_t steps{},rejected{};
     Rates last{};
@@ -207,7 +216,8 @@ public:
         auto nn=m.rn.size();
         for(auto* v:{&psi,&psiStage,&psiNext,&dpsi}) v->assign(nn,0.0);
         emfA.assign(static_cast<std::size_t>(m.nz+1)*m.nr,0); emfR.assign(static_cast<std::size_t>(m.nz)*(m.nr+1),0);
-        b0.assign(n,{0,0});
+        b0.assign(n,{0,0}); cross.assign(n,{0,0});
+        b0A.assign(static_cast<std::size_t>(m.nz+1)*m.nr,{0,0}); b0R.assign(static_cast<std::size_t>(m.nz)*(m.nr+1),{0,0});
     }
     // Cell-volume-averaged poloidal field from nodal psi (b = curl(psi/r theta)):
     //   V<b_z> = 2 pi int (psi_top - psi_bottom) dz   (psi linear along the sloped edges),
@@ -234,8 +244,16 @@ public:
         if(psiField) for(int i=0;i<=m.nz;++i) for(int j=0;j<=m.nr;++j) psi[m.node(i,j)]=psiField(i*m.dz,m.r(i,j));
         for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
             U p=prim(i,j);
-            if(psiField) { b0[m.cell(i,j)]=cellB(psi,i,j); p[BZ]=b0[m.cell(i,j)][0]; p[BR]=b0[m.cell(i,j)][1]; }
+            if(psiField) { b0[m.cell(i,j)]=cellB(psi,i,j); if(!split()) { p[BZ]=b0[m.cell(i,j)][0]; p[BR]=b0[m.cell(i,j)][1]; } }
             u[m.cell(i,j)]=toCons(p,g);
+        }
+        if(split() && psiField) {
+            // b = curl(psi/r theta): b_z = psi_r / r, b_r = -psi_z / r, by central differences.
+            auto field=[&](double z,double r){ double h=1e-7;
+                return std::array<double,2>{(psiField(z,r+h)-psiField(z,r-h))/(2*h*r),-(psiField(z+h,r)-psiField(z-h,r))/(2*h*r)}; };
+            for(int i=0;i<=m.nz;++i) for(int j=0;j<m.nr;++j) b0A[static_cast<std::size_t>(i)*m.nr+j]=field(i*m.dz,0.5*(m.r(i,j)+m.r(i,j+1)));
+            for(int i=0;i<m.nz;++i) for(int j=1;j<=m.nr;++j) b0R[static_cast<std::size_t>(i)*(m.nr+1)+j]=field((i+0.5)*m.dz,0.5*(m.r(i,j)+m.r(i+1,j)));
+            std::fill(psi.begin(),psi.end(),0.0);  // evolved flux function is psi1
         }
         M0=E0=P0=0;
         for(std::size_t q=0;q<u.size();++q) { M0+=u[q][RHO]*m.vol[q]; E0+=u[q][EN]*m.vol[q]; P0+=u[q][MZ]*m.vol[q]; }
@@ -262,7 +280,7 @@ public:
         double dt=1e300; ch=0;
         for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
             auto q=m.cell(i,j); U p; if(!toPrim(u[q],g,p)) throw std::runtime_error("bad state");
-            double c=std::sqrt(g*p[4]/p[RHO]+(sq(p[BZ])+sq(p[BR])+sq(p[BT]))/p[RHO]);
+            auto bt=total(p,q); double c=std::sqrt(g*p[4]/p[RHO]+(sq(bt[0])+sq(bt[1])+sq(p[BT]))/p[RHO]);
             ch=std::max(ch,std::hypot(p[1],p[2])+c);
             double rate=(m.axialArea(i,j)+m.axialArea(i+1,j))*(std::abs(p[1])+c);
             for(int f:{j,j+1}) { auto a=m.radialArea(i,f); rate+=std::abs(p[1]*a[0]+p[2]*a[1])+c*std::hypot(a[0],a[1]); }
@@ -298,13 +316,30 @@ public:
         }
         auto rec=[&](std::size_t q,bool axial,double dir) { U x=w[q]; const U& sl=axial?sz[q]:sr[q]; for(int k=0;k<NV;++k) x[k]+=dir*0.5*sl[k]; return x; };
         Rates rt{};
+        std::fill(cross.begin(),cross.end(),std::array<double,2>{0,0});
+        // Split: add the face b0 to both states, then remove T(b0) and the cross stress from the
+        // momentum flux and b0 . (induction flux) from the energy flux. Returns the cross stress . n.
+        auto faceFlux=[&](U l,U r,double nz,double nr,std::array<double,2> f0,std::array<double,2>& crossN) {
+            crossN={0,0};
+            if(!split()) return mhdFlux(l,r,nz,nr,ch,g);
+            double b1z=0.5*(l[BZ]+r[BZ]),b1r=0.5*(l[BR]+r[BR]);
+            for(U* x:{&l,&r}) { (*x)[BZ]+=f0[0]; (*x)[BR]+=f0[1]; }
+            auto ff=mhdFlux(l,r,nz,nr,ch,g);
+            double b0n=f0[0]*nz+f0[1]*nr,b1n=b1z*nz+b1r*nr,dot=f0[0]*b1z+f0[1]*b1r,b02=sq(f0[0])+sq(f0[1]);
+            std::array<double,2> T0{f0[0]*b0n-0.5*b02*nz,f0[1]*b0n-0.5*b02*nr};
+            crossN={dot*nz-f0[0]*b1n-b1z*b0n,dot*nr-f0[1]*b1n-b1r*b0n};
+            ff.f[MZ]+=T0[0]-crossN[0]; ff.f[MR]+=T0[1]-crossN[1];
+            ff.f[EN]-=(-f0[0]*nr+f0[1]*nz)*ff.emf;
+            return ff;
+        };
         for(int i=0;i<=m.nz;++i) for(int j=0;j<m.nr;++j) {
             auto il=m.cell(std::max(0,i-1),j),ir=m.cell(std::min(m.nz-1,i),j);
             U l=rec(il,true,1),r=rec(ir,true,-1);
             if(i==0) l=inletGhost(r);
             if(i==m.nz) r=outletGhost(l);
-            auto ff=mhdFlux(l,r,1,0,ch,g); double A=m.axialArea(i,j);
+            std::array<double,2> cn; auto ff=faceFlux(l,r,1,0,b0A[static_cast<std::size_t>(i)*m.nr+j],cn); double A=m.axialArea(i,j);
             for(int k=0;k<NV;++k) { if(i>0) d[il][k]-=A*ff.f[k]; if(i<m.nz) d[ir][k]+=A*ff.f[k]; }
+            for(int k=0;k<2;++k) { if(i>0) cross[il][k]-=A*cn[k]; if(i<m.nz) cross[ir][k]+=A*cn[k]; }
             emfA[static_cast<std::size_t>(i)*m.nr+j]=ff.emf;
             if(i==0) { rt.mass+=A*ff.f[RHO]; rt.energy+=A*ff.f[EN]; rt.inMom+=A*ff.f[MZ]; rt.inMass+=A*ff.f[RHO]; }
             if(i==m.nz) { rt.mass-=A*ff.f[RHO]; rt.energy-=A*ff.f[EN]; rt.outMom+=A*ff.f[MZ]; rt.outMass+=A*ff.f[RHO]; }
@@ -316,7 +351,8 @@ public:
             if(j==0) { r=rec(m.cell(i,0),false,-1); l=wallGhost(r,nz,nr); }
             else if(j==m.nr) { l=rec(m.cell(i,m.nr-1),false,1); r=wallGhost(l,nz,nr); }
             else { l=rec(m.cell(i,j-1),false,1); r=rec(m.cell(i,j),false,-1); }
-            auto ff=mhdFlux(l,r,nz,nr,ch,g);
+            std::array<double,2> cn; auto ff=faceFlux(l,r,nz,nr,b0R[static_cast<std::size_t>(i)*(m.nr+1)+j],cn);
+            for(int k=0;k<2;++k) { if(j>0) cross[m.cell(i,j-1)][k]-=A*cn[k]; if(j<m.nr) cross[m.cell(i,j)][k]+=A*cn[k]; }
             bool wall=j==0||j==m.nr;
             if(wall) ff.f[RHO]=0;  // impermeable
             if(j>0) for(int k=0;k<NV;++k) d[m.cell(i,j-1)][k]-=A*ff.f[k];
@@ -332,10 +368,14 @@ public:
             d[q][MT]-=(x[RHO]*x[2]*x[3]-x[BR]*x[BT])*M;
             d[q][BT]+=(x[2]*x[BT]-x[3]*x[BR])*M;
             d[q][BR]+=x[PS]*M;
+            if(split()) {  // cross body force: -div(C) with C_theta_theta = b0 . b1
+                double fz=cross[q][0],fr=cross[q][1]+(b0[q][0]*x[BZ]+b0[q][1]*x[BR])*M;
+                d[q][MZ]+=fz; d[q][MR]+=fr; d[q][EN]+=0; rt.body+=fz;
+            }
             for(double& v:d[q]) v/=m.vol[q];
         }
         std::fill(dps.begin(),dps.end(),0.0);
-        if(clean==Clean::CT) for(int i=0;i<=m.nz;++i) for(int j=0;j<=m.nr;++j) {
+        if(ct()) for(int i=0;i<=m.nz;++i) for(int j=0;j<=m.nr;++j) {
             double r0=m.r(i,j); if(r0<=0) continue;  // psi = 0 on the axis
             double e=0; int n=0;
             if(j>0)    { e+=emfA[static_cast<std::size_t>(i)*m.nr+j-1]; ++n; }
@@ -354,12 +394,12 @@ public:
                 auto r1=rhs(u,psi,du,dpsi);
                 for(std::size_t q=0;q<u.size();++q) for(int k=0;k<NV;++k) stage[q][k]=u[q][k]+dt*du[q][k];
                 for(std::size_t n=0;n<psi.size();++n) psiStage[n]=psi[n]+dt*dpsi[n];
-                if(clean==Clean::CT) poloidalFromPsi(psiStage,stage);
+                if(ct()) poloidalFromPsi(psiStage,stage);
                 if(admissible(stage)) {
                     auto r2=rhs(stage,psiStage,du,dpsi);
                     for(std::size_t q=0;q<u.size();++q) for(int k=0;k<NV;++k) next[q][k]=0.5*(u[q][k]+stage[q][k]+dt*du[q][k]);
                     for(std::size_t n=0;n<psi.size();++n) psiNext[n]=0.5*(psi[n]+psiStage[n]+dt*dpsi[n]);
-                    if(clean==Clean::CT) poloidalFromPsi(psiNext,next);
+                    if(ct()) poloidalFromPsi(psiNext,next);
                     if(admissible(next)) {
                         if(clean==Clean::GLM) for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
                             double h=std::min(m.dz,(m.r(i,j+1)-m.r(i,j)+m.r(i+1,j+1)-m.r(i+1,j))/2);
@@ -367,10 +407,10 @@ public:
                         }
                         u.swap(next); psi.swap(psiNext); t+=dt; ++steps;
                         last={0.5*(r1.mass+r2.mass),0.5*(r1.energy+r2.energy),0.5*(r1.inMom+r2.inMom),0.5*(r1.outMom+r2.outMom),
-                              0.5*(r1.wallMom+r2.wallMom),0.5*(r1.inMass+r2.inMass),0.5*(r1.outMass+r2.outMass)};
+                              0.5*(r1.wallMom+r2.wallMom),0.5*(r1.inMass+r2.inMass),0.5*(r1.outMass+r2.outMass),0.5*(r1.body+r2.body)};
                         intM+=dt*last.mass; intE+=dt*last.energy;
-                        intP+=dt*(last.inMom-last.outMom+last.wallMom);
-                        intPg+=dt*(std::abs(last.inMom)+std::abs(last.outMom)+std::abs(last.wallMom));
+                        intP+=dt*(last.inMom-last.outMom+last.wallMom+last.body);
+                        intPg+=dt*(std::abs(last.inMom)+std::abs(last.outMom)+std::abs(last.wallMom)+std::abs(last.body));
                         return dt;
                     }
                 }
@@ -399,7 +439,7 @@ public:
         for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
             auto q=m.cell(i,j); U p; toPrim(u[q],g,p);
             R.mass+=u[q][RHO]*m.vol[q]; R.energy+=u[q][EN]*m.vol[q]; R.Pz+=u[q][MZ]*m.vol[q];
-            double a=std::sqrt(g*p[4]/p[RHO]),b2=sq(p[BZ])+sq(p[BR])+sq(p[BT]);
+            auto bt=total(p,q); double a=std::sqrt(g*p[4]/p[RHO]),b2=sq(bt[0])+sq(bt[1])+sq(p[BT]);
             R.maxMach=std::max(R.maxMach,std::hypot(p[1],p[2])/a); R.maxSpeed=std::max(R.maxSpeed,std::sqrt(sq(p[1])+sq(p[2])+sq(p[3])));
             if(b2>0) R.minBeta=std::min(R.minBeta,2*p[4]/b2);
             // Cell-centred divergence from face-averaged b (the discrete constraint of none/glm).
@@ -413,13 +453,13 @@ public:
             double h=std::min(m.dz,(m.r(i,j+1)-m.r(i,j)+m.r(i+1,j+1)-m.r(i+1,j))/2);
             double e=std::abs(div)/m.vol[q]*h/bmax;
             R.divMax=std::max(R.divMax,e); R.divMean+=e*m.vol[q]; vsum+=m.vol[q];
-            if(clean==Clean::CT) {
+            if(ct()) {
                 double f=-2*pi*(psi[m.node(i,j+1)]-psi[m.node(i,j)])+2*pi*(psi[m.node(i+1,j+1)]-psi[m.node(i+1,j)])
                         -(-2*pi*(psi[m.node(i+1,j)]-psi[m.node(i,j)]))+(-2*pi*(psi[m.node(i+1,j+1)]-psi[m.node(i,j+1)]));
                 R.ctFaceDivMax=std::max(R.ctFaceDivMax,std::abs(f)/m.vol[q]*h/bmax);
             }
             double jt=jTheta(i,j);
-            R.lorentzZ+=-jt*p[BR]*m.vol[q];            // (J x b)_z with J_r b_theta = 0 here
+            R.lorentzZ+=-jt*bt[1]*m.vol[q];            // (J x b)_z with J_r b_theta = 0 here
             R.coilLorentzZ+=-jt*b0[q][1]*m.vol[q];     // part exerted by the applied (coil) field
             if(i==m.nz-1) exitArea+=m.axialArea(m.nz,j);
         }
@@ -428,7 +468,7 @@ public:
         R.ambient=pBack*exitArea;
         R.massErr=(R.mass-M0-intM)/M0; R.energyErr=(R.energy-E0-intE)/E0;
         R.momErr=(R.Pz-P0-intP)/std::max(std::abs(P0)+intPg,1e-300);
-        R.deviceThrust=R.inMom+R.wallMom-R.ambient; R.exitPlaneThrust=R.outMom-R.ambient;
+        R.body=last.body; R.deviceThrust=R.inMom+R.wallMom+R.body-R.ambient; R.exitPlaneThrust=R.outMom-R.ambient;
         return R;
     }
 };
@@ -531,7 +571,7 @@ void staticCoil(const std::vector<int>& levels,double tesla) {
     const double g=1.4,p=1e5,rho=p/(287.05*300);
     std::printf("case,B_centre_T,nz,nr,clean,t_ms,max_speed_m_s,max_speed_over_vA,div_max,div_mean,ct_face_div,lorentz_z_N,steps\n");
     double I=coilCurrent(tesla),vA=tesla/std::sqrt(mu0*rho);
-    for(int nz:levels) for(Clean c:{Clean::None,Clean::GLM,Clean::CT}) {
+    for(int nz:levels) for(Clean c:{Clean::None,Clean::GLM,Clean::CT,Clean::Split}) {
         int nr=nz*3/20; Grid grid(nz,nr,0.6,nozzleRadius);
         Mhd s(grid,g,c);
         s.init([&](int,int){ U w{}; w[RHO]=rho; w[4]=p; return w; },[&](double z,double r){return loopPsi(r,z,coilA,coilZ,I);});
@@ -578,14 +618,14 @@ void axisProbe(int nz,double zProbe) {
     }
 }
 // Default nozzle (core Definition) with prepared 1D flow and a coil at the throat.
-void nozzleCoil(const std::vector<int>& levels,const std::vector<double>& teslas,double tEnd,bool dump) {
+void nozzleCoil(const std::vector<int>& levels,const std::vector<double>& teslas,double tEnd,bool dump,std::vector<Clean> cleans={Clean::None,Clean::GLM,Clean::CT,Clean::Split}) {
     crucible::Definition d; const double g=d.gas.gamma;
     std::printf("case,B_centre_T,nz,nr,clean,t_ms,device_thrust_N,exit_plane_thrust_N,core_gas_thrust_N,inlet_mom_N,wall_force_on_gas_N,mdot_out,"
-                "mass_res,energy_res,mom_res,div_max,div_mean,ct_face_div,lorentz_z_N,coil_lorentz_z_N,min_beta,steps,rejected,hll_fallbacks,wall_s,cell_updates_per_s\n");
+                "mass_res,energy_res,mom_res,div_max,div_mean,ct_face_div,lorentz_z_N,coil_lorentz_z_N,body_axial_N,min_beta,steps,rejected,hll_fallbacks,wall_s,cell_updates_per_s\n");
     for(int nz:levels) {
         d.nz=nz; d.nr=nz*3/20;
         crucible::Flow core(d); core.advanceTo(tEnd); double coreThrust=core.measurements().deviceThrust;
-        for(double tesla:teslas) for(Clean c:{Clean::None,Clean::GLM,Clean::CT}) {
+        for(double tesla:teslas) for(Clean c:cleans) {
             if(tesla==0 && c!=Clean::None) continue;
             hllFallbacks=0;
             Grid grid(d.nz,d.nr,d.length,nozzleRadius);
@@ -602,9 +642,9 @@ void nozzleCoil(const std::vector<int>& levels,const std::vector<double>& teslas
             auto start=std::chrono::steady_clock::now(); std::string failure;
             try { s.advanceTo(tEnd); } catch(const std::exception& e) { failure=e.what(); }
             double wall=seconds(start); auto R=s.report();
-            std::printf("coil,%.2f,%d,%d,%s,%.3f,%.4f,%.4f,%.4f,%.3f,%.3f,%.6f,%.1e,%.1e,%.1e,%.2e,%.2e,%.1e,%.3f,%.3f,%.3g,%llu,%llu,%ld,%.1f,%.3g%s%s\n",
+            std::printf("coil,%.2f,%d,%d,%s,%.3f,%.4f,%.4f,%.4f,%.3f,%.3f,%.6f,%.1e,%.1e,%.1e,%.2e,%.2e,%.1e,%.3f,%.3f,%.3f,%.3g,%llu,%llu,%ld,%.1f,%.3g%s%s\n",
                 tesla,d.nz,d.nr,name(c),R.t*1e3,R.deviceThrust,R.exitPlaneThrust,coreThrust,R.inMom,R.wallMom,R.outMdot,R.massErr,R.energyErr,R.momErr,
-                R.divMax,R.divMean,R.ctFaceDivMax,R.lorentzZ,R.coilLorentzZ,R.minBeta,(unsigned long long)R.steps,(unsigned long long)R.rejected,hllFallbacks,wall,
+                R.divMax,R.divMean,R.ctFaceDivMax,R.lorentzZ,R.coilLorentzZ,R.body,R.minBeta,(unsigned long long)R.steps,(unsigned long long)R.rejected,hllFallbacks,wall,
                 double(R.steps)*2*d.nz*d.nr/wall,failure.empty()?"":",FAILED: ",failure.c_str());
             std::fflush(stdout);
             if(dump) dumpField(s,"/tmp/crucible_mhd/coil_"+std::to_string(int(tesla*100))+"_"+name(c)+"_"+std::to_string(d.nz)+".csv");
@@ -624,6 +664,7 @@ int main(int argc,char** argv) {
         else if(mode=="residual") residual(ints(argc>2?argv[2]:"40,80,160,320"),argc>3?std::stod(argv[3]):1.0);
         else if(mode=="axisprobe") axisProbe(std::stoi(argv[2]),std::stod(argv[3]));
         else if(mode=="coil") nozzleCoil(ints(argc>2?argv[2]:"80"),reals(argc>3?argv[3]:"0,30,100"),argc>4?std::stod(argv[4]):0.008,argc>5);
+        else if(mode=="split") nozzleCoil(ints(argc>2?argv[2]:"80"),reals(argc>3?argv[3]:"30,100"),argc>4?std::stod(argv[4]):0.008,argc>5,{Clean::CT,Clean::Split});
         else { std::fprintf(stderr,"crucible_mhd_spike briowu|aligned|static|coil [levels] [tesla*100 list] [t_end] [dump]\n"); return 1; }
     } catch(const std::exception& e) { std::fprintf(stderr,"error: %s\n",e.what()); return 2; }
 }

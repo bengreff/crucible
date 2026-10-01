@@ -18,14 +18,16 @@ def panel(ax,rows,f,title,cmap,log=False):
     pc=PolyCollection(polys,array=v,cmap=cmap,edgecolors='none')
     ax.add_collection(pc);ax.set_xlim(0,0.6);ax.set_ylim(0,0.036);ax.set_aspect('equal');ax.set_title(title,fontsize=9)
     plt.colorbar(pc,ax=ax,fraction=0.02,pad=0.01); ax.plot([0.216],[0.035],'rx')
-out=sys.argv[1];base=sys.argv[2];ref=sys.argv[3]
-rows=cells(base);Z,R,P=nodes(base+'.psi');Z0,R0,P0=nodes(ref+'.psi') if ref!='-' else (None,None,None)
-fig,axes=plt.subplots(4,1,figsize=(12,9))
-panel(axes[0],rows,lambda r:float(r['p']),base.split('/')[-1]+': pressure [Pa]','viridis')
-panel(axes[1],rows,lambda r:float(r['mach']),'Mach','magma')
-panel(axes[2],rows,lambda r:math.hypot(float(r['bz']),float(r['br'])),'log10 |B_poloidal| [T] now','cividis',True)
-panel(axes[3],rows,lambda r:math.hypot(float(r['b0z']),float(r['b0r'])),'log10 |B| applied vacuum field [T]; lines: psi applied (grey), psi now (red)','cividis',True)
-lv=np.linspace(P0.min(),P0.max(),14)[1:-1] if P0 is not None else 12
-if P0 is not None: axes[3].contour(Z0,R0,P0,levels=lv,colors='0.7',linewidths=0.8)
-for ax in axes[2:]: ax.contour(Z,R,P,levels=lv,colors='r',linewidths=0.8)
-plt.tight_layout();plt.savefig(out,dpi=100)
+if __name__!="__main__": pass
+else:
+  out=sys.argv[1];base=sys.argv[2];ref=sys.argv[3]
+  rows=cells(base);Z,R,P=nodes(base+'.psi');Z0,R0,P0=nodes(ref+'.psi') if ref!='-' else (None,None,None)
+  fig,axes=plt.subplots(4,1,figsize=(12,9))
+  panel(axes[0],rows,lambda r:float(r['p']),base.split('/')[-1]+': pressure [Pa]','viridis')
+  panel(axes[1],rows,lambda r:float(r['mach']),'Mach','magma')
+  panel(axes[2],rows,lambda r:math.hypot(float(r['bz']),float(r['br'])),'log10 |B_poloidal| [T] now','cividis',True)
+  panel(axes[3],rows,lambda r:math.hypot(float(r['b0z']),float(r['b0r'])),'log10 |B| applied vacuum field [T]; lines: psi applied (grey), psi now (red)','cividis',True)
+  lv=np.linspace(P0.min(),P0.max(),14)[1:-1] if P0 is not None else 12
+  if P0 is not None: axes[3].contour(Z0,R0,P0,levels=lv,colors='0.7',linewidths=0.8)
+  for ax in axes[2:]: ax.contour(Z,R,P,levels=lv,colors='r',linewidths=0.8)
+  plt.tight_layout();plt.savefig(out,dpi=100)
