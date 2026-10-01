@@ -10,7 +10,9 @@ The native converging-diverging nozzle experiment exists: verified axisymmetric 
 
 - **Item 1 done.** Cantera 3.2.0 is built from source (`~/src/cantera`, `scons build`, static lib) and wrapped in `adapters/thermo.*`. The ideal rocket matches NASA CEA (RocketCEA) at 18 points (H2/O2, CH4/O2, LOX/LH2 at 3 O/F each, equilibrium and frozen): worst 0.131% against the 0.5% tolerance. Evidence: `docs/THERMO_VERIFICATION.md`, ctest `thermo_cea_verification` (about 40 s).
 - **Item 2 done.** `docs/VALIDATION_SURVEY.md` recommends TUM GOX/GCH4 SFB/TRR40 Test Case 1 (20 bar, O/F 2.6; wall pressure, heat flux, combustion efficiency) and Penn State GO2/GH2 (wall heat flux). Next input: the Test Case 1 geometry/BC description and digitised curves.
-- **Next:** item 3 (low-Mach correction or preconditioning for HLLC; venturi -9.5% mass flow at Mach 0.15 coarse), then item 4 (reacting chamber).
+- **Ben's decisions (via Director):** primary case is the TUM round chamber, with exact published geometry (stop if an input is missing); strict pre-registered blind prediction; second case is RL10A-3-3A. Inputs and gaps: `docs/VALIDATION_TUM_ROUND.md`. Missing: convergent nozzle contour, the TRR40 Test Case 1 document, nozzle-wall thermal condition, propellant purity. Blind exposure is declared: efficiency and Pc at O/F 2.2 were seen.
+- **Item 3 done.** `docs/LOW_MACH.md`. Thornber is 2-6x more accurate on the venturi but grows a transverse odd-even mode exponentially (row deviation 1e-14 to 7e-5 at 800 cells). HLLC-LM has no effect above M 0.1. The default stays plain HLLC; chamber accuracy comes from grid convergence with reported error bands. Both variants remain behind `Definition::lowMach`.
+- **Next:** item 4, the reacting chamber. Multi-species gas state, Cantera thermo per cell, finite-rate source with a stiff integrator, then SST/PaSR per TECHNICAL_PLAN.
 
 ## Done on this branch
 
