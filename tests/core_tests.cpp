@@ -1,7 +1,9 @@
 #include "core/flow.hpp"
 #include "core/session.hpp"
+#include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <numbers>
@@ -70,6 +72,70 @@ double radialWaveError(int nr) {
         error+=std::abs(w.ur-expected)/amplitude*(2*j+1)/(nr*nr);}
     auto m=flow.measurements();require(std::abs(m.massBalanceError)<1e-12 && std::abs(m.energyBalanceError)<1e-12,"Radial acoustic budgets");
     return error;
+}
+
+// Axis-row (max-norm) error of the same mode: u_r is odd in r, so a midpoint/zero-slope axis
+// reconstruction gives an O(dr) face error in the mass flux, an O(1) divergence error in that row.
+double radialWaveAxisError(int nr) {
+    Definition d;d.experiment=Case::UniformDuct;d.nz=4;d.nr=nr;
+    Flow flow(d);std::vector<Primitive> initial;
+    constexpr double epsilon=1e-5,p0=100000,rho0=1,root=3.8317059702075125;
+    double sound=std::sqrt(d.gas.gamma*p0/rho0),k=root/d.inletRadius;
+    for(auto c:flow.mesh().cells) {double s=epsilon*bessel(0,k*c.r);initial.push_back({rho0*(1+s/d.gas.gamma),0,0,p0*(1+s)});}
+    flow.setInitialState(initial);flow.advanceTo(std::numbers::pi/(2*sound*k));
+    auto q=flow.mesh().index(1,0);auto w=primitive(flow.state()[q],d.gas);
+    // The r-weighted average of J1(kr) over the axis cell (independent quadrature).
+    double rt=d.inletRadius/nr,num=0,den=0;
+    for(int n=0;n<400;++n){double r=(n+.5)*rt/400;num+=bessel(1,k*r)*r;den+=r;}
+    return std::abs(w.ur-epsilon*p0/(rho0*sound)*num/den)/(epsilon*p0/(rho0*sound));
+}
+// Current loop (radius a, current I) field at (z,r) relative to the loop plane; AGM elliptic integrals.
+std::array<double,2> loopField(double z,double r,double a,double current) {
+    constexpr double mu0=1.25663706212e-6;double m=4*a*r/(sq(a+r)+z*z);
+    double x=1,y=std::sqrt(1-m),sum=0,power=.5,big=1,e=1-m/2;
+    for(int n=0;n<40;++n){double an=(x+y)/2,cn=(x-y)/2;y=std::sqrt(x*y);x=an;power*=2;sum+=power*cn*cn;}
+    big=std::numbers::pi/(2*x);e=big*(1-m/2-sum);
+    double base=mu0*current/(2*std::numbers::pi*std::sqrt(sq(a+r)+z*z)),d2=sq(a-r)+z*z;
+    double bz=base*(big+(a*a-r*r-z*z)/d2*e),br=r>0?base*z/r*(-big+(a*a+r*r+z*z)/d2*e):0;
+    return {bz,br};
+}
+// Gas at rest in a coil-like body force: F = -grad(B^2/2mu0) of a 0.3 T current loop (radius
+// 0.05 m) around a straight duct; exact equilibrium p = p0 - B^2/2mu0, uniform density. Returns
+// the initial acceleration residual {max all, max axis row, volume L1}, normalized by max|F|/rho.
+std::array<double,5> coilRestResidual(int nz) {
+    Definition d;d.experiment=Case::UniformDuct;d.nz=nz;d.nr=nz*3/20;
+    constexpr double mu0=1.25663706212e-6,a=.05,zc=.3,rho=1.16,p0=1e6;
+    double current=2*a*.3/mu0;
+    auto magneticPressure=[&](double z,double r){auto b=loopField(z-zc,r,a,current);return (sq(b[0])+sq(b[1]))/(2*mu0);};
+    Flow flow(d);const auto& m=flow.mesh();std::vector<Primitive> initial;std::vector<std::array<double,2>> force;
+    double scale=0;
+    for(auto c:m.cells) {
+        // Cell averages: equilibrium pressure by quadrature over the ring; force at the centroid
+        // by central differences (h = 1e-7 m; error ~1e-9 of the force).
+        initial.push_back({rho,0,0,0});
+        double h=1e-7;
+        std::array<double,2> f{-(magneticPressure(c.z+h,c.r)-magneticPressure(c.z-h,c.r))/(2*h),
+                               -(magneticPressure(c.z,c.r+h)-magneticPressure(c.z,c.r-h))/(2*h)};
+        force.push_back(f);scale=std::max(scale,std::hypot(f[0],f[1])/rho);
+    }
+    for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
+        double z0=i*m.dz,ra=m.radius[i]*j/m.nr,rb=m.radius[i]*(j+1)/m.nr,sum=0,weight=0;
+        for(int u=0;u<8;++u) for(int v=0;v<8;++v){double z=z0+(u+.5)*m.dz/8,r=ra+(v+.5)*(rb-ra)/8;
+            sum+=r*magneticPressure(z,r);weight+=r;}
+        initial[m.index(i,j)].p=p0-sum/weight;
+    }
+    flow.setInitialState(initial);flow.setBodyForce(force);
+    constexpr double dt=1e-9;flow.step(dt);
+    // Residual acceleration in units of the largest applied force per mass: [0] max |a|,
+    // [1] max |a| on the axis row, [2] volume L1 of |a|, [3] max |a_r|, [4] max |a_r| on the axis row.
+    std::array<double,5> e{};double volume=0;
+    for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j){auto q=m.index(i,j);auto w=primitive(flow.state()[q],d.gas);
+        double accel=std::hypot(w.uz,w.ur)/dt/scale,radial=std::abs(w.ur)/dt/scale;
+        e[0]=std::max(e[0],accel);e[3]=std::max(e[3],radial);
+        if(j==0){e[1]=std::max(e[1],accel);e[4]=std::max(e[4],radial);}
+        e[2]+=accel*m.cells[q].volume;volume+=m.cells[q].volume;}
+    e[2]/=volume;
+    return e;
 }
 
 // Independent exact Riemann solver for gamma-law gas (Toro, ch. 4); state is (rho,u,p).
@@ -233,6 +299,23 @@ int main(int argc,char** argv) {
          require(std::abs(cf/ideal-1)<.01 && std::abs(steady)<1e-3,"Gradual-nozzle device thrust must approach quasi-1D ideal");}
         {Definition d;d.nz=40;d.nr=3;d.length=1;d.experiment=Case::ShockTube;Flow f(d);f.advanceTo(.1);
          require(std::abs(f.measurements().momentumBalanceError)<1e-13,"Momentum budget from rest (Sod)");}
+        // Exact frustum-ring moments against independent midpoint quadrature on a nozzle cell.
+        {Definition d;d.nz=20;d.nr=5;Mesh m(d);auto c=m.cells[m.index(7,2)];double r0=m.radius[7],r1=m.radius[8],v=0,first=0,second=0;
+         for(int u=0;u<400;++u){double z=(u+.5)/400,R=r0+(r1-r0)*z;for(int w=0;w<400;++w){double r=R*(2+(w+.5)/400)/5,dv=r*R;
+             v+=dv;first+=dv*r;second+=dv*r*r;}}
+         near(c.r,first/v,1e-7*c.r,"Cell centroid radius");near(c.radialSecondMoment,second/v,1e-6*c.radialSecondMoment,"Cell r^2 moment");}
+        // Gas at rest under a coil-like body force F = -grad(B^2/2mu0) balanced by p = p0 - B^2/2mu0
+        // must stay at rest; the residual must vanish under refinement everywhere, including the axis.
+        {std::array<double,5> coarse{},fine{};
+         for(int n:{40,80,160,320}){auto e=coilRestResidual(n);coarse=fine;fine=e;
+             std::cout<<"Coil-force rest residual nz="<<n<<": max="<<e[0]<<" axis row="<<e[1]<<" L1="<<e[2]<<" radial max="<<e[3]<<" radial axis row="<<e[4]<<'\n';}
+         require(fine[0]<coarse[0]*.7 && fine[1]<coarse[1]*.6 && fine[4]<coarse[4]*.6 && fine[2]<coarse[2]*.3,
+                 "Body-force equilibrium residual must converge, including its maximum and the axis row");}
+        // The axis row of the radial acoustic mode exposes reconstruction about the cell centroid:
+        // midpoint-referenced slopes made it first order (measured 0.038, 0.013, 0.0044).
+        {double coarse=radialWaveAxisError(16),fine=radialWaveAxisError(48);
+         std::cout<<"Radial acoustic axis-row error: 16="<<coarse<<" 48="<<fine<<" 144="<<radialWaveAxisError(144)<<'\n';
+         require(fine<coarse/9 && fine<5e-4,"Axis-row radial acoustic error must converge at least at second order");}
         double radialCoarse=radialWaveError(16),radialFine=radialWaveError(48);
         std::cout<<"Radial acoustic normalized velocity error: 16="<<radialCoarse<<" 48="<<radialFine<<'\n';
         require(radialFine<radialCoarse*.6 && radialFine<.02,"Radial acoustic mode must converge");

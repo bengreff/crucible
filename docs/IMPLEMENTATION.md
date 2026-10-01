@@ -10,7 +10,7 @@ The mesh is a fixed body-fitted grid in axial/radial coordinates. Every control 
 
 ## Discretization
 
-Evolved variables are mass, axial momentum, radial momentum, and total gas energy per volume. Face fluxes use an HLLC Riemann solver with HLLE fallback when the candidate star state is inadmissible. Piecewise linear primitive reconstruction uses minmod slopes in logical mesh directions. Boundary rows/columns (wall, inlet, outlet) use the limited one-sided slope minmod(c-n1, n1-n2), with density/pressure face values kept at least half the cell value; the axis row keeps a zero slope (measured second order there). Inlet/outlet characteristic models receive the reconstructed interior face state. (Before 30 September 2026 boundary rows used zero slopes, which made wall-row errors first order.) Time advancement is two-stage SSPRK2. A first-order spatial option is available in the headless runner.
+Evolved variables are mass, axial momentum, radial momentum, and total gas energy per volume. Face fluxes use an HLLC Riemann solver with HLLE fallback when the candidate star state is inadmissible. Piecewise linear primitive reconstruction uses minmod slopes. Axially, slopes are taken in logical index. Radially, cell averages are r-weighted, so they are point values at the volume centroid r_c, not at the cell midpoint. Slopes are therefore taken in physical r between centroids and evaluated at each face's area-weighted radius. The axis row uses parity: u_r = s r (odd), and density, u_z and pressure are linear in r^2 about the cell's r^2 moment (even). The radial pressure source is the exact integral of p/r over the reconstructed profile. Boundary rows/columns (wall, inlet, outlet) use the limited one-sided slope minmod(c-n1, n1-n2), with density/pressure face values kept at least half the cell value. Inlet/outlet characteristic models receive the reconstructed interior face state. (Before 30 September 2026 boundary rows used zero slopes, which made wall-row errors first order.) Time advancement is two-stage SSPRK2. A first-order spatial option is available in the headless runner.
 
 The finite-volume update uses exact axisymmetric volumes and integrated face-area vectors. The radial momentum source is pressure times the integral of 1/r over each volume. Its geometric cancellation with pressure fluxes preserves stationary gas in the curved mesh. Internal face exchanges are computed once and applied with opposite signs. The timestep is CFL times volume divided by the sum of face acoustic/advection rates. A nonpositive density/internal-energy stage causes timestep halving, up to 14 attempts; no cell energy/density floors repair an invalid accepted solution. Unsupported boundary states stop the run with an explanation.
 
@@ -33,7 +33,7 @@ Mass/energy balance errors are `(current inventory - initial inventory - integra
 
 Axial momentum / device thrust (item 3, 30 September 2026). Forces on the gas are positive in +z (the exhaust direction); thrusts are forces on the device, positive against the exhaust. The gas obeys `dP_z/dt = inletMomentumFlux - outletMomentumFlux + wallAxialForce + bodyAxialForce`, each term being the exact numerical flux (area times HLLC axial momentum flux) summed over the boundary faces with the RK weights. `momentumBalanceError` is `(P_z - P_z0 - integrated net source) / (|P_z0| + integrated gross exchange)`. Device thrust is the reaction of every force the device applies to the gas, minus ambient pressure on the closed exterior: `deviceThrust = inletMomentumFlux + wallAxialForce + bodyAxialForce - backPressure * exitArea`. This equals `exitPlaneThrust + dP_z/dt`, so the two agree only in steady state. The supply plane is treated as part of the device (a reservoir face). `bodyAxialForce` is the slot for a future volumetric force such as the Lorentz force `J x B`; its volume integral enters the gas budget and its reaction acts on the coils, so a magnetic nozzle's thrust enters through the same ledger without new accounting. It is zero today.
 
-Measured (80x12, 8 ms, second order): C_F device 1.37282 vs quasi-1D ideal 1.37351 (ratio - 1 = -5.0e-4); (device - exit plane)/device 3.6e-6; momentum residual 1.4e-16. At 160x24 the components are supply plane 1183.66 N, wall force on gas -608.16 N, ambient 57.73 N, device thrust 517.77 N. Grid study at 8 ms (`docs/evidence/nozzle_thrust_convergence.csv`): C_F/ideal - 1 = -1.76e-3, -5.0e-4, -5.7e-5, +1.4e-4 for 40x6 to 320x48. Successive device-thrust changes shrink by 2.8 and 2.2 (observed order about 1.5 then 1.1). On the finest grid device and exit-plane thrust differ by 0.107 N (2e-4), which is dP_z/dt from the transverse ringing still present at 8 ms; the exit-plane value converges faster (changes shrink by 3.3 then 6.2). Inferred: the 2e-4 level is not yet steady, so thrust claims at that level need a longer run or time averaging.
+Measured before the axis fix (80x12, 8 ms, second order): C_F device 1.37282 vs quasi-1D ideal 1.37351 (ratio - 1 = -5.0e-4); (device - exit plane)/device 3.6e-6; momentum residual 1.4e-16. At 160x24 the components are supply plane 1183.66 N, wall force on gas -608.16 N, ambient 57.73 N, device thrust 517.77 N. Grid study at 8 ms (`docs/evidence/nozzle_thrust_convergence.csv`): C_F/ideal - 1 = -1.76e-3, -5.0e-4, -5.7e-5, +1.4e-4 for 40x6 to 320x48. Successive device-thrust changes shrink by 2.8 and 2.2 (observed order about 1.5 then 1.1). On the finest grid device and exit-plane thrust differ by 0.107 N (2e-4), which is dP_z/dt from the transverse ringing still present at 8 ms; the exit-plane value converges faster (changes shrink by 3.3 then 6.2). Inferred: the 2e-4 level is not yet steady, so thrust claims at that level need a longer run or time averaging.
 
 The worker alone owns `Flow`. Controls are accepted between timesteps and recorded with sequence, applied value and physical time. Pending pressure requests may coalesce; applied events remain recorded. Immutable snapshots cross a short mutex-protected pointer exchange. The GUI owns all Qt and VTK objects. Pause acknowledges only after publishing the final accepted state. Restart discards this prototype's current state and restores the default initial experiment; there is no history comparison or checkpoint recovery yet.
 
@@ -62,15 +62,44 @@ Nozzle grid study (`crucible_convergence`, 8 ms, nr = 0.15 nz; CSVs in `docs/evi
 
 | Grid | Entropy L1 | order | Wall-row entropy | order | Mass flow vs quasi-1D |
 |---|---|---|---|---|---|
-| 40x6 | 8.96e-4 | | 8.90e-4 | | -1.25e-3 |
-| 80x12 | 2.11e-4 | 2.09 | 2.19e-4 | 2.02 | -3.68e-4 |
-| 160x24 | 5.14e-5 | 2.04 | 5.48e-5 | 2.00 | -7.46e-5 |
-| 320x48 | 1.28e-5 | 2.01 | 1.37e-5 | 2.00 | -3.30e-5 |
-| 640x96 | 3.21e-6 | 1.99 | 3.47e-6 | 1.98 | -2.15e-5 |
+| 40x6 | 8.31e-4 | | 8.82e-4 | | -1.16e-3 |
+| 80x12 | 2.02e-4 | 2.04 | 2.18e-4 | 2.02 | -3.56e-4 |
+| 160x24 | 5.00e-5 | 2.01 | 5.45e-5 | 2.00 | -7.31e-5 |
+| 320x48 | 1.26e-5 | 1.99 | 1.36e-5 | 2.00 | -3.29e-5 |
+| 640x96 (before the axis fix) | 3.21e-6 | 1.99 | 3.47e-6 | 1.98 | -2.15e-5 |
+
+Rows 40x6 to 320x48 were re-measured after the centroid-based radial reconstruction (`nozzle_thrust_convergence.csv`); `nozzle_convergence_second_order.csv` holds the earlier run, including 640x96. Every error is equal or slightly smaller than before. Device thrust at 320x48 is 517.876 N (before: 517.875 N).
 
 First-order scheme: entropy order 1.02, 1.01 (confirms the measure). Before the boundary fix the wall row converged at order 1.23, 1.12. Total enthalpy and mass flow stop improving at ~2e-5 on fine grids: the prepared initial state excites transverse acoustic modes (measured 5-7.6 kHz; first radial mode estimate ~6 kHz) that decay slowly, more slowly on finer grids. Time-averaged (4-24 ms) mass-flow error: -3.67e-4, -7.49e-5, -3.18e-5 (80, 160, 320); Richardson extrapolation lands ~2.4e-5 below quasi-1D, consistent with Hall's leading 2D discharge correction (~2.5e-5 for the upstream throat curvature, Rc/rt = 31.5). Consistent, not proven, given the residual ringing.
 
 New tests: exact Riemann solver cross-checked against the Sod constants; planar Sod in a 5-row duct (rows identical, radial velocity zero; L1 0.00737 → 0.00227); Toro 1-2-3 rarefaction (0.0135 → 0.00451, no failures); 1e5 pressure-ratio shock (0.170 → 0.060); HLLC antisymmetry, rotation invariance, supersonic upwinding and exact stationary contact; nozzle entropy order > 1.8 including the wall row; choked nozzle with internal normal shock (back pressure 0.7 p0, from rest): exit Mach 0.26773 vs quasi-1D 0.26803, mass flow -0.11%. Slow-labelled (`ctest -L slow`, 37 s): subsonic venturi (0.985 p0 back pressure, from rest, 160 ms) mass flow -9.49% (40x6) → -2.63% (80x12), order 1.85; the error is total-pressure loss after the throat and a spurious gain upstream, both converging. Acoustic mode error with the new boundary slopes: 0.00422 (16) → 0.000401 (48), order 2.14. ASan/UBSan: pass (fast suite).
+
+## Axis reconstruction fix, 30 September 2026
+
+Found by the MHD spike: radial slopes assumed values at cell midpoints, while r-weighted averages sit at the volume centroid. In the axis cell the two differ by O(dr), and the axis row had zero radial slope. Fixed as described under the numerical method. Exact centroid and r^2 moments of the frustum ring are checked against quadrature (relative difference 8e-8 and 2e-7, quadrature-limited).
+
+Measured, axis row of the radial acoustic mode (cell error against the r-weighted average of the exact J0/J1 mode; this is the axis-crossing reference case, since u_r changes sign through the axis):
+
+| nr | before | after |
+|---|---|---|
+| 16 | 0.0382 | 0.00307 |
+| 48 | 0.0133 | 1.02e-4 |
+| 144 | 0.00443 | 3.6e-6 |
+
+Before: first order. After: about third order on this smooth mode.
+
+Coil-like equilibrium: gas at rest in a uniform duct (r = 0.035 m), body force F = -grad(B^2/2mu0) of a single loop (radius 0.05 m at z = 0.3 m, 0.3 T at its centre), balanced by p = 1e6 Pa - B^2/2mu0. The test takes one 1e-9 s step and measures the acceleration in units of max|F|/rho. A first version used p0 = 1e5 Pa; that gas has negative pressure in the wall cell (magnetic pressure 1.03e5 Pa at the wall, derived), which made its maximum residual grow with refinement. That came from the test, not the scheme.
+
+| nz x nr | max | axis row | volume L1 | max radial | axis-row radial |
+|---|---|---|---|---|---|
+| 40x6 | 0.562 | 0.0769 | 0.0180 | 0.314 | 0.00552 |
+| 80x12 | 0.395 | 0.0258 | 0.00452 | 0.301 | 0.00219 |
+| 160x24 | 0.234 | 0.0104 | 0.00111 | 0.201 | 0.00097 |
+| 320x48 | 0.128 | 0.00477 | 0.00028 | 0.115 | 0.00046 |
+
+L1 converges at second order. The maximum converges at first order, for two inferred reasons. (1) Axially, the coil plane is a smooth pressure extremum, and minmod clips slopes to zero there, the usual first-order behaviour of TVD limiters at extrema; this sets the axis-row maximum. (2) Radially, the wall-row face value comes from a one-sided limited slope whose O(dr) slope error has no neighbouring face to cancel against, so the wall-row radial residual is first order; this sets the global maximum. Not fixed. A magnetic nozzle puts its strongest force next to the wall, so the wall row will be the least accurate place in field runs.
+
+Regression: nozzle grid study above, slow venturi -9.20% (40x6) → -2.59% (80x12), order 1.83 (before: -9.49% → -2.63%, order 1.85). Body forces enter as momentum F V and energy F.u V; their axial integral fills `bodyAxialForce`.
 
 ## Next work
 

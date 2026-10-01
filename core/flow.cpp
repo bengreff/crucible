@@ -62,8 +62,10 @@ Mesh::Mesh(const Definition& d):nz(d.nz),nr(d.nr),dz(d.length/d.nz) {
         double a=static_cast<double>(j)/nr,b=static_cast<double>(j+1)/nr;
         double r0=radius[i],r1=radius[i+1];
         double v=pi*dz/3*(r0*r0+r0*r1+r1*r1)*(b*b-a*a);
-        // Reference center for reconstruction; all conservation uses exact ring measures.
-        cells[index(i,j)]={v,(i+0.5)*dz,(a+b)*(r0+r1)/4,pi*dz*(r0+r1)*(b-a)};
+        // Exact radial moments of the frustum ring (wall radius linear in z across the cell).
+        double first=2*pi/3*(b*b*b-a*a*a)*dz*(r0+r1)*(r0*r0+r1*r1)/4;
+        double second=pi/2*(b*b*b*b-a*a*a*a)*dz*(r0*r0*r0*r0+r0*r0*r0*r1+r0*r0*r1*r1+r0*r1*r1*r1+r1*r1*r1*r1)/5;
+        cells[index(i,j)]={v,(i+0.5)*dz,first/v,pi*dz*(r0+r1)*(b-a),second/v};
     }
 }
 double Mesh::axialArea(int face,int j) const {
@@ -73,6 +75,14 @@ std::array<double,2> Mesh::radialAreaVector(int i,int face) const {
     double f=static_cast<double>(face)/nr;
     double r0=f*radius[i],r1=f*radius[i+1];
     return {-pi*(r0+r1)*(r1-r0),pi*(r0+r1)*dz};
+}
+double Mesh::radialFaceRadius(int i,int face) const {
+    double f=static_cast<double>(face)/nr,r0=radius[i],r1=radius[i+1];
+    return face==0?0:2*f*(r0*r0+r0*r1+r1*r1)/(3*(r0+r1));
+}
+double Mesh::radialFaceSecondMoment(int i,int face) const {
+    double f=static_cast<double>(face)/nr;
+    return f*f*(sq(radius[i])+sq(radius[i+1]))/2;
 }
 Conserved conservative(Primitive w,Gas gas) {
     return {w.rho,w.rho*w.uz,w.rho*w.ur,w.p/(gas.gamma-1)+0.5*w.rho*(sq(w.uz)+sq(w.ur))};
@@ -131,7 +141,7 @@ double chokedMassFlow(const Definition& d) {
 Flow::Flow(Definition d):definition_(d),mesh_(d),totalPressure_(d.totalPressure) {
     auto count=mesh_.cells.size();
     state_.resize(count); stage_.resize(count); next_.resize(count); rhs_.resize(count);
-    slopesZ_.resize(count); slopesR_.resize(count); primitives_.resize(count);
+    slopesZ_.resize(count); primitives_.resize(count); radialLow_.resize(count); radialHigh_.resize(count); pressureSource_.resize(count);
     for(int i=0;i<d.nz;++i) {
         Primitive base{d.totalPressure/(d.gas.specificR*d.totalTemperature),0,0,d.totalPressure};
         double radius=(mesh_.radius[i]+mesh_.radius[i+1])/2;
@@ -187,6 +197,11 @@ void Flow::setInitialState(const std::vector<Primitive>& cells) {
     }
     state_.swap(initialized);resetAccounting();
 }
+void Flow::setBodyForce(std::vector<std::array<double,2>> force) {
+    if(!force.empty() && force.size()!=state_.size()) throw std::invalid_argument("Body force does not match the mesh.");
+    for(const auto& f:force) if(!std::isfinite(f[0]) || !std::isfinite(f[1])) throw std::invalid_argument("Body force must be finite.");
+    bodyForce_=std::move(force);
+}
 void Flow::setTotalPressure(double p) {
     if(!(p>0) || !std::isfinite(p)) throw std::invalid_argument("Reservoir pressure must be positive and finite.");
     totalPressure_=p;
@@ -233,21 +248,60 @@ double Flow::stableDt() {
     }
     return dt;
 }
+// Radial reconstruction. Cell averages are r-weighted, so they are point values at the volume
+// centroid r_c, not at the cell midpoint; near the axis the two differ by O(dr), which made the
+// first-face states first-order. Slopes are therefore taken in physical r between centroids and
+// evaluated at each face's area-weighted radius. The axis row uses the parity of the field:
+// u_r is odd (u_r = s r, s limited against the slope to the next centroid) and rho, u_z, p are
+// even (linear in r^2 about <r^2>). pressureSource_ is the exact integral of p/r dV over the
+// reconstructed profile, so a pressure gradient balanced by a body force stays at rest.
+void Flow::radialProfiles() {
+    const auto& m=mesh_;
+    for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
+        auto q=m.index(i,j);const auto& cell=m.cells[q];auto c=values(primitives_[q]);
+        double low=m.radialFaceRadius(i,j)-cell.r,high=m.radialFaceRadius(i,j+1)-cell.r;
+        Conserved slope{};
+        auto centroidSlope=[&](int a,int b,int k){
+            return (values(primitives_[m.index(i,b)])[k]-values(primitives_[m.index(i,a)])[k])/(m.cells[m.index(i,b)].r-m.cells[m.index(i,a)].r);};
+        if(definition_.secondOrder && j==0) {
+            Conserved curvature{};
+            if(m.nr>=3) {
+                auto moment=[&](int b){return m.cells[m.index(i,b)].radialSecondMoment;};
+                auto w1=values(primitives_[m.index(i,1)]),w2=values(primitives_[m.index(i,2)]);
+                for(int k:{0,1,3}) curvature[k]=minmod((w1[k]-c[k])/(moment(1)-moment(0)),(w2[k]-w1[k])/(moment(2)-moment(1)));
+            }
+            if(m.nr>=2) slope[2]=minmod(c[2]/cell.r,centroidSlope(0,1,2));
+            Primitive top=unpack(c);
+            double face=m.radialFaceSecondMoment(i,1)-cell.radialSecondMoment;
+            top.rho+=curvature[0]*face;top.uz+=curvature[1]*face;top.ur+=slope[2]*high;top.p+=curvature[3]*face;
+            radialLow_[q]=primitives_[q];radialHigh_[q]=top;
+            pressureSource_[q]=c[3]*cell.radialPressureMeasure+curvature[3]*(cell.r*cell.volume-cell.radialSecondMoment*cell.radialPressureMeasure);
+            continue;
+        }
+        if(definition_.secondOrder && j<m.nr-1)
+            for(int k=0;k<4;++k) slope[k]=minmod(centroidSlope(j-1,j,k),centroidSlope(j,j+1,k));
+        // Wall row: limited one-sided slope (see oneSided above), with density and pressure face
+        // values kept at least half the cell value.
+        if(definition_.secondOrder && j==m.nr-1 && m.nr>=3) {
+            double reach=std::max(-low,high);
+            for(int k=0;k<4;++k) slope[k]=minmod(centroidSlope(j-1,j,k),centroidSlope(j-2,j-1,k));
+            for(int k:{0,3}) slope[k]=std::clamp(slope[k],-0.5*c[k]/reach,0.5*c[k]/reach);
+        }
+        auto lowState=c,highState=c;
+        for(int k=0;k<4;++k){lowState[k]+=slope[k]*low;highState[k]+=slope[k]*high;}
+        radialLow_[q]=unpack(lowState);radialHigh_[q]=unpack(highState);
+        pressureSource_[q]=c[3]*cell.radialPressureMeasure+slope[3]*(cell.volume-cell.r*cell.radialPressureMeasure);
+    }
+}
 Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Conserved>& derivative) {
     const auto& d=definition_;const auto& m=mesh_;
     std::fill(derivative.begin(),derivative.end(),Conserved{});
     for(std::size_t q=0;q<state.size();++q) primitives_[q]=primitive(state[q],d.gas);
     std::fill(slopesZ_.begin(),slopesZ_.end(),Conserved{});
-    std::fill(slopesR_.begin(),slopesR_.end(),Conserved{});
     if(d.secondOrder) for(int i=1;i<m.nz-1;++i) for(int j=0;j<m.nr;++j) {
         auto q=m.index(i,j); auto c=values(primitives_[q]);
         auto l=values(primitives_[m.index(i-1,j)]),r=values(primitives_[m.index(i+1,j)]);
         for(int k=0;k<4;++k) slopesZ_[q][k]=minmod(c[k]-l[k],r[k]-c[k]);
-    }
-    if(d.secondOrder) for(int i=0;i<m.nz;++i) for(int j=1;j<m.nr-1;++j) {
-        auto q=m.index(i,j); auto c=values(primitives_[q]);
-        auto l=values(primitives_[m.index(i,j-1)]),r=values(primitives_[m.index(i,j+1)]);
-        for(int k=0;k<4;++k) slopesR_[q][k]=minmod(c[k]-l[k],r[k]-c[k]);
     }
     // Boundary rows/columns have no outer neighbour. A zero slope there makes wall, inlet and
     // outlet face states first-order (measured: wall-row entropy error order ~1.1). Use the
@@ -262,18 +316,17 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Co
         oneSided(m.index(0,j),m.index(1,j),m.index(2,j),-1,slopesZ_[m.index(0,j)]);
         oneSided(m.index(m.nz-1,j),m.index(m.nz-2,j),m.index(m.nz-3,j),1,slopesZ_[m.index(m.nz-1,j)]);
     }
-    if(d.secondOrder && m.nr>=3) for(int i=0;i<m.nz;++i)
-        oneSided(m.index(i,m.nr-1),m.index(i,m.nr-2),m.index(i,m.nr-3),1,slopesR_[m.index(i,m.nr-1)]);
-    auto reconstructed=[&](std::size_t q,bool axial,double direction) {
-        auto w=values(primitives_[q]); const auto& slope=axial?slopesZ_[q]:slopesR_[q];
-        for(int k=0;k<4;++k) w[k]+=direction*0.5*slope[k];
+    radialProfiles();
+    auto reconstructed=[&](std::size_t q,double direction) {
+        auto w=values(primitives_[q]);
+        for(int k=0;k<4;++k) w[k]+=direction*0.5*slopesZ_[q][k];
         return unpack(w);
     };
     BoundaryRates rates{};
     for(int i=0;i<=m.nz;++i) for(int j=0;j<m.nr;++j) {
         auto il=m.index(std::max(0,i-1),j),ir=m.index(std::min(m.nz-1,i),j);
         // Boundary models receive the reconstructed interior face state.
-        Primitive l=reconstructed(il,true,1),r=reconstructed(ir,true,-1);
+        Primitive l=reconstructed(il,1),r=reconstructed(ir,-1);
         if(i==0) l=inlet(r);
         if(i==m.nz) r=outlet(l);
         auto flux=hllc(l,r,1,0,d.gas);double area=m.axialArea(i,j);
@@ -292,7 +345,7 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Co
         auto il=m.index(i,j-1),ir=m.index(i,std::min(m.nr-1,j));
         auto ar=m.radialAreaVector(i,j);double area=std::hypot(ar[0],ar[1]);
         double nz=ar[0]/area,nr=ar[1]/area;
-        Primitive l=reconstructed(il,false,1),r=j==m.nr?reflect(l,nz,nr):reconstructed(ir,false,-1);
+        Primitive l=radialHigh_[il],r=j==m.nr?reflect(l,nz,nr):radialLow_[ir];
         auto flux=hllc(l,r,nz,nr,d.gas);
         // A stationary slip wall has exactly zero mass and energy exchange.
         if(j==m.nr) { flux[0]=0;flux[3]=0; }
@@ -302,10 +355,16 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,std::vector<Co
         }
         if(j==m.nr) rates.wallAxial-=area*flux[1];
     }
-    // Volumetric axial forces (e.g. a future Lorentz force) must add their volume integral to
-    // rates.bodyAxial here; their reaction acts on the equipment (coils) in deviceThrust.
+    // Volumetric forces (e.g. a Lorentz force): the axial integral is rates.bodyAxial, whose reaction
+    // acts on the equipment (coils) in deviceThrust; their work is an external energy exchange.
+    if(!bodyForce_.empty()) for(std::size_t q=0;q<state.size();++q) {
+        const auto& f=bodyForce_[q];double v=m.cells[q].volume;
+        double work=(f[0]*primitives_[q].uz+f[1]*primitives_[q].ur)*v;
+        derivative[q][1]+=f[0]*v;derivative[q][2]+=f[1]*v;derivative[q][3]+=work;
+        rates.bodyAxial+=f[0]*v;rates.energy+=work;
+    }
     for(std::size_t q=0;q<state.size();++q) {
-        derivative[q][2]+=primitives_[q].p*m.cells[q].radialPressureMeasure;
+        derivative[q][2]+=pressureSource_[q];
         for(double& v:derivative[q]) v/=m.cells[q].volume;
     }
     return rates;

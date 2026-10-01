@@ -22,7 +22,9 @@ struct Definition {
     Gas gas{};
     void validate() const;
 };
-struct Cell { double volume{}, z{}, r{}, radialPressureMeasure{}; };
+// r is the exact volume centroid radius (integral of r dV / V) where r-weighted cell averages sit;
+// radialSecondMoment is the integral of r^2 dV / V; radialPressureMeasure is the integral of dV / r.
+struct Cell { double volume{}, z{}, r{}, radialPressureMeasure{}, radialSecondMoment{}; };
 struct Mesh {
     explicit Mesh(const Definition& definition);
     int nz{}, nr{};
@@ -32,6 +34,10 @@ struct Mesh {
     std::size_t index(int i, int j) const { return static_cast<std::size_t>(i)*nr+j; }
     double axialArea(int face, int j) const;
     std::array<double, 2> radialAreaVector(int i, int face) const;
+    // Reference radius r_f and r^2 moment of a radial face: a quantity linear in r (or in r^2)
+    // integrates over the face's radial area component exactly at these values.
+    double radialFaceRadius(int i, int face) const;
+    double radialFaceSecondMoment(int i, int face) const;
 };
 // Axial forces use +z = exhaust direction for forces on the gas. Thrusts are forces on the
 // device (supply/reservoir, walls, and later coils) positive against the exhaust (-z).
@@ -69,6 +75,9 @@ public:
     void setTotalPressure(double pressure);
     void setUniform(Primitive state);
     void setInitialState(const std::vector<Primitive>& cells);
+    // Constant volumetric force density (N/m^3, {z, r}) per cell, e.g. a Lorentz force. Its axial
+    // integral enters bodyAxialForce (reaction on the equipment) and its work the energy budget.
+    void setBodyForce(std::vector<std::array<double, 2>> forcePerVolume);
     [[nodiscard]] Measurements measurements() const;
     [[nodiscard]] FieldSnapshot snapshot() const;
     [[nodiscard]] const Definition& definition() const { return definition_; }
@@ -86,8 +95,10 @@ private:
     };
     Definition definition_;
     Mesh mesh_;
-    std::vector<Conserved> state_, stage_, next_, rhs_, slopesZ_, slopesR_;
-    std::vector<Primitive> primitives_;
+    std::vector<Conserved> state_, stage_, next_, rhs_, slopesZ_;
+    std::vector<Primitive> primitives_, radialLow_, radialHigh_;
+    std::vector<std::array<double, 2>> bodyForce_;
+    std::vector<double> pressureSource_;
     double time_{}, dt_{}, totalPressure_{}, initialMass_{}, initialEnergy_{};
     double integratedMassFlux_{}, integratedEnergyFlux_{}, initialMomentum_{};
     double integratedMomentumSource_{}, integratedMomentumGross_{};
@@ -95,6 +106,7 @@ private:
     BoundaryRates lastRates_{};
     void resetAccounting();
     double stableDt();
+    void radialProfiles();
     BoundaryRates rhs(const std::vector<Conserved>& state, std::vector<Conserved>& derivative);
     Primitive inlet(Primitive inside) const;
     Primitive outlet(Primitive inside) const;
