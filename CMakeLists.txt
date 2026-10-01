@@ -59,7 +59,7 @@ set(CANTERA_ROOT "$ENV{HOME}/src/cantera" CACHE PATH "Cantera source tree with a
 if(CRUCIBLE_WITH_CANTERA)
   find_library(ACCELERATE_FRAMEWORK Accelerate)
   find_path(BOOST_INCLUDE boost/shared_ptr.hpp HINTS /opt/homebrew/include /usr/local/include)
-  add_library(crucible_thermo adapters/thermo.cpp adapters/reaction.cpp)
+  add_library(crucible_thermo adapters/thermo.cpp adapters/reaction.cpp adapters/reacting_flow.cpp)
   target_include_directories(crucible_thermo PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE ${CANTERA_ROOT}/include ${CANTERA_ROOT}/include/cantera/ext ${BOOST_INCLUDE})
   target_compile_definitions(crucible_thermo PRIVATE CRUCIBLE_CANTERA_DATA="${CANTERA_ROOT}/data")
@@ -79,5 +79,9 @@ if(CRUCIBLE_WITH_CANTERA)
     add_executable(crucible_mixture_tests tests/mixture_tests.cpp)
     target_link_libraries(crucible_mixture_tests PRIVATE crucible_thermo)
     add_test(NAME mixture_verification COMMAND crucible_mixture_tests)
+    add_executable(crucible_detonation_study tests/detonation_study.cpp)
+    target_include_directories(crucible_detonation_study PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+    target_link_libraries(crucible_detonation_study PRIVATE crucible_thermo
+      ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
   endif()
 endif()

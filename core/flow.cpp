@@ -294,6 +294,12 @@ void Flow::setMassFractions(std::size_t q,const double* y) {
     if(!admissible(state_[q],partial.data())) throw std::runtime_error("Composition gives a non-admissible state.");
     std::copy(partial.begin(),partial.end(),species_.begin()+static_cast<std::ptrdiff_t>(q*ns_));
 }
+void Flow::setPartialDensities(const std::vector<double>& partial) {
+    if(partial.size()!=species_.size()) throw std::invalid_argument("Partial densities do not match the mesh.");
+    for(std::size_t q=0;q<state_.size();++q)
+        if(!admissible(state_[q],partial.data()+q*ns_)) throw std::runtime_error("Partial densities give a non-admissible state.");
+    species_=partial;
+}
 void Flow::setBodyForce(std::vector<std::array<double,2>> force) {
     if(!force.empty() && force.size()!=state_.size()) throw std::invalid_argument("Body force does not match the mesh.");
     for(const auto& f:force) if(!std::isfinite(f[0]) || !std::isfinite(f[1])) throw std::invalid_argument("Body force must be finite.");

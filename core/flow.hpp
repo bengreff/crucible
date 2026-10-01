@@ -104,6 +104,8 @@ public:
     // Replace a cell's composition at fixed density and total energy (a constant-volume
     // adiabatic reaction substep leaves exactly these unchanged).
     void setMassFractions(std::size_t cell, const double* y);
+    // Restore partial densities saved from partialDensities() (bulk state unchanged), e.g. to undo a split reaction substep.
+    void setPartialDensities(const std::vector<double>& partial);
     // Constant volumetric force density (N/m^3, {z, r}) per cell, e.g. a Lorentz force. Its axial
     // integral enters bodyAxialForce (reaction on the equipment) and its work the energy budget.
     void setBodyForce(std::vector<std::array<double, 2>> forcePerVolume);
