@@ -17,6 +17,19 @@ Sources (a Sonnet agent read these in full text; I spot-checked the TRR40 report
 | [Zhukov19] | Zhukov, van Schyndel, Gomez, ISTS 2019-a-46 |
 | [Aero21] | Strokach et al., Aerospace 2021, 8(11), 341 |
 
+## Decisions on the gaps (Ben, 2026-09-30)
+
+- **Convergent contour:** run a declared bracket of 30 and 45 deg convergent half-angle, each with a sharp
+  throat and a rounded throat. The spread is carried as a declared input uncertainty in the pre-registered
+  prediction.
+- **Exact shape:** the geometry code takes the contour as data, so the exact shape drops in when the TRR40
+  Test Case 1 document or a drawing arrives. Obtaining it is on Ben's list.
+- **Blind points:** pre-register at O/F 2.6, 3.0 and 3.4. O/F 2.2 is reported as not blind for chamber
+  pressure and efficiency.
+- **Research agents:** they are told explicitly never to report measured results for the validation case.
+- **Order:** TUM stays first. It is gaseous GOX/GCH4, which the first chemical implementation supports.
+  RL10 injects liquid oxygen, so it needs breakup and evaporation models first.
+
 ## Inputs found (published, with source)
 
 | Input | Value | Source |
