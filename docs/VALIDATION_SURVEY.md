@@ -26,7 +26,16 @@ search snippets only.
 | JAXA LE-5B | LOX/LH2, full engine | No | Pc about 3.6 MPa, O/F 5 | Isp about 447 s, global | Open summaries | Geometry and local data | MHI Tech. Review 53(4) 2016; EUCASS 2019-0626 |
 | Raptor / Merlin | CH4/LOX, RP-1/LOX | No | Not published | Not published | Not open | Everything | None credible: unusable |
 
-## Recommendation: two cases
+## Decision (Ben, 2026-09-30)
+
+- **First case:** the TUM **round** chamber (axisymmetric, published geometry used exactly). Inputs and gaps are
+  in `docs/VALIDATION_TUM_ROUND.md`.
+- **Second case:** a flight engine, RL10A-3-3A (NASA TM-107318).
+- **Later:** the square TRR40 case, labelled as a geometry approximation.
+- **Optional:** Penn State, only as a cheap heat-flux side check.
+- **Blind protocol:** the prediction is pre-registered before digitising.
+
+## Original recommendation (superseded by the decision above)
 
 1. **TUM single-element GOX/GCH4, SFB/TRR40 Test Case 1 (20 bar, O/F 2.6).**
    - It was built as a blind CFD validation case: seven groups were scored against data they had not seen.
