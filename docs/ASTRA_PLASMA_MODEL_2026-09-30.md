@@ -1,0 +1,37 @@
+**Verdict: resistive-first is a sensible implementation order, but only for a bounded, collisional plasma experiment. It is not sufficient for general magnetic-nozzle efficiency or detachment predictions.** Keep ideal MHD as its verified zero-resistivity limit. For a helicon investigation, Hall plus electron-pressure physics belongs in the first scientifically usable model. Three months favours one defensible experiment over nominal coverage of every proposed engine.
+
+**1. What determines performance and where to stop**
+
+For a pulse, performance depends on plasma energy relative to magnetic energy, initial expansion direction, diamagnetic cavity formation, field compression, momentum transferred to coils, and energy left in sideways motion, heat, fields or radiation. Resistive MHD can represent collective compression, shocks, field deformation, collisional magnetic diffusion and Ohmic heating. Separate electron/ion temperatures require energy exchange and appropriate heat-transport closures; two temperatures do not represent pressure anisotropy.
+
+In a helicon-like nozzle, electron cooling, ambipolar electric acceleration, diamagnetic currents and gradual ion demagnetization are central. Hall allows electron and ion motion to differ, but **adding Hall alone is insufficient**: retain electron pressure in generalized Ohm’s law, consistent electron-energy transport and all three vector components. Detachment need not require resistivity or magnetic reconnection. [Merino–Ahedo](https://ep2.uc3m.es/assets/docs/pubs/journal_publications/meri14a.pdf), [FLASH equations](https://flash.rochester.edu/site/flashcode/user_support/flash_ug_devel/node107.html).
+
+Kinetic treatment becomes necessary when finite particle orbits, non-Maxwellian distributions, trapped/escaping electrons, nonlocal heat transport or collisionless instabilities control the answer. Ion hybrid-PIC addresses ion distributions but retains an electron closure; it does not automatically solve electron cooling. [Electron-cooling evidence](https://arxiv.org/abs/2212.07161).
+
+**The tool needs a validity end-condition.** Monitor collision mean-free-path/gradient-length and relaxation-time/expansion-time ratios, ion/electron orbit scales, ion inertial length, and estimated omitted Ohm-law terms. Use local gradients, including cavity interfaces. Flag approaching closure limits; stop predictive reporting when an unsupported region materially affects remaining impulse or losses. Report its location, time and unresolved energy/momentum. A tenuous, dynamically irrelevant cell need not terminate everything, but a density floor cannot certify vacuum expansion. Axisymmetry also excludes azimuthal instability limits.
+
+**2. Minimum credible model and order**
+
+My recommended minimum is two-temperature resistive MHD with measured or justified conductivity, anisotropic heat transport, relevant ionization/radiation losses, maintained coil sources, a plasma–vacuum treatment, and closed energy/coil-impulse accounting. Demonstrate that omitted effects remain small throughout the force-producing interval. Compare designs using identical pulse inputs and energy denominators, including driver work; require rankings to survive mesh and closure uncertainty.
+
+Choose the experimental envelope **before** committing to resistive-only results. If Hall or kinetic effects become important before impulse settles, advance those capabilities before ranking designs. Hall also introduces demanding dispersive timesteps; it is not a cheap checkbox.
+
+A maximum pulse rate additionally requires residual-plasma evolution, coil/circuit recovery and thermal constraints. Beamed-core antimatter sizing requires relativistic product trajectories and decay. Neither follows from this MHD milestone.
+
+**3. Evidence ladder with quantitative targets**
+
+- **Numerical verification:** retain shock/wave tests, but add static-coil equilibrium, resistive sinusoidal-field decay \(B\propto e^{-(\eta/\mu_0)k^2t}\), matching Joule heating, and electron–ion equilibration. Add Hall-wave dispersion before Hall nozzle comparisons.
+- **Laser impulse:** [Maeno et al. (2013), Kyushu/Osaka](https://www.jstage.jst.go.jp/article/tjsass/56/3/56_T-12-20/_pdf/-char/ja) measured **1.3, 5.0 and 6.4 mN·s** at **548, 568 and 550 J**, respectively, for 1053/527/351 nm irradiation and **0.1 T** at the target. Reproduce impulse versus energy with independently constrained ablation inputs. The oblique, single-beam geometry introduces an explicit RZ approximation.
+- **NASA/UAH context:** the [2022 NASA page](https://www.nasa.gov/directorates/stmd/space-tech-research-grants/experimental-and-computational-validation-and-scaling-of-power-generating-magnetic-nozzles-for-pulsed-fusion-propulsion/) describes planned validation. The [2021 PuFF calculation](https://ntrs.nasa.gov/api/citations/20210017608/downloads/JPC_2021_conference_paper.pdf) diverged around **1.1 μs**; it is not an efficiency standard. [Schilling et al.’s subscale experiment](https://kyushu-u.elsevierpure.com/en/publications/sub-scale-demonstration-of-an-axial-pulsed-magnetic-nozzle-for-nu-2/) inferred **1.0–2.2 μN·s**, versus simulated **6.8–7.3 μN·s** across 0–1 kA: an unresolved discrepancy, with discrete-strut geometry requiring caution in RZ.
+- **Hall/fluid comparison:** reproduce Merino–Ahedo’s **95%-mass-flow divergence angle** and ion/magnetic-streamline separation; their [2016 extension](https://ep2.uc3m.es/assets/docs/pubs/journal_publications/meri16b.pdf) tests induced-field feedback. These are model comparisons.
+- **Detachment/kinetics:** [Olsen et al., VX-200](https://ieeexplore.ieee.org/abstract/document/6823704) observed ion separation near **0.8 m**, approximately ballistic flow beyond **2 m**, with peak field around **2 T**. Compare trajectories and fluctuation/transport evidence, not just thrust. [Kojima et al. (2020)](https://doi.org/10.1016/j.hedp.2020.100814) supplies a complementary full-PIC cavity/demagnetization comparison.
+
+**4. The spike’s proposed fix**
+
+**Yes to \(B=B_0+B_1\), but not as a cure by itself.** Background-field splitting is established for low-beta robustness. Derive consistent fluxes, cross terms and driver-energy accounting; allow induced fields to exclude the applied field physically. [Split-field HLLD](https://www.sciencedirect.com/science/article/abs/pii/S0021999116304788).
+
+Field sweep-out under the spike’s boundaries does **not** prove ideal MHD unsuitable. Fix coil/vacuum matching and the documented axis reconstruction first. Resistivity must follow plasma physics, not preserve a desired field picture.
+
+At beta \(10^{-8}\), double precision has not inherently lost *all* pressure information; discretization and inconsistent magnetic-energy updates can overwhelm thermal energy. Use positivity-limited reconstruction, admissibility checks, robust HLLE fallback and stage rejection. Published [positivity-preserving HLLD](https://www.global-sci.com/cicp/article/view/17171) results do not automatically guarantee the complete RZ update.
+
+Retain conservative total energy for shocks and accounting, with auxiliary internal-energy/entropy evolution for reliable pressure recovery. Track synchronization corrections and physical heating explicitly; internal-energy-only evolution can miscalculate shock heating. [FLASH’s implementation](https://flash.rochester.edu/site/flashcode/user_support/flash_ug_devel/node107.html).
