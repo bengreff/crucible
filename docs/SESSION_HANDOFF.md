@@ -6,6 +6,12 @@
 
 The native converging-diverging nozzle experiment exists: verified axisymmetric gas flow, live inlet pressure, measurements. The app starts paused; README has build/run instructions. `docs/IMPLEMENTATION.md` holds the evidence and scientific limitations. The archive is unchanged.
 
+## Chemical milestone (active, 2026-09-30)
+
+- **Item 1 done.** Cantera 3.2.0 is built from source (`~/src/cantera`, `scons build`, static lib) and wrapped in `adapters/thermo.*`. The ideal rocket matches NASA CEA (RocketCEA) at 18 points (H2/O2, CH4/O2, LOX/LH2 at 3 O/F each, equilibrium and frozen): worst 0.131% against the 0.5% tolerance. Evidence: `docs/THERMO_VERIFICATION.md`, ctest `thermo_cea_verification` (about 40 s).
+- **Item 2 done.** `docs/VALIDATION_SURVEY.md` recommends TUM GOX/GCH4 SFB/TRR40 Test Case 1 (20 bar, O/F 2.6; wall pressure, heat flux, combustion efficiency) and Penn State GO2/GH2 (wall heat flux). Next input: the Test Case 1 geometry/BC description and digitised curves.
+- **Next:** item 3 (low-Mach correction or preconditioning for HLLC; venturi -9.5% mass flow at Mach 0.15 coarse), then item 4 (reacting chamber).
+
 ## Done on this branch
 
 - **Verification review.**
