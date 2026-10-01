@@ -167,10 +167,6 @@ Throwaway code: `spike/mhd_rz.cpp` (target `crucible_mhd_spike`), plot script `s
   4. a conductivity model.
 - Items 2 and 3 are verifiable with the static-coil and aligned cases already in the spike.
 
-DECISION NEEDED: which conductivity model the first field physics targets. The options:
+Conductivity, resolved 30 September 2026 as a Director default (reversible by Ben; recorded in `RESEARCH.md`): resistive MHD first, because plasma detachment, the central magnetic-nozzle question, needs field-line slippage that ideal MHD cannot represent. The Hall term is designed in as the next increment. Ideal MHD remains a limiting case (infinite conductivity), not the target.
 
-- resistive MHD with a magnetic Reynolds number from the plasma state (applied-field MPD / magnetic nozzle regime);
-- Hall or two-fluid (most electric-propulsion regimes);
-- keep ideal MHD for fusion-like high-Rm cases.
-
-This sets the next physics milestone. It is Ben's choice, not an engineering one.
+Item 1 (centroid reconstruction) landed in the gas core on 30 September 2026; see `docs/IMPLEMENTATION.md`.

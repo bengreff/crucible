@@ -16,7 +16,8 @@ The native converging-diverging nozzle experiment exists: verified axisymmetric 
   - `bodyAxialForce` is the empty slot for a Lorentz force whose reaction acts on coils. The UI and README report thrust by component.
 - **MHD architecture spike:** `docs/MHD_SPIKE.md`, throwaway code in `spike/`.
   - Recommendation: keep the body-fitted RZ mesh; use CT through nodal ψ.
-  - Before any field work: fix axis reconstruction, then the split B0 + B1 form feeding `bodyAxialForce`, explicit magnetic boundary conditions, and a conductivity model.
+  - Before any field work: fix axis reconstruction (done), then the split B0 + B1 form feeding `bodyAxialForce`, explicit magnetic boundary conditions, and a conductivity model.
+  - Conductivity: Director default (reversible by Ben) is resistive MHD first, Hall term next; recorded in `RESEARCH.md`. An outside check on the model class is pending.
 - **Axis reconstruction fixed in core** (centroid-referenced radial slopes, parity on the axis row, exact p/r source). Evidence in `docs/IMPLEMENTATION.md`: axis-row acoustic error first order → about third order; coil-force rest residual converges; nozzle grid study and venturi unchanged or slightly better.
 
 ## Open items
