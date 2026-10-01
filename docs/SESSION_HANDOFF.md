@@ -12,7 +12,25 @@ The native converging-diverging nozzle experiment exists: verified axisymmetric 
 - **Item 2 done.** `docs/VALIDATION_SURVEY.md` recommends TUM GOX/GCH4 SFB/TRR40 Test Case 1 (20 bar, O/F 2.6; wall pressure, heat flux, combustion efficiency) and Penn State GO2/GH2 (wall heat flux). Next input: the Test Case 1 geometry/BC description and digitised curves.
 - **Ben's decisions (via Director):** primary case is the TUM round chamber, with exact published geometry (stop if an input is missing); strict pre-registered blind prediction; second case is RL10A-3-3A. Inputs and gaps: `docs/VALIDATION_TUM_ROUND.md`. Missing: convergent nozzle contour, the TRR40 Test Case 1 document, nozzle-wall thermal condition, propellant purity. Blind exposure is declared: efficiency and Pc at O/F 2.2 were seen.
 - **Item 3 done.** `docs/LOW_MACH.md`. Thornber is 2-6x more accurate on the venturi but grows a transverse odd-even mode exponentially (row deviation 1e-14 to 7e-5 at 800 cells). HLLC-LM has no effect above M 0.1. The default stays plain HLLC; chamber accuracy comes from grid convergence with reported error bands. Both variants remain behind `Definition::lowMach`.
-- **Next:** item 4, the reacting chamber. Multi-species gas state, Cantera thermo per cell, finite-rate source with a stiff integrator, then SST/PaSR per TECHNICAL_PLAN.
+- **Item 4 in progress (reacting chamber).** Done and pushed:
+  - **Stiff reaction integration** (`adapters/reaction.*`, `docs/REACTION_VERIFICATION.md`, ctest `reaction_verification`): CVODES BDF over Cantera rates, matching Cantera ReactorNet (ignition delay to 2.6e-6) and UV equilibrium.
+  - **Multi-species core** (`core/medium.*`, `docs/MIXTURE_CORE.md`, ctest `mixture_verification`): thermally perfect NASA7 mixture with Larrouturou species fluxes. Matches Cantera thermo to 6e-15 and an exact two-gamma shock tube.
+  - **Release is now the default build.** All earlier timings were -O0. The single-gas suite takes 12 s against 5.6 s for the old core.
+  - **Strang coupling** (`adapters/reacting_flow.*`, `docs/REACTING_FLOW.md`, study `crucible_detonation_study`): exactly symmetric, re-planning the step when heat release lowers the CFL limit.
+    - Verified on a piston-supported H2/O2/Ar detonation against the equilibrium Hugoniot.
+    - Front speed is within 0.24% on every grid (1% tolerance). Grid and dt contributions are below 0.03 and 0.001 percentage points.
+    - The remainder is a start-up transient that decays with distance (+0.05% at 2 m).
+    - The late burned plateau matches exact equilibrium to 0.01%.
+  - `ctest` 5/5 pass (159 s).
+- **Next in item 4, in order:**
+  1. Mixture-averaged molecular transport: export Cantera's fits to the core, verify against Cantera.
+  2. 1-D premixed laminar flame speed against Cantera FreeFlame (the first deflagration check, needs 1).
+  3. SST URANS + PaSR.
+  4. Injector mass-flow inlets.
+  5. Chamber contour as data (exact TUM shape drops in; meanwhile the 30/45 deg, sharp/rounded bracket).
+  6. Pre-registered TUM predictions at O/F 2.6/3.0/3.4, committed before digitising the measured curves.
+  7. Grid convergence on backhouse.
+- **Efficiency note:** almost every reacting step re-plans once, about a third more reaction work. A sound-speed predictor would remove most of it.
 
 ## Done on this branch
 
