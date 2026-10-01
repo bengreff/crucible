@@ -86,7 +86,7 @@ m >= (6.4e-3)^2 / (8 x 550) = 9.3 ug and v <= 4 x 550 / 6.4e-3 = 340 km/s. Only 
 plume heads toward the magnet, so the real mass is larger. A plume model that cannot carry
 about 10 ug or more toward the magnet cannot reproduce 6.4 mN s whatever the field does.
 
-DECISION NEEDED: laser-target physics in or out of the first validation.
+Decided (Director, 30 September 2026, reversible by Ben; recorded in `RESEARCH.md`): option (a), a prescribed plume constrained from independent published ablation data, with ranges propagated, never tuned to the impulse. The options as weighed:
 
 - **(a) Prescribed plume.** The plume (mass, velocity distribution, temperature, charge state,
   angular shape) is an input, taken with a band from an independent published radiation-hydro
