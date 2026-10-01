@@ -55,9 +55,9 @@ set(CANTERA_ROOT "$ENV{HOME}/src/cantera" CACHE PATH "Cantera source tree with a
 if(CRUCIBLE_WITH_CANTERA)
   find_library(ACCELERATE_FRAMEWORK Accelerate)
   find_path(BOOST_INCLUDE boost/shared_ptr.hpp HINTS /opt/homebrew/include /usr/local/include)
-  add_library(crucible_thermo adapters/thermo.cpp)
+  add_library(crucible_thermo adapters/thermo.cpp adapters/reaction.cpp)
   target_include_directories(crucible_thermo PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-    PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+    PRIVATE ${CANTERA_ROOT}/include ${CANTERA_ROOT}/include/cantera/ext ${BOOST_INCLUDE})
   target_compile_definitions(crucible_thermo PRIVATE CRUCIBLE_CANTERA_DATA="${CANTERA_ROOT}/data")
   target_link_libraries(crucible_thermo PRIVATE ${CANTERA_ROOT}/build/lib/libcantera.a
     ${ACCELERATE_FRAMEWORK} Threads::Threads)
@@ -66,5 +66,11 @@ if(CRUCIBLE_WITH_CANTERA)
     target_link_libraries(crucible_thermo_tests PRIVATE crucible_thermo)
     target_compile_definitions(crucible_thermo_tests PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME thermo_cea_verification COMMAND crucible_thermo_tests)
+    # The reference reactor network is Cantera's own, so this test sees Cantera directly.
+    add_executable(crucible_reaction_tests tests/reaction_tests.cpp)
+    target_include_directories(crucible_reaction_tests PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+    target_link_libraries(crucible_reaction_tests PRIVATE crucible_thermo
+      ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+    add_test(NAME reaction_verification COMMAND crucible_reaction_tests)
   endif()
 endif()

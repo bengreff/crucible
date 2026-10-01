@@ -1,0 +1,21 @@
+H2/O2 1000K 1atm (h2o2.yaml)
+  tau 1.631341e-04 s (reference 1.631337e-04 s); T_end 3378.095 K (reference 3378.095, UV equilibrium 3378.095)
+  CVODES steps 1093, wall 0.01 s (reference wall 0.09 s, 200000 samples)
+  ignition delay rel. difference       2.6161e-06  (tol 1.0e-03) ok
+  T_end rel. difference                6.7447e-10  (tol 1.0e-04) ok
+  max |Y - Y_ref| at t_end             1.2874e-09  (tol 1.0e-06) ok
+  element mass fraction drift          2.0450e-13  (tol 1.0e-08) ok
+  internal energy drift / (cv0 T0)     2.3500e-08  (tol 1.0e-06) ok
+  |T_end - T_eq| [K]                   9.0949e-13  (tol 5.0e-01) ok
+  max |Y - Y_eq|                       1.8319e-15  (tol 1.0e-04) ok
+CH4/O2 1400K 20bar (gri30.yaml)
+  tau 4.975539e-05 s (reference 4.975539e-05 s); T_end 3985.423 K (reference 3985.423, UV equilibrium 3985.423)
+  CVODES steps 1630, wall 0.04 s (reference wall 0.21 s, 200000 samples)
+  ignition delay rel. difference       6.6447e-08  (tol 1.0e-03) ok
+  T_end rel. difference                4.2071e-11  (tol 1.0e-04) ok
+  max |Y - Y_ref| at t_end             3.4294e-11  (tol 1.0e-06) ok
+  element mass fraction drift          2.1522e-12  (tol 1.0e-08) ok
+  internal energy drift / (cv0 T0)     5.4836e-10  (tol 1.0e-06) ok
+  |T_end - T_eq| [K]                   8.0845e-06  (tol 5.0e-01) ok
+  max |Y - Y_eq|                       1.0141e-09  (tol 1.0e-04) ok
+0 failures
