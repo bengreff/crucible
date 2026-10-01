@@ -1,5 +1,7 @@
 # Session handoff
 
+**MHD spike PARKED until after the chemical milestone, per Ben 2026-09-30.** Active order: Cantera thermochemistry vs CEA, validation-data survey, low-Mach accuracy, reacting chamber.
+
 30 September 2026 · branch `claude/verify-core` (pushed to origin; not merged to main, which is pre-pivot; that merge is a separate decision).
 
 The native converging-diverging nozzle experiment exists: verified axisymmetric gas flow, live inlet pressure, measurements. The app starts paused; README has build/run instructions. `docs/IMPLEMENTATION.md` holds the evidence and scientific limitations. The archive is unchanged.

@@ -1,3 +1,5 @@
+**PARKED** until after the chemical validation milestone, per Ben 2026-09-30 ("Chemical built first"). Kept on the branch, not deleted. The uncommitted Maeno 2013 case driver (magnet field verified, plume inputs drafted, no impulse result) is committed as parked work.
+
 # MHD architecture spike (September 2026)
 
 Question: can the current body-fitted RZ mesh and data layout carry magnetic fields (div B control, an MHD Riemann solver, axis treatment) before months are committed to them?

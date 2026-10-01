@@ -61,6 +61,9 @@ struct Resistivity {
     Eta mode{Eta::Off};
     double etaM{0};               // Constant: magnetic diffusivity, m^2/s
     double Z{1},ionMass{1.6726e-27};  // Spitzer: fully ionised at charge Z, n_e = Z rho / m_i, T_e = p/(rho Rg)
+    // Plume runs: T_e prescribed (eV, > 0) instead of p/(rho Rg); cells below rhoPlume are the
+    // tenuous background, which is nearly neutral and insulating, given etaCap (also the ceiling).
+    double TeFix{0},rhoPlume{0},etaCap{1e300};
 };
 
 // Same construction as core Mesh, plus an optional inner radius (annulus).
@@ -292,7 +295,7 @@ Vacuum buildVacuum(int nz,double dz,const std::function<double(double)>& wall,do
     return v;
 }
 
-struct Rates { double mass{},energy{},inMom{},outMom{},wallMom{},inMass{},outMass{},body{},joule{}; };
+struct Rates { double mass{},energy{},inMom{},outMom{},wallMom{},inMass{},outMass{},body{},joule{},magnet{}; };
 struct Report {
     double t{},mass{},energy{},Pz{},massErr{},energyErr{},momErr{},deviceThrust{},exitPlaneThrust{};
     double inMom{},outMom{},wallMom{},ambient{},inMdot{},outMdot{};
@@ -307,6 +310,10 @@ public:
     double p0{},T0{},Rg{287.05},pBack{},cfl{0.4},glmAlpha{0.4};
     bool axisParity{true};
     WallB wallB{WallB::Transparent}; Vacuum vac; double vacuumRadius{1.0}; int vacuumLayers{60};
+    // Open plume domain: every boundary except the axis is an outflow (zero-gradient ghost, no
+    // inflow), b1 zero-gradient; bottomConducting freezes psi1 on the z = 0 plane (a conductor there).
+    bool open{false},bottomConducting{false};
+    double intBody{},intMagnet{},intPlate{};
     bool robust{false};       // dual energy + first-order HLL retry of a failed step before halving dt
     bool firstOrder{false};   // current attempt uses zero slopes
     std::vector<double> wallPsi;
@@ -395,8 +402,9 @@ public:
     double cellEta(const U& p) const {
         if(eta.mode==Eta::Constant) return eta.etaM;
         if(eta.mode!=Eta::Spitzer) return 0;
-        double TeV=p[4]/(p[RHO]*Rg)/11604.518,ne=eta.Z*p[RHO]/eta.ionMass;
-        return spitzerEta(ne,TeV,eta.Z)/mu0;
+        if(p[RHO]<eta.rhoPlume) return eta.etaCap;
+        double TeV=eta.TeFix>0?eta.TeFix:p[4]/(p[RHO]*Rg)/11604.518,ne=eta.Z*p[RHO]/eta.ionMass;
+        return std::min(eta.etaCap,spitzerEta(ne,TeV,eta.Z)/mu0);
     }
     // Resistive E_theta = eta_m J_theta at nodes. In b units dpsi/dt = -r E_theta and
     // J_theta = -div((1/r) grad psi) in the meridional plane, discretised with the two linear
@@ -441,6 +449,7 @@ public:
             if(m.r(i,j)<=0) continue;  // J_theta = 0 on the axis
             nodeJ[k]=nodeK[k]/nodeM[k];
             if(j==m.nr && split() && wallB==WallB::Conducting) continue;
+            if(i==0 && bottomConducting) continue;
             double e=0,v=0;
             for(int ci:{i-1,i}) for(int cj:{j-1,j}) { if(ci<0||ci>=m.nz||cj<0||cj>=m.nr) continue; auto q=m.cell(ci,cj); e+=etaC[q]*m.vol[q]; v+=m.vol[q]; }
             nodeE[k]=e/v*nodeJ[k];
@@ -517,13 +526,18 @@ public:
             U l=rec(il,true,1),r=rec(ir,true,-1);
             if(i==0) { l=inletGhost(r); if(nozzle && split() && wallB!=WallB::Transparent) { l[BZ]=0; l[BR]=0; } }  // inflow carries only b0
             if(i==m.nz) r=outletGhost(l);
+            if(open && i==0) { l[1]=std::min(l[1],0.0); if(bottomConducting) l[BZ]=-r[BZ]; }
+            if(open && i==m.nz) r[1]=std::max(r[1],0.0);
             std::array<double,2> cn; auto ff=faceFlux(l,r,1,0,b0A[static_cast<std::size_t>(i)*m.nr+j],cn); double A=m.axialArea(i,j);
             if(resist) { double br=i==0?(nozzle&&split()&&wallB!=WallB::Transparent?0:w[ir][BR]):i==m.nz?w[il][BR]:0.5*(l[BR]+r[BR]);
                 ff.f[EN]+=poynting(0.5*(nodeE[m.node(i,j)]+nodeE[m.node(i,j+1)]),0,br,1,0); }
             for(int k=0;k<NV;++k) { if(i>0) d[il][k]-=A*ff.f[k]; if(i<m.nz) d[ir][k]+=A*ff.f[k]; }
             for(int k=0;k<2;++k) { if(i>0) cross[il][k]-=A*cn[k]; if(i<m.nz) cross[ir][k]+=A*cn[k]; }
             emfA[static_cast<std::size_t>(i)*m.nr+j]=ff.emf;
-            if(i==0) { rt.mass+=A*ff.f[RHO]; rt.energy+=A*ff.f[EN]; rt.inMom+=A*ff.f[MZ]; rt.inMass+=A*ff.f[RHO]; }
+            if(i==0) { rt.mass+=A*ff.f[RHO]; rt.energy+=A*ff.f[EN]; rt.inMom+=A*ff.f[MZ]; rt.inMass+=A*ff.f[RHO];
+                if(open) {  // Maxwell stress on whatever lies below z = 0 (the magnet), minus its static b0 part
+                    auto f0=b0A[static_cast<std::size_t>(j)]; double b1z=bottomConducting?0:w[ir][BZ],b1r=w[ir][BR];
+                    rt.magnet-=A*((f0[1]*b1r-f0[0]*b1z)+0.5*(b1r*b1r-b1z*b1z)); } }
             if(i==m.nz) { rt.mass-=A*ff.f[RHO]; rt.energy-=A*ff.f[EN]; rt.outMom+=A*ff.f[MZ]; rt.outMass+=A*ff.f[RHO]; }
         }
         for(int i=0;i<m.nz;++i) for(int j=0;j<=m.nr;++j) {
@@ -531,6 +545,7 @@ public:
             auto a=m.radialArea(i,j); double A=std::hypot(a[0],a[1]),nz=a[0]/A,nr=a[1]/A;
             U l,r;
             if(j==0) { r=rec(m.cell(i,0),false,-1); l=wallGhost(r,nz,nr); }
+            else if(j==m.nr && open) { l=rec(m.cell(i,m.nr-1),false,1); r=l; double un=r[1]*nz+r[2]*nr; if(un<0) { r[1]-=un*nz; r[2]-=un*nr; } }
             else if(j==m.nr) { l=rec(m.cell(i,m.nr-1),false,1); r=wallGhost(l,nz,nr);
                 if(split() && wallB==WallB::Conducting) { double bn=r[BZ]*nz+r[BR]*nr; r[BZ]-=2*bn*nz; r[BR]-=2*bn*nr; } }
             else { l=rec(m.cell(i,j-1),false,1); r=rec(m.cell(i,j),false,-1); }
@@ -555,7 +570,8 @@ public:
                 std::array<double,2> b=j==m.nr?wallBnd[i]:j==0?std::array<double,2>{c0[BZ],c0[BR]}:std::array<double,2>{0.5*(l[BZ]+r[BZ]),0.5*(l[BR]+r[BR])};
                 ff.f[EN]+=poynting(E,b[0],b[1],nz,nr); }
             for(int k=0;k<2;++k) { if(j>0) cross[m.cell(i,j-1)][k]-=A*cn[k]; if(j<m.nr) cross[m.cell(i,j)][k]+=A*cn[k]; }
-            bool wall=j==0||j==m.nr;
+            bool wall=j==0||(j==m.nr && !open);
+            if(j==m.nr && open) rt.mass-=A*ff.f[RHO];
             if(wall) { ff.f[RHO]=0; ff.f[ENT]=0; }  // impermeable
             if(j>0) for(int k=0;k<NV;++k) d[m.cell(i,j-1)][k]-=A*ff.f[k];
             if(j<m.nr) for(int k=0;k<NV;++k) d[m.cell(i,j)][k]+=A*ff.f[k];
@@ -585,6 +601,7 @@ public:
         if(ct()) for(int i=0;i<=m.nz;++i) for(int j=0;j<=m.nr;++j) {
             double r0=m.r(i,j); if(r0<=0) continue;  // psi = 0 on the axis
             if(j==m.nr && split() && wallB==WallB::Conducting) continue;  // flux through the wall frozen
+            if(i==0 && bottomConducting) continue;
             double e=0; int n=0;
             if(j>0)    { e+=emfA[static_cast<std::size_t>(i)*m.nr+j-1]; ++n; }
             if(j<m.nr) { e+=emfA[static_cast<std::size_t>(i)*m.nr+j]; ++n; }
@@ -620,7 +637,8 @@ public:
                         firstOrder=forceHll=false;
                         u.swap(next); psi.swap(psiNext); t+=dt; ++steps;
                         last={0.5*(r1.mass+r2.mass),0.5*(r1.energy+r2.energy),0.5*(r1.inMom+r2.inMom),0.5*(r1.outMom+r2.outMom),
-                              0.5*(r1.wallMom+r2.wallMom),0.5*(r1.inMass+r2.inMass),0.5*(r1.outMass+r2.outMass),0.5*(r1.body+r2.body),0.5*(r1.joule+r2.joule)};
+                              0.5*(r1.wallMom+r2.wallMom),0.5*(r1.inMass+r2.inMass),0.5*(r1.outMass+r2.outMass),0.5*(r1.body+r2.body),0.5*(r1.joule+r2.joule),0.5*(r1.magnet+r2.magnet)};
+                        intBody+=dt*last.body; intMagnet+=dt*last.magnet; intPlate+=dt*last.inMom;
                         intM+=dt*last.mass; intE+=dt*last.energy; intJoule+=dt*last.joule;
                         intP+=dt*(last.inMom-last.outMom+last.wallMom+last.body);
                         intPg+=dt*(std::abs(last.inMom)+std::abs(last.outMom)+std::abs(last.wallMom)+std::abs(last.body));
@@ -956,6 +974,99 @@ void resistiveDecay(const std::vector<int>& levels) {
         std::fflush(stdout);
     }
 }
+// ---- Maeno et al. 2013 (Trans. JSASS 56, 170): laser plume against a permanent magnet.
+// Magnet: NdFeB cylinder, radius 25 mm, length 40 mm, uniformly magnetised, Br = 1.39 T (derived
+// from the reported (BH)max), modelled as its equivalent surface current K = Br/mu0 on r = 25 mm,
+// -40 mm < z < 0 (z = 0 is the magnet face). psi integrates loopPsi along the sheet with z' = -L s^2
+// (points cluster at the face, the end nearest the domain), Gauss-Legendre 8 x panels.
+double magnetPsi(double r,double z,int panels=24) {
+    const double R=0.025,L=0.040,K=1.39/mu0;
+    static const double x8[8]={-0.9602898564975363,-0.7966664774136267,-0.5255324099163290,-0.1834346424956498,0.1834346424956498,0.5255324099163290,0.7966664774136267,0.9602898564975363};
+    static const double w8[8]={0.1012285362903763,0.2223810344533745,0.3137066458778873,0.3626837833783620,0.3626837833783620,0.3137066458778873,0.2223810344533745,0.1012285362903763};
+    double sum=0;
+    for(int k=0;k<panels;++k) { double a=double(k)/panels,b=double(k+1)/panels;
+        for(int q=0;q<8;++q) { double sv=0.5*(a+b)+0.5*(b-a)*x8[q]; sum+=0.5*(b-a)*w8[q]*2*L*sv*loopPsi(r,z,R,-L*sv*sv,K); } }
+    return sum;
+}
+// Plume inputs (see docs/VALIDATION_MAENO2013.md section 6 for sources and labels).
+//   mass: Fabbro et al. 1982 (PRA 26, 2289), mdot = 110 (I_a/1e14 W cm^-2)^(1/3) lambda_um^(-4/3) kg s^-1 cm^-2,
+//         over S = 3.5e-6 m^2 and 1.3 ns, absorbed intensity I_a = A E/(S tau); band x0.5..x2 (assumed);
+//   kinetic energy: A f_k E, A absorption (assumed band from the Garban-Labaune 1982 trend), f_k (assumed);
+//   shape: self-similar Gaussian free expansion, rho ~ exp(-(x/s)^2), u = x/t0, s = v0 t0;
+//   angle: weight w(theta) about the direction toward the magnet (-z).
+struct Plume { double mass,ekin,A,fk; };
+Plume maenoPlume(int lambdaNm,int corner) {  // corner -1 low, 0 central, +1 high
+    double lam=lambdaNm*1e-3,E=lambdaNm==1053?548:lambdaNm==527?568:550,S=3.5e-6,tau=1.3e-9;
+    double Alo,Ac,Ahi; if(lambdaNm==1053){Alo=0.3;Ac=0.45;Ahi=0.6;} else if(lambdaNm==527){Alo=0.55;Ac=0.7;Ahi=0.85;} else {Alo=0.7;Ac=0.83;Ahi=0.95;}
+    double A=corner<0?Alo:corner>0?Ahi:Ac,fk=corner<0?0.5:corner>0?0.9:0.7,mf=corner<0?0.5:corner>0?2.0:1.0;
+    double Ia=A*E/(S*1e4*tau);  // W/cm^2
+    double mdot=110*std::cbrt(Ia/1e14)*std::pow(lam,-4.0/3)*1e4;  // kg s^-1 m^-2
+    return {mf*mdot*S*tau,fk*A*E,A,fk};
+}
+void maeno(int argc,char** argv) {
+    auto arg=[&](const char* k,const std::string& d) { std::string key=std::string(k)+"="; for(int a=2;a<argc;++a) if(std::string(argv[a]).rfind(key,0)==0) return std::string(argv[a]).substr(key.size()); return d; };
+    double res=std::stod(arg("res","1"));                // cells per mm
+    std::string geom=arg("geom","tilted");               // axial | tilted | isotropic
+    int lambda=std::stoi(arg("lambda","351")),corner=std::stoi(arg("corner","0"));
+    double TeV=std::stod(arg("te","10")),etaCap=std::stod(arg("etacap","1000")),nExp=std::stod(arg("n","4"));
+    bool cond=arg("bottom","conducting")=="conducting"; double tEnd=std::stod(arg("tend","2e-6"));
+    double mScale=std::stod(arg("mscale","1"));          // for sensitivity only, never fitted
+    std::string dump=arg("dump","");
+    if(arg("check","0")=="1") {  // field check: on-axis analytic, and panel convergence off axis
+        auto Bz=[&](double r,double z,int pn){ double h=1e-6; return (magnetPsi(r+h,z,pn)-magnetPsi(r-h,z,pn))/(2*h*r)*std::sqrt(mu0); };
+        auto Br=[&](double r,double z,int pn){ double h=1e-6; return -(magnetPsi(r,z+h,pn)-magnetPsi(r,z-h,pn))/(2*h*r)*std::sqrt(mu0); };
+        auto axis=[](double z){ const double R=0.025,L=0.04; return 1.39/2*((z+L)/std::hypot(R,z+L)-z/std::hypot(R,z)); };
+        for(double z:{0.002,0.010,0.033,0.080}) std::printf("axis z=%.3f: Bz(r=1e-4)=%.6f T analytic=%.6f\n",z,Bz(1e-4,z,24),axis(z));
+        for(double z:{0.002,0.005}) for(double r:{0.020,0.025,0.030}) std::printf("off z=%.3f r=%.3f: Bz 24/96 panels %.6f %.6f  Br %.6f %.6f\n",z,r,Bz(r,z,24),Bz(r,z,96),Br(r,z,24),Br(r,z,96));
+        return;
+    }
+    const double zPlate=0.002,zTarget=0.033,Lz=0.120,Rr=0.100,g=5.0/3,amu=1.66054e-27,kB=1.380649e-23;
+    // Polyacetal (CH2O)n: 4 atoms per 30 amu; charge states H+ x2, C4+, O5+ (assumed, C4+ from Schaeffer et al. 2016).
+    const double mi=7.5*amu,Zbar=2.75,Zeff=3.9,Rg=(1+Zbar)*kB/mi;
+    Plume P=maenoPlume(lambda,corner); P.mass*=mScale;
+    double v0=std::sqrt(4*P.ekin/(3*P.mass)),sw=0.003,t0=sw/v0,zc=zTarget-zPlate;
+    auto weight=[&](double cth) {  // cth = cos(angle from -z)
+        if(geom=="isotropic") return 1.0;
+        if(geom=="axial") return std::pow(std::max(cth,0.0),nExp);
+        double sth=std::sqrt(std::max(0.0,1-cth*cth)),cb=std::cos(66.5*pi/180),sb=std::sin(66.5*pi/180),a=0;
+        for(int k=0;k<360;++k) a+=std::pow(std::max(0.0,cth*cb+sth*sb*std::cos((k+0.5)*pi/180)),nExp)/360;
+        return a; };
+    int nz=int(std::lround(Lz*1e3*res)),nr=int(std::lround(Rr*1e3*res));
+    Grid grid(nz,nr,Lz,[&](double){return Rr;});
+    Mhd s(grid,g,Clean::Split); s.open=true; s.bottomConducting=cond; s.robust=true; dualEnergy=true; s.Rg=Rg;
+    const double rhoBg=1e-7,TBg=11604.518,T0=TeV*11604.518;
+    s.eta.mode=Eta::Spitzer; s.eta.Z=Zeff; s.eta.ionMass=mi*Zeff/Zbar; s.eta.TeFix=TeV; s.eta.rhoPlume=10*rhoBg; s.eta.etaCap=etaCap;  // n_e = Zbar rho / mi
+    // Sub-sampled Gaussian plume, then rescaled so the grid holds exactly the mass and kinetic energy.
+    std::vector<double> rp(grid.vol.size(),0); std::vector<std::array<double,2>> mom(grid.vol.size(),{0,0});
+    for(int i=0;i<nz;++i) for(int j=0;j<nr;++j) { auto q=grid.cell(i,j); const int ns=4; double sm=0,mz=0,mr=0,wsum=0;
+        for(int a=0;a<ns;++a) for(int b=0;b<ns;++b) { double z=(i+(a+0.5)/ns)*grid.dz,r=grid.r(i,j)+(b+0.5)/ns*(grid.r(i,j+1)-grid.r(i,j));
+            double dz=z-zc,d=std::hypot(dz,r); double rho=d<3*sw?std::exp(-sq(d/sw))*weight(d>0?-dz/d:1):0;
+            sm+=rho*r; mz+=rho*r*dz/t0; mr+=rho*r*r/t0; wsum+=r; }
+        rp[q]=sm/wsum; mom[q]={mz/wsum,mr/wsum}; }
+    double M=0,K=0; for(std::size_t q=0;q<rp.size();++q) { M+=rp[q]*grid.vol[q]; if(rp[q]>0) K+=0.5*(sq(mom[q][0])+sq(mom[q][1]))/rp[q]*grid.vol[q]; }
+    double fm=P.mass/M,fv=std::sqrt(P.ekin/(K*fm));
+    s.init([&](int i,int j){ auto q=grid.cell(i,j); U w{}; double rpl=rp[q]*fm; w[RHO]=rhoBg+rpl;
+        if(rpl>0) { w[1]=mom[q][0]*fm*fv/w[RHO]; w[2]=mom[q][1]*fm*fv/w[RHO]; }
+        w[4]=rhoBg*Rg*TBg+rpl*Rg*T0; return w; },[&](double z,double r){ return magnetPsi(r,z+zPlate); });
+    std::printf("# maeno lambda=%d corner=%d geom=%s n=%.0f res=%.2f/mm nz=%d nr=%d bottom=%s Te=%.1f eV etaCap=%.0f\n",lambda,corner,geom.c_str(),nExp,res,nz,nr,cond?"conducting":"open",TeV,etaCap);
+    std::printf("# plume: A=%.2f fk=%.2f mass=%.3f ug Ekin=%.1f J v0=%.1f km/s t0=%.1f ns; momentum scale sqrt(2 m E)=%.3f mN s; eta_plume(ne=1e21)=%.1f m2/s\n",
+        P.A,P.fk,P.mass*1e9,P.ekin,v0*1e-3,t0*1e9,std::sqrt(2*P.mass*P.ekin)*1e3,spitzerEta(1e21,TeV,Zeff)/mu0);
+    std::printf("t_us,impulse_body_mNs,impulse_magnet_stress_mNs,plate_momentum_mNs,mass_in_domain_ug,max_B_T,steps,robust_steps,wall_s\n");
+    auto start=std::chrono::steady_clock::now(); std::string failure;
+    auto line=[&] { double mass=0,bmax=0; for(int i=0;i<nz;++i) for(int j=0;j<nr;++j) { auto q=grid.cell(i,j); mass+=s.u[q][RHO]*grid.vol[q];
+            bmax=std::max(bmax,std::hypot(s.u[q][BZ]+s.b0[q][0],s.u[q][BR]+s.b0[q][1])); }
+        std::printf("%.4f,%.5f,%.5f,%.5f,%.4f,%.4f,%llu,%llu,%.1f\n",(s.t+t0)*1e6,s.intBody*1e3,-s.intMagnet*1e3,s.intPlate*1e3,(mass-rhoBg*Lz*pi*Rr*Rr)*1e9,bmax*std::sqrt(mu0),
+            (unsigned long long)s.steps,(unsigned long long)s.robustSteps,seconds(start)); std::fflush(stdout); };
+    line(); int k=0;
+    for(double T=0.1e-6;T<=tEnd+1e-12;T+=0.1e-6) {
+        try { s.advanceTo(T-t0>0?T-t0:0); } catch(const std::exception& e) { failure=e.what(); break; }
+        line(); ++k;
+        if(!dump.empty() && (k==2||k==5||k==10||k==20)) dumpField(s,dump+"_t"+std::to_string(k*100)+"ns.csv");
+    }
+    if(!failure.empty()) std::printf("# FAILED at t=%.4f us: %s\n",(s.t+t0)*1e6,failure.c_str());
+    auto R=s.report();
+    std::printf("# mass_res=%.2e energy_res=%.2e sync_J=%.3g joule_J=%.3g hll_fallbacks=%ld rejected=%llu\n",R.massErr,R.energyErr,R.sync,R.joule,hllFallbacks,(unsigned long long)R.rejected);
+}
 std::vector<int> ints(const std::string& s) { std::vector<int> v; std::size_t p=0; while(p<s.size()){auto q=s.find(',',p); v.push_back(std::stoi(s.substr(p,q-p))); if(q==std::string::npos)break; p=q+1;} return v; }
 std::vector<double> reals(const std::string& s) { std::vector<double> v; for(int x:ints(s)) v.push_back(x/100.0); return v; }
 }
@@ -977,6 +1088,7 @@ int main(int argc,char** argv) {
             for(auto [n,w]:{std::pair{"transparent",WallB::Transparent},{"insulating",WallB::Insulating},{"conducting",WallB::Conducting}}) if(list.find(n)!=std::string::npos) ws.push_back(w);
             nozzleCoil(ints(argc>2?argv[2]:"80"),reals(argc>3?argv[3]:"100"),argc>4?std::stod(argv[4]):0.008,argc>5&&std::string(argv[5])=="dump",{Clean::Split},ws,argc>7&&std::string(argv[7])=="1",argc>8?std::stod(argv[8]):0);
         }
+        else if(mode=="maeno") maeno(argc,argv);
         else { std::fprintf(stderr,"crucible_mhd_spike briowu|aligned|static|coil [levels] [tesla*100 list] [t_end] [dump]\n"); return 1; }
     } catch(const std::exception& e) { std::fprintf(stderr,"error: %s\n",e.what()); return 2; }
 }
