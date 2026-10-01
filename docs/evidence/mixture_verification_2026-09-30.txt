@@ -1,0 +1,14 @@
+1. Core NASA-7 mixture thermo against Cantera (gri30)
+  worst relative difference R, e/(cv T), cv, a       6.2698e-15  (tol 1.0e-12) ok
+  worst temperature inversion error [K]              1.8190e-12  (tol 1.0e-09) ok
+2. Two-gas shock tube against the exact two-gamma solution
+  exact p* 31438.3 Pa, u* 285.05 m/s, shock 601.672 m/s
+  density L1: 100=0.00810968 400=0.00312996
+  L1(400)/L1(100)                                    3.8595e-01  (tol 5.0e-01) ok
+  star pressure, contact-shock midpoint              4.8908e-03  (tol 1.0e-02) ok
+  sum of species masses vs total mass                1.1102e-16  (tol 1.0e-12) ok
+  max |p/p*-1| across the star region (400 cells): 1.8156e-02 (reported)
+3. Variable-gamma contact advected at uniform p, u (reported)
+  100 cells, contact moved 0.25 m: max |p/p0-1| 4.5618e-04, max |u/u0-1| 1.1191e-03
+  400 cells, contact moved 0.25 m: max |p/p0-1| 1.9374e-04, max |u/u0-1| 4.8307e-04
+0 failures

@@ -5,6 +5,8 @@
 
 #include "adapters/thermo.hpp"
 #include "cantera/core.h"
+#include "cantera/thermo/MultiSpeciesThermo.h"
+#include "cantera/thermo/speciesThermoTypes.h"
 #include "cantera/ext/cvodes/cvodes.h"
 #include "cantera/ext/nvector/nvector_serial.h"
 #include "cantera/ext/sunlinsol/sunlinsol_dense.h"
@@ -39,6 +41,22 @@ ReactionSource::~ReactionSource() = default;
 std::size_t ReactionSource::nSpecies() const { return impl_->gas->nSpecies(); }
 std::size_t ReactionSource::nElements() const { return impl_->gas->nElements(); }
 std::string ReactionSource::speciesName(std::size_t k) const { return impl_->gas->speciesName(k); }
+
+Medium ReactionSource::medium() const {
+  auto& gas = *impl_->gas;
+  std::vector<Species> species;
+  for (std::size_t k = 0; k < nSpecies(); ++k) {
+    int type;
+    double tlow, thigh, pref, c[15];
+    gas.speciesThermo().reportParams(k, type, c, tlow, thigh, pref);
+    if (type != NASA2) throw std::runtime_error("Species " + speciesName(k) + " is not NASA-7 data");
+    Species s{speciesName(k), gas.molecularWeight(k), c[0], {}, {}};
+    std::copy(c + 8, c + 15, s.low.begin());
+    std::copy(c + 1, c + 8, s.high.begin());
+    species.push_back(s);
+  }
+  return Medium(species);
+}
 
 std::vector<double> ReactionSource::massFractions(const std::string& moles) {
   impl_->gas->setMoleFractionsByName(moles);

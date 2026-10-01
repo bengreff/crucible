@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "core/medium.hpp"
+
 namespace crucible::thermo {
 
 // Cantera-backed local chemistry for a closed, adiabatic, constant-volume parcel.
@@ -21,6 +23,8 @@ class ReactionSource {
   std::size_t nSpecies() const;
   std::size_t nElements() const;
   std::string speciesName(std::size_t k) const;
+  // The mechanism's species as core thermally perfect species (NASA 7-coefficient data).
+  Medium medium() const;
 
   // Mass fractions of a mole-fraction composition such as "CH4:1, O2:2".
   std::vector<double> massFractions(const std::string& moles);

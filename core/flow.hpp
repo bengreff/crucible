@@ -4,12 +4,15 @@
 #include <cstdint>
 #include <limits>
 #include <vector>
+#include "core/medium.hpp"
 
 namespace crucible {
 // SI throughout. z is axial, r is radial; no swirl in this first gas model.
 using Conserved = std::array<double, 4>; // rho, rho*u_z, rho*u_r, total energy density
 struct Primitive { double rho{}, uz{}, ur{}, p{}; };
-struct Gas { double gamma{1.4}, specificR{287.05}; };
+// Thermodynamic face/cell data the flux needs besides (rho, u, p): specific internal energy, frozen
+// sound speed, and the internal-energy floor below which the composition has no admissible state.
+struct Thermal { double e{}, a{}, floor{}; };
 enum class Case { Nozzle, UniformDuct, ShockTube };
 // Low-Mach treatment of the HLLC dissipation (docs/LOW_MACH.md). Thornber: velocity jumps at interior
 // faces scaled by min(1, local Mach) before the flux (Thornber et al., JCP 227, 2008). HllcLm: acoustic
@@ -25,6 +28,12 @@ struct Definition {
     LowMach lowMach{LowMach::None};
     Case experiment{Case::Nozzle};
     Gas gas{};
+    // Species of the medium (empty: the calorically perfect `gas` as one species) and the mass
+    // fractions of the initial fill and the reservoir (empty: pure first species).
+    std::vector<Species> species;
+    std::vector<double> composition;
+    [[nodiscard]] Medium medium() const;
+    [[nodiscard]] std::vector<double> massFractions() const;
     void validate() const;
 };
 // r is the exact volume centroid radius (integral of r dV / V) where r-weighted cell averages sit;
@@ -65,11 +74,18 @@ struct FieldSnapshot {
     double appliedTotalPressure{};
     std::uint64_t appliedControlSequence{}, generation{};
 };
+Conserved conservative(Primitive w, double internalEnergy);
+// Calorically perfect forms (one species, constant cp).
 Conserved conservative(Primitive w, Gas gas);
 Primitive primitive(const Conserved& u, Gas gas);
+Thermal thermal(Primitive w, Gas gas);
+// Species fluxes are not part of these: they follow the mass flux (see Flow::rhs).
+Conserved hllc(Primitive left, Thermal tl, Primitive right, Thermal tr, double nz, double nr);
+Conserved hllcLm(Primitive left, Thermal tl, Primitive right, Thermal tr, double nz, double nr);
 Conserved hllc(Primitive left, Primitive right, double nz, double nr, Gas gas);
 Conserved hllcLm(Primitive left, Primitive right, double nz, double nr, Gas gas);
 // Thornber low-Mach reconstruction correction applied to a face's left/right states.
+void thornberScale(Primitive& left, Primitive& right, double soundLeft, double soundRight);
 void thornberScale(Primitive& left, Primitive& right, Gas gas);
 double areaMach(double mach, double gamma);
 double machFromArea(double areaRatio, bool supersonic, double gamma);
@@ -83,6 +99,11 @@ public:
     void setTotalPressure(double pressure);
     void setUniform(Primitive state);
     void setInitialState(const std::vector<Primitive>& cells);
+    // Per-cell mass fractions, cell-major (cells.size() x species).
+    void setInitialState(const std::vector<Primitive>& cells, const std::vector<double>& massFractions);
+    // Replace a cell's composition at fixed density and total energy (a constant-volume
+    // adiabatic reaction substep leaves exactly these unchanged).
+    void setMassFractions(std::size_t cell, const double* y);
     // Constant volumetric force density (N/m^3, {z, r}) per cell, e.g. a Lorentz force. Its axial
     // integral enters bodyAxialForce (reaction on the equipment) and its work the energy budget.
     void setBodyForce(std::vector<std::array<double, 2>> forcePerVolume);
@@ -91,6 +112,14 @@ public:
     [[nodiscard]] const Definition& definition() const { return definition_; }
     [[nodiscard]] const Mesh& mesh() const { return mesh_; }
     [[nodiscard]] const std::vector<Conserved>& state() const { return state_; }
+    [[nodiscard]] const Medium& medium() const { return medium_; }
+    // Partial densities rho*Y_k, cell-major.
+    [[nodiscard]] const std::vector<double>& partialDensities() const { return species_; }
+    [[nodiscard]] std::vector<double> massFractions(std::size_t cell) const;
+    [[nodiscard]] Primitive cellPrimitive(std::size_t cell) const;
+    [[nodiscard]] double temperature(std::size_t cell) const;
+    // Largest stable step for the current state (CFL bound).
+    double stableDt();
     [[nodiscard]] double time() const { return time_; }
     [[nodiscard]] double totalPressure() const { return totalPressure_; }
 private:
@@ -103,8 +132,15 @@ private:
     };
     Definition definition_;
     Mesh mesh_;
+    Medium medium_;
+    std::size_t ns_{};
+    std::vector<double> inletComposition_;
     std::vector<Conserved> state_, stage_, next_, rhs_, slopesZ_;
     std::vector<Primitive> primitives_, radialLow_, radialHigh_;
+    // Species: partial densities (state, stages, derivative), cell mass fractions and their
+    // reconstructions, all cell-major with stride ns_. temperature_ warm-starts the energy inversion.
+    std::vector<double> species_, speciesStage_, speciesNext_, speciesRhs_, fractions_, fractionSlopesZ_;
+    std::vector<double> fractionsLow_, fractionsHigh_, temperature_, sound_;
     std::vector<std::array<double, 2>> bodyForce_;
     std::vector<double> pressureSource_;
     double time_{}, dt_{}, totalPressure_{}, initialMass_{}, initialEnergy_{};
@@ -113,10 +149,13 @@ private:
     std::uint64_t steps_{}, rejectedSteps_{};
     BoundaryRates lastRates_{};
     void resetAccounting();
-    double stableDt();
     void radialProfiles();
-    BoundaryRates rhs(const std::vector<Conserved>& state, std::vector<Conserved>& derivative);
+    void refresh(const std::vector<Conserved>& state, const std::vector<double>& species);
+    BoundaryRates rhs(const std::vector<Conserved>& state, const std::vector<double>& species,
+                      std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative);
+    bool admissible(const Conserved& u, const double* partial) const;
+    Thermal faceThermal(const Primitive& w, double* y) const;
     Primitive inlet(Primitive inside) const;
-    Primitive outlet(Primitive inside) const;
+    Primitive outlet(Primitive inside, const double* y) const;
 };
 } // namespace crucible
