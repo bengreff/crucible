@@ -147,6 +147,61 @@ Throwaway code: `spike/mhd_rz.cpp` (target `crucible_mhd_spike`), plot script `s
   - Neither form's 0.3 T thrust is converged between 80 and 160 (split moves 3.4 N), because the 8 ms state is mid-way through the sweep.
 - Two-fix rule: this was the first fix tried on low-β positivity. The mechanism is in the model, so I stopped here rather than trying numerical fixes.
 
+### 6. Wall magnetic conditions and positivity at 1 T (`wall_1T.csv`, `wall_1T_robust.csv`, `wall_1T_robust.png`, `vacuum_check.csv`), 30 September 2026
+
+The question (from the outside review, `docs/ASTRA_PLASMA_MODEL_2026-09-30.md`): was the 1 T failure caused by the wall condition? Short answer, measured: **no. It was a pressure-recovery failure in the energy equation. Changing the wall condition alone did not prevent it. Once pressure recovery was made robust, the result depended at O(1) on the wall condition.**
+
+What was added (split form only; b1 is the induced field):
+
+- Three wall modes for b1.
+  - `transparent`: the ghost copies b, which was the old behaviour.
+  - `insulating`: b1 outside the wall is the vacuum field, solved from the wall flux.
+  - `conducting`: ψ1 is frozen at the wall nodes, so the wall holds its flux (line-tying), and the ghost b_n is reflected.
+  - For insulating and conducting, the inlet ghost has b1 = 0, so the source is unmagnetised by plasma currents.
+- Vacuum exterior. Linear-triangle FEM for div((1/r) grad ψ) = 0 on an annulus from the wall to radius Rf, with ψ = 0 at Rf and b_r = 0 on the end planes. It is precomputed once as a matrix from wall ψ to the exterior field at each wall face.
+  - Checked against a current loop (r = 1 cm, z = 0.3 m, 1 kA) placed outside the nozzle. Field error at the wall faces, relative to the maximum field, rms (measured):
+
+    | nz | 40 | 80 | 160 | 320 |
+    |---|---|---|---|---|
+    | rms error | 0.058 | 0.039 | 0.014 | 0.0043 |
+
+  - Rf from 0.3 to 3 m changes this by under 10%. The maximum error is at the loop's closest point and falls from 0.22 to 0.037.
+- Positivity robustness.
+  - The reconstruction was already positivity-limited: primitive minmod keeps each face ρ and p between the neighbouring cell values.
+  - Added a dual energy (an entropy variable ρs, advected with the mass flux). When the thermal pressure from total energy is below 1e-3 of the total energy, pressure is recovered from the entropy instead.
+  - After each step the two are synchronised. Where E is used, s is reset. Where s is used, E is reset, and the change in E is booked as `sync_J` (not hidden in the energy residual).
+  - Stage rejection: a stage with a non-admissible state is retried at the same dt with first-order reconstruction and HLL (the HLLE fallback), then with dt halved. These retries are counted in `robust_steps`.
+
+Results at 1 T, coil at the throat, 8 ms target (measured; wall time on the Mac):
+
+| nz | wall | robust | outcome | device thrust (N) | coil reaction body_axial (N) | sync (J) | robust steps |
+|---|---|---|---|---|---|---|---|
+| 80 | transparent | no | failed 7.73 ms | | | | |
+| 80 | insulating | no | failed 1.33 ms | | | | |
+| 80 | conducting | no | failed 1.69 ms | | | | |
+| 160 | transparent | no | failed 0.909 ms | | | | |
+| 160 | insulating | no | failed 0.248 ms | | | | |
+| 160 | conducting | no | failed 0.613 ms | | | | |
+| 80 | transparent | yes | 8 ms | 318.0 | 226 | 13.9 | 18 of 15409 |
+| 80 | conducting | yes | 8 ms | 43.8 | -486 | 6.5 | 14 of 30458 |
+| 160 | transparent | yes | 8 ms | 519.4 | 43.8 | 51.7 | 6734 of 90257 |
+| 160 | conducting | yes | blew up 2.59 ms | | | | 20302 of 48858 |
+
+No-field gas thrust at the same conditions is 517.5 N (measured, earlier runs).
+
+What this says:
+
+1. **Mechanism of the original failure (measured).** In every non-robust failure, the failing cells had ordinary density (0.1 to 0.7 kg/m^3) but pressure of 1e-6 to 1e-3 Pa (T about 1e-5 K). They were not evacuated. The thermal energy came out as a small difference of large magnetic and kinetic energies and lost its positivity. That is a numerical failure of pressure recovery, and it occurred with every wall condition. Dual energy fixes it in three of the four runs.
+2. **The wall condition matters at O(1) (measured).** The 80-cell runs differ only in the wall condition: 318 N against 44 N of device thrust, and +226 N against -486 N of coil reaction. In the figure, the conducting wall holds about 1 T at the throat, and the flow separates into a fast core jet and a slow wall layer. The transparent wall lets the flux leave.
+3. **The transparent result is not mesh-converged (measured).** Its thrust is 318 N at 80 cells and 519 N at 160. The 160 run needed 7.5% robust steps. None of these numbers is a result. They show sensitivity.
+4. **Conducting at 160 is a new failure, at the outlet, not the wall (measured location, inferred cause).** The blown-up cells are in the last two columns (i = 157 to 159), mid-radius, with u_z about -14.5 km/s (inflow through the outlet) and |b| up to 4e8. The admissibility check tests positivity only, so an unbounded growth that stays positive was accepted. Inferred cause: the extrapolation outlet becomes ill-posed when the flow reverses there. The conducting wall's slow layer reaches the outlet (see the 80-cell u_z panel), and an extrapolation boundary feeds whatever comes in. Not yet fixed. It needs a characteristic outlet condition, and that belongs with the chamber or plume boundary work, not here.
+5. **Insulating wall: stopped after two fixes (two-fix rule). The mechanism is written down here.**
+   - Fix 1 put the exterior vacuum b1 into the wall ghost. The interior and exterior tangential b1 differed by up to 0.13 T, while b_n matched. The Riemann solver turned that jump into wall heating: ρ 0.003 kg/m^3, p 8e5 Pa, u_z -1400 m/s at the wall.
+   - Fix 2 ran HLLD with a jump-free ghost and added the wall current's stress and Poynting flux as explicit corrections. It produced a 4 km/s wall jet, b1z of 1.5 T in one cell, and thrust of 1039 to 1422 N.
+   - Mechanism: an insulating wall carries no current, so a tangential field jump between plasma and vacuum is a current sheet inside the plasma. In ideal MHD nothing sets that sheet's thickness. It sits in one cell layer, and its whole force (fix 2) or its whole dissipation (fix 1) lands on that layer. In a real device the sheet has a resistive thickness. So the insulating condition is not posed properly without resistivity (task 2). It will be retried once η J is in.
+
+Answer to the review's point: the sweep-out under the earlier transparent condition does not by itself show that ideal MHD is unsuitable, and the review is right about that. A wall that holds its flux keeps the applied field in place in this run (conducting, 80 cells). But the earlier crash was not a boundary-condition failure. It was pressure recovery, and that is fixed. The physically intended condition here (an insulating nozzle with an external coil) cannot be run in ideal MHD on this mesh. That is consistent with the resistive-first default.
+
 ## What broke, and whose problem it is
 
 1. **Axis reconstruction (mesh-independent RZ issue; also in the gas core). Fixed in the gas core on 30 September 2026.**
