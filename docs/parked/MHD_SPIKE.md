@@ -1,4 +1,4 @@
-**PARKED** until after the chemical validation milestone, per Ben 2026-09-30 ("Chemical built first"). Kept on the branch, not deleted. The uncommitted Maeno 2013 case driver (magnet field verified, plume inputs drafted, no impulse result) is committed as parked work.
+> **PARKED (Ben, 2026-09-30): magnetic/plasma work waits until the chemical milestone is done. Historical design record, not active work; see docs/SESSION_HANDOFF.md for the current state.** The uncommitted Maeno 2013 case driver (magnet field verified, plume inputs drafted, no impulse result) was committed as parked work.
 
 # MHD architecture spike (September 2026)
 
@@ -6,7 +6,7 @@ Question: can the current body-fitted RZ mesh and data layout carry magnetic fie
 
 Answer: yes for the mesh and layout. The field transport machinery worked. What broke is (a) axis reconstruction, which is an RZ issue on any mesh and is also latent in the gas core, and (b) the physics model and magnetic boundary conditions. Neither is fixed by changing the mesh. Recommendation at the end.
 
-Throwaway code: `spike/mhd_rz.cpp` (target `crucible_mhd_spike`), plot script `spike/plot_coil.py`. The spike is not wired into the app or the core and is not a framework. Raw tables and figures are in `docs/evidence/mhd_spike/`. Every number below is **measured** unless labelled otherwise.
+Throwaway code: `spike/mhd_rz.cpp` (target `crucible_mhd_spike`), plot script `spike/plot_coil.py`. The spike is not wired into the app or the core and is not a framework. Raw tables and figures are in `docs/parked/mhd_spike/`. Every number below is **measured** unless labelled otherwise.
 
 ## What was built
 
@@ -151,7 +151,7 @@ Throwaway code: `spike/mhd_rz.cpp` (target `crucible_mhd_spike`), plot script `s
 
 ### 6. Wall magnetic conditions and positivity at 1 T (`wall_1T.csv`, `wall_1T_robust.csv`, `wall_1T_robust.png`, `vacuum_check.csv`), 30 September 2026
 
-The question (from the outside review, `docs/ASTRA_PLASMA_MODEL_2026-09-30.md`): was the 1 T failure caused by the wall condition? Short answer, measured: **no. It was a pressure-recovery failure in the energy equation. Changing the wall condition alone did not prevent it. Once pressure recovery was made robust, the result depended at O(1) on the wall condition.**
+The question (from the outside review, `docs/parked/ASTRA_PLASMA_MODEL_2026-09-30.md`): was the 1 T failure caused by the wall condition? Short answer, measured: **no. It was a pressure-recovery failure in the energy equation. Changing the wall condition alone did not prevent it. Once pressure recovery was made robust, the result depended at O(1) on the wall condition.**
 
 What was added (split form only; b1 is the induced field):
 
@@ -220,7 +220,7 @@ What was added:
 - Explicit time step limit: dt <= 0.25 / (eta_m (1/dz^2 + 1/dr^2)).
 - Conductivity options: constant, or transverse Spitzer.
   - Spitzer is eta_perp = 1.03e-4 Z lnL T_e^-1.5 ohm m (NRL Formulary 2019 p.34).
-  - Electron-ion Coulomb log: 24 - ln(sqrt(n_e[cm^-3]) / T_e[eV]) above 10 Z^2 eV, 23 - ln(sqrt(n_e) Z T_e^-1.5) below, floored at 2. This is the same formula as in `docs/VALIDITY_MONITOR.md`.
+  - Electron-ion Coulomb log: 24 - ln(sqrt(n_e[cm^-3]) / T_e[eV]) above 10 Z^2 eV, 23 - ln(sqrt(n_e) Z T_e^-1.5) below, floored at 2. This is the same formula as in `docs/parked/VALIDITY_MONITOR.md`.
   - Spitzer assumes full ionisation at a stated Z, with n_e = Z rho / m_i.
 - Not included: resistive diffusion of b_theta. It is zero in every case so far.
 
@@ -339,4 +339,4 @@ What this says:
 
 Conductivity, resolved 30 September 2026 as a Director default (reversible by Ben; recorded in `RESEARCH.md`): resistive MHD first, because plasma detachment, the central magnetic-nozzle question, needs field-line slippage that ideal MHD cannot represent. The Hall term is designed in as the next increment. Ideal MHD remains a limiting case (infinite conductivity), not the target.
 
-Item 1 (centroid reconstruction) landed in the gas core on 30 September 2026; see `docs/IMPLEMENTATION.md`.
+Item 1 (centroid reconstruction) landed in the gas core on 30 September 2026; see `docs/evidence/IMPLEMENTATION.md`.

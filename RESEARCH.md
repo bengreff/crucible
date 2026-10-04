@@ -1,6 +1,6 @@
 # CRUCIBLE — Research and evidence plan
 
-17 September 2026. This document supports [VISION_SCOPE.md](VISION_SCOPE.md); [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) turns the decisions into an implementation plan. Sources below were consulted for this plan. A library capability is not evidence that CRUCIBLE implements or validates it. Proposed experiments and acceptance criteria below are project decisions, not claims from the cited sources.
+17 September 2026; updated 4 October 2026. This document supports [VISION_SCOPE.md](VISION_SCOPE.md); [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) turns the decisions into an implementation plan. Sources below were consulted for this plan. A library capability is not evidence that CRUCIBLE implements or validates it. Proposed experiments and acceptance criteria below are project decisions, not claims from the cited sources.
 
 **Decision status.** The product requirements are commitments. The algorithm candidates below are a starting research program, not established capability. A model becomes supported only after its equations, data, validity limits, numerical checks and relevant comparisons are recorded. Distinguish verification, experimental validation and conditional exploration in the app; validation applies to particular observables and regimes, not an entire application name.
 
@@ -44,15 +44,31 @@ Approximations must respond to relevant local conditions. A model that gets thru
 
 Begin with a small gaseous hydrogen/oxygen example, with a documented mechanism and validity range. Use a prepared reacting state if needed to separate the first flow/coupling tests from ignition and flame stabilization. This is a development case, not an RL10 reproduction or the project's permanent fuel choice.
 
-The primary validation targets are multiple real engines with published chamber/nozzle geometry, operating conditions and measured thrust/Isp or equivalent performance data. RL10 remains a candidate based on prior interest, not an inherited acceptance target. Select well-documented engines first. Audit phase/injection assumptions against the initial gaseous-medium support; a liquid-fed engine is not validated by silently treating liquid injection as an equivalent gas supply. Record missing information and whether its uncertainty could control the intended comparison before selecting each case.
+The primary validation targets are multiple real engines with published chamber/nozzle geometry, operating conditions and measured thrust/Isp or equivalent performance data. Ben chose RL10A-3-3A as the first engine on 4 October 2026 (NASA TM-107318 gives area against axial station; inputs and the pre-registered prediction live in `docs/validation/`). The TUM single-element GOX/GCH4 chamber, chosen on 30 September, stays a component case; its inputs are incomplete (`docs/validation/VALIDATION_TUM_ROUND.md`). After RL10 come CEA sweeps for trends and then a database of hundreds of engines from public sources. Audit phase/injection assumptions against the initial gaseous-medium support; a liquid-fed engine is not validated by silently treating liquid injection as an equivalent gas supply. Record missing information and whether its uncertainty could control the intended comparison before selecting each case.
 
 The Penn State preburner combustor (RCM-1) is only a possible component benchmark for wall heat flux, not the primary engine-performance target. A [DLR study](https://elib.dlr.de/99741/1/jpp%20zhukov%202015.pdf) demonstrates axisymmetric SST-based modeling on a workstation and discusses uncertainty/inconsistency in supplied inlet conditions versus measured pressure. It is evidence that this kind of reduced simulation already exists and that boundary-data auditing matters. If used, recover the original geometry, preburner-stream compositions/enthalpies, wall conditions, measurements and uncertainties. Do not replace the streams with pure cold hydrogen/oxygen or tune the unknown inputs solely to obtain the expected result.
 
-Use complementary evidence for distinct observables: flow/flame profiles for mixing and chemistry, measured chamber wall heat for heat transfer, and a separately audited nozzle/engine dataset for thrust or discharge performance. No thrust dataset has yet been selected. A successful RCM-1 heat-flux comparison does not validate thrust/Isp. Compare chemical equilibrium and idealized nozzle limits against CEA for verification/reference purposes, keeping experimental validation distinct.
+Use complementary evidence for distinct observables: flow/flame profiles for mixing and chemistry, measured chamber wall heat for heat transfer, and a separately audited nozzle/engine dataset for thrust or discharge performance. RL10A-3-3A is the first thrust/Isp dataset. A successful RCM-1 heat-flux comparison does not validate thrust/Isp. Compare chemical equilibrium and idealized nozzle limits against CEA for verification/reference purposes, keeping experimental validation distinct.
 
 Test the desired low-detail setup explicitly. Begin with chamber/nozzle contours, propellant composition and inlet state, delivery rates/distribution, ambient pressure and a declared wall model. Use supported abstract injector descriptions rather than demanding resolved injector hardware. Vary uncertain mixing and heat-transfer inputs; if geometry/performance conclusions depend strongly on them, report that dependence and seek the missing data. Do not calibrate a private efficiency factor for every engine to make a common simulator appear predictive.
 
 [Cantera](https://www.cantera.org/stable/cxx/index.html) supplies thermodynamic, reaction-rate, and molecular transport calculations. It does not by itself supply resolved injector mixing or a turbulent combustion closure. First verify laminar chemistry/transport; then choose an averaged mixing and combustion model against an appropriate dataset before making turbulent-chamber claims. Test ignition delay, flame propagation, species, wall heat, and thrust as applicable; a single equilibrium temperature cannot validate a combustion chamber.
+
+### Shifting-equilibrium baseline and the loss ledger (Ben, 4 October 2026)
+
+Shifting equilibrium is the validated chemistry baseline, and it must come out of the general reacting machinery: finite-rate kinetics integrated in time, with local equilibrium as its fast-chemistry limit. Local equilibrium is an option for verification, not the production model. The reasoning is that later regimes (plasma, fusion products) have no equilibrium calculator to fall back on, so the chemical case must prove the time-evolving machinery itself.
+
+The evidence chain, each step a measured delta in the same engine:
+
+1. The engine's thermochemistry reproduces the CEA ideal rocket (done: 18 points, worst 0.131%, `docs/evidence/THERMO_VERIFICATION.md`).
+2. A time-evolving chamber and nozzle in the local-equilibrium limit, run to its steady end state, reproduces CEA shifting-equilibrium c* and Isp once the differences in problem definition are accounted for: finite chamber area (CEA's finite-area-combustor option), two-dimensional nozzle divergence, and the injected enthalpy.
+3. Finite-rate kinetics instead of local equilibrium: the difference is the kinetic (recombination-freezing) loss. It must lie between the shifting and frozen CEA limits.
+4. Mixing through the unresolved-transport closure, then wall friction and heat loss: each adds its loss.
+5. The real engine: the remaining gap to measurement is explained, not fitted.
+
+This mirrors the classic loss breakdown used for liquid rocket performance prediction (equilibrium ideal, then divergence, kinetics, boundary layer and energy-release efficiency, as in the JANNAF performance prediction methodology and two-dimensional kinetics codes). The difference is that every term here comes from one time-dependent field calculation rather than separate correction codes. A match on Isp alone does not validate the terms individually; report each one.
+
+Trends matter as much as values. Ben's medium-term target is "pasting in hundreds of chemical engine params and matching CEA/real values and trends": the same engine, with no per-engine efficiency factor, should reproduce how Isp and thrust move with O/F, chamber pressure, area ratio and propellant.
 
 ### How unresolved transport will be approximated
 
@@ -90,9 +106,11 @@ An expanding magnetic nozzle may become weakly collisional. Electron distributio
 
 Before extending to a torch, map representative density, temperature, field, and length scales. Compare mean free paths, gyroradii, collision times, and flow times. Decide whether the target experiment is covered by a fluid description with justified closures or needs a hybrid kinetic description. Record the equations and the evidence behind that choice. Use [PlasmaPy's formulary](https://docs.plasmapy.org/en/stable/formulary/index.html) for independent scale/formula checks and selected [OPEN-ADAS data](https://open.adas.ac.uk/) where applicable; neither supplies a universal plasma model.
 
-**Director default, 30 September 2026 (reversible by Ben): resistive MHD first, Hall next.** The first field physics will be resistive MHD, with a conductivity and magnetic Reynolds number taken from the plasma state. Ideal MHD freezes the field into the flow, so plasma can never detach from a magnetic nozzle's field lines; detachment is the central question for a magnetic nozzle, so ideal MHD cannot be the target model (the spike also measured the coil field being swept out under ideal MHD, `docs/MHD_SPIKE.md`). The Hall term is designed in as the next increment, because most electric-propulsion regimes need it; the induction equation and its boundary conditions should leave room for it. Neither model resolves the weakly collisional expansion described above. An outside check on the model class has been requested by the Director. Ben may reverse this default.
+*Parked with the MHD spike (Ben, 30 September 2026) until the chemical milestone is done; the two decisions below stand for when it resumes.*
 
-**Director decision, 30 September 2026 (reversible by Ben): Maeno et al. 2013 uses a prescribed plume.** The first validation case (`docs/VALIDATION_MAENO2013.md`) starts from a supplied plume state. The laser-ablation event lies outside the simulated window, and VISION_SCOPE treats such an event as a supplied state. The plume's mass, velocity distribution, ionisation and temperature are constrained from independent published ablation data, not from Maeno's own fitted model. Each input is labelled measured, derived or assumed. Plausible ranges are propagated through the run. No value is picked because it matches the impulse. Consequence: the 1/2/3-omega wavelength trend becomes an input to the case, not a prediction.
+**Director default, 30 September 2026 (reversible by Ben): resistive MHD first, Hall next.** The first field physics will be resistive MHD, with a conductivity and magnetic Reynolds number taken from the plasma state. Ideal MHD freezes the field into the flow, so plasma can never detach from a magnetic nozzle's field lines; detachment is the central question for a magnetic nozzle, so ideal MHD cannot be the target model (the spike also measured the coil field being swept out under ideal MHD, `docs/parked/MHD_SPIKE.md`). The Hall term is designed in as the next increment, because most electric-propulsion regimes need it; the induction equation and its boundary conditions should leave room for it. Neither model resolves the weakly collisional expansion described above. An outside check on the model class has been requested by the Director. Ben may reverse this default.
+
+**Director decision, 30 September 2026 (reversible by Ben): Maeno et al. 2013 uses a prescribed plume.** The first validation case (`docs/parked/VALIDATION_MAENO2013.md`) starts from a supplied plume state. The laser-ablation event lies outside the simulated window, and VISION_SCOPE treats such an event as a supplied state. The plume's mass, velocity distribution, ionisation and temperature are constrained from independent published ablation data, not from Maeno's own fitted model. Each input is labelled measured, derived or assumed. Plausible ranges are propagated through the run. No value is picked because it matches the impulse. Consequence: the 1/2/3-omega wavelength trend becomes an input to the case, not a prediction.
 
 **Expansion into vacuum is a model decision.** A conducting fluid cannot be extended into empty space merely by maintaining an arbitrary minimum density. Test whether the measurement can be taken before fluid validity fails, or whether a kinetic/hybrid continuation and conservative coupling are needed. Magnetic fields also occupy regions outside the material; external field geometry, plasma response and open boundaries need a coherent treatment. Wall sheaths and ambipolar escape may require reduced interface models even when their microscopic scales are not resolved. A model of turbulence cannot substitute for these effects.
 
@@ -167,6 +185,106 @@ Computational feasibility must include million-cell workloads on the main Mac an
 
 Translate the proposal's later investigations into measurable questions. Pulse repetition requires repeated events with residual plasma, heating, coil/circuit response and declared recovery constraints; a single-pulse impulse does not determine a maximum rate. Compare engine types under stated input-power, supplied-mass, geometry and equipment constraints. A minimum size is conditional on those constraints and model validity. An MCF shape search needs a defined parameter family, objective, transport assumptions and relevant stability limits; finding the best sampled candidate is not a comprehensive search of every physical design. These remain investigations enabled by the instrument, not separate implementations or promised discoveries.
 
-## Implemented evidence boundary — first gas increment
+## Implemented evidence boundary (4 October 2026)
 
-The ideal-gas prototype now has analytic shock, geometric balance, nozzle limiting-case and live-pressure-response checks; see [the implementation record](docs/IMPLEMENTATION.md) for methods, errors and limitations. It does not validate any candidate turbulence/chemistry/plasma model or any published engine. Its million-cell throughput benchmark is only ten timesteps, not evidence of a useful physical simulation completing in minutes.
+Verification evidence for what is implemented is indexed in [docs/evidence/README.md](docs/evidence/README.md): the axisymmetric gas core and its device-thrust ledger, thermochemistry against CEA, stiff reaction integration against Cantera, the thermally perfect mixture core, Strang-coupled reacting flow (a detonation against the equilibrium Hugoniot), and the low-Mach study. None of it validates a turbulence or mixing closure, a plasma model, or any real engine. The million-cell throughput number in the gas-core record is ten timesteps of single-gas flow, not evidence that a reacting run completes in minutes.
+
+## 7. Lessons from the pre-pivot attempt
+
+Folded in from the former `REBUILD_NOTES.md` on 4 October 2026, text unchanged except where marked.
+
+17 September 2026. This is a selective extraction from the old project, not a renewed implementation plan. `VISION_SCOPE.md` is authoritative. Archive-relative references below point into `archive/pre-pivot-2026-09-17/`; their contents were preserved unchanged. Line numbers refer to that frozen snapshot.
+
+The extraction inspected repository structure, selected numerical routines, certificate machinery, and relevant session records. It did not independently rerun or validate the legacy solver. Statements about historical results below are attributed to those records.
+
+### Lessons worth carrying forward
+
+1. **Build the human experiment loop early.** The previous plan explicitly deferred visualization until a large certification run. That conflicts with the new product. The new instrument must let a person see the arrangement, observe the calculated state, ask where energy goes, and compare a change. An inaccessible solver is an incomplete sandbox. This is a product decision from the pivot, not a measured failure of an interface that did not yet exist.
+
+2. **Keep the physical scope distinct from resolution.** The reacting chamber belongs inside the simulator. Turbulence and chemistry can be represented by responsive models. This does not justify assuming away their influence, nor does inclusion require resolving every eddy or collision. Avoid inheriting the old escalation from a physical question to mandatory three-dimensional startup simulation.
+
+3. **A good headline number can hide the wrong internal behavior.** The [session record](archive/pre-pivot-2026-09-17/SESSION_LOG.md#L703) reports that adding/fixing transport changed scored performance by at most about 0.32% in one coarse study while wall heat changed substantially. An apparent 3.27% heat change became 19.8% after correcting a driving potential; the earlier small difference involved cancellation. Inspect fields, local budgets, heat loads, and intermediate quantities, not only thrust/Isp. This is a reason visualization belongs in the scientific workflow.
+
+4. **Identify exactly what a certificate proves.** The [RL10 certificate generator](archive/pre-pivot-2026-09-17/crates/engine/src/bin/station5_rl10_certificate.rs#L1) explicitly recomputes scoring from recorded readouts rather than rerunning the underlying flow. Its constants include different model assumptions and calibrated versus prior-band cases. A green certificate diff establishes that score generation is unchanged; it does not establish that the current executable reproduces the run or that combustion startup is validated.
+
+5. **A numerically completed run is not a physical feasibility verdict.** The [later GPU startup record](archive/pre-pivot-2026-09-17/SESSION_LOG.md#L2240) reports a conservation-audited trajectory that ignited a small sustained kernel but reached only about 22.5 kN against a 75.6 kN target. The log attributes the shortfall to the flame-spreading/modeling gap at that setup. Preserve this as a limitation of that run and model, not evidence that the real engine cannot work. The new interface must distinguish numerical failure, an unmet target, and missing physical capability.
+
+6. **Different processes settle on different clocks.** The [wall-response discussion](archive/pre-pivot-2026-09-17/SESSION_LOG.md#L719) compares an approximately 37 ms wall thermal timescale with an 11 ms run. Settled gas did not mean a settled wall. Show what has equilibrated, what is still changing, and why a run ended.
+
+7. **Geometry and conservation need shared definitions.** [Grid metrics](archive/pre-pivot-2026-09-17/crates/grid/src/lib.rs#L1026) assign each shared face one radius calculation. The comments record that algebraically equivalent radius formulas rounded differently and broke exact cancellation. Preserve this ownership principle in axisymmetric volumes, face areas, source terms, and diagnostics; do not inherit the entire adaptive-azimuthal grid just to keep it.
+
+8. **Table validity and thermodynamic consistency are part of the physics.** Keep explicit units, data provenance, interpolation coordinates, and applicability checks. The [old blend model](archive/pre-pivot-2026-09-17/crates/solvers/src/euler/blend_eos.rs#L1) contains branch thresholds, pressure-root selection, and warm-start behavior that deserve a fresh physical review before reuse. Continuous interpolation or selecting the first root is not, by itself, proof that a closure describes the new medium correctly.
+
+9. **Measure the expensive operation.** The [GPU profiling record](archive/pre-pivot-2026-09-17/SESSION_LOG.md#L2263) reports that reaction-node projections consumed 79% of kernel time in that case; flux sweeps were about 5%. Reusing pressure hints reduced the measured composed step from roughly 0.137 to 0.028 seconds. These are historical case-specific timings. The reusable lesson is to profile a representative coupled experiment rather than optimize an assumed bottleneck.
+
+10. **Save enough state to explain and reproduce a run.** Configuration and table identities, model version, controls, field state, numerical caches needed for continuation, and diagnostic histories all matter. Preserve the restart concept. Replace opaque failure labels with useful explanations and retain the last inspectable state. Reproducibility does not require universal cross-device bit identity.
+
+**Specific code to consult**
+
+These are references for extraction or redesign, not approved drop-in components. Read their tests and assumptions before carrying code into the new implementation.
+
+| Need | Specific archived chunk | Evidence and caution |
+|---|---|---|
+| Axisymmetric geometric metrics | [grid/src/lib.rs](archive/pre-pivot-2026-09-17/crates/grid/src/lib.rs#L1036): `face_radius`, `ring_radii`, `cell_volume`, `face_area_r`, `face_area_z` | Shared-face ownership and cylindrical measures. Extract from the larger 3D/brick architecture. |
+| Compressible-gas numerical flux | [euler/hllc.rs](archive/pre-pivot-2026-09-17/crates/solvers/src/euler/hllc.rs#L18): `physical_flux`, `hllc_flux`; [recon.rs](archive/pre-pivot-2026-09-17/crates/solvers/src/euler/recon.rs#L34): `ppm_faces` | Review EOS and fixed state-component assumptions. This is gas-dynamics code, not an electromagnetic/plasma solver. |
+| Primitive-state recovery from thermochemistry | [euler/table_eos.rs](archive/pre-pivot-2026-09-17/crates/solvers/src/euler/table_eos.rs#L119): `TableEos::bind`, `cons_from_phz` | Useful lookup/projection pattern; medium coordinates and admissible states must fit the new model. |
+| Fast checked table access | [tables/src/bound.rs](archive/pre-pivot-2026-09-17/crates/tables/src/bound.rs#L177): `BoundColumn::interpolate`; [interp.rs](archive/pre-pivot-2026-09-17/crates/tables/src/interp.rs#L60): reference API | Checks table domain and narrower validity envelope, then interpolates in declared coordinates. Do not assume table interpolation error equals physical-model uncertainty. |
+| Content-addressed data | [tables/src/digest.rs](archive/pre-pivot-2026-09-17/crates/tables/src/digest.rs#L1): v3 encoding; [Python tables.py](archive/pre-pivot-2026-09-17/offline/crucible_offl/tables.py#L139): `content_digest` | Length-prefixed metadata, units, data, and provenance; check [cross-language fixture tests](archive/pre-pivot-2026-09-17/crates/tables/tests/fnd5_python_seam.rs#L26). Old logs mention earlier digest versions; consult current archived code. |
+| Chemistry-library interface | [chemistry.py](archive/pre-pivot-2026-09-17/offline/crucible_offl/chemistry.py#L135): `EquilibriumEngine`, `state_php`, `chamber`, `performance`; `FrozenReactantEngine` at line 404 | Explicit SI conversions and reactant/equilibrium distinction. Equilibrium performance is a reference, not validation of mixing or finite-rate combustion. |
+| Audit of coupled transfers | [sdc.rs](archive/pre-pivot-2026-09-17/crates/solvers/src/sdc.rs#L1928): `audit_stored`, `audit_check`, `audit_check_n` | Stored changes compared with transfers using the integration weights actually applied. Extend accounting for fields, reaction products, and external work; do not inherit all SDC interfaces. |
+| Save/resume | [gpu_engine_run.rs](archive/pre-pivot-2026-09-17/crates/gpu/src/gpu_engine_run.rs#L94): `write_checkpoint`, `read_checkpoint` | Includes physical state, hints, clock, trackers, and input digests. Temporary-write/rename is useful; inspect crash-durability and format compatibility requirements afresh. |
+| Measurements and spatial export | [engine/run.rs](archive/pre-pivot-2026-09-17/crates/engine/src/run.rs#L1515): `plane_area`, `plane_mdot`, `plane_thrust`; `fields_csv` at line 1716 | Useful reference for measurements and first field views. Gas-plane thrust alone does not supply complete magnetic, radiation, or transient force accounting. Avoid coupling the new UI to the old run controller. |
+| Small numerical reference problems | [Sod tests](archive/pre-pivot-2026-09-17/crates/solvers/tests/solv1_station1_sod.rs#L19); [manufactured-solution tests](archive/pre-pivot-2026-09-17/crates/solvers/tests/solv1_euler_mms.rs#L11); [table holdouts](archive/pre-pivot-2026-09-17/offline/tests/test_station3_surfaces.py#L59) | Preserve the physical questions and independently expected answers. Reconsider exact-output and architecture-specific assertions when the model changes. |
+| GPU implementation references | [gpu/src/engine_host.rs](archive/pre-pivot-2026-09-17/crates/gpu/src/engine_host.rs); [residency_diffusion.cu](archive/pre-pivot-2026-09-17/crates/gpu/cuda/residency_diffusion.cu); [residency_engine_xcheck.rs](archive/pre-pivot-2026-09-17/crates/gpu/src/residency_engine_xcheck.rs) | Device-resident state and CPU/device comparisons are worth studying. These depend on the old state layout and coupling; they are not the foundation of the new architecture by default. |
+
+### Three small patterns, extracted verbatim
+
+Shared radial-face arithmetic, from `crates/grid/src/lib.rs:1036`:
+
+```rust
+pub fn face_radius(&self, f: usize) -> f64 {
+    self.spec.r_min + f as f64 * self.spec.dr
+}
+```
+
+The value is that neighboring cells refer to this same definition, not that the formula is elaborate. Preserve that invariant when redesigning the grid.
+
+Unambiguous string hashing, from `crates/tables/src/digest.rs`:
+
+```rust
+fn put_str(h: &mut Sha256, s: &str) {
+    h.update((s.len() as u64).to_le_bytes());
+    h.update(s.as_bytes());
+}
+```
+
+This avoids using a separator that can also appear inside metadata. The full schema and ordering must remain explicit; copying this helper alone does not define a reproducible file format.
+
+The energy flux in the old gas solver, from `crates/solvers/src/euler/hllc.rs:28`:
+
+```rust
+f[n] += p;
+f[I_EN] = u_n * (e_tot + p);
+```
+
+This compactly exposes pressure's contribution to momentum and energy transport. Preserve the governing accounting when redesigning interfaces; do not reuse this gas-only expression as the total energy flux for electromagnetic fields and energetic particles.
+
+### Design decisions to retain, reconsider, and retire
+
+Retain explicit units and material/data provenance; one owner for each exchange; conservative spatial measures; model-domain checks; independently specified reference problems; reproducible experiments; useful saved state; and performance work guided by measurements. Expose these through understandable displays and diagnostics rather than requiring users to read internal logs.
+
+Reconsider the state representation, EOS/reaction closure, grid and time integrator, input format, data storage, and CPU/GPU division against the supported physics and the human workflow. The archived Rust/Python/CUDA work is available, but the language split and HDF5-only interface are not governing constraints. Prefer a shared experiment and result representation for the interface and batch work so they cannot silently run different physics.
+
+Retire mandatory full 3D, automatic axisymmetric-to-3D ambition, universal single-law blending, mandatory physical cold startup of an entire engine (equipment such as pumps; the chamber contents still evolve in time and a cold start of the medium is the aim, Ben 2026-10-04, VISION_SCOPE), numerical-verdict-as-real-feasibility language, unconditional certificate byte equality, per-document crate architecture, and the requirement to finish physics before visualization. Detailed structures, service lifetime, pumps, whole-vehicle simulation, and arbitrary liquid injection are not automatic obligations of the new medium/reaction scope.
+
+### What remains genuinely unresolved
+
+The plasma/fluid/particle treatment, appropriate transport closures, first antimatter species and configuration, defensible post-ICF data/handoff, and specific validation anchors need evidence. The sections above identify starting closure candidates and tests; [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) owns current implementation choices. This section remains the historical extraction. Chemical reacting-chamber models must be assessed in their own right; the old burn-progress closure is not accepted just because code exists. None of these is settled by writing the new vision.
+
+The new instrument's usefulness also needs a literature comparison and human testing. The first implementation should let a person define, run, inspect, and compare a small supported experiment, while magnetic and particle cases test the physical design early. A chosen investigation can then test the tool's research value without becoming the only question the instrument can ask.
+
+### Archive and reset verification
+
+The archive manifest records the pre-pivot revision, branch, original paths, hashes, and modes for 236 tracked files and four untracked planning documents. The archive operation preserved them; no legacy source was rewritten. Ignored local artifacts were moved but are not included in Git. The prior active CI and agent-specific settings are archived, so they cannot impose the previous roadmap on the root project.
+
+This reset was checked for archive integrity and active-document consistency. Legacy solver tests, physical benchmarks, and GPU runs were not repeated, because this change neither alters nor adopts that implementation. The old environment may need recreation after relocation. No claim of newly validated physics follows from the reset.

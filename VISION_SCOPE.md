@@ -1,6 +1,6 @@
 # CRUCIBLE — Vision and scope
 
-Authoritative pivot, 17 September 2026. This document replaces the previous vision, proposals, implementation roadmap, and architecture rules. Current user instructions take precedence. Everything under `archive/` is historical reference, not an active requirement. This is the intended product and scope, not a claim of implemented or validated capabilities.
+Authoritative pivot, 17 September 2026; amended 4 October 2026 (see *Changes since the pivot* at the end). This document replaces the previous vision, proposals, implementation roadmap, and architecture rules. Current user instructions take precedence. Everything under `archive/` is historical reference, not an active requirement. This is the intended product and scope, not a claim of implemented or validated capabilities.
 
 **The problem and purpose**
 
@@ -88,7 +88,7 @@ Results must be reproducible to declared numerical tolerances. Bitwise identity 
 **How the rebuild proceeds**
 
 1. Specify representative experiments and the shared physical state; compare existing capabilities and choose defensible fluid, particle, reaction, and unresolved-transport models. Use the archived lessons as evidence, not requirements.
-2. Make chemical propulsion the first substantive milestone: an operable reacting chamber/nozzle, the visual define/run/inspect/change/compare workflow, and validation using published geometry, operating conditions and measured performance for multiple real engines. Start with sufficiently documented cases; RL10 is a candidate, not a mandatory inherited target. Component experiments support particular model checks. A prepared operating state is acceptable; complete cold startup of all equipment is not required.
+2. Make chemical propulsion the first substantive milestone: an operable reacting chamber/nozzle, the visual define/run/inspect/change/compare workflow, and validation using published geometry, operating conditions and measured performance for multiple real engines. The first engine is RL10A-3-3A from its published geometry; then many engines (see *Changes since the pivot*). Component experiments support particular model checks. The medium always evolves in time: the aim is a cold start of the chamber contents (ambient fill, injection begins, ignition, transient to steady operation). Where that is not yet tractable, a declared partly developed state that still evolves in time is acceptable, with the reason stated. Cold startup of equipment such as pumps and valves is not required.
 3. Add magnetic-plasma evolution and energetic-product coupling to the same engine after establishing the chemical milestone. Use small early architecture checks where they prevent costly redesign, without displacing the chemical-validation priority. Distinguish synthetic or prescribed demonstrations from validated device predictions.
 4. Verify and validate the supported cases, measure computational cost, and test usability with unfamiliar users. Reuse archived code only after its assumptions and behavior fit the new model.
 5. Conduct substantive investigations chosen by Ben using the same instrument. Use the findings to improve the supported models and observation tools without turning each engine into its own implementation.
@@ -100,5 +100,14 @@ The primary applications describe the intended reach of the instrument, not simu
 **Authority and changes**
 
 The pre-pivot repository is preserved under `archive/pre-pivot-2026-09-17/`. Consult `REBUILD_NOTES.md` for lessons, specific references, and unresolved issues. No old milestone, prohibition on visualization, all-regime promise, mandatory three-dimensional simulation, source-code language split, or universal determinism requirement carries over unless restated here.
+
+**Changes since the pivot**
+
+4 October 2026, Ben:
+
+- **One project.** "I want to make sure there is ONE project, coherent vision." The post-pivot work is the main line; the 17 September pivot is the scope; the old 3-D plan is retired.
+- **Chemistry baseline.** Shifting equilibrium is the validated chemistry baseline, produced by the general reacting machinery in the engine (finite-rate kinetics, with local equilibrium as its fast-chemistry limit), not by a separate equilibrium calculator, "because this needs to be the baseline for all future regimes".
+- **Never a static solution.** "It cannot be pure static equilibrium, the gas inside the chamber must evolve over time, ideally it actually starts up from cold but the combustion mixing just gets the same approximation as everything else ... it cannot be a static image because engines are not static and especially when we get to fusion everything will be evolving over various timescales." Mixing uses the same unresolved-transport closure as the rest of the flow, not a special combustion shortcut.
+- **Validation order.** RL10A-3-3A from published geometry next, matching vacuum Isp and thrust. Then CEA sweeps for trends. Then a database of hundreds of chemical engines from public sources, matching CEA and measured Isp/thrust and their trends.
 
 Keep this vision short enough for a human to understand and challenge. Record consequential scope changes here with their reasons. [RESEARCH.md](RESEARCH.md) records evidence and open model decisions; [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md) defines the implementation architecture. They explain how the current scope is achieved and do not silently enlarge it.

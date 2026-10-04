@@ -1,3 +1,5 @@
+> **PARKED (Ben, 2026-09-30): magnetic/plasma work waits until the chemical milestone is done. Historical design record, not active work; see docs/SESSION_HANDOFF.md for the current state.**
+
 # First validation case, on paper: Maeno et al. 2013 magnetic thrust chamber
 
 Status: draft, 30 September 2026. No run. Purpose: list what is known, what must be assumed,
@@ -123,7 +125,7 @@ outside it, something in the physics is wrong. If it falls inside, RZ cannot say
 honest output is the bracket.
 
 Also lost or at risk in RZ and in single-fluid MHD (to be flagged by the validity monitor,
-`docs/VALIDITY_MONITOR.md`). Rough estimates (inferred, from assumed plume values: C4+,
+`docs/parked/VALIDITY_MONITOR.md`). Rough estimates (inferred, from assumed plume values: C4+,
 v ~ 100 km/s, T_e ~ 20 eV and n_e ~ 1e21 m^-3 near the cavity edge):
 
 - Ion gyroradius at 100 km/s in 0.1 T: m v / (q B) = (12 x 1.66e-27 x 1e5) / (4 x 1.6e-19 x 0.1)

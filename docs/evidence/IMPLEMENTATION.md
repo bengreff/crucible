@@ -1,6 +1,6 @@
 # First gas-flow implementation
 
-17 September 2026. This records implemented behavior and its limits, not the full product scope.
+17 September 2026. This records implemented behavior and its limits, not the full product scope. It covers the single-gas axisymmetric core and its September verification review; the multi-species and reacting extensions are recorded in `MIXTURE_CORE.md` and `REACTING_FLOW.md`.
 
 ## What runs
 
@@ -54,7 +54,7 @@ Automated core checks cover cylinder volume, state conversion, identical-state f
 
 Performance observations on this development Mac (single numerical worker, Release; not controlled hardware benchmarks): 3,840 cells / 54,960 steps / 20 ms physical duration took 26.6 s. One million cells / 10 steps took 1.24 s compute plus 0.043 s initialization (after moving repeated column initialization out of the radial loop; previously 3.58 s), advancing only 0.199 microseconds. Both yield about 8 million cell updates/s. The million-cell/minutes aspiration is **not achieved for useful flow durations**. Priorities are profiling, scalable storage/display, parallel execution, and justified timestep strategies; increasing throughput alone does not remove acoustic timestep restrictions.
 
-## Verification review, 30 September 2026 (branch `claude/verify-core`)
+## Verification review, 30 September 2026 (on the former branch `claude/verify-core`, now `main`)
 
 Re-measured on this Mac: every number above reproduced (Sod, acoustic mode, nozzle mass flow, residuals, 26.6 → 27.1 s, 8.2 M cell-updates/s, smoke screenshot). The review found no wrong formula: face area vectors close exactly per cell, the p/r source equals the exact meridional-area integral, HLLC star states and inlet/outlet invariants are standard. It found first-order boundary reconstruction (fixed above) and untested subsonic-outlet, contact and strong-rarefaction behavior (now tested).
 

@@ -50,7 +50,7 @@ if(CRUCIBLE_BUILD_APP)
   set_target_properties(crucible PROPERTIES MACOSX_BUNDLE_BUNDLE_NAME CRUCIBLE
     MACOSX_BUNDLE_GUI_IDENTIFIER org.crucible.sandbox)
 endif()
-# Architecture spike (docs/MHD_SPIKE.md): throwaway ideal-MHD probe on the RZ layout.
+# Parked architecture spike (docs/parked/MHD_SPIKE.md): throwaway MHD probe on the RZ layout.
 add_executable(crucible_mhd_spike spike/mhd_rz.cpp)
 target_link_libraries(crucible_mhd_spike PRIVATE crucible_core)
 # Real-gas thermochemistry adapter (Cantera, built from source; TECHNICAL_PLAN adapters/).

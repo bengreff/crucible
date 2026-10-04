@@ -1,0 +1,21 @@
+# ctest on main after consolidation, 2026-10-04, Release build (build/), this Mac
+# tree: eea487f plus the consolidation commit (its code changes are comments only)
+Test project /Users/ben/inquiry-project/build
+    Start 1: core_verification
+1/5 Test #1: core_verification ................   Passed   12.10 sec
+    Start 2: core_slow_verification
+2/5 Test #2: core_slow_verification ...........   Passed   85.74 sec
+    Start 3: thermo_cea_verification
+3/5 Test #3: thermo_cea_verification ..........   Passed   40.07 sec
+    Start 4: reaction_verification
+4/5 Test #4: reaction_verification ............   Passed    1.05 sec
+    Start 5: mixture_verification
+5/5 Test #5: mixture_verification .............   Passed    1.50 sec
+
+100% tests passed out of 5
+
+Label Time Summary:
+slow    =  85.74 sec*proc (1 test)
+
+Total Test time (real) = 140.46 sec
+EXIT 0

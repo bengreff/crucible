@@ -1,3 +1,5 @@
+> **Status, 4 October 2026:** superseded by Ben's choice of RL10A-3-3A as the next engine. Correction to the table below: NASA TM-107318 Appendix E Table E1 does give chamber and nozzle area against axial station (see `VALIDATION_TUM_ROUND.md`, second case); injector geometry is still absent.
+
 # Validation-data survey for the first chemical case (2026-09-30)
 
 Purpose: choose real hardware whose geometry, feed conditions and measured performance are
@@ -29,7 +31,7 @@ search snippets only.
 ## Decision (Ben, 2026-09-30)
 
 - **First case:** the TUM **round** chamber (axisymmetric, published geometry used exactly). Inputs and gaps are
-  in `docs/VALIDATION_TUM_ROUND.md`.
+  in `docs/validation/VALIDATION_TUM_ROUND.md`.
 - **Second case:** a flight engine, RL10A-3-3A (NASA TM-107318).
 - **Later:** the square TRR40 case, labelled as a geometry approximation.
 - **Optional:** Penn State, only as a cheap heat-flux side check.
@@ -54,6 +56,6 @@ global check, but no LOX/LH2 engine has open chamber geometry, so none qualifies
 
 ## What a CEA match does not establish
 
-The ideal-rocket agreement in `docs/THERMO_VERIFICATION.md` only verifies the thermochemistry. It
+The ideal-rocket agreement in `docs/evidence/THERMO_VERIFICATION.md` only verifies the thermochemistry. It
 does not validate the chamber. The TUM data exists precisely because real chambers fall short
 of ideal: incomplete mixing, heat loss to the wall and finite-rate chemistry.

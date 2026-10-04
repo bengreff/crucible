@@ -14,7 +14,7 @@
 #include <vector>
 
 using namespace crucible;
-// --low-mach=thornber|hllclm reruns every check with that flux variant (docs/LOW_MACH.md).
+// --low-mach=thornber|hllclm reruns every check with that flux variant (docs/evidence/LOW_MACH.md).
 LowMach testScheme=LowMach::None;
 Definition base() {Definition d;d.lowMach=testScheme;return d;}
 double sq(double x) {return x*x;}

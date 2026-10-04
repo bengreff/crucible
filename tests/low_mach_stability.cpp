@@ -1,4 +1,4 @@
-// Item-3 stability probe (docs/LOW_MACH.md): planar Sod in a 5-row duct; rows must stay identical.
+// Item-3 stability probe (docs/evidence/LOW_MACH.md): planar Sod in a 5-row duct; rows must stay identical.
 // Prints the max relative row density deviation and |u_r| over time for HLLC and Thornber.
 #include "core/flow.hpp"
 #include <cstdio>

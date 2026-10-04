@@ -1,7 +1,7 @@
 # Reacting flow: Strang coupling and detonation verification
 
-Item 4, third piece (2026-09-30). It joins the stiff reaction integrator (`docs/REACTION_VERIFICATION.md`)
-to the multi-species core (`docs/MIXTURE_CORE.md`). TECHNICAL_PLAN: "Begin with documented
+Item 4, third piece (2026-09-30). It joins the stiff reaction integrator (`docs/evidence/REACTION_VERIFICATION.md`)
+to the multi-species core (`docs/evidence/MIXTURE_CORE.md`). TECHNICAL_PLAN: "Begin with documented
 symmetric reaction/transport splitting and stiff reaction integration; measure splitting error."
 
 ## What exists
@@ -102,7 +102,7 @@ Burned plateau against the exact equilibrium state (T2 3003.2 K, p2, u = 0):
   So in the early window the pressure is exact but T is 0.24% low.
 - The plateau windows were chosen after viewing the 2 mm field.
 
-![2 m piston detonation](evidence/detonation_piston_2m_2026-09-30.png)
+![2 m piston detonation](detonation_piston_2m_2026-09-30.png)
 
 Other measured quantities:
 - |T_chemistry − T_core| after every reaction substep is at most 1.5e-6 K.

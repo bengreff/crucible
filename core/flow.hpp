@@ -14,7 +14,7 @@ struct Primitive { double rho{}, uz{}, ur{}, p{}; };
 // sound speed, and the internal-energy floor below which the composition has no admissible state.
 struct Thermal { double e{}, a{}, floor{}; };
 enum class Case { Nozzle, UniformDuct, ShockTube };
-// Low-Mach treatment of the HLLC dissipation (docs/LOW_MACH.md). Thornber: velocity jumps at interior
+// Low-Mach treatment of the HLLC dissipation (docs/evidence/LOW_MACH.md). Thornber: velocity jumps at interior
 // faces scaled by min(1, local Mach) before the flux (Thornber et al., JCP 227, 2008). HllcLm: acoustic
 // wave terms of the HLLC dissipation scaled by sin(pi/2 min(1, M/0.1)) (Fleischmann et al., JCP 423, 2020).
 enum class LowMach { None, Thornber, HllcLm };

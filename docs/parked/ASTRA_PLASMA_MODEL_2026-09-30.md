@@ -1,3 +1,5 @@
+> **PARKED (Ben, 2026-09-30): magnetic/plasma work waits until the chemical milestone is done. Historical design record, not active work; see docs/SESSION_HANDOFF.md for the current state.**
+
 **Verdict: resistive-first is a sensible implementation order, but only for a bounded, collisional plasma experiment. It is not sufficient for general magnetic-nozzle efficiency or detachment predictions.** Keep ideal MHD as its verified zero-resistivity limit. For a helicon investigation, Hall plus electron-pressure physics belongs in the first scientifically usable model. Three months favours one defensible experiment over nominal coverage of every proposed engine.
 
 **1. What determines performance and where to stop**

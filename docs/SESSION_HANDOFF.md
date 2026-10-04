@@ -1,79 +1,32 @@
 # Session handoff
 
-**MHD spike PARKED until after the chemical milestone, per Ben 2026-09-30.** Active order: Cantera thermochemistry vs CEA, validation-data survey, low-Mach accuracy, reacting chamber.
+4 October 2026 · branch `main` (one line; `claude/verify-core` was fast-forwarded into it and is kept only as a pointer).
 
-4 October 2026 · branch `claude/verify-core` (pushed to origin; not merged to main, which is pre-pivot; that merge is a separate decision).
+## Where things stand
 
-**Stopped for the night on 4 October at the Director's request (weekly usage budget).** The last item finished was the archive fold below. Nothing is half-done. Item 4 step 1 (molecular transport) has **not** been started; pick up there.
+- **One project.** Post-pivot work is `main`. The docs are VISION_SCOPE.md (what), TECHNICAL_PLAN.md (how), RESEARCH.md (evidence, open model decisions, pre-pivot lessons in section 7) and this file (state). Verification records are in `docs/evidence/` ([index](evidence/README.md)), real-engine cases in `docs/validation/`, and the MHD spike in `docs/parked/`. `archive/` is unchanged and historical.
+- **Ben, 4 October 2026** (recorded in VISION_SCOPE *Changes since the pivot*): shifting equilibrium is the validated baseline, produced by the general reacting machinery. The chamber always evolves in time, ideally from a cold start. RL10A-3-3A comes next, then CEA sweeps for trends, then an engine database. The MHD spike stays parked until the chemical milestone is done (Ben, 30 September).
+- **Engine today** (all verified, see the evidence index): axisymmetric finite-volume gas core (HLLC, SSPRK2, device-thrust ledger), thermally perfect multi-species mixture, Cantera thermochemistry matching CEA (worst 0.131% over 18 points), CVODES kinetics matching Cantera, Strang coupling verified on a detonation (front speed within 0.24%). The native app runs the gas nozzle live. Release is the default build.
+- **ctest on `main`:** 5/5 pass (`docs/evidence/ctest_main_2026-10-04.txt`).
 
-The native converging-diverging nozzle experiment exists: verified axisymmetric gas flow, live inlet pressure, measurements. The app starts paused; README has build/run instructions. `docs/IMPLEMENTATION.md` holds the evidence and scientific limitations.
+## Next, in order (TECHNICAL_PLAN, *Current state and the chemical plan*)
 
-**Archive fold (4 October).** The docs from the old separate repo `bengreff/inquiry_project` (July 2026) now live in `archive/inquiry_project-2026-07/`, so CRUCIBLE is one project. They are historical only. `archive/README.md` lists both archives. `archive/pre-pivot-2026-09-17/` is unchanged.
+1. **Time-evolving chamber and nozzle.** Wall contour from data, injector supply inlets (imposed mass flux, total enthalpy and composition per radial face), an igniter energy deposit, and a local-equilibrium chemistry option as the verification limit. Aim for a cold start (ambient fill, injection, ignition, transient to steady). If that is not tractable, use a declared partly developed state and say exactly why. Verify the settled end state against CEA (premixed with local equilibrium; then finite-rate kinetics between shifting and frozen).
+2. **RL10A-3-3A.** Geometry from NASA TM-107318 Appendix E Table E1 (area against axial station, -12 in to +41.84 in; r = r_t sqrt(A/A*)). Operating inputs come from the same or primary sources. LOX is declared pre-vaporized. Pre-register the vacuum Isp and thrust in git before reading measured values. Known exposure, to declare in the pre-registration: the widely quoted nominal values for this engine are general knowledge. Use a Sonnet agent to extract inputs only, with an explicit instruction never to report measured performance.
+3. Molecular transport, then SST URANS and PaSR (the uniform mixing closure), then CEA sweeps and the engine database.
 
-## Chemical milestone (active, 2026-09-30)
+## Open items carried forward
 
-- **Item 1 done.** Cantera 3.2.0 is built from source (`~/src/cantera`, `scons build`, static lib) and wrapped in `adapters/thermo.*`. The ideal rocket matches NASA CEA (RocketCEA) at 18 points (H2/O2, CH4/O2, LOX/LH2 at 3 O/F each, equilibrium and frozen): worst 0.131% against the 0.5% tolerance. Evidence: `docs/THERMO_VERIFICATION.md`, ctest `thermo_cea_verification` (about 40 s).
-- **Item 2 done.** `docs/VALIDATION_SURVEY.md` recommends TUM GOX/GCH4 SFB/TRR40 Test Case 1 (20 bar, O/F 2.6; wall pressure, heat flux, combustion efficiency) and Penn State GO2/GH2 (wall heat flux). Next input: the Test Case 1 geometry/BC description and digitised curves.
-- **Ben's decisions (via Director):** primary case is the TUM round chamber, with exact published geometry (stop if an input is missing); strict pre-registered blind prediction; second case is RL10A-3-3A. Inputs and gaps: `docs/VALIDATION_TUM_ROUND.md`. Missing: convergent nozzle contour, the TRR40 Test Case 1 document, nozzle-wall thermal condition, propellant purity. Blind exposure is declared: efficiency and Pc at O/F 2.2 were seen.
-- **Item 3 done.** `docs/LOW_MACH.md`. Thornber is 2-6x more accurate on the venturi but grows a transverse odd-even mode exponentially (row deviation 1e-14 to 7e-5 at 800 cells). HLLC-LM has no effect above M 0.1. The default stays plain HLLC; chamber accuracy comes from grid convergence with reported error bands. Both variants remain behind `Definition::lowMach`.
-- **Item 4 in progress (reacting chamber).** Done and pushed:
-  - **Stiff reaction integration** (`adapters/reaction.*`, `docs/REACTION_VERIFICATION.md`, ctest `reaction_verification`): CVODES BDF over Cantera rates, matching Cantera ReactorNet (ignition delay to 2.6e-6) and UV equilibrium.
-  - **Multi-species core** (`core/medium.*`, `docs/MIXTURE_CORE.md`, ctest `mixture_verification`): thermally perfect NASA7 mixture with Larrouturou species fluxes. Matches Cantera thermo to 6e-15 and an exact two-gamma shock tube.
-  - **Release is now the default build.** All earlier timings were -O0. The single-gas suite takes 12 s against 5.6 s for the old core.
-  - **Strang coupling** (`adapters/reacting_flow.*`, `docs/REACTING_FLOW.md`, study `crucible_detonation_study`): exactly symmetric, re-planning the step when heat release lowers the CFL limit.
-    - Verified on a piston-supported H2/O2/Ar detonation against the equilibrium Hugoniot.
-    - Front speed is within 0.24% on every grid (1% tolerance). Grid and dt contributions are below 0.03 and 0.001 percentage points.
-    - The remainder is a start-up transient that decays with distance (+0.05% at 2 m).
-    - The late burned plateau matches exact equilibrium to 0.01%.
-  - `ctest` 5/5 pass (159 s).
-- **Next in item 4, in order:**
-  1. Mixture-averaged molecular transport: export Cantera's fits to the core, verify against Cantera.
-  2. 1-D premixed laminar flame speed against Cantera FreeFlame (the first deflagration check, needs 1).
-  3. SST URANS + PaSR.
-  4. Injector mass-flow inlets.
-  5. Chamber contour as data (exact TUM shape drops in; meanwhile the 30/45 deg, sharp/rounded bracket).
-  6. Pre-registered TUM predictions at O/F 2.6/3.0/3.4, committed before digitising the measured curves.
-  7. Grid convergence on backhouse.
-- **Efficiency note:** almost every reacting step re-plans once, about a third more reaction work. A sound-speed predictor would remove most of it.
-
-## Done on this branch
-
-- **Verification review.**
-  - Second-order boundary reconstruction.
-  - Independent numerics tests (exact Riemann, HLLC properties, rarefaction, strong shock, internal normal shock, venturi, acoustic mode).
-  - Nozzle grid study (`docs/evidence/`).
-- **Device-thrust ledger.**
-  - `deviceThrust = inlet momentum flux + wall force + bodyAxialForce − ambient` = exit-plane thrust + dP_z/dt.
-  - Measured 517.88 N at 320×48 against quasi-1D ideal (C_F/ideal − 1 = +1.4e-4).
-  - `bodyAxialForce` is the empty slot for a Lorentz force whose reaction acts on coils. The UI and README report thrust by component.
-- **MHD architecture spike:** `docs/MHD_SPIKE.md`, throwaway code in `spike/`.
-  - Recommendation: keep the body-fitted RZ mesh; use CT through nodal ψ.
-  - Before any field work: fix axis reconstruction (done), then the split B0 + B1 form feeding `bodyAxialForce`, explicit magnetic boundary conditions, and a conductivity model.
-  - Split B0 + B1 (`split` mode in the spike, memo case 5): static coil exact, coil reaction in `bodyAxial` (ledger closes). It does **not** fix low-β positivity. Measured mechanism: ideal flux freezing carries the throat's coil flux (about 1.2 mWb at 1 T) downstream, and its magnetic pressure evacuates the wall region. Needs resistivity and wall magnetic conditions, not numerics.
-  - Conductivity: Director default (reversible by Ben) is resistive MHD first, Hall term next; recorded in `RESEARCH.md`. Outside review: `docs/ASTRA_PLASMA_MODEL_2026-09-30.md` (opinion, not canon).
-  - Wall conditions and positivity (memo case 6): transparent, insulating (vacuum-matched exterior) and conducting walls; dual energy plus first-order HLL retry. The 1 T crash was pressure recovery, not the wall. With robustness, thrust depends on the wall condition at O(1) and is not mesh-converged. The ideal insulating wall was stopped under the two-fix rule (an unresolved current sheet at the wall needs resistivity). Conducting at 160 cells blows up at the outlet (backflow through an extrapolation outlet). That needs a characteristic outlet.
-  - Resistive term (memo case 7): verified at second order (sinusoid, axial, Bessel with axis); Joule closure; Spitzer checked against Formulary hand values. Still first order: energy through open zero-gradient end planes.
-  - Design notes, no code: `docs/VALIDITY_MONITOR.md` and `docs/VALIDATION_MAENO2013.md`. Maeno decided (Director, reversible by Ben): a prescribed plume from independent ablation data with propagated ranges; recorded in `RESEARCH.md`.
-  - Resistive 1 T retry (memo case 8): with eta_m = 1 or 0.1 m^2/s (assumed scan), insulating and conducting walls both run cleanly (zero retries) and agree within 1 to 8%. They are mesh-stable from 80 to 160 cells. The transparent wall lets plasma currents cancel the coil field, so it is unphysical. The outlet did not block. A characteristic outlet is still needed for plume domains.
-  - Next: the validity-monitor maps (needs a plasma EOS/ionisation state to be meaningful), then the Maeno plume inputs from published ablation data.
-- **Axis reconstruction fixed in core** (centroid-referenced radial slopes, parity on the axis row, exact p/r source). Evidence in `docs/IMPLEMENTATION.md`: axis-row acoustic error first order → about third order; coil-force rest residual converges; nozzle grid study and venturi unchanged or slightly better.
-
-## Open items
-
-- **Low-Mach accuracy.**
-  - HLLC dissipation scales with sound speed, so at Mach ~0.15 mass flow amplifies total-pressure error by about 1/(γM²) ≈ 33x.
-  - Measured on the subsonic venturi: mass flow −9.49% (40×6) → −2.63% (80×12), converging at order 1.85.
-  - Combustion chambers run at Mach 0.1 to 0.3, so decide on a low-Mach correction (preconditioned or all-speed flux) with chamber evidence before trusting chamber observables.
-- **Save/load and control histories** were deferred for the spike (former item 4). They are still needed.
-- Still missing: editable geometry, chemistry, turbulence, plasma, retained comparison runs, probe picking, and snapshot decimation.
-- **Static equilibrium maximum is first order** at the wall row (one-sided limited slope) and at smooth axial extrema (minmod clipping). L1 is second order. Matters for magnetic nozzles, whose force peaks at the wall.
-- Prepared flowing initialization does not simulate startup.
-- Cross-platform builds and packaging are untested.
+- **Low-Mach accuracy.** HLLC dissipation scales with sound speed. At Mach about 0.15, total-pressure error is amplified about 33x in mass flow. Subsonic venturi mass flow: -9.49% (40x6) to -2.63% (80x12), order 1.85. The default stays plain HLLC; chamber accuracy comes from grid convergence with reported error bands (`docs/evidence/LOW_MACH.md`).
+- **Reacting step cost.** Almost every reacting step re-plans once (the first half reaction lowers the CFL limit), about a third more reaction work. A sound-speed predictor would remove most of it.
+- **Static equilibrium maximum is first order** at the wall row and at smooth axial extrema; L1 is second order.
+- **Still missing:** save/load and control histories, editable geometry, retained comparison runs, probe picking, snapshot decimation, cross-platform builds and packaging.
+- **Parked MHD findings** (for when it resumes): `docs/parked/MHD_SPIKE.md`. Its short version: keep the body-fitted RZ mesh with constrained transport through nodal psi; resistive MHD first, Hall next; a characteristic outlet is needed for plume domains.
 
 ## Continue from here
 
-- Numerical core: `core/flow.*`; tests: `tests/core_tests.cpp`, `tests/nozzle_convergence.cpp`.
-- Worker/control/snapshot ownership: `core/session.*`.
-- Native UI and headless runner: `app/`.
+- Numerical core: `core/flow.*`, `core/medium.*`. Reacting coupling: `adapters/reacting_flow.*`. Chemistry: `adapters/reaction.*`. Thermo and the ideal rocket: `adapters/thermo.*`.
+- Tests: `tests/`. Headless builds: `build/` (core plus Cantera, no app) and `build/native` (app).
+- Cantera 3.2.0 is built from source in `~/src/cantera` (static library).
 - Tested on this Mac: Qt 6.11.2, VTK 9.7.0, AppleClang 17.
-- Do not build a general framework before behaviours need it. Numerical reference tests must survive any reorganization.
+- Heavy jobs go through `python3 ~/director/harness/slot.py run --label ... -- <command>`.

@@ -1,4 +1,4 @@
-// Item-3 evidence (docs/LOW_MACH.md): steady subsonic venturi, outlet mass flow against the isentropic
+// Item-3 evidence (docs/evidence/LOW_MACH.md): steady subsonic venturi, outlet mass flow against the isentropic
 // quasi-1D value, for each low-Mach treatment, four unchoked exit Mach numbers and the given grids.
 // Started from the quasi-1D solution so the comparison measures steady discretization error, not the
 // startup transient (from-rest startup is covered by the core venturi test). Drift between 0.75 t and t

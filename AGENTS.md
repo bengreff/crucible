@@ -1,6 +1,6 @@
 # Working on CRUCIBLE after the pivot
 
-Read `VISION_SCOPE.md` first. It is authoritative under current user instructions. Read `TECHNICAL_PLAN.md` before implementation and the relevant parts of `RESEARCH.md` before choosing physical models or claiming validation. Read `REBUILD_NOTES.md` when selecting old material to reuse.
+Read `VISION_SCOPE.md` first. It is authoritative under current user instructions. Read `TECHNICAL_PLAN.md` before implementation and the relevant parts of `RESEARCH.md` before choosing physical models or claiming validation. Read `docs/SESSION_HANDOFF.md` for the current state. Read `RESEARCH.md` section 7 when selecting old material to reuse.
 
 The project is a human-facing scientific sandbox. Develop the define/run/inspect/compare workflow alongside supported physics, in one native desktop app with local Mac/Windows/Linux execution. Preserve responsive viewing and live operating controls; geometry changes restart the calculation. The combustion chamber and reactions are inside the physical scope. Equipment interfaces can be responsive; internal transport approximations are not boundary objects.
 
@@ -16,4 +16,4 @@ Keep active planning concise. Preserve the user's ownership of the instrument an
 
 Distinguish product commitments, selected architecture, candidate algorithms, and validated capabilities. Use the vision for purpose, research for model evidence, the technical plan for implementation, and rebuild notes for history. Turbulence, turbulent chemistry, classical plasma transport and anomalous plasma transport are distinct models; an arbitrary diffusion coefficient is not a universal closure. Update affected documents together when a decision changes, without promoting a candidate or a library feature into a scientific claim.
 
-For changes, run checks appropriate to the active implementation. The first implementation and verification commands are recorded in `README.md` and `docs/IMPLEMENTATION.md`; the archived full gate battery is not an active root build requirement.
+For changes, run checks appropriate to the active implementation. Build and verification commands are recorded in `README.md` and `docs/evidence/README.md`; the archived full gate battery is not an active root build requirement.

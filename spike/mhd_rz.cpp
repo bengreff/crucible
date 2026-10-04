@@ -1,3 +1,4 @@
+// PARKED (Ben, 2026-09-30) until the chemical milestone; see docs/parked/MHD_SPIKE.md.
 // Architecture spike, 30 September 2026. Throwaway code: not production, not a framework.
 // Question: can the body-fitted RZ layout of core/flow carry magnetic fields?
 // Ideal MHD with swirl and toroidal field on the same node/cell/face layout and exact ring
@@ -988,7 +989,7 @@ double magnetPsi(double r,double z,int panels=24) {
         for(int q=0;q<8;++q) { double sv=0.5*(a+b)+0.5*(b-a)*x8[q]; sum+=0.5*(b-a)*w8[q]*2*L*sv*loopPsi(r,z,R,-L*sv*sv,K); } }
     return sum;
 }
-// Plume inputs (see docs/VALIDATION_MAENO2013.md section 6 for sources and labels).
+// Plume inputs (see docs/parked/VALIDATION_MAENO2013.md section 6 for sources and labels).
 //   mass: Fabbro et al. 1982 (PRA 26, 2289), mdot = 110 (I_a/1e14 W cm^-2)^(1/3) lambda_um^(-4/3) kg s^-1 cm^-2,
 //         over S = 3.5e-6 m^2 and 1.3 ns, absorbed intensity I_a = A E/(S tau); band x0.5..x2 (assumed);
 //   kinetic energy: A f_k E, A absorption (assumed band from the Garban-Labaune 1982 trend), f_k (assumed);

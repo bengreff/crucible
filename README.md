@@ -2,13 +2,14 @@
 
 A human-facing technical sandbox for investigating how reacting gas and plasma, geometry, and fields interact to produce propulsion.
 
-**Status: first native gas-flow prototype, 17 September 2026.** Operate a converging-diverging nozzle, change reservoir pressure live, inspect fields and measurements, and export the current field. Ideal-gas numerical checks pass; combustion and real-engine validation are still ahead.
+**Status, 4 October 2026.** The engine marches compressible, multi-species, finite-rate reacting flow in axisymmetric 2-D (Cantera thermochemistry and kinetics, CVODES, Strang coupling), verified against CEA, Cantera and exact solutions. The native app operates a gas nozzle live. Next: a time-evolving reacting chamber and nozzle, then RL10A-3-3A from published geometry, with a pre-registered blind prediction. Turbulence, molecular transport and real-engine validation are still ahead.
 
 - [Vision and scope](VISION_SCOPE.md) is the authoritative definition of the project, including the visual human workflow.
-- [Research](RESEARCH.md) records sources, transport/combustion model candidates, feasibility experiments, and scientific evidence requirements.
+- [Research](RESEARCH.md) records sources, model candidates, evidence requirements, open model decisions, and lessons from the pre-pivot attempt (section 7).
 - [Technical plan](TECHNICAL_PLAN.md) defines the native app, dependencies, state ownership, candidate algorithms, live interaction, and implementation sequence.
-- [Rebuild notes](REBUILD_NOTES.md) preserve lessons, useful decisions, and specific archived code references.
-- [Archive](archive/README.md) explains what was preserved, how to verify it, and what is local-only.
+- [Session handoff](docs/SESSION_HANDOFF.md) is the current state and next steps.
+- `docs/evidence/` holds verification records ([index](docs/evidence/README.md)); `docs/validation/` holds real-engine case inputs and pre-registered predictions; `docs/parked/` holds the magnetic-nozzle spike, parked until the chemical milestone is done.
+- [Archive](archive/README.md) holds the pre-pivot project and the older July 2026 docs; historical only.
 
 The intended workflow is **construct → operate → observe → change → compare**, inside one native desktop app running locally on Mac, Windows, or Linux. The combustion chamber's reacting contents belong inside the model; equipment is represented through physical interfaces. Visualization and usability develop alongside the physical model.
 
@@ -40,4 +41,4 @@ The app starts paused. Press **Run**, change the inlet reservoir pressure and pr
 
 A native integration check can run with `crucible --smoke-test /absolute/path/smoke.png` using the executable inside the Mac bundle. It needs a graphical desktop and exits after running, applying a control and pausing. Sanitized core builds use `-DCRUCIBLE_SANITIZERS=ON` with Clang/GCC.
 
-Read [implementation, evidence and limitations](docs/IMPLEMENTATION.md) before interpreting results or continuing development. The inherited archive gate battery is not an active build requirement.
+Read the [verification evidence](docs/evidence/README.md) before interpreting results or continuing development. The Cantera-backed reacting targets need Cantera 3.2.0 built from source in `~/src/cantera` (`scons build`); see `docs/evidence/THERMO_VERIFICATION.md`. The inherited archive gate battery is not an active build requirement.

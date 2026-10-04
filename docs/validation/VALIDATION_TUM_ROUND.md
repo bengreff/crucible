@@ -1,3 +1,5 @@
+> **Status, 4 October 2026:** Ben chose RL10A-3-3A as the next engine case (VISION_SCOPE, *Changes since the pivot*). This TUM chamber is now a component case for mixing and wall heat, still blocked on the missing inputs listed below. The blind protocol below applies to every validation case.
+
 # First validation case: TUM single-element GOX/GCH4, round chamber (inputs inventory, 2026-09-30)
 
 Decision (Ben, 2026-09-30):

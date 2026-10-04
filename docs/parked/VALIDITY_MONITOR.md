@@ -1,9 +1,11 @@
+> **PARKED (Ben, 2026-09-30): magnetic/plasma work waits until the chemical milestone is done. Historical design record, not active work; see docs/SESSION_HANDOFF.md for the current state.**
+
 # Validity monitor: design note (30 September 2026, no code yet)
 
 Purpose: mark, cell by cell and step by step, where the plasma model in use stops being
 predictive, and turn that into a statement attached to every reported number ("this impulse
 has X% of its force history in cells outside the model"). This follows the outside review
-(`docs/ASTRA_PLASMA_MODEL_2026-09-30.md`, opinion, not canon), which asks for exactly this
+(`docs/parked/ASTRA_PLASMA_MODEL_2026-09-30.md`, opinion, not canon), which asks for exactly this
 end-condition. The monitor does not change the solution. It only reads it.
 
 The model it guards is the one planned next: single-fluid resistive MHD, ideal-gas or tabulated
