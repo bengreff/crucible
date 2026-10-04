@@ -1,4 +1,11 @@
-# Pre-pivot archive
+# Archives
+
+Neither archive has authority over the active project.
+
+- `inquiry_project-2026-07/`: the docs from the separate `bengreff/inquiry_project` repo (last pushed 2026-07-06), folded in on 2026-10-04 so CRUCIBLE is one project. See its `ARCHIVE_NOTE.md`.
+- `pre-pivot-2026-09-17/`: described below.
+
+## Pre-pivot archive
 
 `pre-pivot-2026-09-17/` preserves the repository contents from before the human-facing sandbox reset. Its documents and agent instructions are historical and have no authority over the active project.
 
