@@ -90,6 +90,10 @@ if(CRUCIBLE_WITH_CANTERA)
     target_include_directories(crucible_chamber_study PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
     target_link_libraries(crucible_chamber_study PRIVATE crucible_thermo
       ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+    add_executable(crucible_flame_study tests/flame_study.cpp)
+    target_include_directories(crucible_flame_study PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+    target_link_libraries(crucible_flame_study PRIVATE crucible_thermo
+      ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
     add_executable(crucible_detonation_study tests/detonation_study.cpp)
     target_include_directories(crucible_detonation_study PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
     target_link_libraries(crucible_detonation_study PRIVATE crucible_thermo

@@ -1,6 +1,7 @@
 #include "adapters/reacting_flow.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <stdexcept>
 #include <thread>
@@ -40,11 +41,16 @@ void ReactingFlow::react(double dt) {
   const bool equilibrium = chemistry_ == Chemistry::LocalEquilibrium;
   const std::size_t cells = flow_.state().size(), n = workers_.size();
   const std::size_t ns = flow_.medium().size();
-  // Contiguous cell blocks per worker; each cell's result is independent of the partition.
+  // Workers take small blocks of cells from a shared counter, so the hot cells of a flame or a
+  // light-off do not all fall to one worker. Each cell's result is independent of which worker
+  // takes it (the integrator is reinitialised per cell).
+  constexpr std::size_t kBlock = 8;
+  std::atomic<std::size_t> next{0};
   auto run = [&](std::size_t w) {
     Worker& worker = *workers_[w];
     worker.mismatch = 0;
-    for (std::size_t q = cells * w / n; q < cells * (w + 1) / n; ++q) {
+    for (std::size_t start; (start = next.fetch_add(kBlock)) < cells;)
+    for (std::size_t q = start; q < std::min(cells, start + kBlock); ++q) {
       const double rho = flow_.state()[q][0];
       auto y = flow_.massFractions(q);
       worker.z[0] = flow_.temperature(q);
