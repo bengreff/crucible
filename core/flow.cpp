@@ -43,7 +43,11 @@ double Supply::opening(double time) const {
     return ramp>0?std::min(1.0,(time-opens)/ramp):1.0;
 }
 double Definition::span() const { return contour.empty()?length:contour.back()[0]-contour.front()[0]; }
-Medium Definition::medium() const { return species.empty()?Medium::perfectGas(gas):Medium(species); }
+Medium Definition::medium() const {
+    Medium m=species.empty()?Medium::perfectGas(gas):Medium(species);
+    if(!transport.viscosity.empty()) m.setTransport(transport);
+    return m;
+}
 std::vector<double> Definition::massFractions() const {
     std::size_t n=species.empty()?1:species.size();
     if(composition.empty()) { std::vector<double> y(n,0.0); y[0]=1; return y; }
@@ -69,6 +73,8 @@ void Definition::validate() const {
             throw std::invalid_argument("Composition must give one mass fraction per species, summing to one.");
     };
     checkComposition(massFractions());
+    if(!(wallTemperature>=0) || !std::isfinite(wallTemperature))
+        throw std::invalid_argument("Wall temperature must be finite and non-negative (zero: adiabatic).");
     if(!contour.empty()) {
         if(contour.size()<2) throw std::invalid_argument("A wall contour needs at least two points.");
         for(std::size_t k=0;k<contour.size();++k) {
@@ -305,6 +311,7 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_
             if(igniterCells_.empty()) throw std::invalid_argument("The igniter region contains no cell centroid.");
         }
     }
+    if(medium_.hasTransport()) prepareTransport();
     std::vector<double> fractions;
     for(std::size_t q=0;q<count;++q) fractions.insert(fractions.end(),inletComposition_.begin(),inletComposition_.end());
     setInitialState(cells,fractions);
@@ -316,7 +323,7 @@ Flow::BoundaryRates Flow::BoundaryRates::average(const BoundaryRates& a,const Bo
     auto mean=[](double x,double y){return 0.5*(x+y);};
     return {mean(a.mass,b.mass),mean(a.energy,b.energy),mean(a.inlet,b.inlet),mean(a.outlet,b.outlet),
         mean(a.inletMomentum,b.inletMomentum),mean(a.outletMomentum,b.outletMomentum),
-        mean(a.wallAxial,b.wallAxial),mean(a.bodyAxial,b.bodyAxial),mean(a.heat,b.heat)};
+        mean(a.wallAxial,b.wallAxial),mean(a.bodyAxial,b.bodyAxial),mean(a.heat,b.heat),mean(a.wallHeat,b.wallHeat)};
 }
 void Flow::resetAccounting() {
     initialMass_=initialEnergy_=initialMomentum_=0;
@@ -519,18 +526,31 @@ Conserved Flow::supplyFlux(const Supply& s,double g,const Primitive& in,const do
     }
     return {g,g*u+p,0,g*h0};
 }
+// With transport the diffusive rate 2 nu sum(A^2) / V is added to the convective one, with nu the
+// largest of 4/3 mu / rho, lambda / (rho cv) and the mixture diffusion coefficients: pure diffusion
+// then steps at cfl/2 of the explicit Euler bound V^2 / (nu sum(A^2)).
 double Flow::stableDt() {
     refresh(state_,species_);
+    const bool transport=medium_.hasTransport();
+    if(transport) transportProperties();
     double dt=std::numeric_limits<double>::infinity();
     for(int i=0;i<mesh_.nz;++i) for(int j=0;j<mesh_.nr;++j) {
         auto q=mesh_.index(i,j);const auto& w=primitives_[q];
-        double a=sound_[q];
+        double a=sound_[q],volume=mesh_.cells[q].volume;
+        double sumArea2=sq(mesh_.axialArea(i,j))+sq(mesh_.axialArea(i+1,j));
         double rate=(mesh_.axialArea(i,j)+mesh_.axialArea(i+1,j))*(std::abs(w.uz)+a);
         for(int f:{j,j+1}) {
             auto ar=mesh_.radialAreaVector(i,f);
             rate+=std::abs(w.uz*ar[0]+w.ur*ar[1])+a*std::hypot(ar[0],ar[1]);
+            sumArea2+=sq(ar[0])+sq(ar[1]);
         }
-        dt=std::min(dt,definition_.cfl*mesh_.cells[q].volume/rate);
+        if(transport) {
+            const double* y=fractions_.data()+q*ns_;
+            double nu=std::max(4.0/3*viscosity_[q],conductivity_[q]/medium_.cv(temperature_[q],y))/w.rho;
+            for(std::size_t k=0;k<ns_;++k) nu=std::max(nu,diffusion_[q*ns_+k]);
+            rate+=2*nu*sumArea2/volume;
+        }
+        dt=std::min(dt,definition_.cfl*volume/rate);
     }
     return dt;
 }
@@ -736,6 +756,7 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         derivative[q][1]+=f[0]*v;derivative[q][2]+=f[1]*v;derivative[q][3]+=work;
         rates.bodyAxial+=f[0]*v;rates.energy+=work;
     }
+    if(medium_.hasTransport()) transportFluxes(derivative,speciesDerivative,rates);
     for(std::size_t q=0;q<state.size();++q) {
         derivative[q][2]+=pressureSource_[q];
         for(double& v:derivative[q]) v/=m.cells[q].volume;
@@ -797,7 +818,7 @@ Measurements Flow::measurements() const {
     result.time=time_;result.dt=dt_;result.steps=steps_;result.rejectedSteps=rejectedSteps_;
     result.inletMassFlow=lastRates_.inlet;result.outletMassFlow=lastRates_.outlet;
     result.inletMomentumFlux=lastRates_.inletMomentum;result.outletMomentumFlux=lastRates_.outletMomentum;
-    result.wallAxialForce=lastRates_.wallAxial;result.bodyAxialForce=lastRates_.bodyAxial;
+    result.wallAxialForce=lastRates_.wallAxial;result.bodyAxialForce=lastRates_.bodyAxial;result.wallHeatFlow=lastRates_.wallHeat;
     result.minPressure=std::numeric_limits<double>::infinity();
     double exitArea=0;
     for(int i=0;i<mesh_.nz;++i) for(int j=0;j<mesh_.nr;++j) {

@@ -1,0 +1,26 @@
+1. transport operator order on a contoured duct (h2o2.yaml, no-slip wall at 600 K)
+    32x8    axial momentum 1.100e-02  radial momentum 9.744e-03  energy 1.068e-02  species 1.258e-02
+           wall row:  1.529e+00  3.392e-01  6.036e-01  1.062e-01
+    64x16   axial momentum 3.389e-03  radial momentum 3.741e-03  energy 2.934e-03  species 3.511e-03
+           wall row:  3.607e+00  3.854e-01  7.232e-01  1.923e-01
+   128x32   axial momentum 9.688e-04  radial momentum 1.562e-03  energy 7.509e-04  species 9.452e-04
+           wall row:  9.056e+00  4.168e-01  8.143e-01  3.719e-01
+   256x64   axial momentum 2.785e-04  radial momentum 6.850e-04  energy 1.971e-04  species 2.483e-04
+           wall row:  8.833e+00  4.353e-01  8.710e-01  7.342e-01
+  axial momentum: observed order (two finest grids)          1.799e+00 (limit 1.8e+00)  FAIL
+  radial momentum: observed order (two finest grids)         1.189e+00 (limit 1.8e+00)  FAIL
+  energy: observed order (two finest grids)                  1.929e+00 (limit 1.8e+00)  ok
+  species: observed order (two finest grids)                 1.928e+00 (limit 1.8e+00)  ok
+2. pipe decay, u_z = U J0(j01 r/R) exp(-nu j01^2 t/R^2), N2 at 1 kPa, R = 1 mm
+  nr 8    t 1.0738e-04 s  steps 4189  L1 error 3.007e-03  momentum balance -1.01e-18  energy balance -7.89e-15
+  nr 16   t 1.0738e-04 s  steps 10804  L1 error 7.687e-04  momentum balance 1.21e-18  energy balance -1.81e-15
+  nr 32   t 1.0738e-04 s  steps 34229  L1 error 1.938e-04  momentum balance -1.38e-18  energy balance 1.38e-16
+  pipe decay: observed order (nr 16 -> 32)                   1.988e+00 (limit 1.8e+00)  ok
+  pipe decay: L1 error at nr 32                              1.938e-04 (limit 1.0e-03)  ok
+  pipe decay: momentum balance (wall shear)                  1.382e-18 (limit 1.0e-12)  ok
+3. budgets with transport: closed chamber, isothermal wall and plate, ambient exit
+  t 2.413e-05 s, wall heat flow -90.19 W, wall axial force 61.94 N
+  mass balance                                               6.837e-16 (limit 1.0e-12)  ok
+  energy balance (with wall heat)                            7.976e-16 (limit 1.0e-12)  ok
+  axial momentum balance (with wall shear)                   2.640e-17 (limit 1.0e-12)  ok
+2 failures

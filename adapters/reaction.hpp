@@ -48,6 +48,11 @@ class ReactionSource {
   std::unique_ptr<Impl> impl_;
 };
 
+// Cantera's mixture-averaged transport fits for the mechanism's species, for the core's own
+// evaluation (Medium::transport, no Cantera calls in the flow step). Throws if the mechanism has
+// no transport data or uses the CHEMKIN fit form.
+TransportFits transportFits(const std::string& mechanism);
+
 // CRUCIBLE-owned stiff integration of the reaction sources (CVODES variable-order BDF,
 // dense direct linear solve with a difference-quotient Jacobian).
 class ReactionStep {

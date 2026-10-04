@@ -64,6 +64,13 @@ struct Definition {
     std::vector<Supply> supplies;
     Igniter igniter{};
     double ambientTemperature{300};
+    // Molecular transport (empty: inviscid), in the medium's species order. With transport the walls
+    // (the side wall and the injector plate) are no-slip unless wallSlip, and isothermal at
+    // wallTemperature, or adiabatic when it is zero. Supply rings exchange no diffusive flux; the
+    // nozzle inlet and the outlet take a zero normal gradient (only tangential-gradient stress).
+    TransportFits transport;
+    bool wallSlip{false};
+    double wallTemperature{0};
     [[nodiscard]] double span() const;  // axial length of the domain
     [[nodiscard]] Medium medium() const;
     [[nodiscard]] std::vector<double> massFractions() const;
@@ -100,6 +107,8 @@ struct Measurements {
     // Chamber: scheduled supply flow (the Isp denominator), igniter power and energy delivered so
     // far, and the area-averaged pressure of the cells on the injector face.
     double supplyMassFlow{}, igniterPower{}, igniterEnergy{}, injectorPressure{};
+    // Heat conducted into the gas through the walls [W] (molecular transport only).
+    double wallHeatFlow{};
     std::uint64_t steps{}, rejectedSteps{};
 };
 struct FieldSnapshot {
@@ -156,8 +165,12 @@ public:
     [[nodiscard]] std::vector<double> massFractions(std::size_t cell) const;
     [[nodiscard]] Primitive cellPrimitive(std::size_t cell) const;
     [[nodiscard]] double temperature(std::size_t cell) const;
-    // Largest stable step for the current state (CFL bound).
+    // Largest stable step for the current state (CFL bound, with the explicit diffusion bound when
+    // the medium has transport).
     double stableDt();
+    // The molecular-transport part of the right-hand side alone for the current state, per unit
+    // volume (verification of the operator).
+    void transportDerivative(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative);
     [[nodiscard]] double time() const { return time_; }
     // Next schedule discontinuity (valve opens or finishes opening, igniter on or off) after `time`,
     // infinity if none. A step that would cross one ends on it instead.
@@ -166,7 +179,7 @@ public:
 private:
     // Exchange rates of one right-hand-side evaluation, combined with the RK weights.
     struct BoundaryRates {
-        double mass{}, energy{}, inlet{}, outlet{}, inletMomentum{}, outletMomentum{}, wallAxial{}, bodyAxial{}, heat{};
+        double mass{}, energy{}, inlet{}, outlet{}, inletMomentum{}, outletMomentum{}, wallAxial{}, bodyAxial{}, heat{}, wallHeat{};
         [[nodiscard]] double netMomentum() const { return inletMomentum-outletMomentum+wallAxial+bodyAxial; }
         [[nodiscard]] double grossMomentum() const;
         static BoundaryRates average(const BoundaryRates& a, const BoundaryRates& b);
@@ -208,5 +221,13 @@ private:
     // ambientInflow is set when a Chamber exit draws ambient gas in (subsonic backflow).
     Primitive outlet(Primitive inside, const double* y, bool& ambientInflow) const;
     std::vector<double> ambient_;  // Chamber: ambient composition
+    // Molecular transport (core/transport.cpp): cell viscosity, conductivity, mixture diffusion
+    // coefficients and mole fractions; least-squares gradients of u_z, u_r, T and the mole fractions
+    // (cell-major, 3 + ns_ fields of {d/dz, d/dr}); each cell's inverse least-squares matrix.
+    std::vector<double> viscosity_, conductivity_, diffusion_, moles_, gradients_, transportWork_, faceEnthalpy_;
+    std::vector<std::array<double, 3>> leastSquares_;
+    void prepareTransport();
+    void transportProperties();
+    void transportFluxes(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative, BoundaryRates& rates);
 };
 } // namespace crucible

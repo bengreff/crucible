@@ -14,6 +14,12 @@ struct Species {
     double tMid{1000};
     std::array<double, 7> low{}, high{};
 };
+// Molecular transport fits in the form of Cantera's GasTransport (degree 4 in ln T):
+// sqrt(mu_k / sqrt(T)) [Pa s], lambda_k / sqrt(T) [W/(m K)], and D_kj p / T^1.5 [m^2 Pa/s] for the
+// species pairs k <= j in row order (00, 01, ..., 0n, 11, ...).
+struct TransportFits {
+    std::vector<std::array<double, 5>> viscosity, conductivity, diffusion;
+};
 // Ideal-gas mixture of thermally perfect species. Every gas in the core is one of these; a
 // calorically perfect gas is a single species with constant cp (Medium::perfectGas).
 class Medium {
@@ -30,6 +36,7 @@ public:
     [[nodiscard]] double gasConstant(const double* y) const;              // J/(kg K)
     [[nodiscard]] double internalEnergy(double t, const double* y) const; // J/kg, NASA reference
     [[nodiscard]] double enthalpy(double t, const double* y) const;       // J/kg
+    void speciesEnthalpies(double t, double* h) const;                    // J/kg, per species
     [[nodiscard]] double cv(double t, const double* y) const;             // J/(kg K)
     // Frozen sound speed sqrt(cp/cv R T).
     [[nodiscard]] double soundSpeed(double t, const double* y) const;
@@ -39,8 +46,20 @@ public:
     [[nodiscard]] double energyFloorOfClipped(const double* w) const;
     // Temperature with internal energy e (safeguarded Newton from guess); NaN if e is not above the floor.
     [[nodiscard]] double temperature(double e, const double* y, double guess) const;
+
+    // Mixture-averaged molecular transport, the same formulas as Cantera's "mixture-averaged"
+    // model: Wilke viscosity, conductivity as the mean of the series and parallel averages, and
+    // mass-based mixture diffusion coefficients D_km = (1 - Y_k) / sum_{j != k} X_j / D_jk, with
+    // mole fractions floored at 1e-20 as Cantera does (1 - Y_k is summed from the other species).
+    struct Transport { double viscosity{}, conductivity{}; };
+    void setTransport(TransportFits fits);
+    [[nodiscard]] bool hasTransport() const { return !fits_.viscosity.empty(); }
+    // Writes D_km [m^2/s] to diffusion (size()); work is scratch reused between calls.
+    Transport transport(double t, double p, const double* y, double* diffusion, std::vector<double>& work) const;
 private:
     std::vector<Species> species_;
     std::vector<double> specificR_;
+    TransportFits fits_;
+    std::vector<double> wilkeMass_, wilkeRoot_;  // (W_j/W_k)^(1/4) and sqrt(8 (1 + W_k/W_j)), row k
 };
 } // namespace crucible

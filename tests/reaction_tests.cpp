@@ -123,6 +123,44 @@ int main() {
     check(std::abs(z[0] - eq[0]) <= 0.5, "|T_end - T_eq| [K]", std::abs(z[0] - eq[0]), 0.5);
     check(dyEq <= 1e-4, "max |Y - Y_eq|", dyEq, 1e-4);
   }
+
+  // Mixture-averaged transport: the core's evaluation from exported fits against Cantera's own
+  // MixTransport over temperature, pressure and composition, including trace and absent species.
+  for (const char* mechanism : {"h2o2.yaml", "gri30.yaml"}) {
+    std::printf("mixture-averaged transport (%s)\n", mechanism);
+    ReactionSource source(mechanism);
+    auto medium = source.medium();
+    medium.setTransport(transportFits(mechanism));
+    auto solution = Cantera::newSolution(mechanism, "", "mixture-averaged");
+    auto gas = solution->thermo();
+    auto transport = solution->transport();
+    const std::size_t n = source.nSpecies();
+    const char* mixtures[] = {"H2:2, O2:1", "H2:1, O2:1, H2O:2, OH:0.1, H:0.05, O:0.02", "N2:1", "O2:1, N2:3.76, H2:1e-12",
+                              "H2O:1, H2:0.3, O2:0.1, HO2:1e-6"};
+    double worstMu = 0, worstLambda = 0, worstD = 0;
+    std::vector<double> d(n), dRef(n), work;
+    for (const char* x : mixtures)
+      for (double t : {250.0, 300.0, 800.0, 1500.0, 2500.0, 3400.0})
+        for (double p : {1e4, 101325.0, 3e6, 2e7}) {
+          gas->setState_TPX(t, p, x);
+          const double* y = gas->massFractions();
+          const auto mine = medium.transport(t, p, y, d.data(), work);
+          transport->getMixDiffCoeffs(dRef.data());
+          worstMu = std::max(worstMu, std::abs(mine.viscosity / transport->viscosity() - 1));
+          worstLambda = std::max(worstLambda, std::abs(mine.conductivity / transport->thermalConductivity() - 1));
+          // D_km carries the factor 1 - Y_k, which Cantera evaluates as (W - X_k W_k)/W: its round-off
+          // relative to 1 - Y_k exceeds 1e-13 once 1 - Y_k < 1e-3. There the difference is scaled by
+          // the largest coefficient of the state.
+          const double scale = *std::max_element(dRef.begin(), dRef.end());
+          for (std::size_t k = 0; k < n; ++k) {
+            double e = 1 - y[k] >= 1e-3 ? std::abs(d[k] / dRef[k] - 1) : std::abs(d[k] - dRef[k]) / scale;
+            worstD = std::max(worstD, e);
+          }
+        }
+    check(worstMu <= 1e-12, "viscosity max rel. difference", worstMu, 1e-12);
+    check(worstLambda <= 1e-12, "conductivity max rel. difference", worstLambda, 1e-12);
+    check(worstD <= 1e-12, "D_km max rel. difference (see note)", worstD, 1e-12);
+  }
   std::printf("%d failures\n", failures);
   return failures == 0 ? 0 : 1;
 }

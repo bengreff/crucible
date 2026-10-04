@@ -58,6 +58,25 @@ Medium ReactionSource::medium() const {
   return Medium(species);
 }
 
+TransportFits transportFits(const std::string& mechanism) {
+  auto solution = Cantera::newSolution(mechanism, "", "mixture-averaged");
+  auto& transport = *solution->transport();
+  if (transport.CKMode()) throw std::runtime_error("CHEMKIN-mode transport fits are not supported");
+  const std::size_t n = solution->thermo()->nSpecies();
+  TransportFits fits;
+  fits.viscosity.resize(n);
+  fits.conductivity.resize(n);
+  for (std::size_t k = 0; k < n; ++k) {
+    transport.getViscosityPolynomial(k, fits.viscosity[k].data());
+    transport.getConductivityPolynomial(k, fits.conductivity[k].data());
+    for (std::size_t j = k; j < n; ++j) {
+      fits.diffusion.emplace_back();
+      transport.getBinDiffusivityPolynomial(k, j, fits.diffusion.back().data());
+    }
+  }
+  return fits;
+}
+
 std::vector<double> ReactionSource::massFractions(const std::string& moles) {
   impl_->gas->setMoleFractionsByName(moles);
   std::vector<double> y(nSpecies());
