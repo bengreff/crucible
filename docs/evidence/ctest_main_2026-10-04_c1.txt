@@ -1,0 +1,6 @@
+1/5 Test #1: core_verification ................   Passed   17.31 sec
+2/5 Test #2: core_slow_verification ...........   Passed   88.38 sec
+3/5 Test #3: thermo_cea_verification ..........   Passed   42.53 sec
+4/5 Test #4: reaction_verification ............   Passed    0.78 sec
+5/5 Test #5: mixture_verification .............   Passed    1.38 sec
+100% tests passed out of 5

@@ -111,12 +111,40 @@ void ReactionSource::rates(double rho, const double* z, double* dzdt) {
 void ReactionSource::equilibrateUV(double rho, double* z) {
   // Equilibrium depends only on the elements; integrator round-off negatives (~1e-20)
   // are clipped so the solver starts from an admissible composition.
-  std::vector<double> y(z + 1, z + 1 + nSpecies());
+  auto& gas = *impl_->gas;
+  const std::size_t ns = nSpecies(), ne = nElements();
+  std::vector<double> y(z + 1, z + 1 + ns);
   for (double& v : y) v = std::max(v, 0.0);
-  impl_->set(z[0], rho, y.data());
-  impl_->gas->equilibrate("UV");
-  z[0] = impl_->gas->temperature();
-  impl_->gas->getMassFractions(z + 1);
+  // Elements below kTraceElement (mass fraction) are left out of the problem: the species that
+  // carry them keep their amounts. Advection leaves such traces (1e-50 and below) in every cell,
+  // and the equilibrium solvers can take ~0.5 s on them. The energy they could release is below
+  // 1e-13 of the cell's internal energy, far inside the equilibrium tolerance.
+  constexpr double kTraceElement = 1e-14;
+  auto elements = elementMassFractions(y.data());
+  std::vector<bool> frozen(ns, false);
+  for (std::size_t m = 0; m < ne; ++m)
+    if (elements[m] < kTraceElement)
+      for (std::size_t k = 0; k < ns; ++k)
+        if (gas.nAtoms(k, m) > 0) frozen[k] = true;
+  // If every remaining element is carried by exactly one remaining species the composition is
+  // already the equilibrium one (for example N2 alone), and so is the temperature.
+  bool trivial = true;
+  for (std::size_t m = 0; m < ne && trivial; ++m) {
+    if (elements[m] < kTraceElement) continue;
+    int carriers = 0;
+    for (std::size_t k = 0; k < ns; ++k) carriers += !frozen[k] && gas.nAtoms(k, m) > 0;
+    trivial = carriers == 1;
+  }
+  if (trivial) return;
+  double frozenMass = 0;
+  std::vector<double> active(y);
+  for (std::size_t k = 0; k < ns; ++k)
+    if (frozen[k]) { frozenMass += y[k]; active[k] = 0; }
+  impl_->set(z[0], rho, active.data());
+  gas.equilibrate("UV");
+  z[0] = gas.temperature();
+  gas.getMassFractions(active.data());
+  for (std::size_t k = 0; k < ns; ++k) z[k + 1] = frozen[k] ? y[k] : active[k] * (1 - frozenMass);
 }
 
 namespace {

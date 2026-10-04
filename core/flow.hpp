@@ -13,11 +13,33 @@ struct Primitive { double rho{}, uz{}, ur{}, p{}; };
 // Thermodynamic face/cell data the flux needs besides (rho, u, p): specific internal energy, frozen
 // sound speed, and the internal-energy floor below which the composition has no admissible state.
 struct Thermal { double e{}, a{}, floor{}; };
-enum class Case { Nozzle, UniformDuct, ShockTube };
+// Nozzle: reservoir inlet and a prepared 1-D expansion. Chamber: closed injector plate carrying
+// supplies, an initial fill of ambient gas at rest, and an ambient exit (see Supply, Igniter).
+enum class Case { Nozzle, UniformDuct, ShockTube, Chamber };
 // Low-Mach treatment of the HLLC dissipation (docs/evidence/LOW_MACH.md). Thornber: velocity jumps at interior
 // faces scaled by min(1, local Mach) before the flux (Thornber et al., JCP 227, 2008). HllcLm: acoustic
 // wave terms of the HLLC dissipation scaled by sin(pi/2 min(1, M/0.1)) (Fleischmann et al., JCP 423, 2020).
 enum class LowMach { None, Thornber, HllcLm };
+// A propellant stream through the injector face (z = 0) of a Chamber. The face rings whose centre
+// radius lies in [innerRadius, outerRadius) carry it with a uniform mass flux, so its delivered
+// mass flow is exact and its area is the mesh's ring area. Imposed: mass flow, frozen total enthalpy
+// (stagnation temperature) and composition; the static pressure follows from the interior along the
+// outgoing characteristic. A face that would need supersonic inflow delivers the same flow as a
+// sonic (choked) stream. The valve raises the flow linearly from zero at `opens` to full at
+// `opens + ramp`; valve travel is a declared input, not modelled equipment.
+struct Supply {
+    double innerRadius{}, outerRadius{};
+    double massFlow{};           // kg/s at full opening, over the whole stream
+    double totalTemperature{300};
+    std::vector<double> composition;
+    double opens{}, ramp{};
+    [[nodiscard]] double opening(double time) const;
+};
+// A bounded energy deposit: `energy` joules at constant power over [start, start + duration] into
+// the cells whose centroid lies in zMin <= z <= zMax, r <= rMax, in proportion to their volume.
+struct Igniter {
+    double zMin{}, zMax{}, rMax{}, energy{}, start{}, duration{};
+};
 struct Definition {
     int nz{160}, nr{24};
     double length{0.6}, inletRadius{0.035}, throatRadius{0.020}, exitRadius{0.035};
@@ -32,6 +54,17 @@ struct Definition {
     // fractions of the initial fill and the reservoir (empty: pure first species).
     std::vector<Species> species;
     std::vector<double> composition;
+    // Wall contour as data: (z, r) points with z increasing from the injector face, sampled at the
+    // mesh stations by linear interpolation. When given it replaces the cosine nozzle shape and
+    // sets the length.
+    std::vector<std::array<double, 2>> contour;
+    // Chamber only: supplies, the igniter (none when energy is zero), and the ambient temperature.
+    // The ambient gas (composition, backPressure, ambientTemperature) fills the chamber at rest at
+    // t = 0 and is what any backflow at the exit draws in.
+    std::vector<Supply> supplies;
+    Igniter igniter{};
+    double ambientTemperature{300};
+    [[nodiscard]] double span() const;  // axial length of the domain
     [[nodiscard]] Medium medium() const;
     [[nodiscard]] std::vector<double> massFractions() const;
     void validate() const;
@@ -64,6 +97,9 @@ struct Measurements {
     double deviceThrust{}, exitPlaneThrust{}, axialMomentum{}, momentumBalanceError{};
     double mass{}, energy{}, massBalanceError{}, energyBalanceError{};
     double exitMach{}, minPressure{}, maxPressure{}, maxMach{};
+    // Chamber: scheduled supply flow (the Isp denominator), igniter power and energy delivered so
+    // far, and the area-averaged pressure of the cells on the injector face.
+    double supplyMassFlow{}, igniterPower{}, igniterEnergy{}, injectorPressure{};
     std::uint64_t steps{}, rejectedSteps{};
 };
 struct FieldSnapshot {
@@ -123,11 +159,14 @@ public:
     // Largest stable step for the current state (CFL bound).
     double stableDt();
     [[nodiscard]] double time() const { return time_; }
+    // Next schedule discontinuity (valve opens or finishes opening, igniter on or off) after `time`,
+    // infinity if none. A step that would cross one ends on it instead.
+    [[nodiscard]] double nextEvent(double time) const;
     [[nodiscard]] double totalPressure() const { return totalPressure_; }
 private:
     // Exchange rates of one right-hand-side evaluation, combined with the RK weights.
     struct BoundaryRates {
-        double mass{}, energy{}, inlet{}, outlet{}, inletMomentum{}, outletMomentum{}, wallAxial{}, bodyAxial{};
+        double mass{}, energy{}, inlet{}, outlet{}, inletMomentum{}, outletMomentum{}, wallAxial{}, bodyAxial{}, heat{};
         [[nodiscard]] double netMomentum() const { return inletMomentum-outletMomentum+wallAxial+bodyAxial; }
         [[nodiscard]] double grossMomentum() const;
         static BoundaryRates average(const BoundaryRates& a, const BoundaryRates& b);
@@ -147,17 +186,27 @@ private:
     std::vector<double> pressureSource_;
     double time_{}, dt_{}, totalPressure_{}, initialMass_{}, initialEnergy_{};
     double integratedMassFlux_{}, integratedEnergyFlux_{}, initialMomentum_{};
-    double integratedMomentumSource_{}, integratedMomentumGross_{};
+    double integratedMomentumSource_{}, integratedMomentumGross_{}, integratedHeat_{};
+    // Chamber: supply index of each injector-face ring (-1: plate), each supply's ring area, the
+    // igniter's cells and their total volume.
+    std::vector<int> faceSupply_;
+    std::vector<double> supplyArea_;
+    std::vector<std::size_t> igniterCells_;
+    double igniterVolume_{}, igniterPower_{};
     std::uint64_t steps_{}, rejectedSteps_{};
     BoundaryRates lastRates_{};
     void resetAccounting();
     void radialProfiles();
     void refresh(const std::vector<Conserved>& state, const std::vector<double>& species);
     BoundaryRates rhs(const std::vector<Conserved>& state, const std::vector<double>& species,
-                      std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative);
+                      std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative, double time);
+    // Face flux per unit area of a supply delivering mass flux g into the interior face state.
+    Conserved supplyFlux(const Supply& supply, double g, const Primitive& inside, const double* yInside) const;
     bool admissible(const Conserved& u, const double* partial) const;
     Thermal faceThermal(const Primitive& w, double* y) const;
     Primitive inlet(Primitive inside) const;
-    Primitive outlet(Primitive inside, const double* y) const;
+    // ambientInflow is set when a Chamber exit draws ambient gas in (subsonic backflow).
+    Primitive outlet(Primitive inside, const double* y, bool& ambientInflow) const;
+    std::vector<double> ambient_;  // Chamber: ambient composition
 };
 } // namespace crucible

@@ -79,6 +79,14 @@ if(CRUCIBLE_WITH_CANTERA)
     add_executable(crucible_mixture_tests tests/mixture_tests.cpp)
     target_link_libraries(crucible_mixture_tests PRIVATE crucible_thermo)
     add_test(NAME mixture_verification COMMAND crucible_mixture_tests)
+    add_executable(crucible_chemistry_cost tests/chemistry_cost.cpp)
+    target_include_directories(crucible_chemistry_cost PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+    target_link_libraries(crucible_chemistry_cost PRIVATE crucible_thermo
+      ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+    add_executable(crucible_chamber_study tests/chamber_study.cpp)
+    target_include_directories(crucible_chamber_study PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+    target_link_libraries(crucible_chamber_study PRIVATE crucible_thermo
+      ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
     add_executable(crucible_detonation_study tests/detonation_study.cpp)
     target_include_directories(crucible_detonation_study PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
     target_link_libraries(crucible_detonation_study PRIVATE crucible_thermo

@@ -231,6 +231,53 @@ void venturi() {
     std::cout<<"Subsonic venturi mass-flow error: 40="<<coarse<<" 80="<<fine<<" order="<<std::log2(coarse/fine)<<'\n';
     require(std::log2(coarse/fine)>1.7 && std::abs(fine)<0.03,"Subsonic venturi must converge to isentropic quasi-1D flow");
 }
+// Small chamber for the boundary checks: cylinder, conical contraction to a throat, conical exit.
+// One stream over the whole injector face; its valve opens at 0.2 ms over a 1 ms ramp.
+Definition chamber() {
+    Definition d=base();d.experiment=Case::Chamber;d.nz=48;d.nr=8;
+    d.contour={{0,0.03},{0.06,0.03},{0.09,0.015},{0.12,0.025}};
+    Supply s;s.outerRadius=0.03;s.massFlow=0.5;s.totalTemperature=300;s.composition={1};s.opens=2e-4;s.ramp=1e-3;
+    d.supplies={s};
+    return d;
+}
+void chamberChecks() {
+    // The contour table reproduces the built-in cosine nozzle when sampled at its own stations,
+    // including a table whose z origin is not the injector face.
+    {Definition d=base();Mesh cosine(d);Definition c=d,shifted=d;
+     for(int i=0;i<=d.nz;++i) { c.contour.push_back({i*cosine.dz,cosine.radius[i]});shifted.contour.push_back({i*cosine.dz-0.3048,cosine.radius[i]}); }
+     Mesh table(c),offset(shifted);
+     near(table.dz,cosine.dz,1e-15,"Contour station spacing");near(offset.dz,cosine.dz,1e-15,"Offset contour station spacing");
+     for(int i=0;i<=d.nz;++i) { near(table.radius[i],cosine.radius[i],1e-15,"Contour radius");near(offset.radius[i],cosine.radius[i],1e-12,"Offset contour radius"); }
+     for(std::size_t q=0;q<table.cells.size();++q) near(table.cells[q].volume,cosine.cells[q].volume,1e-12*cosine.cells[q].volume,"Contour cell volume");}
+    // Ambient gas at rest stays at rest while the valves are shut and the igniter is off.
+    {Definition d=chamber();d.supplies[0].opens=1;Flow f(d);for(int n=0;n<300;++n) f.step();
+     double speed=0;for(auto u:f.state()) {auto p=primitive(u,d.gas);speed=std::max({speed,std::abs(p.uz),std::abs(p.ur)});}
+     std::cout<<"Shut chamber at rest after 300 steps: max |u| "<<speed<<" m/s\n";
+     require(speed<1e-7,"A shut chamber at ambient must stay at rest");
+     near(f.nextEvent(0),1,0,"Next event is the valve opening");}
+    // The igniter delivers exactly its energy; steps land on its switching times; budgets close.
+    {Definition d=chamber();d.supplies[0].opens=1;d.igniter={0.01,0.03,0.01,5,1e-5,1e-4};Flow f(d);
+     near(f.nextEvent(0),1e-5,0,"Igniter start is the first event");near(f.nextEvent(1e-5),1.1e-4,1e-20,"Igniter stop follows");
+     f.advanceTo(1e-5);near(f.time(),1e-5,0,"A step lands on the igniter start");
+     f.advanceTo(3e-4);auto m=f.measurements();
+     std::cout<<"Igniter: delivered "<<m.igniterEnergy<<" J of 5 J, energy budget "<<m.energyBalanceError<<", mass budget "<<m.massBalanceError<<'\n';
+     near(m.igniterEnergy,5,5e-12,"Igniter energy delivered");near(m.igniterPower,0,0,"Igniter is off after its duration");
+     require(std::abs(m.energyBalanceError)<1e-12 && std::abs(m.massBalanceError)<1e-12,"Igniter run budgets");}
+    // The supply delivers its scheduled flow exactly (piecewise linear in time, steps on the ramp's
+    // ends, trapezoidal stages), through the choked start and into subsonic filling; budgets close.
+    {Definition d=chamber();Flow f(d);
+     f.advanceTo(2e-4);near(f.time(),2e-4,0,"A step lands on the valve opening");
+     near(f.nextEvent(f.time()),1.2e-3,1e-18,"Next event is the end of the ramp");
+     f.advanceTo(7e-4);auto m=f.measurements();
+     auto opening=[&](double t){return d.supplies[0].opening(t);};
+     near(m.inletMassFlow,0.5*(opening(m.time-m.dt)+opening(m.time))/2,1e-12,"Mid-ramp supply flow (step average)");
+     f.advanceTo(1.2e-3);f.step();m=f.measurements();
+     near(m.inletMassFlow,0.5,1e-12,"Full-open supply flow");near(m.supplyMassFlow,0.5,0,"Scheduled supply flow");
+     f.advanceTo(6e-3);m=f.measurements();
+     std::cout<<"Supplied chamber at 6 ms: injector-face pressure "<<m.injectorPressure<<" Pa, outflow "<<m.outletMassFlow
+              <<" kg/s, mass budget "<<m.massBalanceError<<", energy budget "<<m.energyBalanceError<<", steps "<<m.steps<<'\n';
+     require(std::abs(m.massBalanceError)<1e-12 && std::abs(m.energyBalanceError)<1e-12,"Supplied chamber budgets");}
+}
 int main(int argc,char** argv) {
     try {
         for(int a=1;a<argc;++a) {
@@ -367,6 +414,7 @@ int main(int argc,char** argv) {
          replay.advanceTo(held->measurements.time);auto repeated=replay.snapshot();
          for(std::size_t k=0;k<held->cells.size();++k)
              near(repeated.cells[k].p,held->cells[k].p,held->cells[k].p*1e-9,"Accepted control history must replay independently of wall time");}
+        chamberChecks();
         std::cout<<"All core verification checks passed.\n";
     } catch(const std::exception& e) {std::cerr<<"FAIL: "<<e.what()<<'\n';return 1;}
 }

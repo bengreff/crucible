@@ -20,8 +20,8 @@ struct ReactingFlow::Worker {
 };
 
 ReactingFlow::ReactingFlow(Flow& flow, const std::string& mechanism, int threads, double rtol,
-                           double atol)
-    : flow_(flow) {
+                           double atol, Chemistry chemistry)
+    : flow_(flow), chemistry_(chemistry) {
   for (int i = 0; i < std::max(1, threads); ++i)
     workers_.push_back(std::make_unique<Worker>(mechanism, rtol, atol));
   const auto& mine = flow.medium().species();
@@ -36,6 +36,8 @@ ReactingFlow::ReactingFlow(Flow& flow, const std::string& mechanism, int threads
 ReactingFlow::~ReactingFlow() = default;
 
 void ReactingFlow::react(double dt) {
+  if (chemistry_ == Chemistry::Frozen) return;
+  const bool equilibrium = chemistry_ == Chemistry::LocalEquilibrium;
   const std::size_t cells = flow_.state().size(), n = workers_.size();
   const std::size_t ns = flow_.medium().size();
   // Contiguous cell blocks per worker; each cell's result is independent of the partition.
@@ -47,7 +49,8 @@ void ReactingFlow::react(double dt) {
       auto y = flow_.massFractions(q);
       worker.z[0] = flow_.temperature(q);
       std::copy(y.begin(), y.end(), worker.z.begin() + 1);
-      worker.step.advance(rho, worker.z.data(), dt);
+      if (equilibrium) worker.source.equilibrateUV(rho, worker.z.data());
+      else worker.step.advance(rho, worker.z.data(), dt);
       double sum = 0;
       for (std::size_t k = 0; k < ns; ++k) { y[k] = std::max(worker.z[k + 1], 0.0); sum += y[k]; }
       for (double& v : y) v /= sum;
@@ -66,7 +69,15 @@ double ReactingFlow::step(double maxDt) {
   // The first half reaction step heats the gas, which can lower the flow's CFL limit below the
   // planned step. Re-plan from the saved composition until the flow takes the full step, so both
   // reaction halves span exactly half the flow step.
-  double planned = std::min(flow_.stableDt(), maxDt);
+  // Steps end on the flow's schedule events (valves, igniter) so both halves stay symmetric.
+  double planned = std::min({flow_.stableDt(), maxDt, flow_.nextEvent(flow_.time()) - flow_.time()});
+  if (chemistry_ != Chemistry::FiniteRate) {
+    // Equilibrium is reached after every flow step, so a split is not needed: flow, then relax.
+    const double taken = flow_.step(planned);
+    react(taken);
+    ++stats_.steps;
+    return taken;
+  }
   saved_ = flow_.partialDensities();
   for (int attempt = 0;; ++attempt) {
     react(0.5 * planned);

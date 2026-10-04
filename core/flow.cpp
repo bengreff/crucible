@@ -38,6 +38,11 @@ void normalise(const double* partial, std::size_t n, double* y) {
 }
 }
 
+double Supply::opening(double time) const {
+    if(time<opens) return 0;
+    return ramp>0?std::min(1.0,(time-opens)/ramp):1.0;
+}
+double Definition::span() const { return contour.empty()?length:contour.back()[0]-contour.front()[0]; }
 Medium Definition::medium() const { return species.empty()?Medium::perfectGas(gas):Medium(species); }
 std::vector<double> Definition::massFractions() const {
     std::size_t n=species.empty()?1:species.size();
@@ -54,21 +59,58 @@ void Definition::validate() const {
     if(!(gas.gamma>1 && gas.gamma<2) || !(cfl<=0.8) ||
        !(throatFraction>0.05 && throatFraction<0.95))
         throw std::invalid_argument("Invalid gamma, CFL, or throat location.");
-    if(experiment==Case::Nozzle && (throatRadius>inletRadius || throatRadius>exitRadius))
+    if(experiment==Case::Nozzle && contour.empty() && (throatRadius>inletRadius || throatRadius>exitRadius))
         throw std::invalid_argument("The throat must be no wider than inlet and exit.");
-    auto y=massFractions();
-    double sum=0;
-    for(double v:y) { if(!(v>=0) || !std::isfinite(v)) throw std::invalid_argument("Mass fractions must be finite and non-negative."); sum+=v; }
-    if(y.size()!=(species.empty()?1:species.size()) || std::abs(sum-1)>1e-12)
-        throw std::invalid_argument("Composition must give one mass fraction per species, summing to one.");
+    const std::size_t n=species.empty()?1:species.size();
+    auto checkComposition=[&](const std::vector<double>& y) {
+        double sum=0;
+        for(double v:y) { if(!(v>=0) || !std::isfinite(v)) throw std::invalid_argument("Mass fractions must be finite and non-negative."); sum+=v; }
+        if(y.size()!=n || std::abs(sum-1)>1e-12)
+            throw std::invalid_argument("Composition must give one mass fraction per species, summing to one.");
+    };
+    checkComposition(massFractions());
+    if(!contour.empty()) {
+        if(contour.size()<2) throw std::invalid_argument("A wall contour needs at least two points.");
+        for(std::size_t k=0;k<contour.size();++k) {
+            if(!(contour[k][1]>0) || !std::isfinite(contour[k][0]) || !std::isfinite(contour[k][1]))
+                throw std::invalid_argument("Contour radii must be positive and finite.");
+            if(k>0 && !(contour[k][0]>contour[k-1][0])) throw std::invalid_argument("Contour z must increase strictly.");
+        }
+    }
+    if(experiment==Case::Chamber) {
+        if(!(ambientTemperature>0) || !std::isfinite(ambientTemperature)) throw std::invalid_argument("Ambient temperature must be positive.");
+        for(const auto& s:supplies) {
+            if(!(s.innerRadius>=0 && s.outerRadius>s.innerRadius) || !std::isfinite(s.outerRadius))
+                throw std::invalid_argument("A supply needs 0 <= inner radius < outer radius.");
+            if(!(s.massFlow>=0) || !std::isfinite(s.massFlow) || !(s.totalTemperature>0) || !std::isfinite(s.totalTemperature))
+                throw std::invalid_argument("A supply needs a finite non-negative mass flow and a positive temperature.");
+            if(!(s.opens>=0) || !(s.ramp>=0) || !std::isfinite(s.opens+s.ramp))
+                throw std::invalid_argument("Valve opening time and ramp must be finite and non-negative.");
+            checkComposition(s.composition);
+        }
+        const auto& g=igniter;
+        if(!(g.energy>=0) || !std::isfinite(g.energy)) throw std::invalid_argument("Igniter energy must be finite and non-negative.");
+        if(g.energy>0 && (!(g.duration>0) || !(g.start>=0) || !(g.zMax>=g.zMin) || !(g.rMax>0) ||
+                          !std::isfinite(g.duration+g.start+g.zMax+g.zMin+g.rMax)))
+            throw std::invalid_argument("Igniter needs a positive duration and radius, a non-negative start and zMin <= zMax.");
+    }
 }
 
-Mesh::Mesh(const Definition& d):nz(d.nz),nr(d.nr),dz(d.length/d.nz) {
+Mesh::Mesh(const Definition& d):nz(d.nz),nr(d.nr),dz(d.span()/d.nz) {
     d.validate();
     radius.resize(nz+1);
+    std::size_t segment=0;
     for(int i=0;i<=nz;++i) {
         double x=static_cast<double>(i)/nz;
-        if(d.experiment!=Case::Nozzle) radius[i]=d.inletRadius;
+        if(!d.contour.empty()) {
+            // Linear interpolation of the contour table at the station.
+            const auto& c=d.contour;
+            double z=i==nz?c.back()[0]:c.front()[0]+i*dz;
+            while(segment+2<c.size() && z>c[segment+1][0]) ++segment;
+            double t=std::clamp((z-c[segment][0])/(c[segment+1][0]-c[segment][0]),0.0,1.0);
+            radius[i]=c[segment][1]+t*(c[segment+1][1]-c[segment][1]);
+        }
+        else if(d.experiment!=Case::Nozzle) radius[i]=d.inletRadius;
         else if(x<d.throatFraction) {
             double t=x/d.throatFraction;
             radius[i]=d.throatRadius+(d.inletRadius-d.throatRadius)*(1+std::cos(pi*t))/2;
@@ -224,6 +266,7 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_
         double radius=(mesh_.radius[i]+mesh_.radius[i+1])/2;
         if(d.experiment==Case::ShockTube)
             base=i<d.nz/2?Primitive{1,0,0,1}:Primitive{0.125,0,0,0.1};
+        if(d.experiment==Case::Chamber) base={d.backPressure/(gasR*d.ambientTemperature),0,0,d.backPressure};
         if(d.experiment==Case::Nozzle) {
             // The 1D preparation is shared by a whole axial column.
             double m=machFromArea(sq(radius/d.throatRadius),(i+0.5)*mesh_.dz>d.length*d.throatFraction,g);
@@ -240,6 +283,28 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_
             cells[q]=w;
         }
     }
+    if(d.experiment==Case::Chamber) {
+        ambient_=inletComposition_;
+        faceSupply_.assign(d.nr,-1);supplyArea_.assign(d.supplies.size(),0);
+        for(int j=0;j<d.nr;++j) {
+            double centre=mesh_.radius[0]*(j+0.5)/d.nr;
+            for(std::size_t s=0;s<d.supplies.size();++s)
+                if(centre>=d.supplies[s].innerRadius && centre<d.supplies[s].outerRadius) {
+                    if(faceSupply_[j]>=0) throw std::invalid_argument("Supplies overlap at the injector face.");
+                    faceSupply_[j]=static_cast<int>(s);supplyArea_[s]+=mesh_.axialArea(0,j);
+                }
+        }
+        for(double a:supplyArea_)
+            if(!(a>0)) throw std::invalid_argument("A supply contains no injector-face ring centre; widen it or refine the radial mesh.");
+        const auto& g=d.igniter;
+        if(g.energy>0) {
+            for(std::size_t q=0;q<count;++q) {
+                const auto& c=mesh_.cells[q];
+                if(c.z>=g.zMin && c.z<=g.zMax && c.r<=g.rMax) { igniterCells_.push_back(q);igniterVolume_+=c.volume; }
+            }
+            if(igniterCells_.empty()) throw std::invalid_argument("The igniter region contains no cell centroid.");
+        }
+    }
     std::vector<double> fractions;
     for(std::size_t q=0;q<count;++q) fractions.insert(fractions.end(),inletComposition_.begin(),inletComposition_.end());
     setInitialState(cells,fractions);
@@ -251,7 +316,7 @@ Flow::BoundaryRates Flow::BoundaryRates::average(const BoundaryRates& a,const Bo
     auto mean=[](double x,double y){return 0.5*(x+y);};
     return {mean(a.mass,b.mass),mean(a.energy,b.energy),mean(a.inlet,b.inlet),mean(a.outlet,b.outlet),
         mean(a.inletMomentum,b.inletMomentum),mean(a.outletMomentum,b.outletMomentum),
-        mean(a.wallAxial,b.wallAxial),mean(a.bodyAxial,b.bodyAxial)};
+        mean(a.wallAxial,b.wallAxial),mean(a.bodyAxial,b.bodyAxial),mean(a.heat,b.heat)};
 }
 void Flow::resetAccounting() {
     initialMass_=initialEnergy_=initialMomentum_=0;
@@ -260,7 +325,7 @@ void Flow::resetAccounting() {
         initialMomentum_+=state_[q][1]*mesh_.cells[q].volume;
         initialEnergy_+=state_[q][3]*mesh_.cells[q].volume;
     }
-    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=0;
+    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=0;
     lastRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
 }
 void Flow::setUniform(Primitive w) {
@@ -375,15 +440,84 @@ Primitive Flow::inlet(Primitive w) const {
     return {p/(gasR*t),v,0,p};
 }
 // Outlet with the interior face's frozen ratio of specific heats (exact for a calorically perfect gas).
-Primitive Flow::outlet(Primitive w,const double* y) const {
-    if(definition_.experiment!=Case::Nozzle) return w;
+// A Chamber exit in subsonic backflow draws ambient gas at rest: ambient pressure, temperature and
+// composition, with the interior's axial velocity (a declared simplification for start-up transients).
+Primitive Flow::outlet(Primitive w,const double* y,bool& ambientInflow) const {
+    ambientInflow=false;
+    const bool chamber=definition_.experiment==Case::Chamber;
+    if(definition_.experiment!=Case::Nozzle && !chamber) return w;
     double t=w.p/(w.rho*medium_.gasConstant(y)),a=medium_.soundSpeed(t,y),g=a*a*w.rho/w.p;
+    auto ambient=[&](double u) {
+        ambientInflow=true;double p=definition_.backPressure;
+        return Primitive{p/(medium_.gasConstant(ambient_.data())*definition_.ambientTemperature),u,0,p};
+    };
     if(w.uz>=a) return w; // All characteristics leave a supersonic outlet.
-    if(w.uz < -1e-10*a) throw std::runtime_error("Outlet backflow is outside this nozzle prototype's boundary model.");
+    if(w.uz < -1e-10*a) {
+        if(chamber) return ambient(std::max(w.uz,-a));
+        throw std::runtime_error("Outlet backflow is outside this nozzle prototype's boundary model.");
+    }
     double p=definition_.backPressure,rho=w.rho*std::pow(p/w.p,1/g);
     double u=w.uz+2*(a-std::sqrt(g*p/rho))/(g-1);
-    if(u < -1e-10*a) throw std::runtime_error("Imposed outlet pressure requires unsupported backflow.");
+    if(u < -1e-10*a) {
+        if(chamber) return ambient(std::max(u,-a));
+        throw std::runtime_error("Imposed outlet pressure requires unsupported backflow.");
+    }
     return {rho,u,w.ur,p};
+}
+double Flow::nextEvent(double time) const {
+    double next=std::numeric_limits<double>::infinity();
+    auto consider=[&](double t){ if(t>time) next=std::min(next,t); };
+    if(definition_.experiment!=Case::Chamber) return next;
+    for(const auto& s:definition_.supplies) { consider(s.opens);consider(s.opens+s.ramp); }
+    if(definition_.igniter.energy>0) { consider(definition_.igniter.start);consider(definition_.igniter.start+definition_.igniter.duration); }
+    return next;
+}
+// Supply face: mass flux g, total enthalpy h0 and composition are imposed. The face pressure p and
+// velocity u = g/rho(p, T) satisfy the outgoing (left-running) characteristic from the interior
+// state, p = p_in (1 + (gamma-1)/(2 a_in) (u - u_in))^(2 gamma/(gamma-1)), and T solves
+// h(T) + u^2/2 = h0. If that needs u above the face sound speed the face is choked and carries the
+// sonic state of the same stream. g = 0 is a closed valve (a wall).
+Conserved Flow::supplyFlux(const Supply& s,double g,const Primitive& in,const double* yIn) const {
+    const double* y=s.composition.data();
+    const double gasR=medium_.gasConstant(y),h0=medium_.enthalpy(s.totalTemperature,y);
+    const double tIn=in.p/(in.rho*medium_.gasConstant(yIn)),aIn=medium_.soundSpeed(tIn,yIn),gIn=aIn*aIn*in.rho/in.p;
+    auto characteristic=[&](double u) {
+        double base=1+(gIn-1)/(2*aIn)*(u-in.uz);
+        if(!(base>0)) throw std::runtime_error("Supply face: the interior gas recedes faster than the supply can follow.");
+        return in.p*std::pow(base,2*gIn/(gIn-1));
+    };
+    if(!(g>0)) return {0,characteristic(0),0,0};
+    // Static temperature of the stream at face pressure p (Newton from the stagnation temperature).
+    auto staticTemperature=[&](double p) {
+        double t=s.totalTemperature;
+        for(int n=0;n<60;++n) {
+            double u=g*gasR*t/p,f=medium_.enthalpy(t,y)+0.5*u*u-h0;
+            double step=f/(medium_.cv(t,y)+gasR+u*u/t);
+            t=std::max(0.5*t,t-step);
+            if(std::abs(step)<1e-13*t) break;
+        }
+        return t;
+    };
+    // Sonic state: h(T) + a(T)^2/2 = h0.
+    double tSonic=s.totalTemperature;
+    for(int n=0;n<60;++n) {
+        double cv=medium_.cv(tSonic,y),gamma=(cv+gasR)/cv;
+        double f=medium_.enthalpy(tSonic,y)+0.5*gamma*gasR*tSonic-h0;
+        double step=f/(cv+gasR+0.5*gamma*gasR);
+        tSonic=std::max(0.5*tSonic,tSonic-step);
+        if(std::abs(step)<1e-13*tSonic) break;
+    }
+    const double aSonic=medium_.soundSpeed(tSonic,y),pSonic=g*gasR*tSonic/aSonic;
+    auto residual=[&](double p){ double t=staticTemperature(p);return p-characteristic(g*gasR*t/p); };
+    double p=pSonic,u=aSonic;
+    if(residual(pSonic)<0) {
+        // Subsonic face: the residual increases with p; bracket and bisect.
+        double lo=pSonic,hi=2*std::max(pSonic,in.p);
+        for(int n=0;residual(hi)<0;++n) { if(n==60) throw std::runtime_error("Supply face pressure not bracketed."); lo=hi;hi*=2; }
+        for(int n=0;n<200 && hi-lo>1e-14*hi;++n) { double mid=0.5*(lo+hi);(residual(mid)<0?lo:hi)=mid; }
+        p=0.5*(lo+hi);u=g*gasR*staticTemperature(p)/p;
+    }
+    return {g,g*u+p,0,g*h0};
 }
 double Flow::stableDt() {
     refresh(state_,species_);
@@ -473,7 +607,7 @@ void Flow::radialProfiles() {
     }
 }
 Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vector<double>& species,
-                              std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative) {
+                              std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative,double time) {
     const auto& d=definition_;const auto& m=mesh_;
     std::fill(derivative.begin(),derivative.end(),Conserved{});
     std::fill(speciesDerivative.begin(),speciesDerivative.end(),0.0);
@@ -531,15 +665,37 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         }
     };
     BoundaryRates rates{};
+    // Igniter: constant power over the step (set by step()), shared by the cells by volume.
+    if(igniterPower_>0) for(auto q:igniterCells_) derivative[q][3]+=igniterPower_*m.cells[q].volume/igniterVolume_;
+    rates.energy+=igniterPower_;rates.heat+=igniterPower_;
     for(int i=0;i<=m.nz;++i) for(int j=0;j<m.nr;++j) {
         auto il=m.index(std::max(0,i-1),j),ir=m.index(std::min(m.nz-1,i),j);
         // Boundary models receive the reconstructed interior face state.
         Primitive l=reconstructed(il,1,yl),r=reconstructed(ir,-1,yr);
+        double area=m.axialArea(i,j);
+        if(i==0 && d.experiment==Case::Chamber) {
+            // Injector face: a supply ring or the closed plate (a slip wall).
+            Conserved flux{};
+            if(int s=faceSupply_[j];s>=0) {
+                const auto& supply=d.supplies[s];
+                double g=supply.massFlow*supply.opening(time)/supplyArea_[s];
+                flux=supplyFlux(supply,g,r,yr.data());
+                for(std::size_t k=0;k<ns_;++k) speciesDerivative[ir*ns_+k]+=area*g*supply.composition[k];
+                rates.mass+=area*g;rates.energy+=area*flux[3];rates.inlet+=area*g;rates.inletMomentum+=area*flux[1];
+            } else {
+                Thermal t=faceThermal(r,yr.data());
+                flux=faceFlux(reflect(r,1,0),t,r,t,1,0,true);
+                flux[0]=0;flux[3]=0;
+                rates.wallAxial+=area*flux[1];
+            }
+            for(int k=0;k<4;++k) derivative[ir][k]+=area*flux[k];
+            continue;
+        }
         if(i==0) { l=inlet(r);yl=inletComposition_; }
         Thermal tl=faceThermal(l,yl.data());
-        if(i==m.nz) { r=outlet(l,yl.data());yr=yl; }
+        if(i==m.nz) { bool ambientInflow=false;r=outlet(l,yl.data(),ambientInflow);yr=ambientInflow?ambient_:yl; }
         Thermal tr=faceThermal(r,yr.data());
-        auto flux=faceFlux(l,tl,r,tr,1,0,i>0 && i<m.nz);double area=m.axialArea(i,j);
+        auto flux=faceFlux(l,tl,r,tr,1,0,i>0 && i<m.nz);
         for(int k=0;k<4;++k) {
             if(i>0) derivative[il][k]-=area*flux[k];
             if(i<m.nz) derivative[ir][k]+=area*flux[k];
@@ -590,9 +746,19 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
 double Flow::step(double maxDt) {
     if(!(maxDt>0)) throw std::invalid_argument("Step interval must be positive.");
     double dt=std::min(stableDt(),maxDt);
+    const double event=nextEvent(time_);
+    bool landing=false;
+    if(event-time_<=dt) { dt=event-time_;landing=true; }
     const std::size_t n=state_.size();
+    const auto& ig=definition_.igniter;
     for(int attempt=0;attempt<14;++attempt) {
-        auto first=rhs(state_,species_,rhs_,speciesRhs_);
+        // Mean igniter power over [t, t + dt]; steps end on its switching times, so this is exact.
+        igniterPower_=0;
+        if(ig.energy>0) {
+            double overlap=std::min(time_+dt,ig.start+ig.duration)-std::max(time_,ig.start);
+            if(overlap>0) igniterPower_=ig.energy/ig.duration*overlap/dt;
+        }
+        auto first=rhs(state_,species_,rhs_,speciesRhs_,time_);
         bool ok=true;
         for(std::size_t q=0;q<n;++q) {
             for(int k=0;k<4;++k) stage_[q][k]=state_[q][k]+dt*rhs_[q][k];
@@ -601,7 +767,7 @@ double Flow::step(double maxDt) {
         }
         BoundaryRates second{};
         if(ok) {
-            second=rhs(stage_,speciesStage_,rhs_,speciesRhs_);
+            second=rhs(stage_,speciesStage_,rhs_,speciesRhs_,time_+dt);
             for(std::size_t q=0;q<n;++q) {
                 for(int k=0;k<4;++k) next_[q][k]=0.5*(state_[q][k]+stage_[q][k]+dt*rhs_[q][k]);
                 for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesNext_[k]=0.5*(species_[k]+speciesStage_[k]+dt*speciesRhs_[k]);
@@ -609,15 +775,16 @@ double Flow::step(double maxDt) {
             }
         }
         if(ok) {
-            state_.swap(next_);species_.swap(speciesNext_);time_+=dt;dt_=dt;++steps_;
+            state_.swap(next_);species_.swap(speciesNext_);time_=landing?event:time_+dt;dt_=dt;++steps_;
             lastRates_=BoundaryRates::average(first,second);
+            integratedHeat_+=dt*lastRates_.heat;
             integratedMassFlux_+=dt*lastRates_.mass;
             integratedEnergyFlux_+=dt*lastRates_.energy;
             integratedMomentumSource_+=dt*lastRates_.netMomentum();
             integratedMomentumGross_+=dt*lastRates_.grossMomentum();
             return dt;
         }
-        ++rejectedSteps_;dt*=0.5;
+        ++rejectedSteps_;dt*=0.5;landing=false;
     }
     throw std::runtime_error("Could not advance an admissible gas state after 14 timestep reductions.");
 }
@@ -644,6 +811,13 @@ Measurements Flow::measurements() const {
         if(i==mesh_.nz-1) { double a=mesh_.axialArea(mesh_.nz,j);exitArea+=a;result.exitMach+=a*mach; }
     }
     result.exitMach/=exitArea;
+    if(definition_.experiment==Case::Chamber) {
+        for(const auto& s:definition_.supplies) result.supplyMassFlow+=s.massFlow*s.opening(time_);
+        result.igniterPower=lastRates_.heat;result.igniterEnergy=integratedHeat_;
+        double area=0;
+        for(int j=0;j<mesh_.nr;++j) { double a=mesh_.axialArea(0,j);area+=a;result.injectorPressure+=a*cellPrimitive(mesh_.index(0,j)).p; }
+        result.injectorPressure/=area;
+    }
     // Ambient pressure acts on the closed exterior of the device except the exit opening.
     result.ambientAxialForce=definition_.backPressure*exitArea;
     if(steps_>0) {
