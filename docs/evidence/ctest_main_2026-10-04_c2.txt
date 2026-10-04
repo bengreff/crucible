@@ -1,0 +1,26 @@
+Test project /Users/ben/inquiry-project/build
+    Start 1: core_verification
+1/6 Test #1: core_verification ................   Passed   16.95 sec
+    Start 2: core_slow_verification
+2/6 Test #2: core_slow_verification ...........   Passed   89.22 sec
+    Start 3: thermo_cea_verification
+3/6 Test #3: thermo_cea_verification ..........   Passed   40.99 sec
+    Start 4: reaction_verification
+4/6 Test #4: reaction_verification ............   Passed    0.86 sec
+    Start 5: transport_verification
+5/6 Test #5: transport_verification ...........***Failed   13.71 sec
+    Start 6: mixture_verification
+6/6 Test #6: mixture_verification .............   Passed    1.34 sec
+
+83% tests passed, 1 tests failed out of 6
+
+Label Time Summary:
+slow    =  89.22 sec*proc (1 test)
+
+Total Test time (real) = 163.08 sec
+
+The following tests FAILED:
+	  5 - transport_verification (Failed)
+Errors while running CTest
+Output from these tests are in: /Users/ben/inquiry-project/build/Testing/Temporary/LastTest.log
+Use "--rerun-failed --output-on-failure" to re-run the failed cases verbosely.
