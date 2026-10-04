@@ -1,0 +1,4 @@
+.DS_Store
+# black_hole_paper is its own repo (github.com/bengreff/black_hole_paper);
+# the canonical copy lives at ~/black_hole_paper — this local snapshot stays untracked
+black_hole_paper/
