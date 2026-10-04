@@ -1,0 +1,28 @@
+mesh 32x6: dz 5.208 mm, throat station 16 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 8 at z 0.0443 m
+chemistry fr; igniter 300 J over 1 ms from 0.2 ms
+t 0.500 ms  p_inj 1.5852 MPa  outlet 0.1535 kg/s  F_vac 891.4 N  steps 3292  wall 39 s
+t 1.000 ms  p_inj 2.8378 MPa  outlet 0.3244 kg/s  F_vac 1426.5 N  steps 8250  wall 115 s
+t 1.500 ms  p_inj 3.1612 MPa  outlet 0.3733 kg/s  F_vac 1589.5 N  steps 12987  wall 181 s
+t 2.000 ms  p_inj 3.2688 MPa  outlet 0.3933 kg/s  F_vac 1641.5 N  steps 17250  wall 231 s
+t 2.500 ms  p_inj 3.3004 MPa  outlet 0.3980 kg/s  F_vac 1657.6 N  steps 21500  wall 281 s
+t 3.000 ms  p_inj 3.3098 MPa  outlet 0.3994 kg/s  F_vac 1662.4 N  steps 25750  wall 328 s
+t 3.500 ms  p_inj 3.3125 MPa  outlet 0.3998 kg/s  F_vac 1663.8 N  steps 30000  wall 375 s
+t 4.000 ms  p_inj 3.3133 MPa  outlet 0.3999 kg/s  F_vac 1664.2 N  steps 34250  wall 426 s
+t 4.500 ms  p_inj 3.3136 MPa  outlet 0.4000 kg/s  F_vac 1664.4 N  steps 38500  wall 476 s
+t 5.000 ms  p_inj 3.3137 MPa  outlet 0.4000 kg/s  F_vac 1664.4 N  steps 42750  wall 528 s
+t 5.500 ms  p_inj 3.3137 MPa  outlet 0.4000 kg/s  F_vac 1664.4 N  steps 47000  wall 585 s
+t 6.000 ms  p_inj 3.3137 MPa  outlet 0.4000 kg/s  F_vac 1664.4 N  steps 51250  wall 641 s
+t 6.500 ms  p_inj 3.3137 MPa  outlet 0.4000 kg/s  F_vac 1664.4 N  steps 55500  wall 698 s
+t 7.000 ms  p_inj 3.3137 MPa  outlet 0.4000 kg/s  F_vac 1664.4 N  steps 59750  wall 755 s
+t 7.500 ms  p_inj 3.3137 MPa  outlet 0.4000 kg/s  F_vac 1664.4 N  steps 64000  wall 813 s
+t 8.000 ms  p_inj 3.3137 MPa  outlet 0.4000 kg/s  F_vac 1664.4 N  steps 68250  wall 860 s
+
+end 8.000 ms after 68250 steps (63729 replans), wall 860 s
+budgets: mass -1.64e-12  energy 2.16e-11
+drift over last 1 ms: outlet mass flow 8.28e-08, injector pressure 8.37e-08, vacuum thrust 2.39e-07
+chamber end: static 3.13746 MPa, equilibrium stagnation p0 3.15407 MPa; injector face 3.31369 MPa
+simulated: mdot out 0.400000 kg/s (supply 0.400000), c* 2477.20 m/s, vacuum thrust 1664.42 N, vacuum Isp 424.31 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3351.6 K, c* 2429.40 m/s, Isp_vac shifting 435.97 s, frozen 419.44 s, gamma 1.2073
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2438.05 m/s, Isp_vac shifting 429.09 s, frozen 412.77 s, F_vac 1683.16 N
+simulated/predicted - 1: c* +1.6057%, Isp_vac (shifting) -1.1135%

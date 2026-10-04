@@ -24,7 +24,9 @@
 //    exit, checked).
 //
 // Usage: crucible_chamber_study <eq|fr|frozen> <nz> <nr> <end time s> <threads> <output prefix>
-// Writes <prefix>_history.csv (every 2 us) and <prefix>_field_<us>.csv snapshots.
+//        [igniter energy J (0.5)] [igniter duration s (2e-4)]
+// Writes <prefix>_history.csv (every 2 us), <prefix>_mesh.csv (stations) and <prefix>_field_<us>.csv
+// snapshots; tools/chamber_plots.py renders them.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -112,12 +114,14 @@ double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const d
 
 int main(int argc, char** argv) {
   if (argc < 7) {
-    std::fprintf(stderr, "usage: %s <eq|fr|frozen> <nz> <nr> <end s> <threads> <prefix>\n", argv[0]);
+    std::fprintf(stderr, "usage: %s <eq|fr|frozen> <nz> <nr> <end s> <threads> <prefix> [igniter J] [igniter s]\n",
+                 argv[0]);
     return 2;
   }
   const std::string mode = argv[1], prefix = argv[6];
   const int nz = std::atoi(argv[2]), nr = std::atoi(argv[3]), threads = std::atoi(argv[5]);
   const double end = std::atof(argv[4]);
+  const double igniterEnergy = argc > 7 ? std::atof(argv[7]) : 0.5, igniterDuration = argc > 8 ? std::atof(argv[8]) : 2e-4;
   const auto chemistry = mode == "eq" ? thermo::Chemistry::LocalEquilibrium
                          : mode == "fr" ? thermo::Chemistry::FiniteRate
                                         : thermo::Chemistry::Frozen;
@@ -144,9 +148,9 @@ int main(int argc, char** argv) {
   s.opens = 0;
   s.ramp = 5e-4;
   d.supplies = {s};
-  // Igniter: 0.5 J over 0.2 ms from 0.2 ms, in a 10 mm by 10 mm core 5 mm off the injector face.
-  // Local equilibrium burns any premixed gas at once, so in "eq" mode it has no role.
-  d.igniter = {0.005, 0.015, 0.010, 0.5, 2e-4, 2e-4};
+  // Igniter: from 0.2 ms in a 10 mm by 10 mm core 5 mm off the injector face; 0.5 J over 0.2 ms
+  // unless given. Local equilibrium burns any premixed gas at once, so in "eq" mode it has no role.
+  d.igniter = {0.005, 0.015, 0.010, igniterEnergy, 2e-4, igniterDuration};
 
   Flow flow(d);
   thermo::ReactingFlow reacting(flow, "h2o2.yaml", threads, 1e-6, 1e-12, chemistry);
@@ -163,7 +167,15 @@ int main(int argc, char** argv) {
               "chamber-end column %d at z %.4f m\n",
               nz, nr, mesh.dz * 1e3, throatStation, throatStation * mesh.dz, geo.throat, rMin, eps, endColumn,
               mesh.cells[mesh.index(endColumn, 0)].z);
+  std::printf("chemistry %s; igniter %.4g J over %.4g ms from 0.2 ms\n", mode.c_str(), igniterEnergy,
+              igniterDuration * 1e3);
 
+  {
+    FILE* f = std::fopen((prefix + "_mesh.csv").c_str(), "w");
+    std::fprintf(f, "i,z,radius\n");
+    for (int i = 0; i <= nz; ++i) std::fprintf(f, "%d,%.9e,%.9e\n", i, i * mesh.dz, mesh.radius[i]);
+    std::fclose(f);
+  }
   const std::size_t ns = flow.medium().size();
   auto speciesIndex = [&](const char* name) {
     for (std::size_t k = 0; k < ns; ++k)
