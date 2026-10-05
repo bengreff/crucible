@@ -1,0 +1,75 @@
+Compute budget measurements, 5 October 2026, Mac M2 Pro (6 performance + 4 efficiency cores), Release build.
+Benchmark: build/crucible_step_cost 64 12 6e-4 200 10 (tests/step_cost.cpp): C1 chamber 64x12, h2o2.yaml,
+LocalEquilibrium setup to 0.6 ms, then 200 timed steps per configuration; FiniteRate = CVODES rtol 1e-6, atol 1e-12.
+Run 1 had no substep sweep and runs 1-2 no replans column. The sweeps of runs 2 and 3 ran on the equilibrium
+setup state (not representative); run 4 sweeps the substep cost after 20 FiniteRate steps with the valve open.
+Another project's slot job shared the Mac during run 4.
+
+== run cost_64x12.txt
+setup 64x12 (768 cells): LocalEquilibrium to 0.600 ms, 9800 steps, 216 s wall; injector p 1.9003 MPa, outlet 0.2032 kg/s
+config    chemistry  threads dt start [s]  mean dt [s]  wall/step [s]   cell updates/s
+inviscid  frozen           1   5.6674e-08   5.7473e-08     1.0528e-03       7.2949e+05
+inviscid  finite           1   5.6674e-08   5.6834e-08     8.0241e-02       9.5712e+03
+inviscid  finite          10   5.6674e-08   5.6834e-08     1.5400e-02       4.9870e+04
+viscous   frozen           1   5.6382e-08   5.7289e-08     3.2536e-03       2.3605e+05
+viscous   finite           1   5.6382e-08   5.6649e-08     8.2894e-02       9.2649e+03
+viscous   finite          10   5.6382e-08   5.6649e-08     1.7748e-02       4.3273e+04
+
+== run cost_64x12_b.txt
+setup 64x12 (768 cells): LocalEquilibrium to 0.600 ms, 9800 steps, 216 s wall; injector p 1.9003 MPa, outlet 0.2032 kg/s
+config    chemistry  threads dt start [s]  mean dt [s]  wall/step [s]   cell updates/s
+inviscid  frozen           1   5.6674e-08   5.7473e-08     1.0671e-03       7.1973e+05
+inviscid  finite           1   5.6674e-08   5.6834e-08     8.0906e-02       9.4924e+03
+inviscid  finite          10   5.6674e-08   5.6834e-08     1.7522e-02       4.3831e+04
+viscous   frozen           1   5.6382e-08   5.7289e-08     3.2985e-03       2.3284e+05
+viscous   finite           1   5.6382e-08   5.6649e-08     9.3061e-02       8.2527e+03
+viscous   finite          10   5.6382e-08   5.6649e-08     2.0522e-02       3.7424e+04
+FiniteRate substep [s]           s per cell
+2.8337e-08                       1.2801e-05
+5.0000e-10                       1.2200e-05
+5.0000e-11                       1.2088e-05
+
+== run cost_64x12_c.txt
+[slot] waiting for a heavy-job slot / RAM (free 2.5 GB, need 3.0); waited 0s
+setup 64x12 (768 cells): LocalEquilibrium to 0.600 ms, 9800 steps, 229 s wall; injector p 1.9003 MPa, outlet 0.2032 kg/s
+config    chemistry  threads dt start [s]  mean dt [s]  wall/step [s]   cell updates/s replans/step
+inviscid  frozen           1   5.6674e-08   5.7473e-08     1.0725e-03       7.1610e+05         0.00
+inviscid  finite           1   5.6674e-08   5.6834e-08     8.8201e-02       8.7073e+03         1.01
+inviscid  finite          10   5.6674e-08   5.6834e-08     1.5213e-02       5.0484e+04         1.01
+viscous   frozen           1   5.6382e-08   5.7289e-08     3.2380e-03       2.3719e+05         0.00
+viscous   finite           1   5.6382e-08   5.6649e-08     8.3281e-02       9.2218e+03         1.01
+viscous   finite          10   5.6382e-08   5.6649e-08     1.7904e-02       4.2895e+04         1.01
+FiniteRate substep [s]           s per cell
+2.8337e-08                       1.3042e-05
+5.0000e-10                       1.2615e-05
+5.0000e-11                       1.2505e-05
+
+== run cost_64x12_d.txt
+setup 64x12 (768 cells): LocalEquilibrium to 0.600 ms, 9800 steps, 234 s wall; injector p 1.9003 MPa, outlet 0.2032 kg/s
+config    chemistry  threads dt start [s]  mean dt [s]  wall/step [s]   cell updates/s replans/step
+inviscid  frozen           1   5.6674e-08   5.7473e-08     1.0370e-03       7.4062e+05         0.00
+inviscid  finite           1   5.6674e-08   5.6834e-08     8.0749e-02       9.5110e+03         1.01
+inviscid  finite          10   5.6674e-08   5.6834e-08     1.4802e-02       5.1885e+04         1.01
+viscous   frozen           1   5.6382e-08   5.7289e-08     3.2491e-03       2.3637e+05         0.00
+viscous   finite           1   5.6382e-08   5.6649e-08     8.4464e-02       9.0926e+03         1.01
+viscous   finite          10   5.6382e-08   5.6649e-08     1.7764e-02       4.3233e+04         1.01
+FiniteRate substep [s]           s per cell
+2.8422e-08                       1.6691e-05
+5.0000e-10                       1.3489e-05
+5.0000e-11                       1.3503e-05
+
+== build/crucible_chemistry_cost (tests/chemistry_cost.cpp), single cell, 2000 calls per case
+burned state: T = 3485.3 K, p = 3.000 MPa
+Cantera UV equilibrium, solver auto, near-equilibrium cell: 61.7 us
+Cantera TV equilibrium, solver auto, near-equilibrium cell: 15.4 us
+Cantera UV equilibrium, solver element_potential, near-equilibrium cell: 61.0 us
+Cantera TV equilibrium, solver element_potential, near-equilibrium cell: 13.9 us
+Cantera UV equilibrium, solver gibbs: failed
+Cantera TV equilibrium, solver gibbs, near-equilibrium cell: 122.1 us
+Cantera UV equilibrium, solver vcs, near-equilibrium cell: 1670.4 us
+Cantera TV equilibrium, solver vcs, near-equilibrium cell: 73.3 us
+finite rate 50 ns, rtol 1e-08, near-equilibrium cell: 211.3 us per call, 129.0 CVODES steps
+finite rate 50 ns, rtol 1e-08, fresh at 1500 K:       230.4 us per call, 150.0 CVODES steps
+finite rate 50 ns, rtol 1e-06, near-equilibrium cell: 100.8 us per call, 59.0 CVODES steps
+finite rate 50 ns, rtol 1e-06, fresh at 1500 K:       144.1 us per call, 82.0 CVODES steps
+one rates() evaluation: 0.78 us

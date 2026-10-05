@@ -92,6 +92,8 @@ if(CRUCIBLE_WITH_CANTERA)
     target_include_directories(crucible_chemistry_cost PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
     target_link_libraries(crucible_chemistry_cost PRIVATE crucible_thermo
       ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+    add_executable(crucible_step_cost tests/step_cost.cpp)
+    target_link_libraries(crucible_step_cost PRIVATE crucible_thermo)
     add_executable(crucible_chamber_study tests/chamber_study.cpp)
     target_include_directories(crucible_chamber_study PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
     target_link_libraries(crucible_chamber_study PRIVATE crucible_thermo

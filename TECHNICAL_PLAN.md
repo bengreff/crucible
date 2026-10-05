@@ -21,6 +21,7 @@
 5. **Liquid propellant: injection, breakup and evaporation** (Ben, "Add evaporation first"; required before RL10). Liquid enters as stochastic Lagrangian parcels in the RZ domain: each parcel carries position, three velocity components, drop diameter, temperature and a statistical weight, and exchanges mass, momentum, energy and species with the gas through sources inside the shared step, normalised to physical ring volumes. Primary atomization of a coaxial element is not resolved in 2-D axisymmetry: the initial drop size distribution comes from a published coaxial-injector correlation and is carried as a declared bracket, the leading uncertainty of the model. Secondary breakup uses a KH-RT class model; evaporation uses a film-theory model (Abramzon-Sirignano class) with Cantera gas properties and cited liquid O2 properties. The liquid's enthalpy is the real feed enthalpy, so the latent heat is honoured without a separate correction. Applicability is checked as the state evolves: subcritical evaporation requires chamber pressure below the O2 critical pressure. The same particle container later carries energetic antimatter products with their own laws. Verification: single-drop evaporation against a reference solution, mass and energy budgets closing with parcels present, and a published subcritical LOX/GH2 spray flame as a component case.
 6. **Igniter.** A bounded energy deposit (declared energy, volume and duration) or a defined hot-gas supply, counted in the energy budget once.
 7. **Unresolved transport, applied uniformly.** Molecular transport first (mixture-averaged, Cantera's fits, verified against Cantera and a laminar flame speed from Cantera's FreeFlame). Then SST-2003 URANS with a declared wall treatment and turbulent Prandtl/Schmidt numbers, then PaSR for turbulence-chemistry interaction. The same closure acts on every stream, the chamber and the nozzle; there is no combustion-only mixing shortcut. Until it exists, results that depend on mixing are not claimed, and premixed runs isolate everything else.
+   - **Turbulence is modelled, never resolved.** The engine evolves Reynolds- and Favre-averaged mean fields (URANS). SST-2003 supplies the turbulent stresses and heat and species fluxes, and PaSR supplies the turbulence-chemistry interaction. No eddy is resolved on any grid. Grid refinement converges the model's mean solution; it does not resolve turbulence. The RZ domain could not hold resolved turbulence anyway, because eddies are three-dimensional. The time dependence is that of the mean flow: startup, valve transients and acoustics. LES and DNS are not planned.
    - **SST-2003 as built** (equations from the NASA Turbulence Modeling Resource `sst.html`, extracted 4 October 2026). The model is the standard SST with the 2003 changes and nothing else:
      - production limited to min(P, 10 beta* rho omega k) in both equations;
      - mu_t = rho a1 k / max(a1 omega, S F2) with the strain invariant S = sqrt(2 S_ij S_ij), which includes the hoop strain u_r / r;
@@ -85,7 +86,84 @@
 12. **Engines as data.** An engine definition holds its contour (a table, or a parametric shape from published dimensions), propellants and feed states, flows or O/F and chamber pressure, ambient pressure, and a provenance label on each field (measured, derived or assumed). A headless batch runner takes a database of such definitions and reports Isp, thrust and c* with their trends against CEA and measurements. There are no per-engine efficiency factors. A fast ideal-rocket tier (the engine's own thermochemistry, as in the CEA check) and the full time-evolving tier read the same definition.
 13. **Output.** Ben wants the data representation before the UI: each run writes its time history (CSV) and field frames, with contact sheets and a single exported video per run.
 14. **Laboratory sandbox app, first draft** (Ben; after the chemical milestone). "Draw and run": edit the cross-section (wall contour points), place injectors (supply faces and liquid injection sites), run, and watch the fields evolve. "Probe and plot": click anywhere for time histories of the local fields, with thrust and Isp traces for the whole device. It drives the same engine and run records as the headless runner.
-15. **Cost.** Reaction integration dominates the step. Measure the cost per cell-step for each chemistry mode, use the worker threads, and run grid convergence on the Windows GPU PC or long Mac runs.
+15. **Cost.** Reaction integration dominates the step (96% of it on one thread, measured). Measure the cost per cell-step for each chemistry mode, use the worker threads, and run grid convergence on the Windows GPU PC or long Mac runs. The measured costs and the projection for a 1 s RL10 run are in *Compute budget for a 1 s RL10 run* below.
+
+### Compute budget for a 1 s RL10 run (5 October 2026)
+
+Ben asked what a full 1 s RL10 run costs. Every number is labelled: **measured** (on the named machine), **derived** (stated arithmetic from measured or published values) or **guessed** (an input not yet known).
+
+**Measured cost of the reacting step.** Measured with `tests/step_cost.cpp`; the output of four runs is in `docs/evidence/step_cost_2026-10-05.txt`. Another project's job shared the Mac during run 4; its rates match runs 1 to 3.
+- Machine: Mac M2 Pro (6 performance and 4 efficiency cores).
+- Case: the C1 chamber on 64x12 (768 cells) with h2o2.yaml (10 species). It is marched in local equilibrium to 0.6 ms, when the chamber burns at 1.9 MPa and the nozzle flows.
+- Timing: 200 steps per configuration at that grid's flow step, about 5.7e-8 s.
+- Settings: FiniteRate is CVODES at rtol 1e-6 and atol 1e-12, as in C1. "Viscous" means mixture-averaged transport, SST-2003 and no-slip walls at 600 K.
+
+| Step (cell updates per second, range over four runs) | 1 thread | 10 threads |
+|---|---|---|
+| Inviscid, frozen chemistry (the flow step alone) | 7.2e5 to 7.4e5 | not run (serial) |
+| Inviscid, finite rate | 8.7e3 to 9.6e3 | 4.4e4 to 5.2e4 |
+| Viscous (SST), frozen chemistry | 2.3e5 to 2.4e5 | not run (serial) |
+| Viscous (SST), finite rate | 8.3e3 to 9.3e3 | 3.7e4 to 4.3e4 |
+
+- Chemistry is 96% of the single-thread viscous step (derived). It costs about 1.0e-4 s per cell per step.
+- 10 threads give about 4.6x. The flow step is serial, and 4 of the 10 cores are efficiency cores.
+- Each step makes 3.0 reaction substeps rather than 2 (measured). Once per step the first half-substep lowers the CFL step and is redone ("replans", 1.01 per step).
+- One CVODES substep costs about 3.4e-5 s per cell at the measured half step (derived from the above).
+- **Shortening the substep barely lowers its cost.**
+  - The state: after 20 finite-rate steps with the valve open. 20 substeps were repeated on that one state.
+  - Measured cost per cell of one substep:
+    - 1.7e-5 s at 2.8e-8 s (half the flow step);
+    - 1.35e-5 s at 5e-10 s;
+    - 1.35e-5 s at 5e-11 s.
+  - The repeated substeps relax the state toward equilibrium, so these are about half the in-march cost.
+  - So CVODES costs about the same per call whatever the substep length: the cost is per call, not per simulated time. At the RL10 step, chemistry by CVODES costs about as much per step as it does here.
+- One Cantera rate evaluation costs 0.78 to 0.84 us (measured, `crucible_chemistry_cost`, two runs). A single isolated cell costs 100 to 144 us per 50 ns CVODES call at rtol 1e-6 (measured).
+
+**RL10 grid and time step** (derived from a guessed resolution; the real contour is extracted at C4).
+- The domain is 1.37 m long (TM-107318 Table E1, stations -12 in to +41.84 in), with area ratio 61. The throat radius is about 6 cm (guessed until the contour is extracted).
+- Axial cells: uniform 1 mm, so nz is about 1400 (guessed resolution, about 60 cells along the throat radius).
+- Radial rings: about 120, clustered to a first wall cell of 0.4 um.
+  - That is y+ about 1 at the throat, which SST-2003 needs to integrate to the wall.
+  - It is derived from a skin-friction coefficient of about 2e-3 and the gas viscosity at a 600 K wall, at a chamber pressure of a few MPa (guessed). It is uncertain by about 3x.
+- About 1.7e5 cells.
+- The explicit step is set by sound crossing the wall cell: dt = 0.2 dr / a at the engine's CFL of 0.4. That is about 7e-11 s for a = 1200 m/s (derived).
+  - The diffusion bound, 0.1 dr^2 / D with D up to about 3e-5 m^2/s for H2 (guessed), is about 5e-10 s or more, so it does not bind.
+- 1 s is therefore about 1.5e10 steps and 2.5e15 cell updates (derived).
+
+**Projected wall time for 1 s of simulated time** (explicit, wall-resolved, as the engine is built today)
+
+| Machine | Cell updates per second | Wall time for 1 s |
+|---|---|---|
+| Mac, 10 threads | 4e4 (measured on 768 cells) | 6e10 s, about 2000 years (derived) |
+| backhouse CPU (i7-14700K: 8 performance and 12 efficiency cores, 28 threads) | about 8e4 (derived: about 2x the Mac from its core count and clock; not yet measured) | about 1000 years |
+| GPU port (RTX 4070 Ti SUPER, f64) | 1e6 to 1e7 (guessed; a consumer card runs f64 at 1/64 of its FP32 rate) | 8 to 80 years (derived from the guess) |
+
+A 1 s explicit run at wall-resolved resolution is out of reach on every machine here. Taking a week as acceptable, it is too slow by about 400 times on the GPU (guessed) and about 1e5 times on the Mac.
+
+**What would cut it** (factors multiply only where the rows are independent)
+
+| Cut | Factor | Cost to the physics |
+|---|---|---|
+| Simulate to the settled state instead of 1 s | About 50 (guessed: settled by about 20 ms; the settling test measures it) | None. Step 1 already takes performance from a late settled window. |
+| Plan each step slightly below the CFL limit, so the first half-substep is not redone | 1.5 on the chemistry (derived from the measured 3.0 substeps per step) | None. |
+| Integrate the chemistry inside the explicit step | About 10 to 20 on the step (guessed). At steps of 1e-10 s the kinetics are not stiff. Explicit integration then needs 2 to 4 rate evaluations of 0.84 us each, against about 1.0e-4 s per cell of CVODES chemistry per step (measured). The flow step, 4.2 us per cell viscous on one thread (measured), then dominates. | None while the step is shorter than the fastest chemical time. Each cell must check this and fall back to CVODES when it fails. |
+| Thread the flow step (serial today) | Up to about 8 on 10 cores, once chemistry is no longer dominant (guessed) | None. |
+| Wall functions: first cell at y+ 30 to 100 instead of 1 | 30 to 100 on the step (derived from the cell size), and fewer rings | A declared wall model replaces the resolved sublayer. Wall heat flux and friction, which are entries in the RL10 loss ledger, become model outputs. |
+| Implicit or dual time stepping for the flow | 10 to 700 (guessed) | None if the physical step resolves the transient. The inner pseudo-time iterations converge each physical step and do not alter the history, so this is consistent with step 1. Assumes a physical step of 1e-7 to 1e-6 s with 10 to 30 inner iterations, each costing 2 to 5 explicit steps. Needs a new solver and its verification, about a week (guessed). |
+| Chemistry tabulation (ISAT, Pope 1997) | 5 to 20 overall at a 96% chemistry share (guessed) | An approximation with an error tolerance that must be verified. |
+| Local time stepping once settled | 1e4 or more on that part (guessed) | The history after the switch is pseudo-time. That conflicts with step 1 as written ("no pseudo-time acceleration"), so it needs Ben's ruling. |
+| GPU port | 20 to 200 over the Mac (guessed) | None in f64. A large port of the flow and the chemistry. |
+
+**What is feasible** (derived from the rows above; the factors are guessed).
+- **1 s:** not feasible on any of these machines with any combination short of local time stepping.
+- **A settled run of about 20 ms needs two structural changes.** One is a wall treatment or time stepping that removes the 7e-11 s wall step: wall functions, or implicit or dual time stepping. The other is cheaper chemistry or a GPU.
+- **Example: wall functions plus in-step chemistry plus a threaded flow step.**
+  - About 1e7 steps of 2e-9 s on about 1e5 cells, so about 1e12 cell updates.
+  - That is about 10 days on the Mac at a guessed 1e6 cell updates per second, a few days on backhouse, and a few hours to a day on a GPU port.
+- **Example: dual time stepping on the wall-resolved grid.**
+  - About 2e5 physical steps of 1e-7 s on 1.7e5 cells, each costing about 3e-4 s per cell on one thread.
+  - That is about 4 weeks on the Mac with 10 threads (at the measured 4.6x) and about 2 weeks on backhouse.
+  - Both are 10 times less with a physical step of 1e-6 s.
 
 ### Dated plan to January
 
