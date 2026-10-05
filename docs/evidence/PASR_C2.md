@@ -1,6 +1,6 @@
 # C2: PaSR turbulence-chemistry closure
 
-Status (5 October 2026, 04:40): implemented; criteria 1, 2 and 3 pass (run 5). Criterion 2's test-power check failed twice for the fractional-segregation case because of where its samples fell. It was restated at 03:08 (53f8870), before run 5, to read a fine record of the references, and run once: it passes. Criteria were stated in the header of `tests/pasr_tests.cpp` on 4 October 2026, before the closure was written (c259fb5). The amendments are dated there. Criterion 4 (a turbulent reacting chamber with the closure, judged against the same run without it) was stated at 03:09 on 5 October (c44a933). Its harness is `tests/chamber_study.cpp`, modes `frp` and `frt`. The first smoke runs stopped before or soon after light-off, in the closure run and the control alike, on two faults in the k-omega numerics, none in the closure. Both are fixed. **On 32x6, criterion 4 passes (a) to (d) for the closure run and the control.** The 64x12 pair is running on backhouse (see Criterion 4 below).
+Status (5 October 2026, 05:20): implemented; criteria 1, 2 and 3 pass (run 5). Criterion 2's test-power check failed twice for the fractional-segregation case because of where its samples fell. It was restated at 03:08 (53f8870), before run 5, to read a fine record of the references, and run once: it passes. Criteria were stated in the header of `tests/pasr_tests.cpp` on 4 October 2026, before the closure was written (c259fb5). The amendments are dated there. Criterion 4 (a turbulent reacting chamber with the closure, judged against the same run without it) was stated at 03:09 on 5 October (c44a933). Its harness is `tests/chamber_study.cpp`, modes `frp` and `frt`. The first smoke runs stopped before or soon after light-off, in the closure run and the control alike, on two faults in the k-omega numerics, none in the closure. Both are fixed. **On 32x6 and 64x12, criterion 4 passes (a) to (d) for the closure run and the control** (see Criterion 4 below).
 
 All numbers are measured unless they are marked derived or inferred.
 
@@ -124,12 +124,30 @@ Reported, not judged (measured):
 
 What this shows: the closure runs in a reacting turbulent chamber from a cold start without breaking budgets or positivity, and it acts only where the chamber is segregated, at light-off. This chamber is premixed, so once it has burned the closure has nothing to act on. It does not test the closure on a non-premixed flame; interleaved fuel and oxidizer rings (C2's remaining item) do that.
 
-**64x12, backhouse** (`/home/greff/crucible_c4`, the same working tree; tmux `crucible_c4run`; outputs in `/home/greff/c4runs/`; nice 19 beside other users' jobs). Started 04:26; pending.
+**64x12, backhouse, 04:26 to 05:16** ([criterion4_64x12_2026-10-05.txt](pasr/criterion4_64x12_2026-10-05.txt); `/home/greff/crucible_c4`, the tree committed as 03d56e3; WSL2 Ubuntu, gcc 13, Cantera 3.2.0; both runs at once, nice 19, 6 threads each, beside other users' jobs). Both reach 8 ms (about 135870 steps; 3041 s and 2872 s) with 0 failures.
+
+| Judged | Closure (frp) | Control (frt) | Limit | Result |
+|---|---|---|---|---|
+| (a) mass budget, largest over the run | 1.3e-12 | 1.2e-12 | 1e-11 | pass |
+| (a) energy budget against \|E\| at the end, largest | 1.4e-14 | 1.9e-14 | 1e-11 | pass |
+| (b) reaches 8 ms; rho, p, T, k, omega positive at all 4000 samples | yes | yes | | pass |
+| (c) largest drift over the last 1 ms | 7.6e-8 | 7.9e-8 | 1e-3 | pass |
+| (c) outlet mass flow against the supply | 9.7e-8 | 9.6e-8 | 1e-3 | pass |
+| (d) kappa_eff in (0, 1], s in [0, 1] at the snapshots | yes (smallest kappa_eff 0.99266) | yes | | pass |
+
+Reported, not judged (measured):
+- Light-off at 0.208 ms in both. Chamber volume with s > 0.01: 0.0177 at light-off, 0 at the end.
+- Settled: injector pressure 3.268512 MPa, c* 2442.84 m/s, vacuum Isp 423.67 s in both, equal to every printed digit.
+- The closure changes the light-off transient: the largest difference against the control is 18.5% in vacuum thrust and 8.4% in injector pressure, at 0.244 ms. From 1 ms on, every difference is below 3.2e-5. The transient difference is larger than on 32x6 (2.7%). The closure acts more strongly here (smallest kappa_eff 0.99266 against 0.99951, measured), and during the steep rise after light-off a small delay gives a large relative difference (inferred). The two are not separated.
+- Mass fractions clipped to zero after a reaction substep: largest 6.7e-143 (closure) and 3.2e-211 (control).
+- First-cell y+ (laminar estimate) median 56, largest 76: the wall is not resolved, as stated.
+- Against the 1-D ideal rocket with C1's 2-D corrections: c* +0.21% (was +1.54% on 32x6), vacuum Isp (shifting) -1.26% (was -1.25%). The c* error falls with the grid as in inviscid equilibrium C1 (+1.66% to +0.40% over the same two grids). The Isp gap does not fall; finite-rate recombination in the nozzle and viscous losses are the candidates (inferred; the frozen bound is 412.7 s).
+
+The 64x12 pair confirms the 32x6 result: the closure acts only at light-off in this premixed chamber, and the settled states are identical.
 
 - **Next.**
-  1. Judge the 64x12 pair and add it here.
-  2. Find where the pipe has non-zero divergence with the limiter active (TURBULENCE_C2.md, amended model note).
-  3. C1's recorded runs predate the clamp. In inviscid C1 the clamp acts on the axis-row mass fractions only where a cell holds less than about a third of the next ring's value (derived for uniform rings). A C1 rerun shows whether its numbers move.
+  1. Find where the pipe has non-zero divergence with the limiter active (TURBULENCE_C2.md, amended model note).
+  2. C1 after the clamp: the 32x6 equilibrium rerun matches every printed result (CHAMBER_C1.md). The finite-rate 32x6 run and the finer grids were not rerun.
 
 ## Limits
 

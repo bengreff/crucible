@@ -1,0 +1,100 @@
+PaSR criterion 4, 64x12, closure (frp) and control (frt), 5 October 2026, backhouse (WSL2 Ubuntu, gcc 13, Cantera 3.2.0),
+/home/greff/crucible_c4 = the tree committed as 03d56e3 (axis clamp and omega fix). Both at once, nice 19, 6 threads each,
+beside f10 and other users' jobs; 04:26 to 05:16. Command: crucible_chamber_study <frp|frt> 64 12 8e-3 6 /home/greff/c4runs/<mode>64
+
+== frp stdout ==
+mesh 64x12: dz 2.604 mm, throat station 32 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 17 at z 0.0456 m
+chemistry frp; igniter 300 J over 1 ms from 0.2 ms; viscous, SST, PaSR closure on
+light-off at 0.2080 ms (largest Y_H2O 0.660); chamber volume with s > 0.01: 0.0177
+t 0.500 ms  p_inj 1.5893 MPa  outlet 0.1583 kg/s  F_vac 926.0 N  steps 6747  wall 231 s
+t 1.000 ms  p_inj 2.8121 MPa  outlet 0.3258 kg/s  F_vac 1431.9 N  steps 16273  wall 513 s
+t 1.500 ms  p_inj 3.1225 MPa  outlet 0.3730 kg/s  F_vac 1589.9 N  steps 25369  wall 763 s
+t 2.000 ms  p_inj 3.2260 MPa  outlet 0.3936 kg/s  F_vac 1639.9 N  steps 33875  wall 989 s
+t 2.500 ms  p_inj 3.2561 MPa  outlet 0.3981 kg/s  F_vac 1655.5 N  steps 42375  wall 1221 s
+t 3.000 ms  p_inj 3.2649 MPa  outlet 0.3995 kg/s  F_vac 1660.0 N  steps 50875  wall 1405 s
+t 3.500 ms  p_inj 3.2675 MPa  outlet 0.3998 kg/s  F_vac 1661.4 N  steps 59375  wall 1582 s
+t 4.000 ms  p_inj 3.2682 MPa  outlet 0.4000 kg/s  F_vac 1661.7 N  steps 67875  wall 1754 s
+t 4.500 ms  p_inj 3.2684 MPa  outlet 0.4000 kg/s  F_vac 1661.8 N  steps 76375  wall 1928 s
+t 5.000 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 84875  wall 2094 s
+t 5.500 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 93375  wall 2262 s
+t 6.000 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 101875  wall 2424 s
+t 6.500 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 110375  wall 2587 s
+t 7.000 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 118875  wall 2748 s
+t 7.500 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 127375  wall 2904 s
+t 8.000 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 135875  wall 3041 s
+
+end 8.000 ms after 135875 steps (133193 replans), wall 3041 s
+budgets: mass 8.67e-14  energy 1.16e-11
+drift over last 1 ms: outlet mass flow 6.89e-08, injector pressure 5.34e-08, vacuum thrust 7.55e-08
+chamber end: static 3.09352 MPa, equilibrium stagnation p0 3.11032 MPa; injector face 3.26851 MPa
+simulated: mdot out 0.400000 kg/s (supply 0.400000), c* 2442.84 m/s, vacuum thrust 1661.89 N, vacuum Isp 423.67 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3350.2 K, c* 2429.15 m/s, Isp_vac shifting 435.94 s, frozen 419.37 s, gamma 1.2074
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2437.79 m/s, Isp_vac shifting 429.06 s, frozen 412.69 s, F_vac 1683.07 N
+simulated/predicted - 1: c* +0.2071%, Isp_vac (shifting) -1.2584%
+
+PaSR criterion 4, closure on, 64x12, to 8.000 ms
+  (a) mass budget, largest over the run (initial fill)           1.271e-12 (limit 1.0e-11)  ok
+  (a) energy budget, largest over the run (|E| at the end)       1.393e-14 (limit 1.0e-11)  ok
+  reported: energy budget against the initial N2 fill, largest 2.389e-11, at the end 1.160e-11
+  (b) positivity of rho, p, T, k, omega at every sample (4000 samples)  ok
+  (c) largest drift over the last 1 ms                           7.555e-08 (limit 1.0e-03)  ok
+  (c) outlet mass flow against the supply                        9.664e-08 (limit 1.0e-03)  ok
+  (d) kappa_eff in (0, 1] and s in [0, 1] at every field snapshot  ok (smallest kappa_eff 9.9266e-01, largest s 1.0000e+00)
+reported: light-off at 0.208000 ms; chamber volume with s > 0.01: 0.0177 at light-off, 0.0000 at the end
+reported: largest mass fraction clipped to zero after a reaction substep 6.704e-143
+reported: first-cell y+ at the wall row (laminar estimate): median 56.4, largest 76.0, largest upstream of the throat 76.0
+reported against the control: light-off, injector pressure 3.268512 MPa, c* 2442.84 m/s, vacuum Isp 423.67 s
+0 failures
+
+== frt stdout ==
+mesh 64x12: dz 2.604 mm, throat station 32 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 17 at z 0.0456 m
+chemistry frt; igniter 300 J over 1 ms from 0.2 ms; viscous, SST, closure off (control)
+light-off at 0.2080 ms (largest Y_H2O 0.660); chamber volume with s > 0.01: 0.0177
+t 0.500 ms  p_inj 1.5893 MPa  outlet 0.1583 kg/s  F_vac 925.8 N  steps 6742  wall 213 s
+t 1.000 ms  p_inj 2.8121 MPa  outlet 0.3258 kg/s  F_vac 1432.0 N  steps 16266  wall 479 s
+t 1.500 ms  p_inj 3.1225 MPa  outlet 0.3730 kg/s  F_vac 1589.9 N  steps 25362  wall 711 s
+t 2.000 ms  p_inj 3.2260 MPa  outlet 0.3936 kg/s  F_vac 1639.9 N  steps 33868  wall 917 s
+t 2.500 ms  p_inj 3.2561 MPa  outlet 0.3981 kg/s  F_vac 1655.5 N  steps 42368  wall 1132 s
+t 3.000 ms  p_inj 3.2649 MPa  outlet 0.3995 kg/s  F_vac 1660.0 N  steps 50868  wall 1327 s
+t 3.500 ms  p_inj 3.2675 MPa  outlet 0.3998 kg/s  F_vac 1661.4 N  steps 59368  wall 1482 s
+t 4.000 ms  p_inj 3.2682 MPa  outlet 0.4000 kg/s  F_vac 1661.7 N  steps 67868  wall 1645 s
+t 4.500 ms  p_inj 3.2684 MPa  outlet 0.4000 kg/s  F_vac 1661.8 N  steps 76368  wall 1802 s
+t 5.000 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 84868  wall 1960 s
+t 5.500 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 93368  wall 2114 s
+t 6.000 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 101868  wall 2271 s
+t 6.500 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 110368  wall 2423 s
+t 7.000 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 118868  wall 2573 s
+t 7.500 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 127368  wall 2722 s
+t 8.000 ms  p_inj 3.2685 MPa  outlet 0.4000 kg/s  F_vac 1661.9 N  steps 135868  wall 2872 s
+
+end 8.000 ms after 135868 steps (133171 replans), wall 2872 s
+budgets: mass -5.59e-13  energy 1.04e-11
+drift over last 1 ms: outlet mass flow 7.10e-08, injector pressure 5.24e-08, vacuum thrust 7.89e-08
+chamber end: static 3.09352 MPa, equilibrium stagnation p0 3.11032 MPa; injector face 3.26851 MPa
+simulated: mdot out 0.400000 kg/s (supply 0.400000), c* 2442.84 m/s, vacuum thrust 1661.89 N, vacuum Isp 423.67 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3350.2 K, c* 2429.15 m/s, Isp_vac shifting 435.94 s, frozen 419.37 s, gamma 1.2074
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2437.79 m/s, Isp_vac shifting 429.06 s, frozen 412.69 s, F_vac 1683.07 N
+simulated/predicted - 1: c* +0.2071%, Isp_vac (shifting) -1.2584%
+
+PaSR criterion 4, control (closure off), 64x12, to 8.000 ms
+  (a) mass budget, largest over the run (initial fill)           1.233e-12 (limit 1.0e-11)  ok
+  (a) energy budget, largest over the run (|E| at the end)       1.853e-14 (limit 1.0e-11)  ok
+  reported: energy budget against the initial N2 fill, largest 3.178e-11, at the end 1.044e-11
+  (b) positivity of rho, p, T, k, omega at every sample (4000 samples)  ok
+  (c) largest drift over the last 1 ms                           7.887e-08 (limit 1.0e-03)  ok
+  (c) outlet mass flow against the supply                        9.578e-08 (limit 1.0e-03)  ok
+  (d) kappa_eff in (0, 1] and s in [0, 1] at every field snapshot  ok (smallest kappa_eff 1.0000e+00, largest s 1.0000e+00)
+reported: light-off at 0.208000 ms; chamber volume with s > 0.01: 0.0177 at light-off, 0.0000 at the end
+reported: largest mass fraction clipped to zero after a reaction substep 3.229e-211
+reported: first-cell y+ at the wall row (laminar estimate): median 56.4, largest 76.0, largest upstream of the throat 76.0
+reported against the control: light-off, injector pressure 3.268512 MPa, c* 2442.84 m/s, vacuum Isp 423.67 s
+0 failures
+
+== closure against control, over the 4000 history samples (2 us apart) ==
+largest relative difference, (frp - frt) / frt:
+  p_injector   8.428e-02 at t 0.244 ms; largest from 1 ms on 2.276e-05
+  F_vac        1.847e-01 at t 0.244 ms; largest from 1 ms on 3.142e-05
+  outlet       6.670e-02 at t 0.254 ms; largest from 1 ms on 2.210e-05
+  T_max        1.040e-02 at t 0.242 ms; largest from 1 ms on 2.982e-06
