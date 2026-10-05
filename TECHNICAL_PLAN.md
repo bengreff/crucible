@@ -87,6 +87,37 @@
 13. **Output.** Ben wants the data representation before the UI: each run writes its time history (CSV) and field frames, with contact sheets and a single exported video per run.
 14. **Laboratory sandbox app, first draft** (Ben; after the chemical milestone). "Draw and run": edit the cross-section (wall contour points), place injectors (supply faces and liquid injection sites), run, and watch the fields evolve. "Probe and plot": click anywhere for time histories of the local fields, with thrust and Isp traces for the whole device. It drives the same engine and run records as the headless runner.
 15. **Cost.** Reaction integration dominates the step (96% of it on one thread, measured). Measure the cost per cell-step for each chemistry mode, use the worker threads, and run grid convergence on the Windows GPU PC or long Mac runs. The measured costs and the projection for a 1 s RL10 run are in *Compute budget for a 1 s RL10 run* below.
+16. **Dual time stepping** (selected 5 October 2026 by the ruling in *Compute budget*; the design is started here and no code exists). It removes the acoustic limit of the wall cells (about 7e-11 s on the RL10 grid) from the physical step and keeps the march physical (step 1). The inner pseudo-time iterations converge every physical step and are discarded, so they do not alter the history.
+   - **Physical time: a one-step implicit method.** The candidate is the implicit part of Kennedy and Carpenter's ARK3(2)4L[2]SA: an ESDIRK with 3 implicit stages, third order, L-stable and stiffly accurate, with a second-order embedded estimate.
+     - Because the method is one-step, the Strang split stays as it is: react(dt/2), the implicit flow step, react(dt/2). The CVODES chemistry is unchanged.
+     - BDF2 is the alternative: one implicit solve per step instead of three. But its second history level is not defined for the flow sub-problem inside a split step.
+     - Which of the two is cheaper at our tolerances is measured on the chamber before the choice is fixed.
+   - **Step size.** The physical step comes from the embedded error estimate, with a declared relative tolerance on p, T and u. It is capped so that the convective CFL of the core flow stays below a declared value; the acoustic CFL of the wall cells may be large. Each run records its tolerance. Refining the time step is part of every settled result's verification (step 10).
+   - **Inner iterations.** Each stage solves (U − U_known)/(a_ii dt) + R(U) = 0. R is the existing spatial operator, unchanged: HLLC with MUSCL, transport, SST, sources and boundaries.
+     - Pseudo-time steps are local to each cell. That is allowed because only the converged stage value is used.
+     - The implicit operator is approximate: the first-order (Rusanov) Jacobian of the inviscid flux, the thin-layer viscous Jacobian normal to the wall, and the SST destruction terms. The residual is exact, so the iterations converge to the second-order discretization (defect correction).
+     - The stiff direction is wall-normal, along each column of rings at fixed z. It is solved as a block-tridiagonal system per column, with symmetric Gauss-Seidel sweeps in z.
+     - Blocks are 4 + ns + 2 unknowns, 16 for h2o2.yaml.
+     - A candidate to speed up convergence at chamber Mach 0.1 to 0.2 is low-Mach preconditioning applied in pseudo time only. It does not change the converged solution.
+   - **Conservation.** The step's update is formed from the stage residuals, U(n+1) = U(n) + dt sum b_i R(U_i), and the boundary fluxes are accumulated with the same weights. So the budgets close to round-off whatever the inner tolerance. The difference from the last stage (equal in exact arithmetic for a stiffly accurate method) is logged as the inner-convergence error. The inner tolerance is declared per run and recorded.
+   - **Admissibility.** The engine checks that rho, p, T, Y_k, k and omega are positive at every inner iteration (using a damped update) and at the end of the step. A failed step is rejected and retried at dt/2, as the explicit steps already do. No clipping.
+   - **Threads.** Within each sweep colour (red-black in z), the residual and the column solves are independent across columns, so the flow step becomes threaded. Today the serial flow step is the second-largest cost (measured).
+   - **Verification**, stated as criteria before the first run:
+     1. Temporal order on a smooth unsteady case (an acoustic wave in the duct, or pipe decay) against an explicit run at a tiny step.
+     2. The settled pipe of TURBULENCE_C2 check 4 matches the explicit result to the inner tolerance.
+     3. The C1 "valves open, ignite" history (light-off time, injector pressure, outlet mass flow) converges to the explicit run as the physical step is refined, at three steps.
+     4. Budgets close to round-off at any inner tolerance.
+     5. The measured cost per simulated microsecond on a wall-clustered chamber with RL10-like wall-cell aspect ratios, against explicit.
+   - **Open, settled by measurement:**
+     - ESDIRK against BDF2.
+     - The inner tolerance at which the transient stops depending on it.
+     - Whether the chemistry must move inside the stage residual (point-implicit) at physical steps of 1e-7 to 1e-6 s. The Strang splitting error at those steps is measured on the C1 light-off (criterion 3) first.
+   - **Sources** (from memory; to be checked against the papers and entered in RESEARCH before the code):
+     - Jameson 1991 (AIAA 91-1596): dual time stepping.
+     - Kennedy and Carpenter 2003 (Appl. Numer. Math. 44): ARK and ESDIRK schemes.
+     - Bijl, Carpenter, Vatsa and Kennedy 2002 (J. Comput. Phys. 179): ESDIRK against BDF2 for unsteady flow.
+     - Yoon and Jameson 1988 (AIAA J. 26): LU-SGS.
+17. **Wall functions: a declared option, never the default** (ruling of 5 October 2026; design not started). It is a switchable SST wall treatment that puts the first cell at y+ 30 to 100. Before any use, it is compared with the wall-resolved dual-time result on one short case (wall shear, wall heat flux, c*, Isp), and the comparison is recorded. Database sweeps may use it only after that, and every result that does is labelled with it.
 
 ### Compute budget for a 1 s RL10 run (5 October 2026)
 
