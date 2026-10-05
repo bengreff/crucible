@@ -1,0 +1,24 @@
+[slot] waiting for a heavy-job slot / RAM (free 3.9 GB, need 3.0); waited 0s
+[slot] waiting for a heavy-job slot / RAM (free 4.4 GB, need 3.0); waited 60s
+mesh 128x24: dz 1.302 mm, throat station 64 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 35 at z 0.0462 m
+chemistry eq; igniter 0.5 J over 0.2 ms from 0.2 ms
+t 0.500 ms  p_inj 1.5053 MPa  outlet 0.1525 kg/s  F_vac 779.6 N  steps 16473  wall 2194 s
+t 1.000 ms  p_inj 2.7649 MPa  outlet 0.3253 kg/s  F_vac 1427.0 N  steps 34190  wall 3293 s
+t 1.500 ms  p_inj 3.1227 MPa  outlet 0.3782 kg/s  F_vac 1609.8 N  steps 51491  wall 4352 s
+t 2.000 ms  p_inj 3.2258 MPa  outlet 0.3937 kg/s  F_vac 1664.5 N  steps 68741  wall 5354 s
+t 2.500 ms  p_inj 3.2557 MPa  outlet 0.3982 kg/s  F_vac 1680.3 N  steps 85991  wall 6395 s
+t 3.000 ms  p_inj 3.2643 MPa  outlet 0.3995 kg/s  F_vac 1684.9 N  steps 103241  wall 7396 s
+t 3.500 ms  p_inj 3.2669 MPa  outlet 0.3998 kg/s  F_vac 1686.2 N  steps 120491  wall 8400 s
+t 4.000 ms  p_inj 3.2676 MPa  outlet 0.4000 kg/s  F_vac 1686.6 N  steps 137741  wall 9434 s
+t 4.500 ms  p_inj 3.2678 MPa  outlet 0.4000 kg/s  F_vac 1686.7 N  steps 154991  wall 10457 s
+t 5.000 ms  p_inj 3.2679 MPa  outlet 0.4000 kg/s  F_vac 1686.8 N  steps 172241  wall 11457 s
+
+end 5.000 ms after 172241 steps (0 replans), wall 11457 s
+budgets: mass -1.10e-12  energy 5.34e-12
+drift over last 1 ms: outlet mass flow 1.02e-04, injector pressure 8.28e-05, vacuum thrust 8.51e-05
+chamber end: static 3.08985 MPa, equilibrium stagnation p0 3.10665 MPa; injector face 3.26785 MPa
+simulated: mdot out 0.399996 kg/s (supply 0.400000), c* 2439.98 m/s, vacuum thrust 1686.77 N, vacuum Isp 430.01 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3350.1 K, c* 2429.12 m/s, Isp_vac shifting 435.94 s, frozen 419.36 s, gamma 1.2074
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2437.77 m/s, Isp_vac shifting 429.06 s, frozen 412.69 s, F_vac 1683.05 N
+simulated/predicted - 1: c* +0.0906%, Isp_vac (shifting) +0.2210%

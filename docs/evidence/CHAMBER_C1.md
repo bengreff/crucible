@@ -86,25 +86,34 @@ FiniteRate mode is reported, not judged against CEA. Its vacuum Isp is expected 
 
 ### LocalEquilibrium grid study (criteria 1 to 5)
 
-Runs: `crucible_chamber_study eq 32 6` and `eq 64 12`, each to 8 ms, 5 threads, this Mac. Logs, history plots and contact sheets are in `c1/`; the raw CSVs were not kept in git.
+Runs: `crucible_chamber_study eq 32 6` and `eq 64 12`, each to 8 ms, 5 threads, this Mac; `eq 128 24` to 5 ms (the time budget), built from c1aaa6c plus the shared-counter chemistry scheduling of daf408c. Between the two codes every change to the flow is behind `hasTransport()`, which is off in this case, so the inviscid chamber physics is the same (read from the diff, not rerun). Logs, history plots and contact sheets are in `c1/`; the raw CSVs were not kept in git.
 
 | Grid | Wall time | p0 (MPa) | c\* sim (m/s) | c\* predicted (m/s) | c\* error | Isp_vac sim (s) | Isp_vac predicted (s) | Isp error | F_vac (N) |
 |---|---|---|---|---|---|---|---|---|---|
 | 32x6 | 341 s | 3.1558 | 2478.55 | 2438.06 | +1.66% | 427.99 | 429.09 | −0.26% | 1678.85 |
 | 64x12 | 2375 s | 3.1164 | 2447.60 | 2437.83 | +0.40% | 428.59 | 429.07 | −0.11% | 1681.21 |
+| 128x24 | 11457 s | 3.1067 | 2439.98 | 2437.77 | +0.09% | 430.01 | 429.06 | +0.22% | 1686.77 |
 
 All values are measured, except the predicted columns, which are derived from the 1-D ideal rocket at the simulated p0 with Cd = 0.99645 and lambda = 0.98296. The frozen-flow Isp_vac bound is 412.7 s.
 
-Verdicts (finest grid is 64x12 so far):
-1. **Settled: pass.** Drift over the last 1 ms on 64x12: outlet mass flow 6.5e-8, injector pressure 5.2e-8, vacuum thrust 5.3e-8 (limit 1e-3).
-2. **Mass: pass. Energy budget: fail as stated.**
-   - Outlet mass flow equals the supply to 1e-6 (0.400000 kg/s against 0.400000). The mass budget is −1.4e-12 (limit 1e-11).
-   - The energy budget is −1.16e-11 on 64x12 and 1.25e-11 on 32x6 (limit 1e-11).
-   - Mechanism (derived): the budget is divided by the energy of the initial fill. That fill is N2 at 1 kPa and 300 K in 2.5e-4 m^3, about −0.25 J. The same absolute error, about 3e-12 J, is about 1e-14 of the energy of the gas in the running engine (estimated at several hundred joules). The normalization, not a leak, is what fails the 1e-11 limit.
+Verdicts (finest grid 128x24; the 64x12 verdicts written before it are kept in git history):
+1. **Settled: pass.** Drift over the last 1 ms on 128x24: outlet mass flow 1.02e-4, injector pressure 8.3e-5, vacuum thrust 8.5e-5 (limit 1e-3). It is larger than on 64x12 (5e-8 at 8 ms) because the run stopped at 5 ms; the thrust still rose 0.1 N per 0.5 ms at the end, about 6e-5 of it, far below the grid changes below.
+2. **Mass: pass. Energy budget: pass on 128x24, fail as stated on the two coarser grids.**
+   - Outlet mass flow 0.399996 kg/s against the supply 0.400000 (1e-5). On 64x12 it matched to 1e-6 at 8 ms; the 1e-5 here is the unfinished settling of verdict 1. Mass budgets −6.7e-13 (32x6), −1.4e-12 (64x12) and −1.10e-12 (128x24), limit 1e-11.
+   - Energy budgets 1.25e-11 (32x6), −1.16e-11 (64x12) and 5.34e-12 (128x24), limit 1e-11.
+   - Mechanism of the two failures (derived): the budget is divided by the energy of the initial fill. That fill is N2 at 1 kPa and 300 K in 2.5e-4 m^3, about −0.25 J. The same absolute error, about 3e-12 J, is about 1e-14 of the energy of the gas in the running engine (estimated at several hundred joules). The normalization, not a leak, is what fails the 1e-11 limit.
    - The criterion stays as written. Future chamber runs will also report the budget against the gas content.
-3. **c\*: pass on 64x12.** +0.40% against the 0.5% bracket. The error fell from +1.66% (ratio 4.1 for a grid halving).
-4. **Vacuum Isp: pass on 64x12.** −0.11% against the 1.0% bracket. The error fell from −0.26%.
-5. **Grids:** two so far. The observed c\* trend is consistent with second order; two grids cannot establish an order, so none is claimed. The 128x24 run is next and will be appended. Estimated cost from the 64x12 timing: about 3 to 4 hours to 5 ms.
+3. **c\*: pass.** +0.09% on 128x24 against the 0.5% bracket, falling from +1.66% and +0.40%.
+   - The simulated c\* differences between grids are 30.95 and 7.62 m/s (ratio 4.06, observed order 2.02). The Richardson limit, 2437.44 m/s, is 0.014% below the prediction at the 128x24 p0 (derived).
+4. **Vacuum Isp: within the bracket, but the error did not fall, so the criterion fails as stated.**
+   - +0.22% on 128x24 against the 1.0% bracket. The error was −0.26% on 32x6 and −0.11% on 64x12, so its size grew from 0.11% to 0.22% and its sign changed.
+   - The simulated Isp rises with refinement: 427.99, 428.59 and 430.01 s. The increments are 0.60 s, then 1.42 s, so they are growing. The grids are not in the asymptotic range for thrust, and no limit or order is claimed.
+   - The prediction is not exact. It carries the conical lambda after a circular-arc throat, about 0.3% (criterion 4's own bracket). So the difference from it is not a pure discretization error, and once the simulation passes the prediction, further convergence can raise it. That is a reading of the bracket, not a demonstration.
+   - What would settle it (derived costs):
+     - a 256x48 grid, about 25 hours to 5 ms (8 times the 128x24 cost); or
+     - an independent inviscid 2-D reference for this contour (method of characteristics for the divergent section) in place of the conical lambda.
+   - Neither has run.
+5. **Grids: three.** c\* converges at an observed order of 2.02. The vacuum Isp does not yet show convergence (verdict 4).
 
 In the frames, local equilibrium burns the premix as it enters ("valves open" without an igniter role, as declared). A starting shock crosses the nozzle by 0.1 ms. The chamber reaches about 3.3 MPa at the face by 2 ms.
 
