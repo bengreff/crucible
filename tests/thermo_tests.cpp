@@ -1,6 +1,7 @@
 // Item-1 verification: the Cantera-backed ideal rocket against NASA CEA (via RocketCEA,
 // tools/cea_reference.py -> tools/cea_reference.csv). Tolerance stated before the run:
 // chamber temperature, c* and vacuum Isp each within 0.5% of CEA, equilibrium and frozen.
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
