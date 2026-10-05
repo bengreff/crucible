@@ -75,7 +75,7 @@ A second fix was tried and had no effect. Following the two-failed-fixes rule, I
 Added for the near-wall resolution SST needs (y+ about 1). Ring boundary j sits at tanh(b s) / tanh(b) of the local radius, s = j / nr. Zero keeps equal rings, with the old expressions taken bit for bit. Criteria were stated in the header of `tests/transport_tests.cpp` before the first run. Raw output: `transport_verification_stretch_2026-10-04.txt`.
 
 - **Corrected before any run used it.** The first form, 1 - tanh(b (1 - s)) / tanh(b), has slope b / tanh(b) > 1 at the wall, so it clustered rings toward the axis. Caught on reading; no result came from it.
-- **Unchanged on equal rings (measured).** Checks 1 to 3 give output identical to `transport_verification_2026-10-04.txt`. The core checks on the new build are queued; their comparison against the previous output is recorded below when it runs.
+- **Unchanged on equal rings (measured).** Checks 1 to 3 give output identical to `transport_verification_2026-10-04.txt`. The core checks (`crucible_tests`), built from the code of 807701b (which also contains SST, off in these checks), give output identical to `core_verification_outlet_2026-10-04.txt`.
 
 At b = 2 the wall ring is 0.166 and the axis ring 2.06 of the equal height (64 x 16).
 
