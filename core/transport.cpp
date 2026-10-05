@@ -23,7 +23,8 @@
 // with tau_thth = mu (2 u_r / r - 2/3 div u) at the centroid, as the pressure enters as +p integral(dV / r).
 // Open boundaries (nozzle inlet, outlet) take a zero normal gradient (fully developed flow): only
 // the stress of the cell's tangential gradients crosses them. Supply rings deliver plug flow with
-// their imposed mass, enthalpy and composition and exchange no diffusive flux.
+// their imposed mass, enthalpy and composition and exchange no diffusive flux (with turbulence the
+// stream's own Reynolds normal stress 2/3 rho k is in its convective flux, Flow::supplyFace).
 //
 // SST-2003 (Definition::Turbulence; NASA TMR sst.html, the 2003 constants): with the eddy viscosity
 // mu_t = rho a1 k / max(a1 omega, S F2), S = sqrt(2 S_ij S_ij) with the hoop strain, the stress

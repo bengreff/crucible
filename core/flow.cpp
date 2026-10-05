@@ -83,8 +83,12 @@ void Definition::validate() const {
     if(turbulence.enabled) {
         const auto& t=turbulence;
         if(transport.viscosity.empty()) throw std::invalid_argument("Turbulence needs molecular transport.");
-        if(experiment!=Case::UniformDuct && experiment!=Case::ShockTube)
-            throw std::invalid_argument("Turbulent inflow conditions are not yet implemented: turbulence runs on UniformDuct and ShockTube only.");
+        if(experiment==Case::Nozzle)
+            throw std::invalid_argument("Turbulent inflow at the nozzle inlet is not yet implemented: turbulence runs on Chamber, UniformDuct and ShockTube.");
+        if(experiment==Case::Chamber)
+            for(const auto& s:supplies)
+                if(!(s.turbulenceIntensity>0 && s.viscosityRatio>0) || !std::isfinite(s.turbulenceIntensity+s.viscosityRatio))
+                    throw std::invalid_argument("With turbulence every supply needs a positive turbulence intensity and viscosity ratio.");
         for(double x:{t.prandtl,t.schmidt,t.wallOmegaFactor,t.ambientOmega})
             if(!(x>0) || !std::isfinite(x)) throw std::invalid_argument("Turbulent Prandtl and Schmidt numbers, the wall omega factor and the ambient omega must be positive.");
         if(!(t.ambientK>=0) || !std::isfinite(t.ambientK)) throw std::invalid_argument("Ambient k must be finite and non-negative.");
@@ -368,7 +372,7 @@ void Flow::resetAccounting() {
         initialMomentum_+=state_[q][1]*mesh_.cells[q].volume;
         initialEnergy_+=state_[q][3]*mesh_.cells[q].volume;
     }
-    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=0;
+    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=clippedTurbulentEnergy_=0;
     lastRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
 }
 void Flow::setUniform(Primitive w) {
@@ -570,49 +574,63 @@ double Flow::nextEvent(double time) const {
 // Supply face: mass flux g, total enthalpy h0 and composition are imposed. The face pressure p and
 // velocity u = g/rho(p, T) satisfy the outgoing (left-running) characteristic from the interior
 // state, p = p_in (1 + (gamma-1)/(2 a_in) (u - u_in))^(2 gamma/(gamma-1)), and T solves
-// h(T) + u^2/2 = h0. If that needs u above the face sound speed the face is choked and carries the
-// sonic state of the same stream. g = 0 is a closed valve (a wall).
-Conserved Flow::supplyFlux(const Supply& s,double g,const Primitive& in,const double* yIn) const {
+// h(T) + c u^2 = h0, c = 1/2 without turbulence. If that needs u above the face sound speed the face
+// is choked and carries the sonic state of the same stream. g = 0 is a closed valve (a wall).
+// With turbulence k = 3/2 (I u)^2, so h + u^2/2 + 5/3 k = h0 gives c = (1 + 5 I^2) / 2, and the
+// momentum flux g u + p + 2/3 rho k is g u (1 + I^2) + p.
+SupplyFace Flow::supplyFace(const Supply& s,double g,const Primitive& in,const double* yIn) const {
     const double* y=s.composition.data();
     const double gasR=medium_.gasConstant(y),h0=medium_.enthalpy(s.totalTemperature,y);
     const double tIn=in.p/(in.rho*medium_.gasConstant(yIn)),aIn=medium_.soundSpeed(tIn,yIn),gIn=aIn*aIn*in.rho/in.p;
+    const double i2=nt_?sq(s.turbulenceIntensity):0.0,c=0.5*(1+5*i2);
     auto characteristic=[&](double u) {
         double base=1+(gIn-1)/(2*aIn)*(u-in.uz);
         if(!(base>0)) throw std::runtime_error("Supply face: the interior gas recedes faster than the supply can follow.");
         return in.p*std::pow(base,2*gIn/(gIn-1));
     };
-    if(!(g>0)) return {0,characteristic(0),0,0};
+    SupplyFace face;
+    if(!(g>0)) { face.p=characteristic(0);face.flux={0,face.p,0,0};return face; }
     // Static temperature of the stream at face pressure p (Newton from the stagnation temperature).
     auto staticTemperature=[&](double p) {
         double t=s.totalTemperature;
         for(int n=0;n<60;++n) {
-            double u=g*gasR*t/p,f=medium_.enthalpy(t,y)+0.5*u*u-h0;
-            double step=f/(medium_.cv(t,y)+gasR+u*u/t);
+            double u=g*gasR*t/p,f=medium_.enthalpy(t,y)+c*u*u-h0;
+            double step=f/(medium_.cv(t,y)+gasR+2*c*u*u/t);
             t=std::max(0.5*t,t-step);
             if(std::abs(step)<1e-13*t) break;
         }
         return t;
     };
-    // Sonic state: h(T) + a(T)^2/2 = h0.
+    // Sonic state: h(T) + c a(T)^2 = h0.
     double tSonic=s.totalTemperature;
     for(int n=0;n<60;++n) {
         double cv=medium_.cv(tSonic,y),gamma=(cv+gasR)/cv;
-        double f=medium_.enthalpy(tSonic,y)+0.5*gamma*gasR*tSonic-h0;
-        double step=f/(cv+gasR+0.5*gamma*gasR);
+        double f=medium_.enthalpy(tSonic,y)+c*gamma*gasR*tSonic-h0;
+        double step=f/(cv+gasR+c*gamma*gasR);
         tSonic=std::max(0.5*tSonic,tSonic-step);
         if(std::abs(step)<1e-13*tSonic) break;
     }
     const double aSonic=medium_.soundSpeed(tSonic,y),pSonic=g*gasR*tSonic/aSonic;
     auto residual=[&](double p){ double t=staticTemperature(p);return p-characteristic(g*gasR*t/p); };
-    double p=pSonic,u=aSonic;
-    if(residual(pSonic)<0) {
+    double p=pSonic,t=tSonic,u=aSonic;
+    face.choked=!(residual(pSonic)<0);
+    if(!face.choked) {
         // Subsonic face: the residual increases with p; bracket and bisect.
         double lo=pSonic,hi=2*std::max(pSonic,in.p);
         for(int n=0;residual(hi)<0;++n) { if(n==60) throw std::runtime_error("Supply face pressure not bracketed."); lo=hi;hi*=2; }
         for(int n=0;n<200 && hi-lo>1e-14*hi;++n) { double mid=0.5*(lo+hi);(residual(mid)<0?lo:hi)=mid; }
-        p=0.5*(lo+hi);u=g*gasR*staticTemperature(p)/p;
+        p=0.5*(lo+hi);t=staticTemperature(p);u=g*gasR*t/p;
     }
-    return {g,g*u+p,0,g*h0};
+    face.p=p;face.t=t;face.u=u;
+    face.flux={g,g*u*(1+i2)+p,0,g*h0};
+    if(nt_) {
+        face.k=1.5*i2*u*u;
+        std::vector<double> diffusion(ns_),work;
+        const double mu=medium_.transport(t,p,y,diffusion.data(),work).viscosity;
+        face.omega=p/(gasR*t)*face.k/(s.viscosityRatio*mu);
+        face.turbulenceFlux={g*face.k,g*face.omega};
+    }
+    return face;
 }
 // With transport the diffusive rate 2 nu sum(A^2) / V is added to the convective one, with nu the
 // largest of 4/3 mu / rho, lambda / (rho cv) and the mixture diffusion coefficients: pure diffusion
@@ -805,8 +823,10 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
             if(int s=faceSupply_[j];s>=0) {
                 const auto& supply=d.supplies[s];
                 double g=supply.massFlow*supply.opening(time)/supplyArea_[s];
-                flux=supplyFlux(supply,g,r,yr.data());
+                const auto face=supplyFace(supply,g,r,yr.data());
+                flux=face.flux;
                 for(std::size_t k=0;k<ns_;++k) speciesDerivative[ir*ns_+k]+=area*g*supply.composition[k];
+                for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[ir*nt_+k]+=area*face.turbulenceFlux[k];
                 rates.mass+=area*g;rates.energy+=area*flux[3];rates.inlet+=area*g;rates.inletMomentum+=area*flux[1];
             } else {
                 Thermal t=faceThermal(r,yr.data());
@@ -877,6 +897,13 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
 // step of source (coefficients frozen at the start, from stableDt), the flux step, and half a step
 // of source with coefficients at the new state. A rejected attempt restarts from the saved rho k
 // and rho omega with half the step.
+// The k and omega diffusion is not sign-preserving where the line of centres is not along the face
+// normal (contoured rings): the tangential part of the face gradient can draw k out of a cell at
+// k = 0. Next to quiescent gas (k = 0) the numerical domain of dependence carries values like
+// 1e-185 ahead of the turbulent front, and the update can leave rho k at -1e-198, which no step
+// reduction cures. After each stage rho k is therefore set to max(rho k, 0); E is not touched (k is
+// part of it), so the energy budget stays exact. The rho k V added is summed over stages in
+// clippedTurbulentEnergy, so a clip that matters shows up in the measurements.
 double Flow::step(double maxDt) {
     if(!(maxDt>0)) throw std::invalid_argument("Step interval must be positive.");
     double dt=std::min(stableDt(),maxDt);
@@ -887,6 +914,10 @@ double Flow::step(double maxDt) {
     const auto& ig=definition_.igniter;
     if(nt_) { turbulenceStart_=turbulence_;sourcesStart_=sources_; }
     for(int attempt=0;attempt<14;++attempt) {
+        double clipped=0;
+        auto clip=[&](std::vector<double>& turbulence,std::size_t q) {
+            if(nt_ && turbulence[q*nt_]<0) { clipped-=turbulence[q*nt_]*mesh_.cells[q].volume;turbulence[q*nt_]=0; }
+        };
         // Mean igniter power over [t, t + dt]; steps end on its switching times, so this is exact.
         igniterPower_=0;
         if(ig.energy>0) {
@@ -906,6 +937,7 @@ double Flow::step(double maxDt) {
                 for(int k=0;k<4;++k) stage_[q][k]=state_[q][k]+dt*rhs_[q][k];
                 for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesStage_[k]=species_[k]+dt*speciesRhs_[k];
                 for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceStage_[k]=turbulence_[k]+dt*turbulenceRhs_[k];
+                clip(turbulenceStage_,q);
                 ok=ok&&admissible(stage_[q],speciesStage_.data()+q*ns_,turbulenceStage_.data()+q*nt_);
             }
         }
@@ -915,6 +947,7 @@ double Flow::step(double maxDt) {
                 for(int k=0;k<4;++k) next_[q][k]=0.5*(state_[q][k]+stage_[q][k]+dt*rhs_[q][k]);
                 for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesNext_[k]=0.5*(species_[k]+speciesStage_[k]+dt*speciesRhs_[k]);
                 for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceNext_[k]=0.5*(turbulence_[k]+turbulenceStage_[k]+dt*turbulenceRhs_[k]);
+                clip(turbulenceNext_,q);
                 ok=ok&&admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
             }
         }
@@ -929,6 +962,7 @@ double Flow::step(double maxDt) {
             time_=landing?event:time_+dt;dt_=dt;++steps_;
             lastRates_=BoundaryRates::average(first,second);
             integratedHeat_+=dt*lastRates_.heat;
+            clippedTurbulentEnergy_+=clipped;
             integratedMassFlux_+=dt*lastRates_.mass;
             integratedEnergyFlux_+=dt*lastRates_.energy;
             integratedMomentumSource_+=dt*lastRates_.netMomentum();
@@ -947,6 +981,7 @@ void Flow::advanceTo(double target) {
 Measurements Flow::measurements() const {
     Measurements result{};
     result.time=time_;result.dt=dt_;result.steps=steps_;result.rejectedSteps=rejectedSteps_;
+    result.clippedTurbulentEnergy=clippedTurbulentEnergy_;
     result.inletMassFlow=lastRates_.inlet;result.outletMassFlow=lastRates_.outlet;
     result.inletMomentumFlux=lastRates_.inletMomentum;result.outletMomentumFlux=lastRates_.outletMomentum;
     result.wallAxialForce=lastRates_.wallAxial;result.bodyAxialForce=lastRates_.bodyAxial;result.wallHeatFlow=lastRates_.wallHeat;

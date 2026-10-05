@@ -27,13 +27,26 @@ enum class LowMach { None, Thornber, HllcLm };
 // outgoing characteristic. A face that would need supersonic inflow delivers the same flow as a
 // sonic (choked) stream. The valve raises the flow linearly from zero at `opens` to full at
 // `opens + ramp`; valve travel is a declared input, not modelled equipment.
+// With turbulence the stream carries k = 3/2 (I u)^2 and omega = rho k / (viscosityRatio mu) at the
+// face (I the turbulenceIntensity, both declared inputs, required then), and its total enthalpy
+// includes the turbulent part: h(T) + u^2 / 2 + 5/3 k = h(T0), k plus the work of the Reynolds
+// normal stress 2/3 rho k, which the momentum flux also carries.
 struct Supply {
     double innerRadius{}, outerRadius{};
     double massFlow{};           // kg/s at full opening, over the whole stream
     double totalTemperature{300};
     std::vector<double> composition;
     double opens{}, ramp{};
+    double turbulenceIntensity{}, viscosityRatio{};
     [[nodiscard]] double opening(double time) const;
+};
+// The face of a supply: per unit area, the mass, momentum and energy flux and the rho k and
+// rho omega flux, and the stream's state (k and omega zero without turbulence).
+struct SupplyFace {
+    Conserved flux{};
+    std::array<double, 2> turbulenceFlux{};
+    double p{}, t{}, u{}, k{}, omega{};
+    bool choked{false};
 };
 // A bounded energy deposit: `energy` joules at constant power over [start, start + duration] into
 // the cells whose centroid lies in zMin <= z <= zMax, r <= rMax, in proportion to their volume.
@@ -90,8 +103,9 @@ struct Definition {
     // the wall face, d1 the wall distance of the adjacent centroid and nu_w the kinematic viscosity
     // at the wall temperature (the cell's for an adiabatic wall); slip walls pass no k or omega flux
     // and are not walls for the wall distance. The initial fill carries ambientK [m^2/s^2] and
-    // ambientOmega [1/s]. Inflow turbulence of supplies and the nozzle inlet is not yet modelled, so
-    // for now only UniformDuct and ShockTube accept it.
+    // ambientOmega [1/s], as does ambient gas drawn in at a Chamber exit. Chamber supplies carry
+    // their declared inflow turbulence (Supply). The nozzle inlet's is not yet modelled, so Nozzle
+    // does not accept turbulence.
     struct Turbulence {
         bool enabled{false};
         double prandtl{0.9}, schmidt{0.7}, wallOmegaFactor{10};
@@ -142,6 +156,8 @@ struct Measurements {
     double supplyMassFlow{}, igniterPower{}, igniterEnergy{}, injectorPressure{};
     // Heat conducted into the gas through the walls [W] (molecular transport only).
     double wallHeatFlow{};
+    // Turbulence: rho k V added so far where a stage left rho k below zero [J] (Flow::step).
+    double clippedTurbulentEnergy{};
     std::uint64_t steps{}, rejectedSteps{};
 };
 struct FieldSnapshot {
@@ -219,6 +235,9 @@ public:
     // infinity if none. A step that would cross one ends on it instead.
     [[nodiscard]] double nextEvent(double time) const;
     [[nodiscard]] double totalPressure() const { return totalPressure_; }
+    // Face of a supply delivering mass flux g [kg/(m^2 s)] against the interior face state inside
+    // (composition yInside, mass fractions); g = 0 is a closed valve.
+    [[nodiscard]] SupplyFace supplyFace(const Supply& supply, double g, const Primitive& inside, const double* yInside) const;
 private:
     // Exchange rates of one right-hand-side evaluation, combined with the RK weights.
     struct BoundaryRates {
@@ -246,7 +265,7 @@ private:
     std::vector<double> pressureSource_;
     double time_{}, dt_{}, totalPressure_{}, initialMass_{}, initialEnergy_{};
     double integratedMassFlux_{}, integratedEnergyFlux_{}, initialMomentum_{};
-    double integratedMomentumSource_{}, integratedMomentumGross_{}, integratedHeat_{};
+    double integratedMomentumSource_{}, integratedMomentumGross_{}, integratedHeat_{}, clippedTurbulentEnergy_{};
     // Chamber: supply index of each injector-face ring (-1: plate), each supply's ring area, the
     // igniter's cells and their total volume.
     std::vector<int> faceSupply_;
@@ -261,8 +280,6 @@ private:
     BoundaryRates rhs(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence,
                       std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
                       std::vector<double>& turbulenceDerivative, double time);
-    // Face flux per unit area of a supply delivering mass flux g into the interior face state.
-    Conserved supplyFlux(const Supply& supply, double g, const Primitive& inside, const double* yInside) const;
     // turbulence: the cell's rho k and rho omega (unused without turbulence).
     bool admissible(const Conserved& u, const double* partial, const double* turbulence) const;
     // Specific k of a cell of a state (zero without turbulence).

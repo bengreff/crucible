@@ -94,6 +94,29 @@
 //          plate rings between and outside them, nz 48, nr 8, b = 1.5, marched 0.3 ms: mass, energy
 //          (k included) and axial momentum budgets below 1e-12, and every cell's k and omega
 //          positive and finite.
+//      Amended 4 October 2026 after the first run; the thresholds above are unchanged.
+//      (c) The first run failed on every grid: k errors 1.13e-2, 1.19e-2 and 1.23e-2, change over the
+//          last 0.25 ms 2.5e-2. The march was too short. The chamber pressure was still relaxing from
+//          the start-up overshoot (scratch diagnostic, nz 32: 128.7 kPa at 0.25 ms, 101.6 kPa at
+//          1.5 ms, e-fold about 0.28 ms), so the face state was still moving and the cells downstream
+//          lagged it. At 3 ms the nz 32 errors were 1.1e-3 in the first cell and at most 3e-4
+//          elsewhere. The march is now 4 ms (about 14 e-folds); the change is still taken over the
+//          last 0.25 ms.
+//      (d) The no-slip chamber's first run could not complete its 17th step (t 0.8 us): rho k reached
+//          -1.3e-198 in a quiescent cell on the contoured rings, where the k diffusion is not
+//          sign-preserving (Flow::step), and no step reduction cures that. rho k is now set to
+//          max(rho k, 0) after each stage, and the rho k V this adds is summed
+//          (Measurements::clippedTurbulentEnergy). Added criterion: in every run of (c) and (d) that
+//          sum is below 1e-12 of the domain's integral of rho k at the end.
+//          With the clip the second run stopped at 134 us: omega went negative in the axis ring next
+//          to the outlet. With the ambient omega of 1 1/s the negative cross-diffusion term,
+//          -2 (1 - F1) rho sigma_w2 |grad k . grad omega| / omega, takes omega to zero in about
+//          1e-8 s once the jet's k front arrives (omega^2 falls linearly), and the same diffusion
+//          then carries it below zero. This ambient omega is degenerate for SST. The fill and
+//          the ambient gas of (d) now take the free-stream values of Spalart and Rumsey (AIAA J 45,
+//          2544, 2007): k = 9e-9 a^2 and omega = 1e-6 rho a^2 / mu at 300 K and 101325 Pa
+//          (mu_t / mu about 0.009, u' about 0.03 m/s). A scratch run with them reached 0.3 ms with
+//          omega at least 7.5e3 1/s. (c) keeps k 0 and omega 1: it passed and has no backflow.
 #include "adapters/reaction.hpp"
 #include "core/flow.hpp"
 #include "core/walls.hpp"
@@ -288,6 +311,7 @@ Profile readProfile(const std::string& path) {
 void decayTests(const Nitrogen& n2);
 void operatorTests(const Medium& medium, const TransportFits& fits, const TurbulentField& field);
 void pipeTests(const Nitrogen& n2, const std::vector<int>& grids);
+void supplyTests(const Nitrogen& n2);
 
 int main(int argc, char** argv) {
   const std::string mechanism = "h2o2.yaml";
@@ -335,6 +359,7 @@ int main(int argc, char** argv) {
   TurbulentField field;
   field.iH2 = index("H2"); field.iO2 = index("O2"); field.iH2O = index("H2O"); field.iOH = index("OH"); field.iN2 = index("N2");
   operatorTests(medium, fits, field);
+  supplyTests(n2);
   std::printf("%d failures\n", failures);
   return failures == 0 ? 0 : 1;
 }
@@ -614,5 +639,178 @@ void pipeTests(const Nitrogen& n2, const std::vector<int>& grids) {
     check(std::abs(cf / refCf - 1) < 2e-3, label("4c. c_f against the reference"), std::abs(cf / refCf - 1), 2e-3);
     check(std::abs((tAxis - tWall) / refRise - 1) < 1e-2, label("4c. T_axis - T_wall against the reference"),
           std::abs((tAxis - tWall) / refRise - 1), 1e-2);
+  }
+}
+
+// Chamber of N2 with a wall contour; the fill is ambient N2 at rest at 101325 Pa and 300 K.
+Definition n2Chamber(const Nitrogen& n2, std::vector<std::array<double, 2>> contour, int nz, int nr) {
+  Definition d;
+  d.experiment = Case::Chamber;
+  d.nz = nz; d.nr = nr; d.contour = std::move(contour);
+  d.species = n2.species; d.composition = {1};
+  d.transport = n2.fits;
+  d.backPressure = 101325; d.ambientTemperature = 300;
+  d.turbulence.enabled = true; d.turbulence.ambientK = 0; d.turbulence.ambientOmega = 1;
+  return d;
+}
+Supply n2Supply(double inner, double outer, double massFlow, double intensity, double ratio) {
+  Supply s;
+  s.innerRadius = inner; s.outerRadius = outer; s.massFlow = massFlow; s.totalTemperature = 300;
+  s.composition = {1}; s.opens = 0; s.ramp = 2e-5;
+  s.turbulenceIntensity = intensity; s.viscosityRatio = ratio;
+  return s;
+}
+
+// Integral of rho k over the domain [J].
+double turbulentEnergy(const Flow& flow) {
+  double sum = 0;
+  for (std::size_t q = 0; q < flow.mesh().cells.size(); ++q) sum += flow.turbulence()[2 * q] * flow.mesh().cells[q].volume;
+  return sum;
+}
+void supplyTests(const Nitrogen& n2) {
+  std::printf("5. turbulent supplies (Chamber, N2)\n");
+  const double y[1] = {1}, t0 = 300, p0 = 101325;
+  const double gas = n2.medium.gasConstant(y), cp0 = n2.medium.cv(t0, y) + gas, h0 = n2.medium.enthalpy(t0, y);
+  std::vector<double> diffusion(1), work;
+  // (a) The face routine.
+  {
+    Definition d = n2Chamber(n2, {{0, 5e-3}, {0.03, 5e-3}}, 8, 4);
+    const double intensity = 0.05, ratio = 10;
+    d.supplies = {n2Supply(0, 5e-3, 1e-3, intensity, ratio)};
+    Flow flow(d);
+    Definition laminar = d;
+    laminar.turbulence.enabled = false;
+    Flow laminarFlow(laminar);
+    const Primitive inside{p0 / (gas * t0), 0, 0, p0};
+    const double aIn = n2.medium.soundSpeed(t0, y), gIn = aIn * aIn * inside.rho / p0;
+    for (double g : {50.0, 2000.0}) {
+      const auto f = flow.supplyFace(d.supplies[0], g, inside, y);
+      const auto lam = laminarFlow.supplyFace(d.supplies[0], g, inside, y);
+      const double rho = f.p / (gas * f.t), mu = n2.medium.transport(f.t, f.p, y, diffusion.data(), work).viscosity;
+      const double k = 1.5 * sq(intensity * f.u), omega = rho * k / (ratio * mu);
+      std::printf("  g %-6.0f %s  p %.6f Pa  T %.9f K  u %.9f m/s  k %.6e m^2/s^2  omega %.6e 1/s  (laminar face: T %.9f K  u %.9f m/s)\n",
+                  g, f.choked ? "choked  " : "subsonic", f.p, f.t, f.u, f.k, f.omega, lam.t, lam.u);
+      char what[96];
+      auto label = [&](const char* text) { std::snprintf(what, sizeof what, "(a) g %.0f: %s", g, text); return what; };
+      const double energy = std::abs(n2.medium.enthalpy(f.t, y) + 0.5 * f.u * f.u + 5.0 / 3 * f.k - h0) / (cp0 * t0);
+      check(energy < 1e-12, label("h + u^2/2 + 5/3 k - h0, over cp T0"), energy, 1e-12);
+      const bool chokedRight = f.choked == (g > 1000);
+      check(chokedRight, label("choked as derived (1 = yes)"), chokedRight ? 1 : 0, 1);
+      if (!f.choked) {
+        const double pChar = p0 * std::pow(1 + (gIn - 1) / (2 * aIn) * f.u, 2 * gIn / (gIn - 1));
+        check(std::abs(f.p / pChar - 1) < 1e-12, label("face p on the outgoing characteristic"), std::abs(f.p / pChar - 1), 1e-12);
+        const double uMass = g * gas * f.t / f.p;
+        check(std::abs(f.u / uMass - 1) < 1e-12, label("u = g R T / p"), std::abs(f.u / uMass - 1), 1e-12);
+      } else {
+        const double a = n2.medium.soundSpeed(f.t, y);
+        check(std::abs(f.u / a - 1) < 1e-12, label("u = a(T)"), std::abs(f.u / a - 1), 1e-12);
+      }
+      check(std::abs(f.k / k - 1) < 1e-14, label("k = 3/2 (I u)^2"), std::abs(f.k / k - 1), 1e-14);
+      check(std::abs(f.omega / omega - 1) < 1e-12, label("omega = rho k / (ratio mu)"), std::abs(f.omega / omega - 1), 1e-12);
+      const double fluxes[5][2] = {{f.flux[0], g}, {f.flux[1], g * f.u * (1 + intensity * intensity) + f.p}, {f.flux[3], g * h0},
+                                   {f.turbulenceFlux[0], g * f.k}, {f.turbulenceFlux[1], g * f.omega}};
+      double worst = std::abs(f.flux[2]);
+      for (const auto& pair : fluxes) worst = std::max(worst, std::abs(pair[0] / pair[1] - 1));
+      check(worst < 1e-14, label("the five fluxes from the face state"), worst, 1e-14);
+    }
+  }
+  // (b) Validation.
+  {
+    auto rejects = [&](double intensity, double ratio, bool turbulent) {
+      Definition d = n2Chamber(n2, {{0, 5e-3}, {0.03, 5e-3}}, 8, 4);
+      d.turbulence.enabled = turbulent;
+      d.supplies = {n2Supply(0, 5e-3, 1e-3, intensity, ratio)};
+      try { d.validate(); } catch (const std::invalid_argument&) { return true; }
+      return false;
+    };
+    const bool zeroI = rejects(0, 10, true), zeroRatio = rejects(0.05, 0, true), laminarOk = !rejects(0, 0, false);
+    check(zeroI, "(b) I = 0 rejected with turbulence (1 = yes)", zeroI ? 1 : 0, 1);
+    check(zeroRatio, "(b) ratio = 0 rejected with turbulence (1 = yes)", zeroRatio ? 1 : 0, 1);
+    check(laminarOk, "(b) the same supply accepted without turbulence (1 = yes)", laminarOk ? 1 : 0, 1);
+  }
+  // (c) Inflow turbulence decaying in plug flow, and (d) its budgets.
+  {
+    const double radius = 5e-3, length = 0.03, massFlow = 9.0e-3, intensity = 0.02, ratio = 10;
+    std::vector<double> errors;
+    for (int nz : {32, 64, 128}) {
+      Definition d = n2Chamber(n2, {{0, radius}, {length, radius}}, nz, 4);
+      d.wallSlip = true; d.wallTemperature = 0; d.outletRelaxation = 0.5;
+      d.supplies = {n2Supply(0, radius, massFlow, intensity, ratio)};
+      Flow flow(d);
+      const auto& m = flow.mesh();
+      auto specific = [&](std::size_t q, int f) { return flow.turbulence()[2 * q + f] / flow.state()[q][0]; };
+      const auto wall0 = std::chrono::steady_clock::now();
+      flow.advanceTo(3.75e-3);
+      std::vector<double> before(2 * m.cells.size());
+      for (std::size_t q = 0; q < m.cells.size(); ++q) { before[2 * q] = specific(q, 0); before[2 * q + 1] = specific(q, 1); }
+      flow.advanceTo(4e-3);
+      const double g = massFlow / (pi * radius * radius);
+      double worstK = 0, worstOmega = 0, change = 0, spread = 0;
+      for (int j = 0; j < m.nr; ++j) {
+        const auto face = flow.supplyFace(d.supplies[0], g, flow.cellPrimitive(m.index(0, j)), y);
+        double tau = 0;
+        for (int i = 0; i < m.nz; ++i) {
+          const auto q = m.index(i, j);
+          const double u = flow.cellPrimitive(q).uz;
+          tau += 0.5 * m.dz / u;
+          const double x = 1 + beta2 * face.omega * tau;
+          worstK = std::max(worstK, std::abs(specific(q, 0) / (face.k * std::pow(x, -betaStar / beta2)) - 1));
+          worstOmega = std::max(worstOmega, std::abs(specific(q, 1) / (face.omega / x) - 1));
+          change = std::max({change, std::abs(specific(q, 0) / before[2 * q] - 1), std::abs(specific(q, 1) / before[2 * q + 1] - 1)});
+          spread = std::max(spread, std::abs(specific(q, 0) / specific(m.index(i, 0), 0) - 1));
+          tau += 0.5 * m.dz / u;
+        }
+      }
+      const auto meas = flow.measurements();
+      std::printf("  (c) nz %-3d  k error %.3e  omega error %.3e  change over the last 0.25 ms %.2e  radial spread of k %.2e  steps %llu  wall %.0f s\n",
+                  nz, worstK, worstOmega, change, spread, static_cast<unsigned long long>(meas.steps),
+                  std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count());
+      errors.push_back(std::max(worstK, worstOmega));
+      char what[96];
+      auto label = [&](const char* text) { std::snprintf(what, sizeof what, "nz %d: %s", nz, text); return what; };
+      if (nz >= 64) {
+        check(worstK < 2e-3, label("(c) k against the plug-flow decay"), worstK, 2e-3);
+        check(worstOmega < 2e-3, label("(c) omega against the plug-flow decay"), worstOmega, 2e-3);
+      }
+      check(std::abs(meas.massBalanceError) < 1e-12, label("(d) mass budget"), std::abs(meas.massBalanceError), 1e-12);
+      check(std::abs(meas.energyBalanceError) < 1e-12, label("(d) energy budget"), std::abs(meas.energyBalanceError), 1e-12);
+      check(std::abs(meas.momentumBalanceError) < 1e-12, label("(d) axial momentum budget"), std::abs(meas.momentumBalanceError), 1e-12);
+      const double clipped = meas.clippedTurbulentEnergy / turbulentEnergy(flow);
+      check(clipped < 1e-12, label("(d) clipped rho k V over the integral of rho k"), clipped, 1e-12);
+    }
+    std::printf("  (c) observed order of the larger error (reported): nz 32 -> 64 %.3f, 64 -> 128 %.3f\n",
+                std::log2(errors[0] / errors[1]), std::log2(errors[1] / errors[2]));
+  }
+  // (d) A no-slip cold-flow chamber with two rings and a closed plate.
+  {
+    Definition d = n2Chamber(n2, {{0, 5e-3}, {0.02, 5e-3}, {0.03, 2.5e-3}}, 48, 8);
+    d.radialStretching = 1.5; d.wallTemperature = 300; d.outletRelaxation = 0.5;
+    d.supplies = {n2Supply(0, 1.5e-3, 2e-3, 0.05, 10), n2Supply(3e-3, 4e-3, 2e-3, 0.05, 10)};
+    const double a0 = n2.medium.soundSpeed(t0, y), rho0 = p0 / (gas * t0);
+    const double mu0 = n2.medium.transport(t0, p0, y, diffusion.data(), work).viscosity;
+    d.turbulence.ambientK = 9e-9 * a0 * a0; d.turbulence.ambientOmega = 1e-6 * rho0 * a0 * a0 / mu0;
+    std::printf("  (d) ambient (Spalart and Rumsey): k %.6e m^2/s^2  omega %.6e 1/s  mu_t / mu %.4f\n",
+                d.turbulence.ambientK, d.turbulence.ambientOmega, rho0 * d.turbulence.ambientK / d.turbulence.ambientOmega / mu0);
+    Flow flow(d);
+    const auto wall0 = std::chrono::steady_clock::now();
+    flow.advanceTo(3e-4);
+    const auto meas = flow.measurements();
+    bool positive = true;
+    double kMax = 0;
+    for (std::size_t q = 0; q < flow.mesh().cells.size(); ++q)
+      for (int f = 0; f < 2; ++f) {
+        const double v = flow.turbulence()[2 * q + f] / flow.state()[q][0];
+        positive = positive && v > 0 && std::isfinite(v);
+        if (f == 0) kMax = std::max(kMax, v);
+      }
+    std::printf("  (d) no-slip chamber: t %.3e s  steps %llu  injector pressure %.1f Pa  outlet %.4e kg/s  largest k %.4e m^2/s^2  wall %.0f s\n",
+                meas.time, static_cast<unsigned long long>(meas.steps), meas.injectorPressure, meas.outletMassFlow, kMax,
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - wall0).count());
+    check(std::abs(meas.massBalanceError) < 1e-12, "(d) no-slip chamber: mass budget", std::abs(meas.massBalanceError), 1e-12);
+    check(std::abs(meas.energyBalanceError) < 1e-12, "(d) no-slip chamber: energy budget", std::abs(meas.energyBalanceError), 1e-12);
+    check(std::abs(meas.momentumBalanceError) < 1e-12, "(d) no-slip chamber: axial momentum budget", std::abs(meas.momentumBalanceError), 1e-12);
+    check(positive, "(d) no-slip chamber: k and omega positive, finite (1 = yes)", positive ? 1 : 0, 1);
+    const double clipped = meas.clippedTurbulentEnergy / turbulentEnergy(flow);
+    check(clipped < 1e-12, "(d) no-slip chamber: clipped rho k V over the integral of rho k", clipped, 1e-12);
   }
 }
