@@ -1,0 +1,6 @@
+mesh 32x6: dz 5.208 mm, throat station 16 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 8 at z 0.0443 m
+chemistry frp; igniter 300 J over 1 ms from 0.2 ms; viscous, SST, PaSR closure on
+light-off at 0.2060 ms (largest Y_H2O 0.616); chamber volume with s > 0.01: 0.0197
+
+exception at 0.357227 ms after 1917 steps: Could not advance an admissible gas state after 14 timestep reductions.
+criterion 4 (b): the run did not reach its end  FAIL

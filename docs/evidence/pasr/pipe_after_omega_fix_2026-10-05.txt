@@ -1,0 +1,72 @@
+TURBULENCE_C2 check 4 (pipe) after the omega-production fix, 5 October 2026, Mac.
+Run 1 (04:37 to 04:47): crucible_turbulence_tests --pipe 16 32 on the working tree with the fix.
+Run 2 (04:50): nr 16 with a temporary edit, the exact form with only its arithmetic reordered:
+  production = gamma min(S^2 - 2/3 div^2 - (2/3) div (rho k / mu_t), 10 beta* omega rho k / mu_t), reverted after the run.
+  It equals the code before the fix wherever rho k / mu_t = m / a1, in exact arithmetic everywhere.
+
+== run 1 ==
+4. fully developed pipe against tools/sst_pipe_1d.py (N2, R 0.4 mm, wall 300 K, f 2.95e5 N/m^3, b = 2)
+  nr 16  t 0.5 ms  u_b 105.16018072 m/s  c_f 0.0093760846  T_axis 304.784571 K  force balance +4.96e-05  steps 226855  wall 16 s
+  nr 16  t 1.0 ms  u_b 105.16287786 m/s  c_f 0.0093760118  T_axis 304.785377 K  force balance +6.08e-06  steps 453710  wall 33 s
+  nr 16  t 1.5 ms  u_b 105.16320349 m/s  c_f 0.0093760041  T_axis 304.785570 K  force balance +7.08e-07  steps 680565  wall 49 s
+  nr 16  t 2.0 ms  u_b 105.16324065 m/s  c_f 0.0093760034  T_axis 304.785607 K  force balance +7.57e-08  steps 907420  wall 65 s
+  nr 16  t 2.5 ms  u_b 105.16324456 m/s  c_f 0.0093760034  T_axis 304.785613 K  force balance +6.08e-09  steps 1134275  wall 81 s
+  nr 16  t 3.0 ms  u_b 105.16324492 m/s  c_f 0.0093760034  T_axis 304.785614 K  force balance -8.09e-10  steps 1361130  wall 98 s
+  nr 16  t 3.5 ms  u_b 105.16324494 m/s  c_f 0.0093760034  T_axis 304.785614 K  force balance -1.36e-09  steps 1587985  wall 114 s
+  nr 16  t 4.0 ms  u_b 105.16324494 m/s  c_f 0.0093760034  T_axis 304.785615 K  force balance -1.39e-09  steps 1814840  wall 130 s
+  nr 16  reference: u_b 105.14144884 m/s  c_f 0.0093798911  T_axis 304.783208 K;  axial non-uniformity 4.07e-14;  budgets mass 2.38e-11 momentum -4.97e-16 energy 1.31e-11
+  nr 16  against the reference Richardson limits (reported): u_b +5.757e-02  c_f -1.059e-01  T_axis rise +1.193e-01
+  nr 16: 4a. u_b change over the last 1 ms                   2.104e-10 (limit 1.0e-05)  ok
+  nr 16: 4a. T_axis change over the last 1 ms                5.806e-10 (limit 1.0e-05)  ok
+  nr 16: 4a. wall shear force against the body force         1.386e-09 (limit 1.0e-05)  ok
+  nr 16: 4b. mass budget                                     2.382e-11 (limit 1.0e-12)  FAIL
+  nr 16: 4b. axial momentum budget                           4.971e-16 (limit 1.0e-09)  ok
+  nr 16: 4b. energy budget                                   1.313e-11 (limit 1.0e-09)  ok
+  nr 16: 4c. u_b against the reference                       2.073e-04 (limit 1.0e-03)  ok
+  nr 16: 4c. c_f against the reference                       4.145e-04 (limit 2.0e-03)  ok
+  nr 16: 4c. T_axis - T_wall against the reference           5.031e-04 (limit 1.0e-02)  ok
+  nr 32  t 0.5 ms  u_b 102.74968718 m/s  c_f 0.0098215068  T_axis 304.555612 K  force balance +1.51e-05  steps 498922  wall 71 s
+  nr 32  t 1.0 ms  u_b 102.75050471 m/s  c_f 0.0098214812  T_axis 304.555844 K  force balance +1.82e-06  steps 997844  wall 141 s
+  nr 32  t 1.5 ms  u_b 102.75060177 m/s  c_f 0.0098214785  T_axis 304.555899 K  force balance +2.09e-07  steps 1496766  wall 211 s
+  nr 32  t 2.0 ms  u_b 102.75061272 m/s  c_f 0.0098214783  T_axis 304.555909 K  force balance +2.25e-08  steps 1995688  wall 282 s
+  nr 32  t 2.5 ms  u_b 102.75061387 m/s  c_f 0.0098214782  T_axis 304.555910 K  force balance +2.05e-09  steps 2494610  wall 353 s
+  nr 32  t 3.0 ms  u_b 102.75061398 m/s  c_f 0.0098214782  T_axis 304.555911 K  force balance +1.75e-11  steps 2993532  wall 424 s
+  nr 32  t 3.5 ms  u_b 102.75061398 m/s  c_f 0.0098214782  T_axis 304.555911 K  force balance -1.45e-10  steps 3492454  wall 494 s
+  nr 32  t 4.0 ms  u_b 102.75061398 m/s  c_f 0.0098214782  T_axis 304.555911 K  force balance -1.49e-10  steps 3991376  wall 564 s
+  nr 32  reference: u_b 102.74392845 m/s  c_f 0.0098227565  T_axis 304.555213 K;  axial non-uniformity 1.59e-13;  budgets mass 2.35e-11 momentum -7.31e-15 energy 7.16e-11
+  nr 32  against the reference Richardson limits (reported): u_b +3.330e-02  c_f -6.342e-02  T_axis rise +6.559e-02
+  nr 32: 4a. u_b change over the last 1 ms                   6.574e-11 (limit 1.0e-05)  ok
+  nr 32: 4a. T_axis change over the last 1 ms                1.382e-10 (limit 1.0e-05)  ok
+  nr 32: 4a. wall shear force against the body force         1.485e-10 (limit 1.0e-05)  ok
+  nr 32: 4b. mass budget                                     2.348e-11 (limit 1.0e-12)  FAIL
+  nr 32: 4b. axial momentum budget                           7.312e-15 (limit 1.0e-09)  ok
+  nr 32: 4b. energy budget                                   7.156e-11 (limit 1.0e-09)  ok
+  nr 32: 4c. u_b against the reference                       6.507e-05 (limit 1.0e-03)  ok
+  nr 32: 4c. c_f against the reference                       1.301e-04 (limit 2.0e-03)  ok
+  nr 32: 4c. T_axis - T_wall against the reference           1.531e-04 (limit 1.0e-02)  ok
+2 failures
+exit 1
+
+== run 2 (exact form reordered, nr 16) ==
+[100%] Built target crucible_turbulence_tests
+4. fully developed pipe against tools/sst_pipe_1d.py (N2, R 0.4 mm, wall 300 K, f 2.95e5 N/m^3, b = 2)
+  nr 16  t 0.5 ms  u_b 105.15978628 m/s  c_f 0.0093761649  T_axis 304.784546 K  force balance +4.85e-05  steps 226855  wall 17 s
+  nr 16  t 1.0 ms  u_b 105.16242545 m/s  c_f 0.0093760937  T_axis 304.785334 K  force balance +5.95e-06  steps 453710  wall 33 s
+  nr 16  t 1.5 ms  u_b 105.16274408 m/s  c_f 0.0093760862  T_axis 304.785524 K  force balance +6.93e-07  steps 680565  wall 50 s
+  nr 16  t 2.0 ms  u_b 105.16278044 m/s  c_f 0.0093760855  T_axis 304.785560 K  force balance +7.40e-08  steps 907420  wall 66 s
+  nr 16  t 2.5 ms  u_b 105.16278427 m/s  c_f 0.0093760854  T_axis 304.785566 K  force balance +5.93e-09  steps 1134275  wall 83 s
+  nr 16  t 3.0 ms  u_b 105.16278461 m/s  c_f 0.0093760854  T_axis 304.785567 K  force balance -8.15e-10  steps 1361130  wall 99 s
+  nr 16  t 3.5 ms  u_b 105.16278463 m/s  c_f 0.0093760854  T_axis 304.785567 K  force balance -1.35e-09  steps 1587985  wall 116 s
+  nr 16  t 4.0 ms  u_b 105.16278463 m/s  c_f 0.0093760854  T_axis 304.785567 K  force balance -1.38e-09  steps 1814840  wall 132 s
+  nr 16  reference: u_b 105.14144884 m/s  c_f 0.0093798911  T_axis 304.783208 K;  axial non-uniformity 1.00e-14;  budgets mass 3.42e-11 momentum -1.86e-15 energy 2.09e-11
+  nr 16  against the reference Richardson limits (reported): u_b +5.756e-02  c_f -1.059e-01  T_axis rise +1.193e-01
+  nr 16: 4a. u_b change over the last 1 ms                   2.047e-10 (limit 1.0e-05)  ok
+  nr 16: 4a. T_axis change over the last 1 ms                5.682e-10 (limit 1.0e-05)  ok
+  nr 16: 4a. wall shear force against the body force         1.381e-09 (limit 1.0e-05)  ok
+  nr 16: 4b. mass budget                                     3.423e-11 (limit 1.0e-12)  FAIL
+  nr 16: 4b. axial momentum budget                           1.861e-15 (limit 1.0e-09)  ok
+  nr 16: 4b. energy budget                                   2.090e-11 (limit 1.0e-09)  ok
+  nr 16: 4c. u_b against the reference                       2.029e-04 (limit 1.0e-03)  ok
+  nr 16: 4c. c_f against the reference                       4.057e-04 (limit 2.0e-03)  ok
+  nr 16: 4c. T_axis - T_wall against the reference           4.931e-04 (limit 1.0e-02)  ok
+1 failures

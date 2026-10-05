@@ -97,3 +97,49 @@ nr 16 and nr 32 print the same history and judged values as turbulence_pipe_2026
 Mac run before the clamp), digit for digit, including the mass budgets 3.42e-11 and 1.93e-11
 (both FAIL against 1e-12, as recorded). nr 64 was stopped at 0.5 ms to free the Mac for the next
 test; its 0.5 ms line equals the backhouse run without the clamp.
+
+Fault 2, fix attempt 1 (04:05, not kept): bound the off-line part of the k and omega face gradient
+by the two-point part (each face flux keeps the sign of the difference across the face; the bound
+of OpenFOAM's "limited 0.5" correction). Result (lim_stdout.txt, frp 32x6): lights at 0.2060 ms
+as before, stops at 0.357227 ms (was 0.345931). The field at the stop shows omega collapsed across
+the divergent nozzle, not in one cell: 2.7e-138 (i 31 j 3), 2.7e-125 (30,4), 1.5e-106 (25,3),
+2.8e-100 (26,4), 8.6e-100 (27,5) 1/s, with k 20 to 560 m^2/s^2 in the same cells.
+
+Mechanism of the collapse (from the code, then tested). Omega's production is gamma rho P / mu_t,
+P = mu_t (S^2 - 2/3 div^2) - 2/3 rho k div. Where the SST limiter is active (a1 omega < S F2),
+rho k / mu_t = S F2 / a1 instead of omega, so the production is
+  gamma rho [(S^2 - 2/3 div^2) - (2/3) div S F2 / a1],
+which in a strong expansion (div > 0 large against the deviatoric strain) is negative and does
+not depend on omega. MPRK22 books a negative production as destruction, coefficient |P_w| / omega,
+so each substep maps omega to about omega^2 / (dt |P_w|): positive, but collapsing faster than
+exponentially, which matches the 1e-100 to 1e-138 values. Once omega is that small, any drain
+(the off-line diffusion of fault 2, or round-off) is larger than the cell holds.
+
+Isolation test 1 (04:12; nodil_stdout.txt): limiter on, and the dilatation part removed from
+omega's production only (temporary; the k equation unchanged). Result: reaches the 0.5 ms end,
+positivity ok at all 251 samples, mass 5.3e-14, energy 3.1e-15; fails only "settled" (c), as any
+0.5 ms run must. Wall 17 s.
+Isolation test 2 (04:14; nolim_nodil_stdout.txt): the same with the limiter off (the committed
+diffusion). Result: the same, reaches 0.5 ms with positivity ok at all samples.
+So faults 2 and 3 are one fault (measured: removing the omega-independent sink removes both
+stops; the diffusion limiter alone does not). The limiter is not kept.
+
+NASA TMR (sst.html, now at https://tmbwg.github.io/turbmodels/sst.html, read 5 October): base
+SST-2003 uses P = tau_ij du_i/dx_j with the -2/3 rho k delta_ij term, and omega's production
+gamma / nu_t P. The page lists approximations: (SSTm) ignores 2/3 rho k in tau_ij and uses
+P = mu_t S^2 ("most common"); (SSTs) keeps it in tau_ij and uses P = mu_t S^2; (SSTe) ignores it
+and keeps the exact P. With P = mu_t S^2 omega's production cannot go negative.
+
+Fix kept (04:16; core/transport.cpp, TECHNICAL_PLAN step 7). In omega's production only, the
+dilatation part -(2/3) (rho k / mu_t) div uses omega for rho k / mu_t:
+  production = gamma min(S^2 - 2/3 div^2 - (2/3) omega div, 10 beta* omega rho k / mu_t).
+Where the limiter is inactive (a1 omega >= S F2) this is algebraically the exact form. Where it is
+active, the dilatation part becomes a decay at a rate of at most (2/3) gamma div, not a sink that does
+not scale with omega. The k equation keeps the exact P. Chosen over the SSTs form (P = mu_t S^2 in
+both equations) because SSTs also removes the real -(2/3) rho k div from k's budget, which is
+physical work in a compressible flow. A CRUCIBLE choice, flagged for Ben.
+Fast suite with the fix (Mac, 04:24; ctest_fast_omega_2026-10-05.txt): 5 of 6 pass; the output is
+identical line for line to the run after the clamp, including the three known truncation-order
+failures of transport_verification. turbulence_verification (checks 1, 2, 3, 5) passes.
+Criterion 4 runs started at 04:25 with this fix: 32x6 on the Mac (4 threads each), 64x12 on
+backhouse (/home/greff/crucible_c4, nice 19, 6 threads each). Results in PASR_C2.md.

@@ -39,6 +39,12 @@
 // Sources: P = mu_t (S^2 - 2/3 div^2) - 2/3 rho k div, Pt = min(P, 10 beta* rho omega k),
 //   d(rho k)/dt = Pt - beta* rho omega k,
 //   d(rho omega)/dt = gamma rho Pt / mu_t - beta rho omega^2 + 2 (1 - F1) rho sigma_w2 / omega grad k . grad omega,
+// except that in omega's production the dilatation part, -(2/3) (rho k / mu_t) div, uses omega for
+// rho k / mu_t (a CRUCIBLE choice of 5 October 2026; identical wherever the limiter a1 omega >= S F2
+// is inactive). Where the limiter is active, rho k / mu_t = S F2 / a1 > omega, and in a strong
+// expansion the exact form is a sink that does not scale with omega: it collapsed omega to 1e-138 in
+// the divergent nozzle of the turbulent chamber cold start (docs/evidence/PASR_C2.md). With omega
+// it is a decay at a rate below (2/3) gamma div. The k equation keeps the exact P. Sources are
 // integrated per cell at fixed rho and E by the second-order positive modified Patankar
 // Runge-Kutta scheme MPRK22 (Kopecz and Meister, BIT 58, 2018; production explicit, destruction
 // weighted by the new over the old value), with the strain, divergence, grad k . grad omega, nu
@@ -237,7 +243,9 @@ void Flow::turbulenceSource(const std::vector<Conserved>& state,std::vector<doub
             // Pt / (rho k): mu_t / (rho k) = a1 / m.
             const double rate=std::min(a1*c.strain2/m-2.0/3*c.divergence,10*betaStar*omega);
             const double gamma=b.f1*gamma1+(1-b.f1)*gamma2,beta=b.f1*beta1+(1-b.f1)*beta2;
-            const double production=gamma*rate*m/a1,cross=2*(1-b.f1)*sigmaW2*c.crossGradient;
+            // gamma Pt / nu_t, with omega for rho k / mu_t in the dilatation part (header).
+            const double production=gamma*std::min(c.strain2-2.0/3*c.divergence*omega,10*betaStar*omega*m/a1);
+            const double cross=2*(1-b.f1)*sigmaW2*c.crossGradient;
             pk=k*std::max(rate,0.0);dk=std::max(-rate,0.0)+betaStar*omega;
             pw=std::max(production,0.0)+std::max(cross,0.0)/omega;
             dw=std::max(-production,0.0)/omega+beta*omega+std::max(-cross,0.0)/sq(omega);

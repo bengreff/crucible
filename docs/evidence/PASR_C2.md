@@ -1,6 +1,6 @@
 # C2: PaSR turbulence-chemistry closure
 
-Status (5 October 2026, 03:12): implemented; criteria 1, 2 and 3 pass (run 5). Criterion 2's test-power check failed twice for the fractional-segregation case because of where its samples fell. It was restated at 03:08 (53f8870), before run 5, to read a fine record of the references, and run once: it passes. Criteria were stated in the header of `tests/pasr_tests.cpp` on 4 October 2026, before the closure was written (c259fb5). The amendments are dated there. Criterion 4 (a turbulent reacting chamber with the closure, judged against the same run without it) was stated at 03:09 on 5 October (c44a933). Its harness is written (`tests/chamber_study.cpp`, modes `frp` and `frt`), but it cannot run yet: a smoke run on 32x6 stopped at 0.136 ms, before the igniter fires, in both the closure run and the control. Three faults in the k-omega numerics stop the viscous cold start one after another, none in the closure. The first (axis-row reconstruction) is fixed. The other two (off-line diffusion, omega underflow in the nozzle) are diagnosed and not yet fixed (see Criterion 4 below).
+Status (5 October 2026, 04:40): implemented; criteria 1, 2 and 3 pass (run 5). Criterion 2's test-power check failed twice for the fractional-segregation case because of where its samples fell. It was restated at 03:08 (53f8870), before run 5, to read a fine record of the references, and run once: it passes. Criteria were stated in the header of `tests/pasr_tests.cpp` on 4 October 2026, before the closure was written (c259fb5). The amendments are dated there. Criterion 4 (a turbulent reacting chamber with the closure, judged against the same run without it) was stated at 03:09 on 5 October (c44a933). Its harness is `tests/chamber_study.cpp`, modes `frp` and `frt`. The first smoke runs stopped before or soon after light-off, in the closure run and the control alike, on two faults in the k-omega numerics, none in the closure. Both are fixed. **On 32x6, criterion 4 passes (a) to (d) for the closure run and the control.** The 64x12 pair is running on backhouse (see Criterion 4 below).
 
 All numbers are measured unless they are marked derived or inferred.
 
@@ -90,19 +90,46 @@ Raw outputs, all in `pasr/`:
   - The failing check is rho*omega > 0 after the first explicit stage.
   - omega there has fallen to 1.9e-3 1/s. Its neighbours hold 2 to 5e3 1/s along the axis and 4.5e3 1/s off it. The ambient value is about 78 1/s (derived from the Spalart-Rumsey formula).
   - The stage drains rho*omega at about 6e5 kg/(m^3 s^2) (derived from two halvings), whatever the cell holds. So halving the step only helps until rho*omega is below that rate times the step.
-- **Isolation, one fix, and two more faults (03:45 to 03:57; details in the evidence file).** Three faults stop the cold start one after another. Each lets omega's update remove more than the cell holds, or lets omega reach zero:
-  1. **Axis-row reconstruction (fixed, kept).** The axis row reconstructs mass fractions, k and omega with an r^2 curvature that nothing bounds by the cell value. A cell near zero beside large off-axis values gets a large face value, and outward flow past the throat carries it out. The wall row already clamps its slope so faces stay within half the cell value. The axis row now gets the same clamp (`core/flow.cpp`, `radialProfiles`). With it, the run passes 0.136 ms and lights at 0.206 ms.
-  2. **Off-line part of the k and omega diffusion (inferred from a test; not fixed).** With the clamp the run stops at 0.346 ms in the divergent nozzle (i 26, j 1), where omega is about 1e-32 1/s and is drained at about 3.6e3 per second. With the k and omega face gradient replaced by the two-point difference (a temporary switch), it reaches 0.5 ms. This is the term `core/flow.cpp` already documents for k.
-  3. **omega decays to underflow in the nozzle (inferred; not isolated, not fixed).** With both changes the run stops at 0.524 ms: omega is exactly 0 and k about 1e-109 in two nozzle cells (i 26 j 4, i 27 j 3). The SST sources take omega down with no floor. The candidates are the dilatation part of the production and the cross-diffusion sink. The engine fills with Spalart-Rumsey ambient values but does not have the SST-2003sust sustaining terms that hold them.
+- **Isolation and the first fix (03:45 to 03:57; details in the evidence file).**
+  1. **Axis-row reconstruction (fixed, kept, f09b077).** The axis row reconstructs mass fractions, k and omega with an r^2 curvature that nothing bounds by the cell value. A cell near zero beside large off-axis values gets a large face value, and outward flow past the throat carries it out. The wall row already clamps its slope so faces stay within half the cell value. The axis row now gets the same clamp (`core/flow.cpp`, `radialProfiles`). With it, the run passes 0.136 ms, lights at 0.206 ms, and stops at 0.346 ms in the divergent nozzle (i 26, j 1), where omega is about 1e-32 1/s.
   - The first test, two-point diffusion without the clamp, still stopped at 0.136 ms with the same drain rate. That is why the reconstruction, not the diffusion, is the first fault.
-  - Stopped after three distinct faults, before writing fixes for 2 and 3.
+- **The second fault: omega collapses in the expanding nozzle (04:05 to 04:16; measured by isolation).** At first this looked like two faults: the run stopped where the off-line part of the k and omega diffusion drained a cell, and with that part removed it stopped later on omega underflow. They are one mechanism.
+  - **Mechanism (from the code, then tested).** Omega's production is gamma rho P / mu_t, with P = mu_t (S^2 - 2/3 div^2) - 2/3 rho k div. Where the SST limiter is active (a1 omega < S F2), rho k / mu_t is S F2 / a1, not omega. The production is then gamma rho [(S^2 - 2/3 div^2) - (2/3) div S F2 / a1]. In a strong expansion that is negative, and it does not depend on omega. MPRK22 books a negative production as destruction with coefficient |P| / omega, so each substep maps omega to about omega^2 / (dt |P|). That stays positive but falls faster than exponentially: the field at the stop held omega of 1e-100 to 1e-138 1/s across the divergent nozzle. Once omega is that small, any drain (the off-line diffusion, or round-off) is larger than the cell holds.
+  - **Not kept:** bounding the off-line part of the diffusion by the two-point part (OpenFOAM's limited correction) only moved the stop from 0.346 to 0.357 ms.
+  - **Isolation:** with the dilatation part removed from omega's production only (a temporary switch), the run reaches 0.5 ms with positivity at every sample, with or without the diffusion bound.
+  - **Fix (kept; CRUCIBLE choice, flagged for Ben).** In omega's production only, the dilatation part uses omega for rho k / mu_t. Where the limiter is inactive this is the exact form. Where it is active, it becomes a decay at a rate of at most (2/3) gamma div. The k equation keeps the exact P, so the work of the turbulent pressure on expansion stays in k's budget. The published alternative, TMR's SSTs form (P = mu_t S^2 in both equations, [NASA TMR](https://tmbwg.github.io/turbmodels/sst.html)), also removes that term from k. Recorded in TECHNICAL_PLAN step 7, the `core/transport.cpp` header and TURBULENCE_C2.md.
+  - **Verification of the fix.** The fast suite gives 5 of 6, with output identical line for line to the run before the change, including the three known truncation-order failures of `transport_verification` ([ctest_fast_omega_2026-10-05.txt](pasr/ctest_fast_omega_2026-10-05.txt)). `turbulence_verification` (TURBULENCE_C2 checks 1, 2, 3, 5) passes. The pipe (check 4, nr 16 and 32) still matches its reference: u_b within 2.07e-4 and 6.51e-5 (were 2.03e-4 and 6.37e-5). It moved by more than round-off (u_b +4.4e-6 on nr 16), and a reordered exact form reproduces the old values, so the pipe has non-zero divergence where the limiter is active at some point in the run (measured; where is open, see TURBULENCE_C2.md).
 - **Verification after the clamp (Mac).** The fast suite: 5 of 6 pass. `transport_verification` prints output identical, line for line, to the recorded open-face run, with the same three truncation-order failures. `turbulence_verification` passes. The slow pipe verification (TURBULENCE_C2 check 4) was then run with the clamp ([pipe_after_axis_clamp_2026-10-05.txt](pasr/pipe_after_axis_clamp_2026-10-05.txt)). nr 16 and 32 print every history line and every judged value as the recorded Mac run before the clamp, including the failing mass budgets 3.42e-11 and 1.93e-11. The nr 64 run was stopped at 0.5 ms to free the Mac; its 0.5 ms line matches the backhouse run without the clamp. So the clamp does not touch the pipe (measured).
+
+### Criterion 4 runs (5 October, with both fixes)
+
+**32x6, Mac, 04:25 to 04:35** ([criterion4_32x6_2026-10-05.txt](pasr/criterion4_32x6_2026-10-05.txt)). Both runs reach 8 ms (68284 steps, about 580 s each on 4 threads) with 0 failures.
+
+| Judged | Closure (frp) | Control (frt) | Limit | Result |
+|---|---|---|---|---|
+| (a) mass budget, largest over the run | 9.4e-13 | 1.4e-12 | 1e-11 | pass |
+| (a) energy budget against \|E\| at the end, largest | 7.7e-15 | 1.9e-14 | 1e-11 | pass |
+| (b) reaches 8 ms; rho, p, T, k, omega positive at all 4000 samples | yes | yes | | pass |
+| (c) largest drift over the last 1 ms | 1.1e-7 | 1.3e-7 | 1e-3 | pass |
+| (c) outlet mass flow against the supply | 7.3e-8 | 6.5e-8 | 1e-3 | pass |
+| (d) kappa_eff in (0, 1], s in [0, 1] at the snapshots | yes (smallest kappa_eff 0.99951) | yes | | pass |
+
+Reported, not judged (measured):
+- Light-off at 0.206 ms in both. Chamber volume with s > 0.01: 0.0197 at light-off, 0 at the end.
+- Settled: injector pressure 3.311776 MPa, c* 2475.68 m/s, vacuum Isp 423.73 s in both, equal to every printed digit. The energy budget against the initial N2 fill is 1.3e-11 (closure) and 3.2e-11 (control), above 1e-11 as in C1; that normalization is reported, not judged.
+- The closure changes the light-off transient: the largest difference against the control is 2.7% in vacuum thrust and 0.67% in injector pressure, at 0.242 ms. From 1 ms on, every difference is below 3e-6.
+- No mass fraction was clipped after a reaction substep.
+- First-cell y+ (laminar estimate) median 77, largest 105: the wall is not resolved, as stated.
+- Against the 1-D ideal rocket with C1's 2-D corrections: c* +1.54%, vacuum Isp (shifting) -1.25%. The inviscid C1 finite-rate run on the same grid (300 J igniter, CHAMBER_C1.md) gave c* 2477.20 m/s (+1.61%) and Isp 424.31 s. So the c* excess is the 32x6 grid, as in C1, and viscosity, turbulence and walls at 600 K lower c* by 1.5 m/s (0.06%) and Isp by 0.58 s (0.14%) on this grid (derived). The inviscid run predates the axis clamp, so part of that gap may be the clamp (not separated).
+
+What this shows: the closure runs in a reacting turbulent chamber from a cold start without breaking budgets or positivity, and it acts only where the chamber is segregated, at light-off. This chamber is premixed, so once it has burned the closure has nothing to act on. It does not test the closure on a non-premixed flame; interleaved fuel and oxidizer rings (C2's remaining item) do that.
+
+**64x12, backhouse** (`/home/greff/crucible_c4`, the same working tree; tmux `crucible_c4run`; outputs in `/home/greff/c4runs/`; nice 19 beside other users' jobs). Started 04:26; pending.
+
 - **Next.**
-  1. Limit the off-line part of the k and omega face gradients, so a face's flux keeps the sign of the two-point difference (as OpenFOAM's limited Laplacian does). That makes their diffusion monotone under the existing step limit.
-  2. Add the SST-2003sust sustaining terms (published on NASA TMR; a model variant, recorded as a choice) or a floor at the ambient values. The sustaining terms are preferred.
-  3. Rerun the turbulence verification and this smoke case, then criterion 4.
-  4. C1's recorded runs predate the clamp. In inviscid C1 the clamp acts on the axis-row mass fractions only where a cell holds less than about a third of the next ring's value (derived for uniform rings). A C1 rerun shows whether its numbers move.
-- **Consequence.** No viscous turbulent chamber can start from cold until faults 2 and 3 are fixed. That covers criterion 4, C3 and the RL10 case. The step-cost runs did not see this: they start from a settled equilibrium field, with the valve fully open.
+  1. Judge the 64x12 pair and add it here.
+  2. Find where the pipe has non-zero divergence with the limiter active (TURBULENCE_C2.md, amended model note).
+  3. C1's recorded runs predate the clamp. In inviscid C1 the clamp acts on the axis-row mass fractions only where a cell holds less than about a third of the next ring's value (derived for uniform rings). A C1 rerun shows whether its numbers move.
 
 ## Limits
 
