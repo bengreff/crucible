@@ -84,8 +84,31 @@
 //      The cases, the 20 samples and the accuracy checks are unchanged. Predicted for
 //      (1e-5 s, 0.9), derived from the rise table: when the laminar rise ends, the stretched
 //      rise is about half done, so the gap is a large part of the temperature rise, order 0.1.
-// Criterion 4, a turbulent reacting chamber with the closure (budgets, positivity, the kappa_eff and
-// s fields reported against the same run without it), is stated before its first run.
+//   4. A turbulent reacting chamber with the closure. Stated 5 October 2026, before any run of it;
+//      it runs in a chamber study, not in this file. The case is the C1 chamber of
+//      tests/chamber_study.cpp: contour, premixed H2/O2 at O/F 5 and 0.4 kg/s, valve ramp, igniter,
+//      ambient N2 at 1 kPa and 300 K. Chemistry is FiniteRate (rtol 1e-6, atol 1e-12). It is made
+//      viscous and turbulent as in tests/step_cost.cpp: mixture-averaged transport, SST-2003,
+//      no-slip walls at 600 K, supply turbulence I 0.05 with viscosity ratio 10, and a
+//      Spalart-Rumsey ambient. The closure is on (C_mix 1, S = {H2, O2, H2O}); the control is
+//      the same run without it. Grids 32x6 and 64x12 (uniform rings, so the wall is not
+//      resolved; the first-cell y+ is reported), each to 8 ms, C1's settling time.
+//      Judged, for each run:
+//      (a) Budgets over the whole run. Mass below 1e-11 of the initial fill, as C1. Energy below
+//          1e-11 of the magnitude of the gas's total energy at the end of the run; normalizing by
+//          the initial N2 fill failed C1 for a reason that is not a leak (CHAMBER_C1.md). Both
+//          normalizations are reported.
+//      (b) Positivity: the run reaches 8 ms without an exception, and rho, p, T, k and omega are
+//          positive in every cell at every history sample (2 us apart).
+//      (c) Settled, as C1 criterion 1: relative drift of outlet mass flow, injector pressure and
+//          vacuum thrust below 1e-3 over the last 1 ms, and outlet mass flow within 1e-3 of the
+//          supply. A run that fails only this is extended once to 12 ms and reported.
+//      (d) The closure's fields are admissible: kappa_eff in (0, 1] and s in [0, 1] in every cell
+//          at the field snapshots.
+//      Reported, not judged: the kappa_eff and s fields at light-off and at the end; the
+//      fraction of the chamber volume with s > 0.01; the largest mass fraction clipped to zero
+//      after a reaction substep; and, against the control, light-off time, settled injector
+//      pressure, c* and vacuum Isp.
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
