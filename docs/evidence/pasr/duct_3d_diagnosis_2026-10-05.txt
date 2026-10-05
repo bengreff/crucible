@@ -1,0 +1,8 @@
+3(d) diagnosis
+ variant 0 (ReactingFlow + closure): taken 4.333064e-07, b took 4.333064e-07, times 4.333064e-07 4.333064e-07
+   state[1] rel 1.018e-11 at cell 46: a -2.7926777649e-05 b -2.7926777650e-05 (scale 1.542e-04)
+   state[2] rel 7.692e-01 at cell 0: a 0.0000000000e+00 b 7.8401691242e-15 (scale 1.019e-14)
+ variant 1 (ReactingFlow, no closure): taken 4.333064e-07, b took 4.333064e-07, times 4.333064e-07 4.333064e-07
+   state[1] rel 1.018e-11 at cell 46: a -2.7926777649e-05 b -2.7926777650e-05 (scale 1.542e-04)
+   state[2] rel 7.692e-01 at cell 0: a 0.0000000000e+00 b 7.8401691242e-15 (scale 1.019e-14)
+ variant 2 (Flow after mixingInputs): taken 4.333064e-07, b took 4.333064e-07, times 4.333064e-07 4.333064e-07

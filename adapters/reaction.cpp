@@ -1,6 +1,7 @@
 #include "adapters/reaction.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 #include "adapters/thermo.hpp"
@@ -171,6 +172,9 @@ namespace {
 struct Context {
   ReactionSource* source;
   double rho;
+  Mixing mixing;  // segregation 0: no closure
+  const std::vector<std::size_t>* species = nullptr;
+  std::size_t n = 0;
 };
 
 int rhs(realtype, N_Vector z, N_Vector dz, void* data) {
@@ -180,10 +184,30 @@ int rhs(realtype, N_Vector z, N_Vector dz, void* data) {
   } catch (const Cantera::CanteraError&) {
     return 1;  // recoverable: CVODES retries with a smaller step
   }
+  if (c->mixing.segregation > 0) {
+    const double f = reactingFraction(NV_DATA_S(z), NV_DATA_S(dz), *c->species, c->mixing);
+    for (std::size_t i = 0; i < c->n; ++i) NV_Ith_S(dz, i) *= f;
+  }
   return 0;
 }
 
 }  // namespace
+
+double reactingFraction(const double* z, const double* dzdt, const std::vector<std::size_t>& species,
+                        const Mixing& mixing) {
+  if (mixing.segregation == 0) return 1;
+  double chemical = 0;
+  bool active = false;
+  for (std::size_t i : species) {
+    const double y = z[i + 1], rate = std::abs(dzdt[i + 1]);
+    if (!(y > 0) || rate == 0) continue;
+    chemical = std::max(chemical, y / rate);
+    active = true;
+  }
+  if (!active) return 1;
+  const double kappa = chemical / (chemical + mixing.time);
+  return 1 - mixing.segregation * (1 - kappa);
+}
 
 struct ReactionStep::Impl {
   ReactionSource* source;
@@ -207,7 +231,7 @@ ReactionStep::ReactionStep(ReactionSource& source, double rtol, double atol)
     : impl_(std::make_unique<Impl>()) {
   auto& s = *impl_;
   s.source = &source;
-  s.context = {&source, 0.0};
+  s.context = {&source, 0.0, {}, nullptr, source.nSpecies() + 1};
   s.n = static_cast<sunindextype>(source.nSpecies() + 1);
   s.z = N_VNew_Serial(s.n);
   N_VConst(300.0, s.z);
@@ -230,8 +254,19 @@ ReactionStep::ReactionStep(ReactionSource& source, double rtol, double atol)
 ReactionStep::~ReactionStep() = default;
 
 void ReactionStep::advance(double rho, double* z, double dt, int samples, const Observer& observe) {
+  advance(rho, z, dt, Mixing{}, {}, samples, observe);
+}
+
+void ReactionStep::advance(double rho, double* z, double dt, const Mixing& mixing,
+                           const std::vector<std::size_t>& species, int samples, const Observer& observe) {
   auto& s = *impl_;
+  if (!(mixing.segregation >= 0 && mixing.segregation <= 1) || !(mixing.time >= 0))
+    throw std::invalid_argument("PaSR mixing inputs out of range.");
+  for (std::size_t i : species)
+    if (i + 1 >= static_cast<std::size_t>(s.n)) throw std::invalid_argument("PaSR species index out of range.");
   s.context.rho = rho;
+  s.context.mixing = mixing;
+  s.context.species = &species;
   for (sunindextype i = 0; i < s.n; ++i) NV_Ith_S(s.z, i) = z[i];
   if (CVodeReInit(s.cvode, 0.0, s.z) != CV_SUCCESS) throw std::runtime_error("CVODES reinit failed");
   CVodeSetStopTime(s.cvode, dt);

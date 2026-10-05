@@ -1,0 +1,7 @@
+criterion 2 reference gaps, laminar (s = 0), plain and Kahan RK4
+  plain per  32768: failed
+  plain per  65536: failed
+  plain per 131072: failed
+  plain per 262144: T end 3368.769334; 12.0 s
+  plain per 524288: dT 9.033e-13 (sample 2, T 3368.77) dY 6.879e-13; T end 3368.769334; 23.7 s
+  plain per 1048576: dT 1.760e-12 (sample 2, T 3368.77) dY 1.470e-12; T end 3368.769334; 47.4 s

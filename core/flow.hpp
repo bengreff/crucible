@@ -215,10 +215,18 @@ public:
     // Partial densities rho*Y_k, cell-major.
     [[nodiscard]] const std::vector<double>& partialDensities() const { return species_; }
     // Turbulence: rho k and rho omega, cell-major pairs (empty without it); the exact wall distance
-    // of each centroid (infinite without no-slip walls); the eddy viscosity of the last stableDt().
+    // of each centroid (infinite without no-slip walls); the eddy viscosity of the last stableDt()
+    // or mixingInputs().
     [[nodiscard]] const std::vector<double>& turbulence() const { return turbulence_; }
     [[nodiscard]] const std::vector<double>& wallDistances() const { return wallDistance_; }
     [[nodiscard]] const std::vector<double>& eddyViscosities() const { return eddy_; }
+    // The PaSR closure's inputs per cell at the current state (TECHNICAL_PLAN step 7, "PaSR"; needs
+    // turbulence): the mixing time tau_mix = cmix sqrt(nu_eff / epsilon), nu_eff = (mu + mu_t) / rho,
+    // epsilon = beta* k omega (infinite where k = 0), and the segregation s, the largest over the
+    // given species (indices into the medium) with 0 < X_i < 1 of
+    // min(1, (mu_t / (rho schmidt)) |grad X_i|^2 / (beta* omega X_i (1 - X_i))), 0 if there is none.
+    void mixingInputs(double cmix, const std::vector<std::size_t>& species, std::vector<double>& time,
+                      std::vector<double>& segregation);
     [[nodiscard]] std::vector<double> massFractions(std::size_t cell) const;
     [[nodiscard]] Primitive cellPrimitive(std::size_t cell) const;
     [[nodiscard]] double temperature(std::size_t cell) const;

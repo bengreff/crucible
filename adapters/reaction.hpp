@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -53,6 +54,20 @@ class ReactionSource {
 // no transport data or uses the CHEMKIN fit form.
 TransportFits transportFits(const std::string& mechanism);
 
+// The PaSR closure's inputs for one cell (TECHNICAL_PLAN step 7, "PaSR"), from the flow
+// (Flow::mixingInputs) and frozen over a reaction substep: the mixing time tau_mix [s] and the
+// segregation s in [0, 1]. s = 0 is the mean-state (laminar) rate.
+struct Mixing {
+  double time = std::numeric_limits<double>::infinity();
+  double segregation = 0;
+};
+
+// The PaSR factor kappa_eff = 1 - s (1 - kappa) on the rate dz/dt of z = [T, Y_1..Y_K], with
+// kappa = tau_c / (tau_c + tau_mix) and tau_c the largest Y_i / |dY_i/dt| over the given species
+// (indices into Y) with Y_i > 0 and dY_i/dt != 0; kappa = 1 if there is none. Exactly 1 when s = 0.
+double reactingFraction(const double* z, const double* dzdt, const std::vector<std::size_t>& species,
+                        const Mixing& mixing);
+
 // CRUCIBLE-owned stiff integration of the reaction sources (CVODES variable-order BDF,
 // dense direct linear solve with a difference-quotient Jacobian).
 class ReactionStep {
@@ -66,6 +81,10 @@ class ReactionStep {
   // Advance z over dt at fixed density. With samples > 1 the observer sees the state at
   // dt*i/samples, i = 1..samples, from one uninterrupted integration.
   void advance(double rho, double* z, double dt, int samples = 1, const Observer& observe = {});
+  // The same under the PaSR closure: dz/dt = reactingFraction(z, f(z), species, mixing) f(z). With
+  // mixing.segregation = 0 this is the integration above, bit for bit.
+  void advance(double rho, double* z, double dt, const Mixing& mixing, const std::vector<std::size_t>& species,
+               int samples = 1, const Observer& observe = {});
   long steps() const;  // internal steps taken by the last advance
 
  private:

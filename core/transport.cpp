@@ -200,6 +200,29 @@ void Flow::eddyViscosity(bool withSources) {
         if(withSources) sources_[q]={strain2-2.0/3*sq(div),strain,div,cross,nu,inverse};
     }
 }
+void Flow::mixingInputs(double cmix,const std::vector<std::size_t>& species,std::vector<double>& time,
+                        std::vector<double>& segregation) {
+    if(!nt_) throw std::logic_error("The PaSR closure needs turbulence.");
+    for(std::size_t i:species) if(i>=ns_) throw std::invalid_argument("PaSR species index out of range.");
+    refresh(state_,species_,turbulence_);
+    transportProperties();transportGradients();eddyViscosity(false);
+    const auto& tu=definition_.turbulence;
+    const std::size_t nf=3+ns_+nt_,count=state_.size();
+    time.resize(count);segregation.resize(count);
+    for(std::size_t q=0;q<count;++q) {
+        const double rho=primitives_[q].rho,k=fractions_[q*nw_+ns_],omega=fractions_[q*nw_+ns_+1];
+        const double epsilon=betaStar*k*omega,nuT=eddy_[q]/rho;
+        time[q]=epsilon>0?cmix*std::sqrt((viscosity_[q]+eddy_[q])/rho/epsilon):std::numeric_limits<double>::infinity();
+        double s=0;
+        for(std::size_t i:species) {
+            const double x=moles_[q*ns_+i];
+            if(!(x>0 && x<1)) continue;
+            const double* g=&gradients_[(q*nf+3+i)*2];
+            s=std::max(s,std::min(1.0,nuT/tu.schmidt*(sq(g[0])+sq(g[1]))/(betaStar*omega*x*(1-x))));
+        }
+        segregation[q]=s;
+    }
+}
 // MPRK22 on specific k and omega (rho is fixed): with production P and destruction D = d y (d >= 0),
 //   y1 = (y0 + tau P0) / (1 + tau d0),  y = (y0 + tau/2 (P0 + P1)) / (1 + tau/2 (d0 y0 + d1 y1) / y1).
 // Each source term goes to P or D by its sign; positivity of k and omega is unconditional.

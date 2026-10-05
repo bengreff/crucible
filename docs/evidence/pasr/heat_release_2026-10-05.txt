@@ -1,0 +1,6 @@
+tau_mix 1e-05 s, s 0.00: T 10% at 1.8060e-05 s, 90% at 2.1640e-05 s, 10-90% rise 3.580e-06 s; min kappa_eff 1.000e+00
+tau_mix 1e-05 s, s 0.50: T 10% at 1.8560e-05 s, 90% at 2.3090e-05 s, 10-90% rise 4.530e-06 s; min kappa_eff 5.233e-01
+tau_mix 1e-04 s, s 0.50: T 10% at 1.9970e-05 s, 90% at 2.5540e-05 s, 10-90% rise 5.570e-06 s; min kappa_eff 5.024e-01
+tau_mix 1e-05 s, s 0.90: T 10% at 1.9250e-05 s, 90% at 2.7040e-05 s, 10-90% rise 7.790e-06 s; min kappa_eff 1.419e-01
+tau_mix 1e-05 s, s 0.99: T 10% at 1.9480e-05 s, 90% at 3.1340e-05 s, 10-90% rise 1.186e-05 s; min kappa_eff 5.603e-02
+tau_mix 1e-05 s, s 1.00: T 10% at 1.9510e-05 s, 90% at 3.2410e-05 s, 10-90% rise 1.290e-05 s; min kappa_eff 4.647e-02

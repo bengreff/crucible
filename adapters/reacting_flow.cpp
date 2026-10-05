@@ -5,6 +5,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "adapters/reaction.hpp"
@@ -36,11 +37,31 @@ ReactingFlow::ReactingFlow(Flow& flow, const std::string& mechanism, int threads
 
 ReactingFlow::~ReactingFlow() = default;
 
+void ReactingFlow::setMixingClosure(double cmix, const std::vector<std::string>& species) {
+  if (chemistry_ != Chemistry::FiniteRate)
+    throw std::invalid_argument("The PaSR closure needs FiniteRate chemistry.");
+  if (!flow_.definition().turbulence.enabled) throw std::invalid_argument("The PaSR closure needs turbulence.");
+  if (!(cmix > 0) || !std::isfinite(cmix)) throw std::invalid_argument("The PaSR mixing constant must be positive.");
+  const auto& mine = flow_.medium().species();
+  std::vector<std::size_t> indices;
+  for (const auto& name : species) {
+    std::size_t k = 0;
+    while (k < mine.size() && mine[k].name != name) ++k;
+    if (k == mine.size()) throw std::invalid_argument("PaSR species " + name + " is not in the mechanism.");
+    indices.push_back(k);
+  }
+  if (indices.empty()) throw std::invalid_argument("The PaSR closure needs at least one species.");
+  closure_ = true;
+  cmix_ = cmix;
+  closureSpecies_ = std::move(indices);
+}
+
 void ReactingFlow::react(double dt) {
   if (chemistry_ == Chemistry::Frozen) return;
   const bool equilibrium = chemistry_ == Chemistry::LocalEquilibrium;
   const std::size_t cells = flow_.state().size(), n = workers_.size();
   const std::size_t ns = flow_.medium().size();
+  if (closure_) flow_.mixingInputs(cmix_, closureSpecies_, mixingTime_, segregation_);
   // Workers take small blocks of cells from a shared counter, so the hot cells of a flame or a
   // light-off do not all fall to one worker. Each cell's result is independent of which worker
   // takes it (the integrator is reinitialised per cell).
@@ -56,6 +77,7 @@ void ReactingFlow::react(double dt) {
       worker.z[0] = flow_.temperature(q);
       std::copy(y.begin(), y.end(), worker.z.begin() + 1);
       if (equilibrium) worker.source.equilibrateUV(rho, worker.z.data());
+      else if (closure_) worker.step.advance(rho, worker.z.data(), dt, {mixingTime_[q], segregation_[q]}, closureSpecies_);
       else worker.step.advance(rho, worker.z.data(), dt);
       double sum = 0;
       for (std::size_t k = 0; k < ns; ++k) { y[k] = std::max(worker.z[k + 1], 0.0); sum += y[k]; }

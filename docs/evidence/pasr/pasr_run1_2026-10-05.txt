@@ -1,0 +1,6 @@
+libc++abi: terminating due to uncaught exception of type std::invalid_argument: Turbulent Prandtl and Schmidt numbers, the wall omega factor and the ambient omega must be positive.
+states: rho 0.121968 kg/m^3; T 1200.00 K (unburnt), 2322.83 K (half rise), 3368.77 K (equilibrium)
+1(a) kappa_eff against the formula
+  3 states x 3 closures: |engine - formula| / formula                0.000e+00 (limit 1.0e-13)  ok
+  pure N2: kappa_eff - 1 (exactly 0)                                 0.000e+00 (limit 0.0e+00)  ok
+1(b) cell inputs on the duct

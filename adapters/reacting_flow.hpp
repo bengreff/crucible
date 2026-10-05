@@ -37,6 +37,14 @@ class ReactingFlow {
   ReactingFlow(const ReactingFlow&) = delete;
   ReactingFlow& operator=(const ReactingFlow&) = delete;
 
+  // The PaSR turbulence-chemistry closure (TECHNICAL_PLAN step 7, "PaSR") in every cell alike: each
+  // reaction substep integrates dz/dt = kappa_eff(z) f(z) with the cell's mixing time and
+  // segregation frozen at the substep's start (Flow::mixingInputs, mixing constant cmix) and the
+  // chemical time over the named species. Needs FiniteRate chemistry and a flow with turbulence.
+  void setMixingClosure(double cmix, const std::vector<std::string>& species);
+  // The closure's inputs of the last reaction substep, per cell (empty without the closure).
+  const std::vector<double>& mixingTimes() const { return mixingTime_; }
+  const std::vector<double>& segregations() const { return segregation_; }
   double step(double maxDt = std::numeric_limits<double>::infinity());
   void advanceTo(double time);
   void react(double dt);  // one reaction substep over every cell (equilibrium: dt is unused)
@@ -50,6 +58,10 @@ class ReactingFlow {
   Stats stats_;
   Chemistry chemistry_;
   std::vector<double> saved_;
+  bool closure_ = false;
+  double cmix_ = 1;
+  std::vector<std::size_t> closureSpecies_;
+  std::vector<double> mixingTime_, segregation_;
 };
 
 }  // namespace crucible::thermo

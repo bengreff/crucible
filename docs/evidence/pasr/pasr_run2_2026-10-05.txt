@@ -1,0 +1,30 @@
+states: rho 0.121968 kg/m^3; T 1200.00 K (unburnt), 2322.83 K (half rise), 3368.77 K (equilibrium)
+1(a) kappa_eff against the formula
+  3 states x 3 closures: |engine - formula| / formula                0.000e+00 (limit 1.0e-13)  ok
+  pure N2: kappa_eff - 1 (exactly 0)                                 0.000e+00 (limit 0.0e+00)  ok
+1(b) cell inputs on the duct
+  k = 10: s from 0.2546 to 0.5805 off the end columns
+  k = 10: tau_mix against the formula (relative)                     2.598e-16 (limit 1.0e-12)  ok
+  k = 10: s against the formula (relative)                           2.664e-15 (limit 1.0e-12)  ok
+  k = 25: s from 0.6365 to 1.0000 off the end columns
+  k = 25: tau_mix against the formula (relative)                     1.301e-16 (limit 1.0e-12)  ok
+  k = 25: s against the formula (relative)                           2.459e-15 (limit 1.0e-12)  ok
+  k = 0: s exactly 0 in every cell (1 = no)                          0.000e+00 (limit 0.0e+00)  ok
+1(c) where the closure applies
+  4 cases (equilibrium, frozen, no turbulence, FiniteRate): wrong    0.000e+00 (limit 0.0e+00)  ok
+2. one substep of 3e-4 s against RK4 (stoichiometric H2/O2, 1200 K, 1 atm)
+  tau_mix 1e-05 s, s 1.0
+  reference converged (1 = no)                                       1.000e+00 (limit 0.0e+00)  FAIL
+  tau_mix 1e-04 s, s 0.5
+  reference converged (1 = no)                                       1.000e+00 (limit 0.0e+00)  FAIL
+  tau_mix 1e-05 s, s 0.0
+  reference converged (1 = no)                                       1.000e+00 (limit 0.0e+00)  FAIL
+3. limits
+  (a) s = 0 against the laminar substep, 3 states: bitwise (1 = differs) 0.000e+00 (limit 0.0e+00)  ok
+    tau_mix 1e-08 s: largest relative T difference from laminar 4.4416e-07
+    tau_mix 1e-09 s: largest relative T difference from laminar 4.4390e-08
+    tau_mix 1e-10 s: largest relative T difference from laminar 4.4423e-09
+  (b) observed order in tau_mix, 1e-9 to 1e-10 (at least)            9.997e-01 (limit 8.0e-01)  ok
+  (c) pure N2 through 1e-4 s with (1e-6 s, 1): z changed (1 = yes)   0.000e+00 (limit 0.0e+00)  ok
+  (d) N2/AR duct, ReactingFlow with the closure against Flow (relative) 7.692e-01 (limit 1.0e-14)  FAIL
+4 failures
