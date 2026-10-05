@@ -45,8 +45,9 @@
 //          adds no failure of its own. A pass below 1.8 does not clear the laminar failure.
 //   4. Fully developed pipe against the independent reference tools/sst_pipe_1d.py (argument --pipe;
 //      long, run through the slot). N2, R 0.4 mm, no-slip wall at 300 K, fill 101325 Pa at 300 K,
-//      axial body force 2.95e5 N/m^3 (Re_tau about 182), rings clustered with b = 2, nz 2, nr 16, 32
-//      and 64 (wall y+ about 0.9, 0.4, 0.2, derived). Each run starts from the reference solution on
+//      axial body force 2.95e5 N/m^3 (Re_tau about 182), rings clustered with b = 2, nz 4, nr 16, 32
+//      and 64 (wall y+ about 0.9, 0.4, 0.2, derived). (First stated as nz 2; the mesh needs at least
+//      4 axial cells, so the first launch stopped before any output. The flow is axially uniform.) Each run starts from the reference solution on
 //      the same rings (tests/data/sst_pipe_N.csv, written by the tool) and marches 4 ms, about 14
 //      times the slowest momentum relaxation time R^2 / (j01^2 nu_t) (estimated). On every grid:
 //      (a) steady: u_b and T_axis change by less than 1e-5 relative over the last 1 ms, and the wall
@@ -506,7 +507,7 @@ void pipeTests(const Nitrogen& n2, const std::vector<int>& grids) {
   for (int nr : grids) {
     const auto profile = readProfile(std::string(CRUCIBLE_SOURCE_DIR) + "/tests/data/sst_pipe_" + std::to_string(nr) + ".csv");
     if (profile.r.size() != static_cast<std::size_t>(nr)) throw std::runtime_error("profile ring count");
-    Definition d = n2Duct(n2, length, radius, 2, nr);
+    Definition d = n2Duct(n2, length, radius, 4, nr);
     d.radialStretching = 2;
     d.totalPressure = d.backPressure = 101325; d.totalTemperature = tWall;
     d.wallTemperature = tWall;

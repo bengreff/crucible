@@ -20,18 +20,18 @@
   stiff: after 10 steps (t 3.623e-04 s) k 2.9291e+00 (exact 8.3049e+00), omega 7.0538e+03 (exact 3.3322e+04), 0 rejected
   2d. stiff: positive, finite, decreasing every step (1 = yes) 1.000e+00 (limit 1.0e+00)  ok
 3. turbulent transport operator on a straight slip-wall duct (h2o2.yaml)
-    32x8    axial momentum 4.474e-02  radial momentum 4.527e-02  energy 3.091e-02  species 4.545e-02  rho k 4.209e-02  rho omega 4.372e-02
-           laminar:  axial momentum 1.483e-02  radial momentum 2.262e-02  energy 2.017e-02  species 1.743e-02
-    64x16   axial momentum 1.023e-02  radial momentum 1.623e-02  energy 7.616e-03  species 1.013e-02  rho k 1.018e-02  rho omega 1.017e-02
-           laminar:  axial momentum 4.365e-03  radial momentum 7.330e-03  energy 5.676e-03  species 5.156e-03
-   128x32   axial momentum 2.197e-03  radial momentum 4.699e-03  energy 1.827e-03  species 2.146e-03  rho k 2.202e-03  rho omega 2.189e-03
-           laminar:  axial momentum 1.145e-03  radial momentum 2.335e-03  energy 1.472e-03  species 1.330e-03
-   256x64   axial momentum 5.318e-04  radial momentum 1.266e-03  energy 5.036e-04  species 5.099e-04  rho k 5.345e-04  rho omega 5.301e-04
-           laminar:  axial momentum 2.917e-04  radial momentum 7.764e-04  energy 3.727e-04  species 3.340e-04
+    32x8    axial momentum 4.474e-02  radial momentum 4.533e-02  energy 3.091e-02  species 4.545e-02  rho k 4.209e-02  rho omega 4.372e-02
+           laminar:  axial momentum 1.482e-02  radial momentum 2.188e-02  energy 2.017e-02  species 1.743e-02
+    64x16   axial momentum 1.023e-02  radial momentum 1.625e-02  energy 7.616e-03  species 1.013e-02  rho k 1.018e-02  rho omega 1.017e-02
+           laminar:  axial momentum 4.365e-03  radial momentum 6.351e-03  energy 5.676e-03  species 5.156e-03
+   128x32   axial momentum 2.197e-03  radial momentum 4.651e-03  energy 1.827e-03  species 2.146e-03  rho k 2.202e-03  rho omega 2.189e-03
+           laminar:  axial momentum 1.145e-03  radial momentum 1.704e-03  energy 1.472e-03  species 1.330e-03
+   256x64   axial momentum 5.318e-04  radial momentum 1.229e-03  energy 5.036e-04  species 5.099e-04  rho k 5.345e-04  rho omega 5.301e-04
+           laminar:  axial momentum 2.916e-04  radial momentum 4.401e-04  energy 3.727e-04  species 3.340e-04
   3a. mu_t against rho k / omega, worst relative             4.441e-16 (limit 1.0e-12)  ok
-  laminar orders (two finest): axial 1.973  radial 1.589  energy 1.982  species 1.993
+  laminar orders (two finest): axial 1.973  radial 1.953  energy 1.982  species 1.993
   3b. axial momentum: observed order (two finest grids)      2.046e+00 (limit 1.8e+00)  ok
-  3c. radial momentum: observed order (two finest grids)     1.892e+00 (limit 1.5e+00)  ok
+  3c. radial momentum: observed order (two finest grids)     1.920e+00 (limit 1.8e+00)  ok
   3b. energy: observed order (two finest grids)              1.859e+00 (limit 1.8e+00)  ok
   3b. species: observed order (two finest grids)             2.073e+00 (limit 1.8e+00)  ok
   3b. rho k: observed order (two finest grids)               2.043e+00 (limit 1.8e+00)  ok

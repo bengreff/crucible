@@ -76,9 +76,13 @@ std::array<Neighbour, 4> neighbours(const Mesh& m, bool chamber, const std::vect
     const auto& c=m.cells[m.index(i,j)];
     std::array<Neighbour, 4> out{};
     auto cell=[&](int a,int b){ auto q=m.index(a,b);return Neighbour{Neighbour::Cell,q,m.cells[q].z-c.z,m.cells[q].r-c.r,0,0}; };
+    // Axial faces are normal to z. A wall (the injector plate) has its value at the face midpoint; an
+    // open or supply face has zero normal gradient, which is the cell's own value on its axial line,
+    // so that neighbour sits at the face at the centroid's radius (at the midpoint it would also
+    // claim a radial derivative of zero and bias the end columns' radial gradients).
     auto axial=[&](int face) {
         auto kind=face==0 && chamber?(faceSupply[j]<0?Neighbour::Wall:Neighbour::Supply):Neighbour::Open;
-        return Neighbour{kind,0,face*m.dz-c.z,m.ringMiddle(face,j)-c.r,-1,0};
+        return Neighbour{kind,0,face*m.dz-c.z,kind==Neighbour::Wall?m.ringMiddle(face,j)-c.r:0.0,-1,0};
     };
     out[0]=i>0?cell(i-1,j):axial(0);
     out[1]=i<m.nz-1?cell(i+1,j):axial(m.nz);
