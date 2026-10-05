@@ -71,6 +71,11 @@ struct Definition {
     TransportFits transport;
     bool wallSlip{false};
     double wallTemperature{0};
+    // Subsonic outlet (Nozzle and Chamber). Zero: the boundary state takes backPressure, a pressure
+    // node that reflects every acoustic wave. Positive: partially non-reflecting (Poinsot and Lele
+    // 1992); the incoming characteristic relaxes the outlet pressure toward backPressure at the rate
+    // K = sigma (1 - M^2) a / span, and outgoing waves leave (reflection -1 / (1 + 2 i omega / K)).
+    double outletRelaxation{0};
     [[nodiscard]] double span() const;  // axial length of the domain
     [[nodiscard]] Medium medium() const;
     [[nodiscard]] std::vector<double> massFractions() const;
@@ -219,7 +224,8 @@ private:
     Thermal faceThermal(const Primitive& w, double* y) const;
     Primitive inlet(Primitive inside) const;
     // ambientInflow is set when a Chamber exit draws ambient gas in (subsonic backflow).
-    Primitive outlet(Primitive inside, const double* y, bool& ambientInflow) const;
+    // inside: the reconstructed face state of the last cell; cell, yCell: that cell's own state.
+    Primitive outlet(Primitive inside, const double* y, const Primitive& cell, const double* yCell, bool& ambientInflow) const;
     std::vector<double> ambient_;  // Chamber: ambient composition
     // Molecular transport (core/transport.cpp): cell viscosity, conductivity, mixture diffusion
     // coefficients and mole fractions; least-squares gradients of u_z, u_r, T and the mole fractions

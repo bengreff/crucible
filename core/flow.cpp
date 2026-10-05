@@ -75,6 +75,8 @@ void Definition::validate() const {
     checkComposition(massFractions());
     if(!(wallTemperature>=0) || !std::isfinite(wallTemperature))
         throw std::invalid_argument("Wall temperature must be finite and non-negative (zero: adiabatic).");
+    if(!(outletRelaxation>=0) || !std::isfinite(outletRelaxation))
+        throw std::invalid_argument("Outlet relaxation must be finite and non-negative (zero: fixed back pressure).");
     if(!contour.empty()) {
         if(contour.size()<2) throw std::invalid_argument("A wall contour needs at least two points.");
         for(std::size_t k=0;k<contour.size();++k) {
@@ -449,7 +451,7 @@ Primitive Flow::inlet(Primitive w) const {
 // Outlet with the interior face's frozen ratio of specific heats (exact for a calorically perfect gas).
 // A Chamber exit in subsonic backflow draws ambient gas at rest: ambient pressure, temperature and
 // composition, with the interior's axial velocity (a declared simplification for start-up transients).
-Primitive Flow::outlet(Primitive w,const double* y,bool& ambientInflow) const {
+Primitive Flow::outlet(Primitive w,const double* y,const Primitive& cell,const double* yCell,bool& ambientInflow) const {
     ambientInflow=false;
     const bool chamber=definition_.experiment==Case::Chamber;
     if(definition_.experiment!=Case::Nozzle && !chamber) return w;
@@ -459,6 +461,30 @@ Primitive Flow::outlet(Primitive w,const double* y,bool& ambientInflow) const {
         return Primitive{p/(medium_.gasConstant(ambient_.data())*definition_.ambientTemperature),u,0,p};
     };
     if(w.uz>=a) return w; // All characteristics leave a supersonic outlet.
+    // Non-reflecting option. The outgoing Riemann invariant and the entropy are the face's; the
+    // incoming invariant moves the fraction beta from the last cell's own value toward the one that
+    // gives backPressure. The cell lags the face by half a cell (dz / 2a), so the face's incoming
+    // wave relaxes at 2 beta a / dz, which is K / 2 in the Poinsot-Lele form for the beta below
+    // (measured: 3.9 beta a / dz on 800 and 1600 cells). Taking the incoming invariant from the
+    // extrapolated face instead feeds the interior slope back in every step and grows without
+    // bound (measured). Pressure and velocity follow the same rule in backflow, where the gas
+    // drawn in takes only the ambient entropy and composition, so the outlet does not change its
+    // acoustic behaviour when the velocity crosses zero.
+    if(definition_.outletRelaxation>0) {
+        double rho=w.rho*std::pow(definition_.backPressure/w.p,1/g),target=std::sqrt(g*definition_.backPressure/rho);
+        double mach=w.uz/a,beta=std::min(1.0,0.25*definition_.outletRelaxation*(1-mach*mach)*mesh_.dz/definition_.span());
+        double ac=medium_.soundSpeed(cell.p/(cell.rho*medium_.gasConstant(yCell)),yCell);
+        double outgoing=w.uz+2*a/(g-1),incoming=cell.uz-2*ac/(g-1);
+        incoming+=beta*(outgoing-4*target/(g-1)-incoming);
+        double u=0.5*(outgoing+incoming),af=0.25*(g-1)*(outgoing-incoming);
+        double p=w.p*std::pow(af/a,2*g/(g-1));
+        if(u < -1e-10*a) {
+            if(!chamber) throw std::runtime_error("Outlet backflow is outside this nozzle prototype's boundary model.");
+            ambientInflow=true;
+            return {p/(medium_.gasConstant(ambient_.data())*definition_.ambientTemperature),std::max(u,-a),0,p};
+        }
+        return {w.rho*std::pow(p/w.p,1/g),u,w.ur,p};
+    }
     if(w.uz < -1e-10*a) {
         if(chamber) return ambient(std::max(w.uz,-a));
         throw std::runtime_error("Outlet backflow is outside this nozzle prototype's boundary model.");
@@ -713,7 +739,7 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         }
         if(i==0) { l=inlet(r);yl=inletComposition_; }
         Thermal tl=faceThermal(l,yl.data());
-        if(i==m.nz) { bool ambientInflow=false;r=outlet(l,yl.data(),ambientInflow);yr=ambientInflow?ambient_:yl; }
+        if(i==m.nz) { bool ambientInflow=false;r=outlet(l,yl.data(),primitives_[il],&fractions_[il*ns_],ambientInflow);yr=ambientInflow?ambient_:yl; }
         Thermal tr=faceThermal(r,yr.data());
         auto flux=faceFlux(l,tl,r,tr,1,0,i>0 && i<m.nz);
         for(int k=0;k<4;++k) {

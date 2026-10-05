@@ -1,5 +1,6 @@
 #include "core/flow.hpp"
 #include "core/session.hpp"
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -240,6 +241,67 @@ Definition chamber() {
     d.supplies={s};
     return d;
 }
+// Outlet reflection (criteria stated 4 October 2026, before the first run). A right-going acoustic
+// pulse, Gaussian in z (amplitude 1e-4 of the ambient pressure, standard deviation 0.02 m), starts
+// at mid-duct of a straight 1 m chamber duct (800 cells, gas at rest at 1e5 Pa and 300 K) and is
+// probed at mid-duct for 2 to 4 ms, when only its reflection from the outlet passes. The reference
+// is the same pulse in a 2 m duct probed 1 m downstream: the same travel and numerical dissipation,
+// no reflection. Criteria, with x the reference signal and K = sigma a / L:
+//   sigma = 0 (fixed back pressure): reflected peak / reference peak = -1 within 0.02;
+//   sigma = 100: reflected peak within 10% of the peak of x convolved with the theory impulse
+//     response h(t) = -(K/2) exp(-K t / 2) (Poinsot and Lele; reflection -1 / (1 + 2 i omega / K));
+//   sigma = 0.25: largest reflected excursion below 0.02 of the reference peak.
+void outletChecks() {
+    const double ambient=1e5,eps=1e-4*ambient,width=0.02;
+    auto run=[&](double length,int nz,double sigma,double probe) {
+        Definition d=base();d.experiment=Case::Chamber;d.nz=nz;d.nr=1;
+        d.contour={{0,0.01},{length,0.01}};d.backPressure=ambient;d.ambientTemperature=300;d.outletRelaxation=sigma;
+        Flow f(d);const auto& m=f.mesh();
+        double rho=ambient/(d.gas.specificR*300),a=std::sqrt(d.gas.gamma*ambient/rho);
+        std::vector<Primitive> cells(m.cells.size());
+        for(std::size_t q=0;q<cells.size();++q) {
+            double dp=eps*std::exp(-0.5*sq((m.cells[q].z-0.5)/width));
+            cells[q]={rho+dp/(a*a),dp/(rho*a),0,ambient+dp};
+        }
+        f.setInitialState(cells);
+        int left=static_cast<int>(std::lround(probe/m.dz))-1;
+        std::vector<std::array<double,2>> series;
+        while(f.time()<4e-3) {
+            f.step(4e-3-f.time());
+            if(f.time()>=2e-3) series.push_back({f.time(),0.5*(f.cellPrimitive(m.index(left,0)).p+f.cellPrimitive(m.index(left+1,0)).p)-ambient});
+        }
+        return std::pair{series,a};
+    };
+    auto [reference,a]=run(2,1600,0,1.5);
+    double peak=0;for(auto& s:reference) peak=std::max(peak,s[1]);
+    auto extreme=[](const std::vector<std::array<double,2>>& v,bool lowest) {
+        double e=0;for(auto& s:v) e=lowest?std::min(e,s[1]):std::max(e,std::abs(s[1]));return e;};
+    auto fixed=run(1,800,0,0.5).first;
+    double r0=extreme(fixed,true)/peak;
+    std::cout<<"Outlet reflection, fixed back pressure: reflected/reference peak "<<r0<<" (reference peak "<<peak/eps<<" of the initial)\n";
+    require(std::abs(r0+1)<0.02,"A fixed-pressure outlet reflects a pulse with coefficient -1");
+    // Theory: y' = -(K/2)(y + x), integrated exactly with x linear over each interval.
+    auto partial=run(1,800,100,0.5).first;
+    double k=100*a/1,y=0,theory=0,worst=0;
+    auto at=[](const std::vector<std::array<double,2>>& v,double t) {
+        std::size_t n=1;while(n+1<v.size() && v[n][0]<t) ++n;
+        double w=std::clamp((t-v[n-1][0])/(v[n][0]-v[n-1][0]),0.0,1.0);return v[n-1][1]+w*(v[n][1]-v[n-1][1]);};
+    for(std::size_t n=0;n<reference.size();++n) {
+        if(n>0) {
+            double h=reference[n][0]-reference[n-1][0],c=std::exp(-0.5*k*h),x0=reference[n-1][1],x1=reference[n][1];
+            double slope=(x1-x0)/h;
+            y=y*c-x0*(1-c)-slope*(h-(1-c)*2/k);
+        }
+        theory=std::min(theory,y);
+        worst=std::max(worst,std::abs(at(partial,reference[n][0])-y));
+    }
+    double r100=extreme(partial,true);
+    std::cout<<"Outlet reflection, sigma 100: reflected peak "<<r100/peak<<", theory "<<theory/peak<<" (of the reference peak); largest waveform difference "<<worst/peak<<" (reported)\n";
+    require(std::abs(r100/theory-1)<0.1,"A relaxed outlet reflects as the Poinsot-Lele theory");
+    double r025=extreme(run(1,800,0.25,0.5).first,false)/peak;
+    std::cout<<"Outlet reflection, sigma 0.25: largest reflected excursion "<<r025<<" of the reference peak\n";
+    require(r025<0.02,"A weakly relaxed outlet is close to non-reflecting");
+}
 void chamberChecks() {
     // The contour table reproduces the built-in cosine nozzle when sampled at its own stations,
     // including a table whose z origin is not the injector face.
@@ -415,6 +477,7 @@ int main(int argc,char** argv) {
          for(std::size_t k=0;k<held->cells.size();++k)
              near(repeated.cells[k].p,held->cells[k].p,held->cells[k].p*1e-9,"Accepted control history must replay independently of wall time");}
         chamberChecks();
+        outletChecks();
         std::cout<<"All core verification checks passed.\n";
     } catch(const std::exception& e) {std::cerr<<"FAIL: "<<e.what()<<'\n';return 1;}
 }

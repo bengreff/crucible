@@ -1,0 +1,27 @@
+Planar rows: max density deviation 4.88498e-15, max |u_r| 7.89319e-16
+Planar rows: max density deviation 9.10383e-15, max |u_r| 2.11941e-15
+Planar Sod (5 rows) density L1: 100=0.00736731 400=0.00227145
+Planar rows: max density deviation 7.54952e-15, max |u_r| 8.86458e-16
+Planar rows: max density deviation 1.54321e-14, max |u_r| 1.21765e-15
+Toro 123 strong rarefaction density L1: 100=0.0135047 400=0.00451031
+Planar rows: max density deviation 8.54872e-15, max |u_r| 1.88497e-14
+Planar rows: max density deviation 2.65343e-14, max |u_r| 5.15812e-14
+Toro strong shock (p ratio 1e5) density L1: 100=0.17004 400=0.0599378
+Nozzle entropy error order: volume=2.04446 wall row=2.02017
+Internal shock: mdot/choked-1=-0.000940786 exit M=0.267773 quasi-1D=0.268031 max M=1.86424
+Thrust coefficient: device=1.37284 quasi-1D ideal=1.37351 ratio-1=-0.000488654 (device-exit)/device=6.09212e-07 momentum residual=8.41971e-17
+Coil-force rest residual nz=40: max=0.561636 axis row=0.0769036 L1=0.017957 radial max=0.3137 radial axis row=0.00551704
+Coil-force rest residual nz=80: max=0.394837 axis row=0.025841 L1=0.00452369 radial max=0.301087 radial axis row=0.00219492
+Coil-force rest residual nz=160: max=0.234189 axis row=0.0104346 L1=0.0011108 radial max=0.201021 radial axis row=0.000973649
+Coil-force rest residual nz=320: max=0.127988 axis row=0.00476636 L1=0.000283502 radial max=0.114836 radial axis row=0.000456706
+Radial acoustic axis-row error: 16=0.00307329 48=0.000101845 144=3.63053e-06
+Radial acoustic normalized velocity error: 16=0.00406021 48=0.000412051
+Sod density L1: 80=0.00868557 240=0.00345083
+Nozzle mdot=0.879089 reference=0.879654 exit M=2.65752
+Shut chamber at rest after 300 steps: max |u| 1.61559e-12 m/s
+Igniter: delivered 5 J of 5 J, energy budget -2.71223e-15, mass budget -1.51013e-16
+Supplied chamber at 6 ms: injector-face pressure 300283 Pa, outflow 0.48334 kg/s, mass budget 3.38269e-14, energy budget 5.29575e-14, steps 15300
+Outlet reflection, fixed back pressure: reflected/reference peak -1.00266 (reference peak 0.885253 of the initial)
+Outlet reflection, sigma 100: reflected peak -0.823318, theory -0.846166 (of the reference peak); largest waveform difference 0.038257 (reported)
+Outlet reflection, sigma 0.25: largest reflected excursion 0.00688355 of the reference peak
+All core verification checks passed.
