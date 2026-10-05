@@ -64,7 +64,7 @@ Raw output: `core_verification_outlet_2026-10-04.txt`.
 |---|---|---|---|---|---|---|
 | 40 um | 2.361664 | +1.339% | 2.352410 | +0.941% | 0.031% | 1057 s |
 | 20 um | 2.341939 | +0.492% | 2.335204 | +0.203% | 0.023% | 5369 s |
-| 10 um | (running) | | | | | |
+| 10 um | (rerun on backhouse at 4e2ee5c, after the open-face fix; started 03:02 on 5 October) | | | | | |
 
 40 um, measured: mass budget -5.2e-15, energy budget 5.5e-15. 20 um: -3.6e-16 and -1.4e-14 (`c2/f20_log.txt`).
 - The start-up transient dies out by about 0.3 ms. After that S_c sits within 0.02 m/s of its final value (`c2/f40_history.png`).

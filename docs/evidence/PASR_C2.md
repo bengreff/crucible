@@ -1,11 +1,11 @@
 # C2: PaSR turbulence-chemistry closure
 
-Status (5 October 2026): implemented. Criteria 1 and 3 pass. Criterion 2: the engine matches the independent RK4 reference in all three cases, but the check that a case exercises the closure fails for the fractional-segregation case. Criteria were stated in the header of `tests/pasr_tests.cpp` on 4 October 2026, before the closure was written (c259fb5). The amendments are dated there. Criterion 4 (a turbulent reacting chamber with the closure) is not yet stated or run.
+Status (5 October 2026, 03:30): implemented; criteria 1, 2 and 3 pass (run 5). Criterion 2's test-power check failed twice for the fractional-segregation case because of where its samples fell. It was restated at 03:15, before run 5, to read a fine record of the references, and run once: it passes. Criteria were stated in the header of `tests/pasr_tests.cpp` on 4 October 2026, before the closure was written (c259fb5). The amendments are dated there. Criterion 4 (a turbulent reacting chamber with the closure, judged against the same run without it) was stated at 03:20 on 5 October (c44a933); it has not been run.
 
 All numbers are measured unless they are marked derived or inferred.
 
 Raw outputs, all in `pasr/`:
-- `pasr_run1` to `pasr_run4` (`*_2026-10-05.txt`): the four runs of `crucible_pasr_tests`.
+- `pasr_run1` to `pasr_run5` (`*_2026-10-05.txt`): the five runs of `crucible_pasr_tests`.
 - `rk4_gaps_plain` and `rk4_gaps_compensated`, `heat_release` and `duct_3d_diagnosis` (`*_2026-10-05.txt`): the diagnostics behind the amendments, made by `diag.cpp` and `rise.cpp`. These programs include the test file; they are diagnostics, not tests.
 - Fast ctest suite after the change: `ctest_main_2026-10-05_pasr.txt`.
 
@@ -23,7 +23,7 @@ Raw outputs, all in `pasr/`:
   - `ReactingFlow::setMixingClosure` switches the closure on. It is accepted only for FiniteRate chemistry on a turbulent flow.
   - With s = 0 the code takes the laminar path bit for bit.
 
-## Results (run 4 unless stated)
+## Results (run 5)
 
 | Criterion | Measured | Limit | Result |
 |---|---|---|---|
@@ -33,9 +33,9 @@ Raw outputs, all in `pasr/`:
 | 1(b) k = 0 gives s = 0 in every cell | exact | exact | pass |
 | 1(c) accepted only for FiniteRate with turbulence | 4 of 4 | all | pass |
 | 2, (1e-5 s, 1): T and Y against RK4 at rtol 1e-10 | 1.4e-8, 2.6e-9 | 1e-7, 1e-8 | pass |
-| 2, (1e-5 s, 1): the closure changes T (test power) | 0.28 | > 1e-2 | pass |
+| 2, (1e-5 s, 1): the closure changes T (test power), fine record | 0.50 | > 1e-2 | pass |
 | 2, (1e-5 s, 0.9): T and Y against RK4 | 5.4e-10, 3.1e-10 | 1e-7, 1e-8 | pass |
-| 2, (1e-5 s, 0.9): the closure changes T (test power) | 3.5e-3 | > 1e-2 | **fail** |
+| 2, (1e-5 s, 0.9): the closure changes T (test power), fine record | 0.46 | > 1e-2 | pass (restated check; 3.5e-3 at the 20 samples in run 4) |
 | 2, laminar: T and Y against RK4 | 6.9e-10, 4.0e-10 | 1e-7, 1e-8 | pass |
 | 2, every case: the error at rtol 1e-10 is below the error at rtol 1e-7 | yes | | pass |
 | 3(a) s = 0 equals the laminar substep, 3 states | bitwise | bitwise | pass |
@@ -72,6 +72,11 @@ Raw outputs, all in `pasr/`:
   - So the check measures where the samples fall, not the closure.
   - After two attempts at the fractional case, work on it stopped (the working rule). It stays failing until the check is restated.
   - The closure's fractional-s arithmetic is covered by 1(a), at s 0.5 and 0.2.
+- **Restatement (03:15, 5 October, at the Director's instruction; committed in 53f8870 before run 5).** The check now reads T from both converged references at 1280 equal times (every 1/64 of a sample, 0.23 us apart), so the rise is resolved wherever it falls. The cases, the 20 samples and the accuracy checks are unchanged. Predicted for (1e-5 s, 0.9): order 0.1.
+- **Run 5, run once.** Every check passes.
+  - The fractional case: the largest gap is 0.457 at 21.1 us, where T is 1648 K with the closure and 3033 K laminar. For s = 1 it is 0.498 at 22.0 us.
+  - The prediction was low by about 4.6 times. It assumed both rises start together. In the record, the closure run is 21% through its rise (1200 K to 3369 K) when the laminar run is 85% through, so the closure also delays the start of the rise.
+  - Every accuracy number is the same as in run 4. The fine record only adds stores of T to the reference integrations.
 
 ## Limits
 
