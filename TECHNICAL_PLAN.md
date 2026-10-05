@@ -112,11 +112,11 @@
      - ESDIRK against BDF2.
      - The inner tolerance at which the transient stops depending on it.
      - Whether the chemistry must move inside the stage residual (point-implicit) at physical steps of 1e-7 to 1e-6 s. The Strang splitting error at those steps is measured on the C1 light-off (criterion 3) first.
-   - **Sources** (from memory; to be checked against the papers and entered in RESEARCH before the code):
-     - Jameson 1991 (AIAA 91-1596): dual time stepping.
-     - Kennedy and Carpenter 2003 (Appl. Numer. Math. 44): ARK and ESDIRK schemes.
-     - Bijl, Carpenter, Vatsa and Kennedy 2002 (J. Comput. Phys. 179): ESDIRK against BDF2 for unsteady flow.
-     - Yoon and Jameson 1988 (AIAA J. 26): LU-SGS.
+   - **Sources.** The titles, venues and volumes were checked on 5 October 2026 against index pages. The papers' content has not been read yet; it is checked against the design and entered in RESEARCH before the code.
+     - Jameson 1991, "Time dependent calculations using multigrid, with applications to unsteady flows past airfoils and wings", AIAA Paper 91-1596: dual time stepping ([cited in Jameson's later paper](http://aero-comlab.stanford.edu/Papers/jameson_dts_irk.pdf)).
+     - Kennedy and Carpenter 2003, "Additive Runge-Kutta schemes for convection-diffusion-reaction equations", Appl. Numer. Math. 44(1), 139-181: ARK3(2)4L[2]SA and its ESDIRK part ([Semantic Scholar](https://www.semanticscholar.org/paper/Additive-Runge-Kutta-Schemes-for-Equations-Kennedy-Carpenter/ad463b85089ac66ae41dad57e06523403acb11e6)).
+     - Bijl, Carpenter, Vatsa and Kennedy 2002, "Implicit time integration schemes for the unsteady compressible Navier-Stokes equations: laminar flow", J. Comput. Phys. 179, 1-17: ESDIRK against BDF2 for unsteady flow.
+     - Yoon and Jameson 1988, "Lower-upper symmetric-Gauss-Seidel method for the Euler and Navier-Stokes equations", AIAA J. 26, 1025-1026: LU-SGS ([PDF](http://aero-comlab.stanford.edu/Papers/AIAA-10007-471.pdf)).
 17. **Wall functions: a declared option, never the default** (ruling of 5 October 2026; design not started). It is a switchable SST wall treatment that puts the first cell at y+ 30 to 100. Before any use, it is compared with the wall-resolved dual-time result on one short case (wall shear, wall heat flux, c*, Isp), and the comparison is recorded. Database sweeps may use it only after that, and every result that does is labelled with it.
 
 ### Compute budget for a 1 s RL10 run (5 October 2026)
