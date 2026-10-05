@@ -73,3 +73,21 @@ finite rate 50 ns, rtol 1e-08, fresh at 1500 K:       230.4 us per call, 150.0 C
 finite rate 50 ns, rtol 1e-06, near-equilibrium cell: 100.8 us per call, 59.0 CVODES steps
 finite rate 50 ns, rtol 1e-06, fresh at 1500 K:       144.1 us per call, 82.0 CVODES steps
 one rates() evaluation: 0.78 us
+
+== backhouse (i7-14700K, 8 performance + 12 efficiency cores, 28 threads; WSL2 Ubuntu, gcc 13, Cantera 3.2.0), commit 4e2ee5c,
+build/crucible_step_cost 64 12 6e-4 200 28, 5 October 2026 about 02:56 to 02:59; family use on the box (load average 2 to 14 during the run)
+setup 64x12 (768 cells): LocalEquilibrium to 0.600 ms, 9800 steps, 154 s wall; injector p 1.9003 MPa, outlet 0.2032 kg/s
+config    chemistry  threads dt start [s]  mean dt [s]  wall/step [s]   cell updates/s replans/step
+inviscid  frozen           1   5.6674e-08   5.7473e-08     9.9533e-04       7.7161e+05         0.00
+inviscid  finite           1   5.6674e-08   5.6834e-08     6.1633e-02       1.2461e+04         1.00
+inviscid  finite          28   5.6674e-08   5.6834e-08     7.9459e-03       9.6654e+04         1.00
+viscous   frozen           1   5.6382e-08   5.7289e-08     2.9530e-03       2.6008e+05         0.00
+viscous   finite           1   5.6382e-08   5.6649e-08     6.5520e-02       1.1722e+04         1.01
+viscous   finite          28   5.6382e-08   5.6649e-08     1.0526e-02       7.2964e+04         1.01
+FiniteRate substep [s]           s per cell
+2.8422e-08                       1.2232e-05
+5.0000e-10                       9.7415e-06
+5.0000e-11                       9.6925e-06
+
+== backhouse crucible_chemistry_cost (reported by the setup agent, same build except the two portability fixes)
+one rates() evaluation: 0.56 us; finite rate 50 ns, rtol 1e-06: 74.8 us (near equilibrium), 119.8 us (fresh at 1500 K) per call

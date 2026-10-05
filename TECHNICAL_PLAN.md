@@ -92,7 +92,7 @@
 
 Ben asked what a full 1 s RL10 run costs. Every number is labelled: **measured** (on the named machine), **derived** (stated arithmetic from measured or published values) or **guessed** (an input not yet known).
 
-**Measured cost of the reacting step.** Measured with `tests/step_cost.cpp`; the output of four runs is in `docs/evidence/step_cost_2026-10-05.txt`. Another project's job shared the Mac during run 4; its rates match runs 1 to 3.
+**Measured cost of the reacting step.** Measured with `tests/step_cost.cpp`; the output of four runs (and one on backhouse) is in `docs/evidence/step_cost_2026-10-05.txt`. Another project's job shared the Mac during run 4; its rates match runs 1 to 3.
 - Machine: Mac M2 Pro (6 performance and 4 efficiency cores).
 - Case: the C1 chamber on 64x12 (768 cells) with h2o2.yaml (10 species). It is marched in local equilibrium to 0.6 ms, when the chamber burns at 1.9 MPa and the nozzle flows.
 - Timing: 200 steps per configuration at that grid's flow step, about 5.7e-8 s.
@@ -135,7 +135,7 @@ Ben asked what a full 1 s RL10 run costs. Every number is labelled: **measured**
 | Machine | Cell updates per second | Wall time for 1 s |
 |---|---|---|
 | Mac, 10 threads | 4e4 (measured on 768 cells) | 6e10 s, about 2000 years (derived) |
-| backhouse CPU (i7-14700K: 8 performance and 12 efficiency cores, 28 threads) | about 8e4 (derived: about 2x the Mac from its core count and clock; not yet measured) | about 1000 years |
+| backhouse CPU (i7-14700K: 8 performance and 12 efficiency cores, 28 threads) | 7.3e4 (measured, one run, 28 threads, with family use on the box; 1.2e4 on one thread) | 3.4e10 s, about 1100 years (derived) |
 | GPU port (RTX 4070 Ti SUPER, f64) | 1e6 to 1e7 (guessed; a consumer card runs f64 at 1/64 of its FP32 rate) | 8 to 80 years (derived from the guess) |
 
 A 1 s explicit run at wall-resolved resolution is out of reach on every machine here. Taking a week as acceptable, it is too slow by about 400 times on the GPU (guessed) and about 1e5 times on the Mac.
