@@ -1,12 +1,12 @@
 # Session handoff
 
-5 October 2026, 05:25 (parked at the Director's 05:30 line) · branch `main` (one line).
+5 October 2026, 05:18 (parked at the Director's 05:30 line) · branch `main` (one line).
 
 ## Stopped at (5 October)
 
 - PaSR criterion 4 passes on 32x6 and 64x12 for the closure and the control, after two k-omega fixes found by its smoke runs (`docs/evidence/PASR_C2.md`). The 64x12 pair ran on backhouse, 04:26 to 05:16.
 - f10 (the 10 um flame) finished on backhouse at 04:46: all four FLAME_C2 criteria pass (S_c +0.279%, S_d +0.044%, drift 0.018%). Committed in 3c2c86d.
-- Running on backhouse when parked: nothing of ours (checked with pgrep at 05:20; the tmux sessions crucible_f10, crucible_c4run and crucible_c4build have exited).
+- Running on backhouse when parked: nothing of ours (checked with pgrep at 05:17; the tmux sessions crucible_f10, crucible_c4run and crucible_c4build have exited).
 - Stale items noted, not edited (never touch `~/.claude` memory):
   - `archive/README.md` line 20 links to the removed `../REBUILD_NOTES.md`.
   - Several memory files predate the pivot: project_crucible, crucible_v13_architecture, crucible_pre_review_and_timeline, crucible_w2_chemical_slice, project_gpu_residency_s14_fork, project_crucible_commitments, feedback_fidelity_doctrine, feedback_resolve_everything_no_torch. MEMORY.md still says "VISION_SCOPE.md = source of truth (now v1.3)".
