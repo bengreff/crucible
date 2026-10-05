@@ -41,6 +41,21 @@
 // flame and its diffusive flux there is not negligible. The flux term and the third level were
 // added. The smoke test ran the engine to 0.02 ms only, before any flame had formed.
 //
+// Change after the first 40 um run (4 October 2026; criteria unchanged). With the fixed-pressure
+// outlet the duct is a closed-open acoustic resonator (closed plate, pressure node at the outlet,
+// about 20 kHz), and the flame drove it: pressure 92 to 114 kPa and S_c swinging 2.0 to 3.0 m/s
+// through 1 ms, S_c +20.4% and drift 3.1% at the end (docs/evidence/FLAME_C2.md keeps that run).
+// The reference is a flame in open space, so the outlet is now partially non-reflecting
+// (Definition::outletRelaxation = 0.25, Poinsot and Lele; core test outletChecks): derived
+// reflection about 0.13 at 20 kHz with burned gas at the outlet, steady pressure still 1 atm.
+// The ambient is now the burned gas (composition and T_ad), so backflow cannot draw cold gas.
+// The finer grids had not been run.
+// Second change (same day; criteria unchanged). The first non-reflecting 40 um run blew up at
+// 55 us: that outlet used isentropic Riemann invariants, which turn an entropy gradient at the
+// outlet into an acoustic wave (measured in a perfect-gas duct: a 1 K hot spot grew to about
+// 870 kPa). The outlet now works in W = p +- rho a u_z (core check: a 100 K hot spot leaves with
+// a pressure change of 5.8e-4 of ambient). The blown-up run is kept in FLAME_C2.md.
+//
 // Usage: crucible_flame_study <dz um> <end time s> <threads> <output prefix>
 #include <algorithm>
 #include <chrono>
@@ -242,9 +257,12 @@ int main(int argc, char** argv) {
   d.nr = 1;
   d.contour = {{0.0, kRadius}, {kLength, kRadius}};
   d.species = medium.species();
-  d.composition = yu;
+  // Ambient = burned gas, so any backflow at the outlet draws products; the outlet is partially
+  // non-reflecting (see the header). The initial fill is set per cell below.
+  d.composition = yb;
   d.backPressure = kP;
-  d.ambientTemperature = kTu;
+  d.ambientTemperature = tad;
+  d.outletRelaxation = 0.25;
   d.transport = thermo::transportFits(kMechanism);
   d.wallSlip = true;
   d.wallTemperature = 0;
@@ -348,7 +366,7 @@ int main(int argc, char** argv) {
 
   {
     FILE* f = std::fopen((prefix + "_profile.csv").c_str(), "w");
-    std::fprintf(f, "source,z_minus_xf,T,Y_H2,Y_H,Y_OH\n");
+    std::fprintf(f, "source,z_minus_xf,T,Y_H2,Y_H,Y_OH,p,u_z\n");
     const double xf = fronts.back();
     std::size_t iH = ns, iOH = ns;
     for (std::size_t k = 0; k < ns; ++k) {
@@ -357,11 +375,12 @@ int main(int argc, char** argv) {
     }
     for (int i = 0; i < nz; ++i) {
       const auto y = flow.massFractions(mesh.index(i, 0));
-      std::fprintf(f, "engine,%.6e,%.6e,%.6e,%.6e,%.6e\n", zc[i] - xf, temp[i], y[iH2], y[iH], y[iOH]);
+      const auto w = flow.cellPrimitive(mesh.index(i, 0));
+      std::fprintf(f, "engine,%.6e,%.6e,%.6e,%.6e,%.6e,%.6f,%.6e\n", zc[i] - xf, temp[i], y[iH2], y[iH], y[iOH], w.p, w.uz);
     }
     const double xr = crossing(ref.z, ref.t, 0.5 * (kTu + tad));
     for (std::size_t i = 0; i < ref.points; ++i)
-      std::fprintf(f, "freeflame,%.6e,%.6e,%.6e,%.6e,%.6e\n", ref.z[i] - xr, ref.t[i], ref.yH2[i], ref.yH[i], ref.yOH[i]);
+      std::fprintf(f, "freeflame,%.6e,%.6e,%.6e,%.6e,%.6e,%.6f,nan\n", ref.z[i] - xr, ref.t[i], ref.yH2[i], ref.yH[i], ref.yOH[i], kP);
     std::fclose(f);
   }
 
