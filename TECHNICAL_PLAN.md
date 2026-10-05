@@ -21,6 +21,33 @@
 5. **Liquid propellant: injection, breakup and evaporation** (Ben, "Add evaporation first"; required before RL10). Liquid enters as stochastic Lagrangian parcels in the RZ domain: each parcel carries position, three velocity components, drop diameter, temperature and a statistical weight, and exchanges mass, momentum, energy and species with the gas through sources inside the shared step, normalised to physical ring volumes. Primary atomization of a coaxial element is not resolved in 2-D axisymmetry: the initial drop size distribution comes from a published coaxial-injector correlation and is carried as a declared bracket, the leading uncertainty of the model. Secondary breakup uses a KH-RT class model; evaporation uses a film-theory model (Abramzon-Sirignano class) with Cantera gas properties and cited liquid O2 properties. The liquid's enthalpy is the real feed enthalpy, so the latent heat is honoured without a separate correction. Applicability is checked as the state evolves: subcritical evaporation requires chamber pressure below the O2 critical pressure. The same particle container later carries energetic antimatter products with their own laws. Verification: single-drop evaporation against a reference solution, mass and energy budgets closing with parcels present, and a published subcritical LOX/GH2 spray flame as a component case.
 6. **Igniter.** A bounded energy deposit (declared energy, volume and duration) or a defined hot-gas supply, counted in the energy budget once.
 7. **Unresolved transport, applied uniformly.** Molecular transport first (mixture-averaged, Cantera's fits, verified against Cantera and a laminar flame speed from Cantera's FreeFlame). Then SST-2003 URANS with a declared wall treatment and turbulent Prandtl/Schmidt numbers, then PaSR for turbulence-chemistry interaction. The same closure acts on every stream, the chamber and the nozzle; there is no combustion-only mixing shortcut. Until it exists, results that depend on mixing are not claimed, and premixed runs isolate everything else.
+   - **SST-2003 as built** (equations from the NASA Turbulence Modeling Resource `sst.html`, extracted 4 October 2026). The model is the standard SST with the 2003 changes and nothing else:
+     - production limited to min(P, 10 beta* rho omega k) in both equations;
+     - mu_t = rho a1 k / max(a1 omega, S F2) with the strain invariant S = sqrt(2 S_ij S_ij), which includes the hoop strain u_r / r;
+     - gamma1 = 5/9, gamma2 = 0.44, CD_komega floor 1e-10;
+     - other constants: sigma_k 0.85 / 1.0, sigma_omega 0.5 / 0.856, beta 0.075 / 0.0828, beta* 0.09, a1 0.31, blended by F1.
+     - P = tau_ij du_i/dx_j with the full Boussinesq stress, including -2/3 rho k delta_ij.
+   - **Energy accounting** (RESEARCH *Gas turbulence*: account consistently): k is part of the total energy, and the thermodynamic state uses e = E/rho - |u|^2/2 - k.
+     - The Reynolds stress includes -2/3 rho k delta_ij, carried in the transport flux.
+     - The energy flux carries (mu + sigma_k mu_t) grad k.
+     - Turbulent heat and species fluxes use Pr_t and Sc_t (declared inputs; 0.9 and 0.7 first, sensitivity reported). The species flux adds mu_t / (rho Sc_t) to every D_km in the existing mixture-averaged form, which with the correction velocity is exactly -(mu_t / Sc_t) grad Y_k.
+   - **State and numerics.**
+     - rho k and rho omega are two more conserved fields, carried by the mass flux like the species and reconstructed like them.
+     - Their sources are integrated in a Strang split inside each step (half step, transport step, half step), with the mean-flow coefficients frozen per half step.
+     - Given those, the omega source does not depend on k: it is a scalar stiff ODE solved implicitly (L-stable, second order). The k source is linear in k given omega(t). Near walls beta omega dt is O(1) or larger, so an explicit source is not an option.
+   - **Walls and boundaries.**
+     - No-slip walls: k = 0 and omega = 10 * 6 nu / (beta1 d1^2) as the wall-face value, with d1 the wall distance of the adjacent cell centroid (declared; sensitivity checked). The wall treatment integrates to the wall and needs y+ about 1, reported per run. No wall functions.
+     - Slip walls pass no k or omega flux and are not walls for the wall distance.
+     - Wall distance: exact distance from each centroid to the no-slip wall segments.
+     - Supplies and the nozzle inlet carry a declared turbulence intensity and viscosity ratio, inputs with provenance.
+     - The ambient fill and backflow carry declared ambient values, with the viscosity ratio in TMR's freestream range 1e-5 to 1e-2.
+   - **Mesh.** A near-wall resolution of y+ about 1 needs rings clustered at the wall. `Definition::radialStretching` (a tanh distribution of the ring fractions; zero keeps equal rings bit for bit) comes first, verified on the existing transport and core checks.
+   - **Verification, with criteria fixed in the test headers before any run.**
+     1. Wall distance exact on straight and conical walls.
+     2. Decaying homogeneous turbulence (at rest, slip walls, so F1 = 0) against the exact k(t) and omega(t).
+     3. Truncation order of the k and omega diffusion operators on the contoured duct, as in `transport_verification`.
+     4. Fully developed turbulent pipe flow on an axially periodic duct driven by a body force, against an independent 1-D solution of the same SST-2003 equations (own implementation, fine grid). Grid convergence of c_f and bulk velocity; budgets with turbulence on.
+     - TMR's flat-plate data are for SST-V, not SST-2003, so they are a cross-check only; validation against pipe DNS and the TMR axisymmetric subsonic jet (SST-Vm results, PIV data) comes after verification.
 8. **Walls.** Inviscid slip first (declared: no boundary-layer loss). Then no-slip under the turbulence closure with a declared wall temperature or heat-flux condition; a regeneratively cooled wall's temperature is an input or a bracket.
 9. **Measurements.** Vacuum thrust from the device-thrust ledger with zero ambient; Isp from thrust over the total supplied mass flow (every propellant stream, liquid included, and any igniter flow); c* = Pc A_t / mdot; chamber pressure at the injector face and at the measured tap location; each loss as the delta between two runs of the same engine.
 10. **Verification toward RL10, each against CEA:** premixed reactants with local equilibrium give CEA shifting c* and Isp after accounting for finite chamber area and divergence; finite-rate kinetics lands between shifting and frozen; the "valves open, ignite" start reaches the same end state as a partly developed start; grid and time-step refinement of the settled observables.
