@@ -22,6 +22,7 @@ Shut chamber at rest after 300 steps: max |u| 1.61559e-12 m/s
 Igniter: delivered 5 J of 5 J, energy budget -2.71223e-15, mass budget -1.51013e-16
 Supplied chamber at 6 ms: injector-face pressure 300283 Pa, outflow 0.48334 kg/s, mass budget 3.38269e-14, energy budget 5.29575e-14, steps 15300
 Outlet reflection, fixed back pressure: reflected/reference peak -1.00266 (reference peak 0.885253 of the initial)
-Outlet reflection, sigma 100: reflected peak -0.823318, theory -0.846166 (of the reference peak); largest waveform difference 0.038257 (reported)
-Outlet reflection, sigma 0.25: largest reflected excursion 0.00688355 of the reference peak
+Outlet reflection, sigma 100: reflected peak -0.823315, theory -0.846166 (of the reference peak); largest waveform difference 0.0382548 (reported)
+Outlet reflection, sigma 0.25: largest reflected excursion 0.00688081 of the reference peak
+Outlet, 100 K hot spot leaving at 15 m/s (sigma 0.25): largest pressure change 0.000584558 of ambient
 All core verification checks passed.

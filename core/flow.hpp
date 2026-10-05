@@ -224,8 +224,8 @@ private:
     Thermal faceThermal(const Primitive& w, double* y) const;
     Primitive inlet(Primitive inside) const;
     // ambientInflow is set when a Chamber exit draws ambient gas in (subsonic backflow).
-    // inside: the reconstructed face state of the last cell; cell, yCell: that cell's own state.
-    Primitive outlet(Primitive inside, const double* y, const Primitive& cell, const double* yCell, bool& ambientInflow) const;
+    // inside: the reconstructed face state of the last cell; cell: that cell's own state.
+    Primitive outlet(Primitive inside, const double* y, const Primitive& cell, bool& ambientInflow) const;
     std::vector<double> ambient_;  // Chamber: ambient composition
     // Molecular transport (core/transport.cpp): cell viscosity, conductivity, mixture diffusion
     // coefficients and mole fractions; least-squares gradients of u_z, u_r, T and the mole fractions

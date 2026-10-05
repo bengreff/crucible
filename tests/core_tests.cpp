@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <numbers>
 #include <stdexcept>
 #include <thread>
@@ -251,6 +252,12 @@ Definition chamber() {
 //   sigma = 100: reflected peak within 10% of the peak of x convolved with the theory impulse
 //     response h(t) = -(K/2) exp(-K t / 2) (Poinsot and Lele; reflection -1 / (1 + 2 i omega / K));
 //   sigma = 0.25: largest reflected excursion below 0.02 of the reference peak.
+// Entropy wave (criterion stated 4 October 2026, before the first run of this check): a 0.1 m
+// duct (200 cells) with a supply at the plate carrying air at 15 m/s; a 100 K hot spot at
+// constant pressure (Gaussian, standard deviation 5 mm, at 0.08 m) leaves through the sigma =
+// 0.25 outlet. Sampled every 20 us to 3 ms, the hot spot changes the pressure of any cell by less
+// than 1e-3 of ambient against the same run without it. (Measured before this check existed:
+// with isentropic Riemann invariants in the outlet a 1 K hot spot grew into a blow-up.)
 void outletChecks() {
     const double ambient=1e5,eps=1e-4*ambient,width=0.02;
     auto run=[&](double length,int nz,double sigma,double probe) {
@@ -301,6 +308,29 @@ void outletChecks() {
     double r025=extreme(run(1,800,0.25,0.5).first,false)/peak;
     std::cout<<"Outlet reflection, sigma 0.25: largest reflected excursion "<<r025<<" of the reference peak\n";
     require(r025<0.02,"A weakly relaxed outlet is close to non-reflecting");
+    auto convected=[&](double bump) {
+        Definition d=base();d.experiment=Case::Chamber;d.nz=200;d.nr=1;d.contour={{0,0.01},{0.1,0.01}};
+        d.backPressure=ambient;d.ambientTemperature=300;d.outletRelaxation=0.25;
+        double rho=ambient/(d.gas.specificR*300),cp=d.gas.gamma/(d.gas.gamma-1)*d.gas.specificR;
+        Supply s;s.outerRadius=0.01;s.massFlow=rho*15*std::numbers::pi*1e-4;s.totalTemperature=300+15*15/(2*cp);
+        s.composition={1};s.opens=0;s.ramp=1e-6;d.supplies={s};
+        auto f=std::make_unique<Flow>(d);const auto& m=f->mesh();
+        std::vector<Primitive> cells(m.cells.size());
+        for(std::size_t q=0;q<cells.size();++q) {
+            double t=300+bump*std::exp(-0.5*sq((m.cells[q].z-0.08)/0.005));
+            cells[q]={ambient/(d.gas.specificR*t),15,0,ambient};
+        }
+        f->setInitialState(cells);
+        return f;
+    };
+    auto hot=convected(100),cold=convected(0);
+    double change=0;
+    for(int n=1;n<=150;++n) {
+        hot->advanceTo(n*2e-5);cold->advanceTo(n*2e-5);
+        for(std::size_t q=0;q<hot->state().size();++q) change=std::max(change,std::abs(hot->cellPrimitive(q).p-cold->cellPrimitive(q).p));
+    }
+    std::cout<<"Outlet, 100 K hot spot leaving at 15 m/s (sigma 0.25): largest pressure change "<<change/ambient<<" of ambient\n";
+    require(change<1e-3*ambient,"An entropy wave leaves a relaxed outlet without an acoustic response");
 }
 void chamberChecks() {
     // The contour table reproduces the built-in cosine nozzle when sampled at its own stations,
