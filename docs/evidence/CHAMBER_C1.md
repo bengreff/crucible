@@ -96,6 +96,8 @@ Runs: `crucible_chamber_study eq 32 6` and `eq 64 12`, each to 8 ms, 5 threads, 
 
 All values are measured, except the predicted columns, which are derived from the 1-D ideal rocket at the simulated p0 with Cd = 0.99645 and lambda = 0.98296. The frozen-flow Isp_vac bound is 412.7 s.
 
+**Rerun after the axis-row clamp (5 October 2026, 32x6, Mac, built from the tree committed as 03d56e3; [log](c1/eq32_after_axis_clamp_2026-10-05.txt)).** The clamp (f09b077) bounds the axis-row r^2 curvature of the mass fractions by the cell value. Every printed result equals the recorded 32x6 run to the printed digit: p0, c\*, vacuum Isp, thrust, the drift and the outlet mass flow. Only the budgets differ, at round-off: mass −4.05e-13 (was −6.74e-13) and energy −8.35e-12 (was 1.25e-11). The run is no longer bit-identical. The cause may be the clamp or another change since c1aaa6c; they are not separated. 64x12 and 128x24 were not rerun.
+
 Verdicts (finest grid 128x24; the 64x12 verdicts written before it are kept in git history):
 1. **Settled: pass.** Drift over the last 1 ms on 128x24: outlet mass flow 1.02e-4, injector pressure 8.3e-5, vacuum thrust 8.5e-5 (limit 1e-3). It is larger than on 64x12 (5e-8 at 8 ms) because the run stopped at 5 ms; the thrust still rose 0.1 N per 0.5 ms at the end, about 6e-5 of it, far below the grid changes below.
 2. **Mass: pass. Energy budget: pass on 128x24, fail as stated on the two coarser grids.**
