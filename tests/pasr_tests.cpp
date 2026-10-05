@@ -76,6 +76,14 @@
 //      12.9 us (s 1). The check passes only if the stretched rise still runs at the 30 us
 //      sample, so it measures where the samples fall, not the closure. Stopped after two
 //      attempts at the fractional case; this check stays failing until it is restated.
+//      Restated 5 October 2026 (03:15), before run 5, which is run once: the closure's effect is
+//      read from a fine record of the two converged references, T at 1280 equal times (every
+//      1/64 of a sample, 0.23 us apart), which resolves the 3.6 to 12.9 us rise wherever it
+//      falls. Check, for each case with s > 0: the largest relative T difference between the
+//      reference with the closure and the laminar reference over the fine record exceeds 1e-2.
+//      The cases, the 20 samples and the accuracy checks are unchanged. Predicted for
+//      (1e-5 s, 0.9), derived from the rise table: when the laminar rise ends, the stretched
+//      rise is about half done, so the gap is a large part of the temperature rise, order 0.1.
 // Criterion 4, a turbulent reacting chamber with the closure (budgets, positivity, the kappa_eff and
 // s fields reported against the same run without it), is stated before its first run.
 #include <algorithm>
@@ -117,9 +125,11 @@ double kappaEff(const double* z, const double* rate, const std::vector<std::size
 }
 
 // Classical RK4 on dz/dt = kappaEff(z) f(z) at fixed rho over 20 equal samples of dt, with perSample
-// steps per sample; empty if the integration failed (an unstable step size).
+// steps per sample; empty if the integration failed (an unstable step size). If record is given,
+// T is also kept at 64 equal times per sample (perSample is a multiple of 64).
 std::vector<std::vector<double>> rk4(thermo::ReactionSource& source, double rho, std::vector<double> z, double dt,
-                                     long perSample, const std::vector<std::size_t>& set, double tauMix, double s) {
+                                     long perSample, const std::vector<std::size_t>& set, double tauMix, double s,
+                                     std::vector<double>* record = nullptr) {
   const std::size_t n = z.size();
   std::vector<double> k1(n), k2(n), k3(n), k4(n), w(n);
   auto f = [&](const std::vector<double>& x, std::vector<double>& out) {
@@ -129,6 +139,7 @@ std::vector<std::vector<double>> rk4(thermo::ReactionSource& source, double rho,
   };
   const double h = dt / (20.0 * double(perSample));
   std::vector<std::vector<double>> samples;
+  if (record) record->clear();
   try {
     for (int sample = 0; sample < 20; ++sample) {
       for (long step = 0; step < perSample; ++step) {
@@ -141,6 +152,7 @@ std::vector<std::vector<double>> rk4(thermo::ReactionSource& source, double rho,
         f(w, k4);
         for (std::size_t i = 0; i < n; ++i) z[i] += h / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]);
         if (!std::isfinite(z[0]) || z[0] <= 0 || z[0] > 1e4) return {};
+        if (record && (step + 1) % (perSample / 64) == 0) record->push_back(z[0]);
       }
       samples.push_back(z);
     }
@@ -162,13 +174,13 @@ Difference difference(const std::vector<std::vector<double>>& a, const std::vect
 }
 
 // The reference of criterion 2: RK4 with the step halved until T and every Y change by less than
-// 1e-10 between successive halvings; the finer of the last pair.
+// 1e-10 between successive halvings; the finer of the last pair, with its fine T record.
 std::vector<std::vector<double>> reference(thermo::ReactionSource& source, double rho, const std::vector<double>& z,
                                            double dt, const std::vector<std::size_t>& set, double tauMix, double s,
-                                           long& perSample) {
+                                           long& perSample, std::vector<double>& record) {
   std::vector<std::vector<double>> coarse = rk4(source, rho, z, dt, 256, set, tauMix, s);
   for (perSample = 512; perSample <= (1L << 20); perSample *= 2) {
-    auto fine = rk4(source, rho, z, dt, perSample, set, tauMix, s);
+    auto fine = rk4(source, rho, z, dt, perSample, set, tauMix, s, &record);
     if (!fine.empty() && !coarse.empty()) {
       const auto d = difference(coarse, fine);
       if (d.t < 1e-10 && d.y < 1e-10) return fine;
@@ -348,10 +360,11 @@ int main() {
   std::printf("2. one substep of 3e-4 s against RK4 (stoichiometric H2/O2, 1200 K, 1 atm)\n");
   const double dt = 3e-4;
   long laminarLevels = 0, levels = 0;
-  const auto laminarReference = reference(source, rho, unburnt, dt, set, 1, 0, laminarLevels);
+  std::vector<double> laminarRecord, record;
+  const auto laminarReference = reference(source, rho, unburnt, dt, set, 1, 0, laminarLevels, laminarRecord);
   for (const auto& [tauMix, s] : std::vector<std::pair<double, double>>{{1e-5, 1}, {1e-5, 0.9}, {1e-5, 0}}) {
     std::printf("  tau_mix %.0e s, s %.1f\n", tauMix, s);
-    const auto ref = s == 0 ? laminarReference : reference(source, rho, unburnt, dt, set, tauMix, s, levels);
+    const auto ref = s == 0 ? laminarReference : reference(source, rho, unburnt, dt, set, tauMix, s, levels, record);
     if (s == 0) levels = laminarLevels;
     if (ref.empty()) { check(false, "reference converged (1 = no)", 1, 0); continue; }
     std::printf("    reference: %ld steps per sample; T at the end %.4f K\n", levels, ref.back()[0]);
@@ -363,8 +376,16 @@ int main() {
     check(std::max(d.t, d.y) < std::max(dl.t, dl.y), "rtol 1e-7 error (the rtol 1e-10 error must be below it)",
           std::max(dl.t, dl.y), std::max(d.t, d.y));
     if (s > 0) {
-      const double effect = difference(ref, laminarReference).t;
-      check(effect > 1e-2, "the closure's largest T change against laminar (must exceed)", effect, 1e-2);
+      // Restated 5 October: over the fine record (1280 times), not the 20 samples.
+      double effect = record.size() == laminarRecord.size() && record.size() == 1280 ? 0 : -1;
+      std::size_t at = 0;
+      for (std::size_t j = 0; effect >= 0 && j < record.size(); ++j) {
+        const double gap = std::abs(record[j] - laminarRecord[j]) / laminarRecord[j];
+        if (gap > effect) { effect = gap; at = j; }
+      }
+      std::printf("    fine record: largest T gap at t = %.4e s (T %.2f K with the closure, %.2f K laminar)\n",
+                  (at + 1) * dt / 1280, record.empty() ? 0.0 : record[at], laminarRecord.empty() ? 0.0 : laminarRecord[at]);
+      check(effect > 1e-2, "the closure's largest T change against laminar, fine record (must exceed)", effect, 1e-2);
     }
   }
 
