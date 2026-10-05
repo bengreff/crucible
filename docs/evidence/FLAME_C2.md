@@ -63,10 +63,10 @@ Raw output: `core_verification_outlet_2026-10-04.txt`.
 | dz | S_c (m/s) | S_c / S_L - 1 | S_d (m/s) | S_d / S_L - 1 | drift, last 0.2 ms | wall |
 |---|---|---|---|---|---|---|
 | 40 um | 2.361664 | +1.339% | 2.352410 | +0.941% | 0.031% | 1057 s |
-| 20 um | (running) | | | | | |
+| 20 um | 2.341939 | +0.492% | 2.335204 | +0.203% | 0.023% | 5369 s |
 | 10 um | (running) | | | | | |
 
-40 um, measured: mass budget -5.2e-15, energy budget 5.5e-15.
+40 um, measured: mass budget -5.2e-15, energy budget 5.5e-15. 20 um: -3.6e-16 and -1.4e-14 (`c2/f20_log.txt`).
 - The start-up transient dies out by about 0.3 ms. After that S_c sits within 0.02 m/s of its final value (`c2/f40_history.png`).
 - The pressure spread in the duct falls from 1.2 kPa at start-up to 78 to 91 Pa after 0.5 ms. The resonance of run 1 is gone.
 - The temperature, H2, H and OH profiles lie on the free flame's (`c2/f40_profiles.png`). T_max (2273 K at 1 ms) stays below T_ad (2388 K) because the products are still recombining behind the flame, as in the free flame.
