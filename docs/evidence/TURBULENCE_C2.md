@@ -1,10 +1,10 @@
 # C2: SST-2003 turbulence in the engine
 
-Status: checks 1, 2, 3 and 5 pass. Check 4 (fully developed pipe against an independent solver) matches the reference on nr 16 and 32, but its mass-budget criterion fails, as reported below. The nr 64 run was stopped at 3.5 of its 4 ms when the session was parked (4 October, 22:31), before its judged lines; its column is pending a rerun. Its log to 3.5 ms is in the raw output. Criteria were stated in the header of `tests/turbulence_tests.cpp` before the first run of each check (4 October 2026), and the amendments are dated there.
+Status: checks 1, 2, 3 and 5 pass. Check 4 (fully developed pipe against an independent solver) matches the reference on nr 16, 32 and 64, but its mass-budget criterion fails on all three, as reported below. The nr 64 column comes from a complete run on backhouse (5 October), after the Mac run was stopped at 3.5 of 4 ms when the session was parked on 4 October. Criteria were stated in the header of `tests/turbulence_tests.cpp` before the first run of each check (4 October 2026), and the amendments are dated there.
 
 Raw outputs:
 - checks 1 to 3: `turbulence_verification_2026-10-04.txt` (before the open-face fix) and `turbulence_supply_run3_2026-10-04.txt` (after it, with check 5);
-- check 4: `turbulence_pipe_2026-10-04.txt` (nr 16 and 32 complete; nr 64 stopped at 3.5 ms);
+- check 4: `turbulence_pipe_2026-10-04.txt` (Mac; nr 16 and 32 complete; nr 64 stopped at 3.5 ms) and `turbulence_pipe_2026-10-05_backhouse.txt` (backhouse: WSL2 Ubuntu, gcc 13, Cantera 3.2.0, commit 4e2ee5c; the pipe test is unchanged since 96422fa; nr 16, 32 and 64 complete);
 - check 5: `turbulence_supply_run1_2026-10-04.txt`, `turbulence_supply_run2_2026-10-04.txt` and `turbulence_supply_run3_2026-10-04.txt`.
 
 All numbers are measured unless they are marked derived, inferred or estimated.
@@ -88,36 +88,43 @@ Results:
 
 | Criterion | Limit | nr 16 | nr 32 | nr 64 |
 |---|---|---|---|---|
-| 4a u_b change, last 1 ms | < 1e-5 | 2.0e-10 | 6.4e-11 | pending |
-| 4a T_axis change, last 1 ms | < 1e-5 | 5.7e-10 | 1.3e-10 | pending |
-| 4a wall shear force against body force | < 1e-5 | 1.4e-9 | 1.5e-10 | pending |
-| 4b mass budget | < 1e-12 | **3.42e-11 FAIL** | **1.93e-11 FAIL** | pending |
-| 4b axial momentum budget | < 1e-9 | 1.8e-15 | 9.3e-15 | pending |
-| 4b energy budget | < 1e-9 | 2.1e-11 | 7.2e-11 | pending |
-| 4c u_b against the reference | < 1e-3 | 2.03e-4 | 6.37e-5 | pending |
-| 4c c_f against the reference | < 2e-3 | 4.06e-4 | 1.27e-4 | pending |
-| 4c T_axis − T_wall against the reference | < 1e-2 | 4.93e-4 | 1.50e-4 | pending |
+| 4a u_b change, last 1 ms | < 1e-5 | 2.0e-10 | 6.4e-11 | 2.1e-11 |
+| 4a T_axis change, last 1 ms | < 1e-5 | 5.7e-10 | 1.3e-10 | 6.3e-12 |
+| 4a wall shear force against body force | < 1e-5 | 1.4e-9 | 1.5e-10 | 1.4e-11 |
+| 4b mass budget | < 1e-12 | **3.42e-11 FAIL** | **1.93e-11 FAIL** | **6.14e-11 FAIL** |
+| 4b axial momentum budget | < 1e-9 | 1.8e-15 | 9.3e-15 | 1.6e-14 |
+| 4b energy budget | < 1e-9 | 2.1e-11 | 7.2e-11 | 3.6e-10 |
+| 4c u_b against the reference | < 1e-3 | 2.03e-4 | 6.37e-5 | 1.60e-5 |
+| 4c c_f against the reference | < 2e-3 | 4.06e-4 | 1.27e-4 | 3.19e-5 |
+| 4c T_axis − T_wall against the reference | < 1e-2 | 4.93e-4 | 1.50e-4 | 3.83e-5 |
+
+The nr 16 and 32 columns are the Mac run; the nr 64 column is the backhouse run. Backhouse also reran nr 16 and 32. Its printed histories of u_b, c_f, T_axis and step count match the Mac's in every printed digit; only the force-balance residual (last digit or two) and the budgets differ, at round-off: mass 3.40e-11 and 1.68e-11, energy 2.06e-11 and 6.73e-11 (measured).
 
 | nr | engine u_b (m/s) | reference u_b | engine c_f | reference c_f | engine T_axis (K) | reference T_axis |
 |---|---|---|---|---|---|---|
 | 16 | 105.16278 | 105.14145 | 0.00937609 | 0.00937989 | 304.78557 | 304.78321 |
 | 32 | 102.75047 | 102.74393 | 0.00982151 | 0.00982276 | 304.55590 | 304.55521 |
-| 64 | pending (run stopped at 3.5 of 4 ms on 4 October; rerun queued) |
+| 64 | 101.10569 | 101.10408 | 0.01014366 | 0.01014398 | 304.41319 | 304.41302 |
 
-The engine-reference difference falls by a factor of about 3.2 per ring halving (u_b 2.03e-4 to 6.37e-5; derived). It is not zero although the two codes share the discretization; its cause has not been isolated.
+The engine-reference difference falls by a factor of about 3.2, then 4.0, per ring halving (u_b 2.03e-4, 6.37e-5, 1.60e-5; derived). So it behaves like a second-order discretization difference between the two codes. It is not zero although the two codes share the discretization; its cause has not been isolated.
+
+The nr 64 run took 8.91e6 steps and 2868 s wall on backhouse (measured).
 
 The grid error is the model's, and is reported, not judged. The wall omega rule makes the solution first order (SST_REFERENCE.md). Against the reference's Richardson limits (c_f 0.0104865, u_b 99.439 m/s), the engine is:
 - nr 16: u_b +5.8%, c_f −10.6%;
 - nr 32: u_b +3.3%, c_f −6.3%;
-- nr 64: pending.
+- nr 64: u_b +1.7%, c_f −3.3%.
 
-**4b, the mass budget.** It fails on both finished grids, and the threshold stays as stated.
+The deficit roughly halves per ring halving (c_f −10.6%, −6.3%, −3.3%; derived), as a first-order solution should.
+
+**4b, the mass budget.** It fails on all three grids, and the threshold stays as stated.
 - Mechanism (inferred, not demonstrated): rounding of the stored cell densities, accumulated over millions of steps.
   - Every step stores each cell density rounded to a double, an error of up to eps/2 of the cell's mass. In this steady flow the true change per step is far below that, so the rounding need not average out.
-  - Worst-case bound (derived): (eps/2) × M × steps, which is 1.0e-10 of the initial mass on nr 16 (1.81e6 steps) and 2.2e-10 on nr 32 (3.99e6 steps). The measured 3.4e-11 and 1.9e-11 are inside it.
-  - The ledger side is far smaller. In 4 ms, about 526 (nr 16) and 514 (nr 32) domain masses pass the open ends (derived: u_b × 4 ms / 2R). The in-minus-out flux, rounded each step, can contribute at most about eps × 526 ≈ 6e-14 (derived).
+  - Worst-case bound (derived): (eps/2) × M × steps, with eps/2 = 1.11e-16 for doubles. That is 2.0e-10 of the initial mass on nr 16 (1.81e6 steps), 4.4e-10 on nr 32 (3.99e6 steps) and 9.9e-10 on nr 64 (8.91e6 steps). The measured 3.4e-11, 1.9e-11 and 6.1e-11 are inside it.
+  - Correction (5 October): the first version of this bullet gave 1.0e-10 and 2.2e-10. Those used eps/2 = 5.6e-17, half the right value, so they were a factor of 2 too low. The conclusion (measured values inside the bound) is unchanged.
+  - The ledger side is far smaller. In 4 ms, about 526 (nr 16), 514 (nr 32) and 506 (nr 64) domain masses pass the open ends (derived: u_b × 4 ms / 2R). The in-minus-out flux, rounded each step, can contribute at most about eps × 526 ≈ 6e-14 (derived).
 - A scratch diagnostic (`/tmp/c2out/pipediag/budget.cpp`, nr 16, not in git) is consistent with growth by step count. At 1 ms the mass budget was 4.3e-12 at CFL 0.4 (4.5e5 steps) and 1.6e-11 at CFL 0.2 (9.1e5 steps). Halving the step at the same physical time multiplied the error by 3.7, more than a random walk (1.4) or a linear bias (2) predicts. The budget also changes sign during the run, so the scaling is not clean, and the mechanism stays inferred.
-- The energy budget is the same size (2.1e-11 and 7.2e-11). It passes only because its limit, 1e-9, was stated as a round-off allowance for about 4e6 steps; the mass limit was not given that allowance. A mass error of 3e-11 of the contents has no physical consequence here. It is reported as the stated criterion failing, not re-judged.
+- The energy budget is the same size (2.1e-11, 7.2e-11 and 3.6e-10). It passes only because its limit, 1e-9, was stated as a round-off allowance for about 4e6 steps (nr 64 took 8.9e6 and still passes); the mass limit was not given that allowance. A mass error of 3e-11 of the contents has no physical consequence here. It is reported as the stated criterion failing, not re-judged.
 - What would test the mechanism: a compensated update of the cell densities (carry each cell's rounding residual into its next step) on nr 16. It has not been done.
 
 ## Check 5: turbulent supplies (Chamber, N2)
