@@ -60,6 +60,40 @@
 //          the same centroid-difference gradients, so the difference measures the implementation,
 //          not the grid. The grid error is the model's (first order from the wall omega; reference
 //          Richardson limits c_f 0.0104865, u_b 99.439 m/s, T_axis 304.2755 K): reported, not judged.
+// Criteria 5 stated 4 October 2026, before the turbulent supply was implemented.
+//   5. Turbulent supplies (Chamber). A supply declares a turbulence intensity I and a viscosity
+//      ratio mu_t / mu; its face carries k = 3/2 (I u)^2 and omega = rho k / (ratio mu). The stream's
+//      total enthalpy h0 = h(T0) is the energy flux per unit mass including the turbulent part,
+//      h(T) + u^2 / 2 + 5/3 k = h0 (k plus the work of the Reynolds normal stress 2/3 rho k), and the
+//      momentum flux is g u + p + 2/3 rho k = g u (1 + I^2) + p.
+//      (a) The face routine (Flow::supplyFace), N2 supply at T0 = 300 K, I = 0.05, ratio 10, against
+//          an interior of N2 at rest at 101325 Pa and 300 K, for g = 50 kg/(m^2 s) (subsonic) and
+//          g = 2000 (choked; the sonic g is about 1580, derived): the energy relation within 1e-12
+//          of cp T0; subsonic: the face p on the outgoing characteristic within 1e-12 relative and
+//          u = g R T / p within 1e-12; choked: u = a(T) within 1e-12; k = 3/2 (I u)^2 within 1e-14
+//          and omega = rho k / (ratio mu), mu from the medium's transport at the face state (that
+//          routine matches Cantera to 8.8e-14, reaction_verification), within 1e-12; the mass,
+//          momentum, energy, rho k and rho omega fluxes equal g, g u (1 + I^2) + p, g h0, g k and
+//          g omega from the returned face state within 1e-14 relative.
+//      (b) Definition::validate with turbulence rejects a Chamber supply with I = 0 or ratio = 0;
+//          without turbulence the same supply is accepted.
+//      (c) Inflow turbulence decaying in plug flow. A straight chamber (R 5 mm, L 30 mm) with slip
+//          adiabatic walls (wall distance infinite: F1 = F2 = 0, mu_t = rho k / omega), one N2
+//          supply over the whole plate, 9.0e-3 kg/s at 300 K (u about 100 m/s), I = 0.02, ratio 10,
+//          back pressure 101325 Pa, outlet relaxation 0.5, nr 4, nz 32, 64 and 128, marched 1.5 ms
+//          (5 flow-through and about 17 acoustic transit times). Reference along each ring:
+//          k = k_f (1 + beta2 omega_f tau)^(-beta*/beta2), omega = omega_f / (1 + beta2 omega_f tau),
+//          tau(z) = integral of dz / u_z over the cells' own u_z (midpoint rule), k_f and omega_f the
+//          face values. The largest relative error of k and of omega over all centroids is below
+//          2e-3 at nz 64 and 128 (estimate: axial diffusion about 1e-4, from the Peclet number
+//          u^2 / (beta2 k_f) / 1.1 of about 1.8e4; grid error about 1e-4 at nz 64; both inferred).
+//          The observed order and the change over the last 0.25 ms are reported, not judged.
+//      (d) Budgets with turbulence in the chamber: the runs of (c), and a cold-flow chamber with a
+//          converging contour (R 5 mm to a 2.5 mm throat), no-slip isothermal walls and plate at
+//          300 K, two N2 supply rings (r 0 to 1.5 mm and 3 to 4 mm, I 0.05, ratio 10) with closed
+//          plate rings between and outside them, nz 48, nr 8, b = 1.5, marched 0.3 ms: mass, energy
+//          (k included) and axial momentum budgets below 1e-12, and every cell's k and omega
+//          positive and finite.
 #include "adapters/reaction.hpp"
 #include "core/flow.hpp"
 #include "core/walls.hpp"
