@@ -110,11 +110,12 @@
      4. Budgets close to round-off at any inner tolerance.
      5. The measured cost per simulated microsecond on a wall-clustered chamber with RL10-like wall-cell aspect ratios, against explicit.
    - **Open, settled by measurement:**
-     - ESDIRK against BDF2.
-     - The inner tolerance at which the transient stops depending on it.
+     - ESDIRK against BDF2, and the third-order ESDIRK against Kennedy and Carpenter's fourth-order one (ARK4(3)6L[2]SA, five implicit stages): Bijl et al. found the fourth order the most efficient below 10% error (read below).
+     - The step update: the residual-weighted form above (budgets to round-off) against the last stage value (Bijl et al., p. 4, who call the weighted form "potentially damaging"). Inferred reason: R at a stage converged only to the inner tolerance carries that error times the stiffness, here up to the wall cells' acoustic CFL. Measured on the wall-clustered chamber. If the last stage is chosen, verification criterion 4 is restated before any run.
+     - The inner tolerance at which the transient stops depending on it. Starting points from the papers: 1/10 of the temporal tolerance (Bijl et al., measured) to 0.005 of it (Kennedy and Carpenter).
      - Point LU-SGS (scalar diagonal, Yoon and Jameson) against wall-normal block-tridiagonal lines, by convergence per unit cost on a wall-clustered chamber.
      - Whether the chemistry must move inside the stage residual (point-implicit) at physical steps of 1e-7 to 1e-6 s. The Strang splitting error at those steps is measured on the C1 light-off (criterion 3) first.
-   - **Sources.** The titles, venues and volumes were checked on 5 October 2026 against index pages. Two papers have been read (5 October, below); Jameson 1991, Kennedy and Carpenter, and Bijl et al. have not. Their content is checked against the design and entered in RESEARCH before the code.
+   - **Sources.** The titles, venues and volumes were checked on 5 October 2026 against index pages. Four have been read (5 October, below); Jameson 1991 has not. The design above is checked against them; the tableau is entered in code from the TM's appendix, not retyped from here.
    - **Read on 5 October 2026** (a Sonnet agent read the full text; page numbers are the papers').
      - Jameson, "Application of dual time stepping to fully implicit Runge Kutta schemes for unsteady flow calculations" ([PDF](http://aero-comlab.stanford.edu/Papers/jameson_dts_irk.pdf); no year or venue printed on this copy).
        - Dual time with BDF2 or with fully coupled implicit RK (Gauss, Radau IIA), smoothed by one LU-SGS sweep per direction on a first-order Roe Jacobian (p. 8).
@@ -124,6 +125,18 @@
      - Yoon and Jameson 1988 (AIAA J. 26(9), 1025-1026; a synoptic of the full paper, presented as AIAA Paper 87-0600).
        - The Jacobian is split by the spectral radius, A± = (A ± r_A I)/2. This gives a scalar diagonal, so no block inversions are needed (p. 1025). This supports the Rusanov-type Jacobian above.
        - It argues against line solves: avoiding the block inversions of line Gauss-Seidel is its point (p. 1025). The design's wall-normal block-tridiagonal lines go the other way, for the RL10 wall cells' aspect ratios (inferred to need them; not shown). So point LU-SGS against wall-normal lines is added to the open items, settled by measured convergence on a wall-clustered chamber.
+     - Kennedy and Carpenter, NASA/TM-2001-211038 (July 2001; the report version of the 2003 paper; [PDF](https://www.cs.odu.edu/~mln/ltrs-pdfs/NASA-2001-tm211038.pdf)).
+       - ARK3(2)4L[2]SA's implicit part (Appendix D, p. 47; properties Appendix B, p. 45): gamma = a_ii = 1767732205903/4055673282236, about 0.43587; c = (0, 2 gamma, 3/5, 1); stiffly accurate (b is the last row), so A-stable and L-stable; third order; stage order 2. The embedded second-order method is not L-stable (Appendix C, p. 46). This matches the design.
+       - Step size: a PID controller is recommended (pp. 16-17, eqs. 39-43), with k_I 0.25, k_P 0.14, k_D 0.10 and a safety factor of about 0.9. The design's "embedded error estimate with a declared tolerance" takes this controller.
+       - Stage predictor: dense-output extrapolation, with the previous stage as the fallback when the step ratio is large (p. 16).
+       - Inner tolerance: residual and displacement tolerances about 0.005 times the temporal tolerance (p. 15, eq. 36).
+       - Order reduction (section 8.3, pp. 30-34; Table 15, p. 33): with stage order 2, stiff (algebraic-like) components converge as dt^3 + eps dt^2. Criterion 1's temporal order is therefore measured on a smooth case where that does not apply, and the chamber's observed order is reported, not assumed.
+       - Operator splitting is not discussed: the paper presents additive RK as an alternative to splitting, with the stiff terms in the implicit part. That is the route if the chemistry has to move inside the stage residual (open item above).
+     - Bijl, Carpenter and Vatsa, AIAA Paper 2001-2612, "Time integration schemes for the unsteady Navier-Stokes equations" (the conference precursor of the 2002 J. Comput. Phys. paper, which is not open; [PDF](https://ntrs.nasa.gov/api/citations/20010066914/downloads/20010066914.pdf)).
+       - Laminar cylinder at Re 1200, Mach 0.3: BDF2 is 2.5 times less efficient than ESDIRK4 at 10% error in lift; at 1% ESDIRK4 needs 1.5% of BDF1's work; at 0.1% it needs 10% of BDF2's (p. 9). Fourth order is recommended over fifth for robustness and storage (pp. 9, 11).
+       - The inner (multigrid) iterations must be converged to at least 1/10 of the desired accuracy; 1/2 degrades it, and 1/20 and 1/200 are equivalent (p. 10).
+       - Stiff accuracy is used to take U(n+1) as the last stage, removing "the potentially damaging explicit update" U(n) + dt sum b_j R_j (p. 4). Added to the open items above.
+   - **Citations** (titles, venues and volumes checked against index pages on 5 October 2026).
      - Jameson 1991, "Time dependent calculations using multigrid, with applications to unsteady flows past airfoils and wings", AIAA Paper 91-1596: dual time stepping ([cited in Jameson's later paper](http://aero-comlab.stanford.edu/Papers/jameson_dts_irk.pdf)).
      - Kennedy and Carpenter 2003, "Additive Runge-Kutta schemes for convection-diffusion-reaction equations", Appl. Numer. Math. 44(1), 139-181: ARK3(2)4L[2]SA and its ESDIRK part ([Semantic Scholar](https://www.semanticscholar.org/paper/Additive-Runge-Kutta-Schemes-for-Equations-Kennedy-Carpenter/ad463b85089ac66ae41dad57e06523403acb11e6)).
      - Bijl, Carpenter, Vatsa and Kennedy 2002, "Implicit time integration schemes for the unsteady compressible Navier-Stokes equations: laminar flow", J. Comput. Phys. 179, 1-17: ESDIRK against BDF2 for unsteady flow.
