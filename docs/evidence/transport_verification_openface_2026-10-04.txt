@@ -1,0 +1,48 @@
+1. transport operator order on a contoured duct (h2o2.yaml, no-slip wall at 600 K)
+    32x8    axial momentum 1.100e-02  radial momentum 8.551e-03  energy 1.069e-02  species 1.258e-02
+           wall row:  1.529e+00  3.393e-01  6.036e-01  1.062e-01
+    64x16   axial momentum 3.389e-03  radial momentum 3.147e-03  energy 2.935e-03  species 3.511e-03
+           wall row:  3.607e+00  3.854e-01  7.232e-01  1.923e-01
+   128x32   axial momentum 9.687e-04  radial momentum 1.280e-03  energy 7.509e-04  species 9.451e-04
+           wall row:  9.056e+00  4.168e-01  8.143e-01  3.719e-01
+   256x64   axial momentum 2.784e-04  radial momentum 5.483e-04  energy 1.971e-04  species 2.483e-04
+           wall row:  8.833e+00  4.353e-01  8.710e-01  7.342e-01
+  axial momentum: observed order (two finest grids)          1.799e+00 (limit 1.8e+00)  FAIL
+  radial momentum: observed order (two finest grids)         1.223e+00 (limit 1.8e+00)  FAIL
+  energy: observed order (two finest grids)                  1.929e+00 (limit 1.8e+00)  ok
+  species: observed order (two finest grids)                 1.928e+00 (limit 1.8e+00)  ok
+2. pipe decay, u_z = U J0(j01 r/R) exp(-nu j01^2 t/R^2), N2 at 1 kPa, R = 1 mm
+  nr 8    t 1.0738e-04 s  steps 4189  L1 error 2.547e-03  momentum balance -1.75e-19  energy balance -5.26e-15
+  nr 16   t 1.0738e-04 s  steps 10804  L1 error 6.505e-04  momentum balance -1.41e-19  energy balance -5.33e-15
+  nr 32   t 1.0738e-04 s  steps 34229  L1 error 1.636e-04  momentum balance -2.73e-19  energy balance -9.28e-16
+  pipe decay: observed order (nr 16 -> 32)                   1.992e+00 (limit 1.8e+00)  ok
+  pipe decay: L1 error at nr 32                              1.636e-04 (limit 1.0e-03)  ok
+  pipe decay: momentum balance (wall shear)                  2.730e-19 (limit 1.0e-12)  ok
+3. budgets with transport: closed chamber, isothermal wall and plate, ambient exit
+  t 2.413e-05 s, wall heat flow -90.19 W, wall axial force 61.94 N
+  mass balance                                               1.376e-16 (limit 1.0e-12)  ok
+  energy balance (with wall heat)                            3.515e-16 (limit 1.0e-12)  ok
+  axial momentum balance (with wall shear)                   2.860e-17 (limit 1.0e-12)  ok
+4. wall-clustered rings, radial stretching b = 2
+  64x16: wall ring 0.1657, axis ring 2.0639 of the equal height
+  4a. total cell volume against the duct                     1.776e-15 (limit 1.0e-13)  ok
+  4a. axial-face areas against pi R^2 (worst column)         3.331e-16 (limit 1.0e-13)  ok
+    32x8    axial momentum 1.683e-02  radial momentum 1.938e-02  energy 2.990e-02  species 3.329e-02
+           wall row:  2.030e+01  9.424e-01  1.644e+00  5.446e-01
+    64x16   axial momentum 7.863e-03  radial momentum 6.293e-03  energy 9.382e-03  species 1.175e-02
+           wall row:  2.042e+01  1.245e+00  2.225e+00  1.130e+00
+   128x32   axial momentum 2.548e-03  radial momentum 2.103e-03  energy 2.852e-03  species 3.721e-03
+           wall row:  1.951e+01  1.421e+00  2.742e+00  2.362e+00
+   256x64   axial momentum 6.920e-04  radial momentum 7.722e-04  energy 7.720e-04  species 9.956e-04
+           wall row:  1.927e+01  1.516e+00  4.102e+00  4.837e+00
+  4b. axial momentum: observed order (two finest grids)      1.881e+00 (limit 1.8e+00)  ok
+  4b. radial momentum: observed order (two finest grids)     1.446e+00 (limit 1.8e+00)  FAIL
+  4b. energy: observed order (two finest grids)              1.885e+00 (limit 1.8e+00)  ok
+  4b. species: observed order (two finest grids)             1.902e+00 (limit 1.8e+00)  ok
+  nr 8    t 1.0738e-04 s  steps 33089  L1 error 6.294e-03  momentum balance -1.82e-19  energy balance 3.02e-15
+  nr 16   t 1.0738e-04 s  steps 143104  L1 error 1.488e-03  momentum balance 3.07e-17  energy balance -8.48e-14
+  nr 32   t 1.0738e-04 s  steps 600308  L1 error 3.697e-04  momentum balance 1.19e-17  energy balance -1.05e-12
+  4c. pipe decay: observed order (nr 16 -> 32)               2.009e+00 (limit 1.8e+00)  ok
+  4c. pipe decay: L1 error at nr 32                          3.697e-04 (limit 1.0e-03)  ok
+  4c. pipe decay: momentum balance (wall shear)              3.074e-17 (limit 1.0e-12)  ok
+3 failures

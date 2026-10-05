@@ -1,6 +1,6 @@
 # C2 step 1: molecular transport (viscosity, conduction, mixture-averaged diffusion)
 
-Status: properties verified; operator partly verified. Criteria stated 4 October 2026 in the header of `tests/transport_tests.cpp`, before the first run. Two criteria still fail and are reported as failures below. Raw output: `transport_verification_2026-10-04.txt`.
+Status: properties verified; operator partly verified. Criteria stated 4 October 2026 in the header of `tests/transport_tests.cpp`, before the first run. Two criteria still fail and are reported as failures below. Raw output: `transport_verification_2026-10-04.txt`; after the open-face fix, `transport_verification_openface_2026-10-04.txt` (last section).
 
 ## What was added
 
@@ -92,4 +92,31 @@ At b = 2 the wall ring is 0.166 and the axis ring 2.06 of the equal height (64 x
 | 4c. momentum balance | < 1e-12 | 1.0e-17 |
 
 - **4b radial momentum** fails as it does on equal rings (1.189 there): the near-axis mechanism above. Stretching does not add a new failure mode in the operator.
-- **4c.** The L1 errors at nr 8, 16 and 32 are 3.17e-3, 6.10e-4 and 1.89e-4 (orders 2.38, then 1.69). On equal rings they are 3.01e-3, 7.69e-4 and 1.94e-4 (1.97, 1.99), so the absolute error at nr 32 is the same. A non-monotone order suggests two second-order error parts of opposite sign (inferred, not shown). A scratch diagnostic at nr 64, also measuring the error against the exact cell average, is queued, and its result goes here.
+- **4c.** The L1 errors at nr 8, 16 and 32 are 3.17e-3, 6.10e-4 and 1.89e-4 (orders 2.38, then 1.69). On equal rings they are 3.01e-3, 7.69e-4 and 1.94e-4 (1.97, 1.99), so the absolute error at nr 32 is the same. A non-monotone order suggested two error parts of opposite sign. A scratch diagnostic (old code) also measured the error against the exact cell average: 6.21e-3, 1.47e-3 and 3.67e-4 (orders 2.08, 2.00). It was stopped before nr 64 when the cause below was found. The open-face fix (next section) makes 4c pass.
+
+## Open-face neighbour fix (1e0fd9e) and the rerun
+
+Found by the SST fully developed pipe (`docs/evidence/TURBULENCE_C2.md`), where the bulk velocity climbed from 105 to 136 m/s in 1.5 ms on an axially uniform flow.
+- **Mechanism.** In the least-squares gradient, an open or supply face (zero normal gradient) contributed a neighbour at the face midpoint carrying the cell's own value. The midpoint sits at the ring's middle radius, not at the centroid's, so that neighbour also claimed a zero radial derivative over the offset between the two. It biased the radial gradients of the end columns, and through the face-gradient average the next column too.
+- **Fix.** The neighbour sits at the face on the cell's axial line (at the centroid's radius), where a zero normal gradient puts the cell's own value. The injector plate (a wall) keeps the face midpoint with the wall value.
+- **Measured.** The SST pipe stays axially uniform to 13 digits and the drift is gone. On the straight slip-wall duct of the SST check 3, the laminar radial-momentum order went from 1.589 to 1.953.
+
+Rerun of every transport check on the fixed code. Raw output: `transport_verification_openface_2026-10-04.txt`.
+
+| Check | Before | After | Verdict after |
+|---|---|---|---|
+| 1. operator order, axial momentum (contoured duct, equal rings) | 1.799 | 1.799 | **fail** (by 0.001) |
+| 1. radial momentum | 1.189 | 1.223 | **fail** |
+| 1. energy, species | 1.929, 1.928 | 1.929, 1.928 | pass |
+| 2. pipe decay order, nr 16 to 32 | 1.988 | 1.992 | pass |
+| 2. pipe decay L1 at nr 32 | 1.94e-4 | 1.64e-4 | pass |
+| 3. chamber budgets: mass, energy, momentum | 6.8e-16, 8.0e-16, 2.6e-17 | 1.4e-16, 3.5e-16, 2.9e-17 | pass |
+| 4b. radial momentum, b = 2 | 1.287 | 1.446 | **fail** |
+| 4b. axial momentum, energy, species, b = 2 | 1.879, 1.885, 1.902 | 1.881, 1.885, 1.902 | pass |
+| 4c. pipe decay order, b = 2, nr 16 to 32 | 1.692 | 2.009 | pass |
+| 4c. pipe decay L1 at nr 32 | 1.89e-4 | 3.70e-4 | pass |
+| 4c. momentum balance | 1.0e-17 | 3.1e-17 | pass |
+
+- 4c now converges cleanly: 6.29e-3, 1.49e-3 and 3.70e-4 at nr 8, 16 and 32 (orders 2.08, 2.01). The absolute error at nr 32 doubled. The old, smaller error came partly from the end-column bias cancelling some of the scheme's own error; that is inferred from the order becoming regular, not shown separately.
+- 4c's energy balance at nr 32 is 1.05e-12 after 600 308 steps (reported, not a criterion; about 1.7e-18 per step, round-off).
+- Three failures remain, down from four: the axial-momentum order on the contoured duct (unchanged, the wall-row mechanism above) and the radial-momentum order on equal and clustered rings. The radial part is now the near-axis and sloped-wall error only. The straight-duct part was largely the end-column bias.
