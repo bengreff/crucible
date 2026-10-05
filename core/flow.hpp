@@ -81,6 +81,23 @@ struct Definition {
     // tanh(b s) / tanh(b); the wall ring is then about 2b / sinh(2b) of the equal height (0.15 at
     // b = 2) and the axis ring b / tanh(b) of it.
     double radialStretching{0};
+    // SST-2003 URANS (TECHNICAL_PLAN step 7; equations of the NASA Turbulence Modeling Resource
+    // sst.html). rho k and rho omega are carried by the mass flux like the species; k is part of the
+    // total energy (e = E / rho - |u|^2 / 2 - k); the eddy viscosity enters the stress (with the
+    // Reynolds normal stress -2/3 rho k), the heat flux (cp mu_t / prandtl) and the species flux
+    // (mu_t / (rho schmidt) added to every D_km); the sources are Strang-split around each step.
+    // Needs transport. No-slip walls take k = 0 and omega = wallOmegaFactor 6 nu_w / (beta1 d1^2) on
+    // the wall face, d1 the wall distance of the adjacent centroid and nu_w the kinematic viscosity
+    // at the wall temperature (the cell's for an adiabatic wall); slip walls pass no k or omega flux
+    // and are not walls for the wall distance. The initial fill carries ambientK [m^2/s^2] and
+    // ambientOmega [1/s]. Inflow turbulence of supplies and the nozzle inlet is not yet modelled, so
+    // for now only UniformDuct and ShockTube accept it.
+    struct Turbulence {
+        bool enabled{false};
+        double prandtl{0.9}, schmidt{0.7}, wallOmegaFactor{10};
+        double ambientK{0}, ambientOmega{0};
+    };
+    Turbulence turbulence;
     [[nodiscard]] double span() const;  // axial length of the domain
     [[nodiscard]] Medium medium() const;
     [[nodiscard]] std::vector<double> massFractions() const;
@@ -167,6 +184,9 @@ public:
     void setMassFractions(std::size_t cell, const double* y);
     // Restore partial densities saved from partialDensities() (bulk state unchanged), e.g. to undo a split reaction substep.
     void setPartialDensities(const std::vector<double>& partial);
+    // Turbulence: specific k [m^2/s^2] and omega [1/s] per cell, cell-major pairs. The temperature is
+    // kept: the total energy takes the change of rho k. Resets the budgets like setInitialState.
+    void setTurbulence(const std::vector<double>& kOmega);
     // Constant volumetric force density (N/m^3, {z, r}) per cell, e.g. a Lorentz force. Its axial
     // integral enters bodyAxialForce (reaction on the equipment) and its work the energy budget.
     void setBodyForce(std::vector<std::array<double, 2>> forcePerVolume);
@@ -178,6 +198,11 @@ public:
     [[nodiscard]] const Medium& medium() const { return medium_; }
     // Partial densities rho*Y_k, cell-major.
     [[nodiscard]] const std::vector<double>& partialDensities() const { return species_; }
+    // Turbulence: rho k and rho omega, cell-major pairs (empty without it); the exact wall distance
+    // of each centroid (infinite without no-slip walls); the eddy viscosity of the last stableDt().
+    [[nodiscard]] const std::vector<double>& turbulence() const { return turbulence_; }
+    [[nodiscard]] const std::vector<double>& wallDistances() const { return wallDistance_; }
+    [[nodiscard]] const std::vector<double>& eddyViscosities() const { return eddy_; }
     [[nodiscard]] std::vector<double> massFractions(std::size_t cell) const;
     [[nodiscard]] Primitive cellPrimitive(std::size_t cell) const;
     [[nodiscard]] double temperature(std::size_t cell) const;
@@ -187,6 +212,8 @@ public:
     // The molecular-transport part of the right-hand side alone for the current state, per unit
     // volume (verification of the operator).
     void transportDerivative(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative);
+    void transportDerivative(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
+                             std::vector<double>& turbulenceDerivative);
     [[nodiscard]] double time() const { return time_; }
     // Next schedule discontinuity (valve opens or finishes opening, igniter on or off) after `time`,
     // infinity if none. A step that would cross one ends on it instead.
@@ -203,13 +230,17 @@ private:
     Definition definition_;
     Mesh mesh_;
     Medium medium_;
-    std::size_t ns_{};
+    // Species count, turbulence fields (2 with turbulence, else 0) and the stride of the face
+    // fractions (ns_ mass fractions, then specific k and omega).
+    std::size_t ns_{}, nt_{}, nw_{};
     std::vector<double> inletComposition_;
     std::vector<Conserved> state_, stage_, next_, rhs_, slopesZ_;
     std::vector<Primitive> primitives_, radialLow_, radialHigh_;
-    // Species: partial densities (state, stages, derivative), cell mass fractions and their
-    // reconstructions, all cell-major with stride ns_. temperature_ warm-starts the energy inversion.
+    // Species: partial densities (state, stages, derivative), cell-major with stride ns_. Turbulence:
+    // rho k and rho omega likewise with stride nt_. Cell mass fractions with specific k and omega and
+    // their reconstructions, stride nw_. temperature_ warm-starts the energy inversion.
     std::vector<double> species_, speciesStage_, speciesNext_, speciesRhs_, fractions_, fractionSlopesZ_;
+    std::vector<double> turbulence_, turbulenceStage_, turbulenceNext_, turbulenceRhs_, turbulenceStart_;
     std::vector<double> fractionsLow_, fractionsHigh_, temperature_, sound_;
     std::vector<std::array<double, 2>> bodyForce_;
     std::vector<double> pressureSource_;
@@ -226,25 +257,50 @@ private:
     BoundaryRates lastRates_{};
     void resetAccounting();
     void radialProfiles();
-    void refresh(const std::vector<Conserved>& state, const std::vector<double>& species);
-    BoundaryRates rhs(const std::vector<Conserved>& state, const std::vector<double>& species,
-                      std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative, double time);
+    void refresh(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence);
+    BoundaryRates rhs(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence,
+                      std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
+                      std::vector<double>& turbulenceDerivative, double time);
     // Face flux per unit area of a supply delivering mass flux g into the interior face state.
     Conserved supplyFlux(const Supply& supply, double g, const Primitive& inside, const double* yInside) const;
-    bool admissible(const Conserved& u, const double* partial) const;
+    // turbulence: the cell's rho k and rho omega (unused without turbulence).
+    bool admissible(const Conserved& u, const double* partial, const double* turbulence) const;
+    // Specific k of a cell of a state (zero without turbulence).
+    [[nodiscard]] double turbulentEnergy(const Conserved& u, const std::vector<double>& turbulence, std::size_t q) const {
+        return nt_?turbulence[q*nt_]/u[0]:0.0;
+    }
     Thermal faceThermal(const Primitive& w, double* y) const;
     Primitive inlet(Primitive inside) const;
     // ambientInflow is set when a Chamber exit draws ambient gas in (subsonic backflow).
     // inside: the reconstructed face state of the last cell; cell: that cell's own state.
     Primitive outlet(Primitive inside, const double* y, const Primitive& cell, bool& ambientInflow) const;
-    std::vector<double> ambient_;  // Chamber: ambient composition
+    std::vector<double> ambient_;  // Chamber: ambient composition (then ambient k and omega)
     // Molecular transport (core/transport.cpp): cell viscosity, conductivity, mixture diffusion
     // coefficients and mole fractions; least-squares gradients of u_z, u_r, T and the mole fractions
     // (cell-major, 3 + ns_ fields of {d/dz, d/dr}); each cell's inverse least-squares matrix.
     std::vector<double> viscosity_, conductivity_, diffusion_, moles_, gradients_, transportWork_, faceEnthalpy_;
     std::vector<std::array<double, 3>> leastSquares_;
+    // Turbulence: eddy viscosity mu_t, turbulent conductivity cp mu_t / Pr_t and the turbulent parts
+    // sigma_k mu_t, sigma_omega mu_t of the k and omega diffusivities (stride 2) per cell; the wall
+    // distance, and the wall-face omega of the cells next to a no-slip wall. sources_ holds what
+    // the source split freezes per half step: the mean-flow strain terms, the cross-diffusion
+    // product grad k . grad omega, the molecular nu and the inverse wall distance.
+    struct SourceCoefficients { double strain2{}, strain{}, divergence{}, crossGradient{}, nu{}, inverseDistance{}; };
+    std::vector<double> eddy_, eddyConductivity_, eddyDiffusion_, wallDistance_, wallOmega_, wallDiffusion_;
+    std::vector<SourceCoefficients> sources_, sourcesStart_;
     void prepareTransport();
     void transportProperties();
-    void transportFluxes(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative, BoundaryRates& rates);
+    // Gradient field f of a cell (u_z, u_r, T, the mole fractions, then k and omega) and its value
+    // on a wall face with unit normal (nz, nr).
+    [[nodiscard]] double transportValue(std::size_t q, std::size_t f) const;
+    [[nodiscard]] double wallValue(std::size_t q, std::size_t f, double nz, double nr) const;
+    void transportGradients();
+    // Eddy viscosity and diffusivities from the current gradients; with sources, also sources_.
+    void eddyViscosity(bool sources);
+    // Advances rho k and rho omega over tau under the SST sources at fixed rho and E.
+    void turbulenceSource(const std::vector<Conserved>& state, std::vector<double>& turbulence,
+                          const std::vector<SourceCoefficients>& coefficients, double tau) const;
+    void transportFluxes(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
+                         std::vector<double>& turbulenceDerivative, BoundaryRates& rates);
 };
 } // namespace crucible

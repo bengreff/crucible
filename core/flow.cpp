@@ -1,4 +1,5 @@
 #include "core/flow.hpp"
+#include "core/walls.hpp"
 #include <algorithm>
 #include <cmath>
 #include <numbers>
@@ -79,6 +80,15 @@ void Definition::validate() const {
         throw std::invalid_argument("Radial stretching must lie in [0, 20] (zero: rings of equal height).");
     if(!(outletRelaxation>=0) || !std::isfinite(outletRelaxation))
         throw std::invalid_argument("Outlet relaxation must be finite and non-negative (zero: fixed back pressure).");
+    if(turbulence.enabled) {
+        const auto& t=turbulence;
+        if(transport.viscosity.empty()) throw std::invalid_argument("Turbulence needs molecular transport.");
+        if(experiment!=Case::UniformDuct && experiment!=Case::ShockTube)
+            throw std::invalid_argument("Turbulent inflow conditions are not yet implemented: turbulence runs on UniformDuct and ShockTube only.");
+        for(double x:{t.prandtl,t.schmidt,t.wallOmegaFactor,t.ambientOmega})
+            if(!(x>0) || !std::isfinite(x)) throw std::invalid_argument("Turbulent Prandtl and Schmidt numbers, the wall omega factor and the ambient omega must be positive.");
+        if(!(t.ambientK>=0) || !std::isfinite(t.ambientK)) throw std::invalid_argument("Ambient k must be finite and non-negative.");
+    }
     if(!contour.empty()) {
         if(contour.size()<2) throw std::invalid_argument("A wall contour needs at least two points.");
         for(std::size_t k=0;k<contour.size();++k) {
@@ -274,13 +284,14 @@ double chokedMassFlow(const Definition& d) {
     return pi*sq(d.throatRadius)*d.totalPressure/std::sqrt(d.totalTemperature)*
         std::sqrt(g/d.gas.specificR)*std::pow(2/(g+1),(g+1)/(2*(g-1)));
 }
-Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_.size()),
-    inletComposition_(d.massFractions()),totalPressure_(d.totalPressure) {
+Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_.size()),nt_(d.turbulence.enabled?2:0),
+    nw_(ns_+nt_),inletComposition_(d.massFractions()),totalPressure_(d.totalPressure) {
     auto count=mesh_.cells.size();
     state_.resize(count); stage_.resize(count); next_.resize(count); rhs_.resize(count);
     slopesZ_.resize(count); primitives_.resize(count); radialLow_.resize(count); radialHigh_.resize(count); pressureSource_.resize(count);
-    for(auto* v:{&species_,&speciesStage_,&speciesNext_,&speciesRhs_,&fractions_,&fractionSlopesZ_,&fractionsLow_,&fractionsHigh_})
-        v->resize(count*ns_);
+    for(auto* v:{&species_,&speciesStage_,&speciesNext_,&speciesRhs_}) v->resize(count*ns_);
+    for(auto* v:{&fractions_,&fractionSlopesZ_,&fractionsLow_,&fractionsHigh_}) v->resize(count*nw_);
+    for(auto* v:{&turbulence_,&turbulenceStage_,&turbulenceNext_,&turbulenceRhs_,&turbulenceStart_}) v->resize(count*nt_);
     temperature_.assign(count,d.totalTemperature); sound_.resize(count);
     // Initial fill: the reservoir composition, prepared with its frozen properties at the total temperature.
     const double* y0=inletComposition_.data();
@@ -310,6 +321,7 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_
     }
     if(d.experiment==Case::Chamber) {
         ambient_=inletComposition_;
+        if(nt_) { ambient_.push_back(d.turbulence.ambientK);ambient_.push_back(d.turbulence.ambientOmega); }
         faceSupply_.assign(d.nr,-1);supplyArea_.assign(d.supplies.size(),0);
         for(int j=0;j<d.nr;++j) {
             double centre=mesh_.ringMiddle(0,j);
@@ -329,6 +341,11 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_
             }
             if(igniterCells_.empty()) throw std::invalid_argument("The igniter region contains no cell centroid.");
         }
+    }
+    if(nt_) {
+        std::vector<bool> plate;
+        if(d.experiment==Case::Chamber && !d.wallSlip) for(int s:faceSupply_) plate.push_back(s<0);
+        wallDistance_=wallDistance(mesh_,!d.wallSlip,plate);
     }
     if(medium_.hasTransport()) prepareTransport();
     std::vector<double> fractions;
@@ -365,7 +382,8 @@ void Flow::setInitialState(const std::vector<Primitive>& cells) {
 void Flow::setInitialState(const std::vector<Primitive>& cells,const std::vector<double>& y) {
     if(cells.size()!=state_.size() || y.size()!=cells.size()*ns_) throw std::invalid_argument("Initial field does not match the mesh.");
     std::vector<Conserved> initialized(cells.size());
-    std::vector<double> partial(y.size());
+    std::vector<double> partial(y.size()),turbulence(cells.size()*nt_);
+    const auto& tu=definition_.turbulence;
     for(std::size_t q=0;q<cells.size();++q) {
         const auto& w=cells[q];const double* yq=y.data()+q*ns_;
         if(!(w.rho>0) || !(w.p>0)) throw std::runtime_error("Non-admissible gas state: density or internal energy is not positive.");
@@ -373,23 +391,40 @@ void Flow::setInitialState(const std::vector<Primitive>& cells,const std::vector
         initialized[q]=conservative(w,medium_.internalEnergy(t,yq));
         temperature_[q]=t;
         for(std::size_t k=0;k<ns_;++k) partial[q*ns_+k]=w.rho*yq[k];
-        if(!admissible(initialized[q],partial.data()+q*ns_))
+        // The fill carries the ambient turbulence, its k on top of the thermal energy.
+        if(nt_) { turbulence[q*nt_]=w.rho*tu.ambientK;turbulence[q*nt_+1]=w.rho*tu.ambientOmega;initialized[q][3]+=w.rho*tu.ambientK; }
+        if(!admissible(initialized[q],partial.data()+q*ns_,turbulence.data()+q*nt_))
             throw std::runtime_error("Non-admissible gas state: density or internal energy is not positive.");
     }
-    state_.swap(initialized);species_.swap(partial);resetAccounting();
+    state_.swap(initialized);species_.swap(partial);turbulence_.swap(turbulence);resetAccounting();
 }
 void Flow::setMassFractions(std::size_t q,const double* y) {
     if(q>=state_.size()) throw std::out_of_range("Cell index out of range.");
     std::vector<double> partial(ns_);
     for(std::size_t k=0;k<ns_;++k) partial[k]=state_[q][0]*y[k];
-    if(!admissible(state_[q],partial.data())) throw std::runtime_error("Composition gives a non-admissible state.");
+    if(!admissible(state_[q],partial.data(),turbulence_.data()+q*nt_)) throw std::runtime_error("Composition gives a non-admissible state.");
     std::copy(partial.begin(),partial.end(),species_.begin()+static_cast<std::ptrdiff_t>(q*ns_));
 }
 void Flow::setPartialDensities(const std::vector<double>& partial) {
     if(partial.size()!=species_.size()) throw std::invalid_argument("Partial densities do not match the mesh.");
     for(std::size_t q=0;q<state_.size();++q)
-        if(!admissible(state_[q],partial.data()+q*ns_)) throw std::runtime_error("Partial densities give a non-admissible state.");
+        if(!admissible(state_[q],partial.data()+q*ns_,turbulence_.data()+q*nt_)) throw std::runtime_error("Partial densities give a non-admissible state.");
     species_=partial;
+}
+void Flow::setTurbulence(const std::vector<double>& kOmega) {
+    if(!nt_) throw std::logic_error("The definition has no turbulence.");
+    if(kOmega.size()!=turbulence_.size()) throw std::invalid_argument("Turbulence field does not match the mesh.");
+    auto state=state_;auto turbulence=turbulence_;
+    for(std::size_t q=0;q<state.size();++q) {
+        double rho=state[q][0],k=kOmega[q*nt_],omega=kOmega[q*nt_+1];
+        if(!(k>=0) || !(omega>0) || !std::isfinite(k) || !std::isfinite(omega))
+            throw std::invalid_argument("Turbulence needs finite k >= 0 and omega > 0.");
+        state[q][3]+=rho*k-turbulence[q*nt_];
+        turbulence[q*nt_]=rho*k;turbulence[q*nt_+1]=rho*omega;
+        if(!admissible(state[q],species_.data()+q*ns_,turbulence.data()+q*nt_))
+            throw std::runtime_error("Turbulence gives a non-admissible state.");
+    }
+    state_.swap(state);turbulence_.swap(turbulence);resetAccounting();
 }
 void Flow::setBodyForce(std::vector<std::array<double,2>> force) {
     if(!force.empty() && force.size()!=state_.size()) throw std::invalid_argument("Body force does not match the mesh.");
@@ -400,12 +435,18 @@ void Flow::setTotalPressure(double p) {
     if(!(p>0) || !std::isfinite(p)) throw std::invalid_argument("Reservoir pressure must be positive and finite.");
     totalPressure_=p;
 }
-bool Flow::admissible(const Conserved& u,const double* partial) const {
+bool Flow::admissible(const Conserved& u,const double* partial,const double* turbulence) const {
     // energyFloor is linear in the mass fractions, so it is evaluated on the clipped partial densities.
     double sum=0;
     for(std::size_t k=0;k<ns_;++k) { if(!std::isfinite(partial[k])) return false; sum+=std::max(partial[k],0.0); }
     if(!(sum>0)) return false;
-    return admissibleBulk(u,medium_.energyFloorOfClipped(partial)/sum);
+    double k=0;
+    if(nt_) {
+        // rho k >= 0 and rho omega > 0; the thermal energy lies above the floor once k is taken out.
+        if(!(u[0]>0) || !(turbulence[0]>=0) || !(turbulence[1]>0) || !std::isfinite(turbulence[0]) || !std::isfinite(turbulence[1])) return false;
+        k=turbulence[0]/u[0];
+    }
+    return admissibleBulk(u,medium_.energyFloorOfClipped(partial)/sum+k);
 }
 std::vector<double> Flow::massFractions(std::size_t q) const {
     std::vector<double> y(ns_);
@@ -414,34 +455,38 @@ std::vector<double> Flow::massFractions(std::size_t q) const {
 }
 double Flow::temperature(std::size_t q) const {
     auto y=massFractions(q);const auto& u=state_[q];
-    return medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0],y.data(),temperature_[q]);
+    return medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-turbulentEnergy(u,turbulence_,q),y.data(),temperature_[q]);
 }
 Primitive Flow::cellPrimitive(std::size_t q) const {
-    auto y=massFractions(q);const auto& u=state_[q];
-    double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0],y.data(),temperature_[q]);
-    if(!std::isfinite(t) || !admissibleBulk(u,medium_.energyFloor(y.data())))
+    auto y=massFractions(q);const auto& u=state_[q];const double k=turbulentEnergy(u,turbulence_,q);
+    double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y.data(),temperature_[q]);
+    if(!std::isfinite(t) || !admissibleBulk(u,medium_.energyFloor(y.data())+k))
         throw std::runtime_error("Non-admissible gas state: density or internal energy is not positive.");
     return {u[0],u[1]/u[0],u[2]/u[0],u[0]*medium_.gasConstant(y.data())*t};
 }
-// Cell primitives, mass fractions, temperatures and frozen sound speeds of a state.
-void Flow::refresh(const std::vector<Conserved>& state,const std::vector<double>& species) {
+// Cell primitives, mass fractions (then specific k and omega), temperatures and frozen sound speeds of a state.
+void Flow::refresh(const std::vector<Conserved>& state,const std::vector<double>& species,const std::vector<double>& turbulence) {
     for(std::size_t q=0;q<state.size();++q) {
-        const auto& u=state[q];double* y=fractions_.data()+q*ns_;
+        const auto& u=state[q];double* y=fractions_.data()+q*nw_;
         normalise(species.data()+q*ns_,ns_,y);
-        if(!admissibleBulk(u,medium_.energyFloor(y)))
+        double k=0;
+        if(nt_) { k=y[ns_]=turbulence[q*nt_]/u[0];y[ns_+1]=turbulence[q*nt_+1]/u[0]; }
+        if(!admissibleBulk(u,medium_.energyFloor(y)+k))
             throw std::runtime_error("Non-admissible gas state: density or internal energy is not positive.");
-        double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0],y,temperature_[q]);
+        double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y,temperature_[q]);
         auto props=medium_.properties(t,y);
         temperature_[q]=t;sound_[q]=std::sqrt((props.cv+props.r)/props.cv*props.r*t);
         primitives_[q]={u[0],u[1]/u[0],u[2]/u[0],u[0]*props.r*t};
     }
 }
-// Face thermodynamics from reconstructed (rho, p) and mass fractions; y is clipped and normalised in place.
+// Face thermodynamics from reconstructed (rho, p), mass fractions and (with turbulence) k; y is
+// clipped and normalised in place. The face energy includes k, so the flux carries rho k in E.
 Thermal Flow::faceThermal(const Primitive& w,double* y) const {
     normalise(y,ns_,y);
     double t=w.p/(w.rho*medium_.gasConstant(y));
     auto props=medium_.properties(t,y);
-    return {props.e,std::sqrt((props.cv+props.r)/props.cv*props.r*t),medium_.energyFloor(y)};
+    const double k=nt_?y[ns_]:0.0;
+    return {props.e+k,std::sqrt((props.cv+props.r)/props.cv*props.r*t),medium_.energyFloor(y)+k};
 }
 // Subsonic reservoir boundary at the reservoir composition. Exact for a calorically perfect gas;
 // for a thermally perfect mixture it uses the frozen ratio of specific heats at the total temperature.
@@ -571,11 +616,15 @@ Conserved Flow::supplyFlux(const Supply& s,double g,const Primitive& in,const do
 }
 // With transport the diffusive rate 2 nu sum(A^2) / V is added to the convective one, with nu the
 // largest of 4/3 mu / rho, lambda / (rho cv) and the mixture diffusion coefficients: pure diffusion
-// then steps at cfl/2 of the explicit Euler bound V^2 / (nu sum(A^2)).
+// then steps at cfl/2 of the explicit Euler bound V^2 / (nu sum(A^2)). With turbulence the eddy
+// parts are added (mu + mu_t, lambda + cp mu_t / Pr_t, D_km + mu_t / (rho Sc_t); the k and omega
+// diffusivities mu + sigma mu_t lie below 4/3 (mu + mu_t)), and the source coefficients of the
+// first half of the split are frozen here.
 double Flow::stableDt() {
-    refresh(state_,species_);
+    refresh(state_,species_,turbulence_);
     const bool transport=medium_.hasTransport();
     if(transport) transportProperties();
+    if(nt_) { transportGradients();eddyViscosity(true); }
     double dt=std::numeric_limits<double>::infinity();
     for(int i=0;i<mesh_.nz;++i) for(int j=0;j<mesh_.nr;++j) {
         auto q=mesh_.index(i,j);const auto& w=primitives_[q];
@@ -588,9 +637,14 @@ double Flow::stableDt() {
             sumArea2+=sq(ar[0])+sq(ar[1]);
         }
         if(transport) {
-            const double* y=fractions_.data()+q*ns_;
+            const double* y=fractions_.data()+q*nw_;
             double nu=std::max(4.0/3*viscosity_[q],conductivity_[q]/medium_.cv(temperature_[q],y))/w.rho;
             for(std::size_t k=0;k<ns_;++k) nu=std::max(nu,diffusion_[q*ns_+k]);
+            if(nt_) {
+                const auto& tu=definition_.turbulence;
+                nu=std::max({nu,4.0/3*(viscosity_[q]+eddy_[q])/w.rho,(conductivity_[q]+eddyConductivity_[q])/(medium_.cv(temperature_[q],y)*w.rho)});
+                for(std::size_t k=0;k<ns_;++k) nu=std::max(nu,diffusion_[q*ns_+k]+eddy_[q]/(w.rho*tu.schmidt));
+            }
             rate+=2*nu*sumArea2/volume;
         }
         dt=std::min(dt,definition_.cfl*volume/rate);
@@ -641,14 +695,15 @@ void Flow::radialProfiles() {
         radialLow_[q]=unpack(lowState);radialHigh_[q]=unpack(highState);
         pressureSource_[q]=c[3]*cell.radialPressureMeasure+slope[3]*(cell.volume-cell.r*cell.radialPressureMeasure);
     }
-    // Mass fractions are even in r and reconstructed like density: r^2 curvature on the axis row,
-    // limited centroid slopes inside, the limited one-sided slope (face >= half the cell value) at the wall.
+    // Mass fractions (and specific k and omega) are even in r and reconstructed like density: r^2
+    // curvature on the axis row, limited centroid slopes inside, the limited one-sided slope (face >=
+    // half the cell value) at the wall.
     for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
         auto q=m.index(i,j);const auto& cell=m.cells[q];
         double low=m.radialFaceRadius(i,j)-cell.r,high=m.radialFaceRadius(i,j+1)-cell.r;
-        auto y=[&](int b,std::size_t k){return fractions_[m.index(i,b)*ns_+k];};
+        auto y=[&](int b,std::size_t k){return fractions_[m.index(i,b)*nw_+k];};
         auto centroidSlope=[&](int a,int b,std::size_t k){return (y(b,k)-y(a,k))/(m.cells[m.index(i,b)].r-m.cells[m.index(i,a)].r);};
-        for(std::size_t k=0;k<ns_;++k) {
+        for(std::size_t k=0;k<nw_;++k) {
             double c=y(j,k),lowValue=c,highValue=c;
             if(definition_.secondOrder && j==0) {
                 if(m.nr>=3) {
@@ -665,16 +720,18 @@ void Flow::radialProfiles() {
                 }
                 lowValue+=slope*low;highValue+=slope*high;
             }
-            fractionsLow_[q*ns_+k]=lowValue;fractionsHigh_[q*ns_+k]=highValue;
+            fractionsLow_[q*nw_+k]=lowValue;fractionsHigh_[q*nw_+k]=highValue;
         }
     }
 }
-Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vector<double>& species,
-                              std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative,double time) {
+Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vector<double>& species,const std::vector<double>& turbulence,
+                              std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative,
+                              std::vector<double>& turbulenceDerivative,double time) {
     const auto& d=definition_;const auto& m=mesh_;
     std::fill(derivative.begin(),derivative.end(),Conserved{});
     std::fill(speciesDerivative.begin(),speciesDerivative.end(),0.0);
-    refresh(state,species);
+    std::fill(turbulenceDerivative.begin(),turbulenceDerivative.end(),0.0);
+    refresh(state,species,turbulence);
     std::fill(slopesZ_.begin(),slopesZ_.end(),Conserved{});
     std::fill(fractionSlopesZ_.begin(),fractionSlopesZ_.end(),0.0);
     if(d.secondOrder) for(int i=1;i<m.nz-1;++i) for(int j=0;j<m.nr;++j) {
@@ -682,8 +739,8 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         auto ql=m.index(i-1,j),qr=m.index(i+1,j);
         auto l=values(primitives_[ql]),r=values(primitives_[qr]);
         for(int k=0;k<4;++k) slopesZ_[q][k]=minmod(c[k]-l[k],r[k]-c[k]);
-        for(std::size_t k=0;k<ns_;++k)
-            fractionSlopesZ_[q*ns_+k]=minmod(fractions_[q*ns_+k]-fractions_[ql*ns_+k],fractions_[qr*ns_+k]-fractions_[q*ns_+k]);
+        for(std::size_t k=0;k<nw_;++k)
+            fractionSlopesZ_[q*nw_+k]=minmod(fractions_[q*nw_+k]-fractions_[ql*nw_+k],fractions_[qr*nw_+k]-fractions_[q*nw_+k]);
     }
     // Boundary rows/columns have no outer neighbour. A zero slope there makes wall, inlet and
     // outlet face states first-order (measured: wall-row entropy error order ~1.1). Use the
@@ -694,9 +751,9 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         auto& slope=slopesZ_[q];
         for(int k=0;k<4;++k) slope[k]=sign*minmod(c[k]-a[k],a[k]-b[k]);
         for(int k:{0,3}) slope[k]=std::clamp(slope[k],-c[k],c[k]);
-        for(std::size_t k=0;k<ns_;++k) {
-            double yc=fractions_[q*ns_+k];
-            fractionSlopesZ_[q*ns_+k]=std::clamp(sign*minmod(yc-fractions_[n1*ns_+k],fractions_[n1*ns_+k]-fractions_[n2*ns_+k]),-yc,yc);
+        for(std::size_t k=0;k<nw_;++k) {
+            double yc=fractions_[q*nw_+k];
+            fractionSlopesZ_[q*nw_+k]=std::clamp(sign*minmod(yc-fractions_[n1*nw_+k],fractions_[n1*nw_+k]-fractions_[n2*nw_+k]),-yc,yc);
         }
     };
     if(d.secondOrder) for(int j=0;j<m.nr;++j) {
@@ -704,11 +761,11 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         oneSided(m.index(m.nz-1,j),m.index(m.nz-2,j),m.index(m.nz-3,j),1);
     }
     radialProfiles();
-    std::vector<double> yl(ns_),yr(ns_);
+    std::vector<double> yl(nw_),yr(nw_);
     auto reconstructed=[&](std::size_t q,double direction,std::vector<double>& y) {
         auto w=values(primitives_[q]);
         for(int k=0;k<4;++k) w[k]+=direction*0.5*slopesZ_[q][k];
-        for(std::size_t k=0;k<ns_;++k) y[k]=fractions_[q*ns_+k]+direction*0.5*fractionSlopesZ_[q*ns_+k];
+        for(std::size_t k=0;k<nw_;++k) y[k]=fractions_[q*nw_+k]+direction*0.5*fractionSlopesZ_[q*nw_+k];
         return unpack(w);
     };
     // Low-Mach corrections act on interior faces and the mirror (slip) wall; inlet/outlet models keep their own states.
@@ -718,13 +775,19 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         return hllc(l,tl,r,tr,nz,nr);
     };
     // Species follow the mass flux with the upwind face composition (Larrouturou, JCP 95, 1991):
-    // positivity-preserving, and the species fluxes sum to the mass flux.
+    // positivity-preserving, and the species fluxes sum to the mass flux. rho k and rho omega
+    // follow it likewise with the upwind face k and omega.
     auto speciesFlux=[&](double massFlux,std::size_t into,std::size_t from,double area,bool addInto,bool addFrom) {
         const auto& y=massFlux>=0?yl:yr;
         for(std::size_t k=0;k<ns_;++k) {
             double f=area*massFlux*y[k];
             if(addFrom) speciesDerivative[from*ns_+k]-=f;
             if(addInto) speciesDerivative[into*ns_+k]+=f;
+        }
+        for(std::size_t k=0;k<nt_;++k) {
+            double f=area*massFlux*y[ns_+k];
+            if(addFrom) turbulenceDerivative[from*nt_+k]-=f;
+            if(addInto) turbulenceDerivative[into*nt_+k]+=f;
         }
     };
     BoundaryRates rates{};
@@ -754,7 +817,9 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
             for(int k=0;k<4;++k) derivative[ir][k]+=area*flux[k];
             continue;
         }
-        if(i==0) { l=inlet(r);yl=inletComposition_; }
+        // Inflow at the reservoir composition; a transmissive inlet (UniformDuct, ShockTube) passes the
+        // interior k and omega.
+        if(i==0) { l=inlet(r);std::copy(inletComposition_.begin(),inletComposition_.end(),yl.begin());std::copy(yr.begin()+ns_,yr.end(),yl.begin()+ns_); }
         Thermal tl=faceThermal(l,yl.data());
         if(i==m.nz) { bool ambientInflow=false;r=outlet(l,yl.data(),primitives_[il],ambientInflow);yr=ambientInflow?ambient_:yl; }
         Thermal tr=faceThermal(r,yr.data());
@@ -776,10 +841,10 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         auto ar=m.radialAreaVector(i,j);double area=std::hypot(ar[0],ar[1]);
         double nz=ar[0]/area,nr=ar[1]/area;
         Primitive l=radialHigh_[il];
-        std::copy_n(fractionsHigh_.begin()+static_cast<std::ptrdiff_t>(il*ns_),ns_,yl.begin());
+        std::copy_n(fractionsHigh_.begin()+static_cast<std::ptrdiff_t>(il*nw_),nw_,yl.begin());
         Primitive r=l;
         if(j==m.nr) { r=reflect(l,nz,nr);yr=yl; }
-        else { r=radialLow_[ir];std::copy_n(fractionsLow_.begin()+static_cast<std::ptrdiff_t>(ir*ns_),ns_,yr.begin()); }
+        else { r=radialLow_[ir];std::copy_n(fractionsLow_.begin()+static_cast<std::ptrdiff_t>(ir*nw_),nw_,yr.begin()); }
         Thermal tl=faceThermal(l,yl.data()),tr=faceThermal(r,yr.data());
         auto flux=faceFlux(l,tl,r,tr,nz,nr,true);
         // A stationary slip wall has exactly zero mass and energy exchange.
@@ -799,14 +864,19 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         derivative[q][1]+=f[0]*v;derivative[q][2]+=f[1]*v;derivative[q][3]+=work;
         rates.bodyAxial+=f[0]*v;rates.energy+=work;
     }
-    if(medium_.hasTransport()) transportFluxes(derivative,speciesDerivative,rates);
+    if(medium_.hasTransport()) transportFluxes(derivative,speciesDerivative,turbulenceDerivative,rates);
     for(std::size_t q=0;q<state.size();++q) {
         derivative[q][2]+=pressureSource_[q];
         for(double& v:derivative[q]) v/=m.cells[q].volume;
         for(std::size_t k=0;k<ns_;++k) speciesDerivative[q*ns_+k]/=m.cells[q].volume;
+        for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]/=m.cells[q].volume;
     }
     return rates;
 }
+// One step: SSPRK2 on the fluxes. With turbulence the SST sources are Strang-split around it: half a
+// step of source (coefficients frozen at the start, from stableDt), the flux step, and half a step
+// of source with coefficients at the new state. A rejected attempt restarts from the saved rho k
+// and rho omega with half the step.
 double Flow::step(double maxDt) {
     if(!(maxDt>0)) throw std::invalid_argument("Step interval must be positive.");
     double dt=std::min(stableDt(),maxDt);
@@ -815,6 +885,7 @@ double Flow::step(double maxDt) {
     if(event-time_<=dt) { dt=event-time_;landing=true; }
     const std::size_t n=state_.size();
     const auto& ig=definition_.igniter;
+    if(nt_) { turbulenceStart_=turbulence_;sourcesStart_=sources_; }
     for(int attempt=0;attempt<14;++attempt) {
         // Mean igniter power over [t, t + dt]; steps end on its switching times, so this is exact.
         igniterPower_=0;
@@ -822,24 +893,40 @@ double Flow::step(double maxDt) {
             double overlap=std::min(time_+dt,ig.start+ig.duration)-std::max(time_,ig.start);
             if(overlap>0) igniterPower_=ig.energy/ig.duration*overlap/dt;
         }
-        auto first=rhs(state_,species_,rhs_,speciesRhs_,time_);
         bool ok=true;
-        for(std::size_t q=0;q<n;++q) {
-            for(int k=0;k<4;++k) stage_[q][k]=state_[q][k]+dt*rhs_[q][k];
-            for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesStage_[k]=species_[k]+dt*speciesRhs_[k];
-            ok=ok&&admissible(stage_[q],speciesStage_.data()+q*ns_);
+        if(nt_) {
+            turbulence_=turbulenceStart_;
+            turbulenceSource(state_,turbulence_,sourcesStart_,0.5*dt);
+            for(std::size_t q=0;q<n;++q) ok=ok&&admissible(state_[q],species_.data()+q*ns_,turbulence_.data()+q*nt_);
         }
-        BoundaryRates second{};
+        BoundaryRates first{},second{};
         if(ok) {
-            second=rhs(stage_,speciesStage_,rhs_,speciesRhs_,time_+dt);
+            first=rhs(state_,species_,turbulence_,rhs_,speciesRhs_,turbulenceRhs_,time_);
             for(std::size_t q=0;q<n;++q) {
-                for(int k=0;k<4;++k) next_[q][k]=0.5*(state_[q][k]+stage_[q][k]+dt*rhs_[q][k]);
-                for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesNext_[k]=0.5*(species_[k]+speciesStage_[k]+dt*speciesRhs_[k]);
-                ok=ok&&admissible(next_[q],speciesNext_.data()+q*ns_);
+                for(int k=0;k<4;++k) stage_[q][k]=state_[q][k]+dt*rhs_[q][k];
+                for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesStage_[k]=species_[k]+dt*speciesRhs_[k];
+                for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceStage_[k]=turbulence_[k]+dt*turbulenceRhs_[k];
+                ok=ok&&admissible(stage_[q],speciesStage_.data()+q*ns_,turbulenceStage_.data()+q*nt_);
             }
         }
         if(ok) {
-            state_.swap(next_);species_.swap(speciesNext_);time_=landing?event:time_+dt;dt_=dt;++steps_;
+            second=rhs(stage_,speciesStage_,turbulenceStage_,rhs_,speciesRhs_,turbulenceRhs_,time_+dt);
+            for(std::size_t q=0;q<n;++q) {
+                for(int k=0;k<4;++k) next_[q][k]=0.5*(state_[q][k]+stage_[q][k]+dt*rhs_[q][k]);
+                for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesNext_[k]=0.5*(species_[k]+speciesStage_[k]+dt*speciesRhs_[k]);
+                for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceNext_[k]=0.5*(turbulence_[k]+turbulenceStage_[k]+dt*turbulenceRhs_[k]);
+                ok=ok&&admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
+            }
+        }
+        if(ok && nt_) {
+            refresh(next_,speciesNext_,turbulenceNext_);
+            transportProperties();transportGradients();eddyViscosity(true);
+            turbulenceSource(next_,turbulenceNext_,sources_,0.5*dt);
+            for(std::size_t q=0;q<n;++q) ok=ok&&admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
+        }
+        if(ok) {
+            state_.swap(next_);species_.swap(speciesNext_);turbulence_.swap(turbulenceNext_);
+            time_=landing?event:time_+dt;dt_=dt;++steps_;
             lastRates_=BoundaryRates::average(first,second);
             integratedHeat_+=dt*lastRates_.heat;
             integratedMassFlux_+=dt*lastRates_.mass;
@@ -850,6 +937,7 @@ double Flow::step(double maxDt) {
         }
         ++rejectedSteps_;dt*=0.5;landing=false;
     }
+    if(nt_) turbulence_=turbulenceStart_;
     throw std::runtime_error("Could not advance an admissible gas state after 14 timestep reductions.");
 }
 void Flow::advanceTo(double target) {
