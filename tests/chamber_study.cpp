@@ -368,7 +368,7 @@ int main(int argc, char** argv) {
     writeField(flow.time());
     // Criterion 4 (c): a run that fails only the settling check is extended once to 12 ms.
     const double energyEnd = std::abs(flow.measurements().energy);
-    if (turbulent && end < 12e-3 && !settled() && worstMass < 1e-11 && worstEnergyResidual / energyEnd < 1e-11 &&
+    if (turbulent && end >= 8e-3 && end < 12e-3 && !settled() && worstMass < 1e-11 && worstEnergyResidual / energyEnd < 1e-11 &&
         negativeAt < 0 && admissible) {
       std::printf("criterion 4 (c) fails alone at %.3f ms: extending once to 12 ms\n", flow.time() * 1e3);
       march(12e-3);

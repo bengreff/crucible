@@ -37,3 +37,63 @@ i 17  2.07e+00 3.50e+01 2.29e+04 6.51e+04 1.79e+05 1.11e+06
 i 18  1.89e-03 4.53e+03 2.83e+04 8.09e+04 2.15e+05 1.05e+06
 i 19  3.12e+03 8.24e+03 2.54e+04 8.00e+04 2.13e+05 8.21e+05
 The largest eddy viscosity in the field was 1.2e-3 Pa s (not runaway).
+
+== Isolation and fix attempt (5 October, 03:45 to 03:57; control run frt 32x6, Mac) ==
+Each test below used a temporary environment switch or print in core/, reverted afterwards,
+except the axis-row clamp, which is kept (core/flow.cpp, radialProfiles).
+
+Test A. k and omega face gradient replaced by the two-point difference along the line of centres
+(no off-line part), unchanged otherwise. Result: stops at 0.135982 ms, same cell (i 18, j 0),
+rho*omega 1.39e-6 at the step start, stage -1.82e-6 at dt 4.42e-12: drain about 7e5 per second,
+the same rate as before at a 30 times smaller rho*omega. So the off-line diffusion is not the
+cause of this stop.
+
+Test B. k and omega diffusion switched off. Result: stops earlier, at 0.092520 ms, in a different
+cell (wall row, i 16 j 5), where omega decays to 1e-117 and then NaN without the wall's omega
+supply. Inconclusive for the first stop.
+
+Mechanism of the first stop (inferred from the code and the measured drain): on the axis row,
+mass fractions, k and omega are reconstructed with an r^2 curvature limited only by minmod of the
+two neighbour differences. Nothing bounds it by the cell value. With omega 1.9e-3 in the axis cell
+and 4.5e3 and 2.8e4 in the next two rings, the face value at the first face off the axis is of the
+order of the neighbours, and the outward radial mass flux past the throat carries that out of a
+cell that holds almost nothing, at any step size. The wall row already bounds its one-sided slope
+so both faces stay within half the cell value; the axis row did not.
+
+Fix attempt 1 (kept): the axis-row curvature is clamped so the profile stays within half the cell
+value of it at the first face and on the axis (reach = max(M_face - M_cell, M_cell), as the wall
+row's reach). Result: the run passes 0.136 ms, lights at 0.2060 ms (largest Y_H2O 0.616; chamber
+volume with s > 0.01: 0.0197), and stops at 0.345931 ms. Second stop: cell (i 26, j 1) in the
+divergent nozzle, rho*omega 2.0e-34 at the step start (omega about 1.6e-32 1/s, k about 700
+m^2/s^2), stage -6.1e-8 at dt 1.67e-11: drain about 3.6e3 per second whatever the cell holds.
+
+Test C (on top of the clamp). Two-point k and omega diffusion as in test A. Result: reaches the
+0.5 ms end. (The harness then extended the run, because its extension rule did not yet require
+an 8 ms run; fixed in the harness.) It stops at 0.523999 ms: cells (i 26, j 4) and (i 27, j 3) in
+the divergent nozzle, rho*omega exactly 0 after the source half step, rho*k 3e-109 and 3e-116.
+So the second stop is the off-line part of the k and omega diffusion (inferred: removing it
+removes the stop), and there is a third: omega decays to underflow in the nozzle expansion.
+
+Third mechanism (inferred, not isolated): in the expanding nozzle the SST sources take omega down
+with no floor. Two candidate sinks: the dilatation part of the production, -(2/3) rho k div u,
+which enters omega's equation as about -(2/3) gamma rho omega div u (a decay at a rate of order
+the expansion rate, 1e5 to 1e6 1/s here); and the cross-diffusion term 2 (1 - F1) rho sigma_w2 /
+omega grad k . grad omega, a sink when grad k . grad omega < 0, whose relative rate grows as
+omega falls. The MPRK source keeps omega positive in exact arithmetic, not below the double range. The engine has ambient values (Spalart-Rumsey) for the fill but not the sustaining terms
+of SST-2003sust (NASA TMR), which hold k and omega at those values in free stream.
+
+Stopped here (three distinct faults in a row). Candidates for the next session:
+ 2. Limit the off-line part of the k and omega face gradient so a face's flux keeps the sign of
+    the two-point difference (OpenFOAM's limited Laplacian; monotone under the existing step limit).
+ 3. Either the SST-2003sust sustaining terms (a published model variant, a modelling choice to be
+    recorded) or a floor on omega at the ambient value; the first is preferred.
+
+Fast suite after the clamp (Mac, 03:56): 5 of 6 pass. transport_verification prints output
+identical, line for line (44 lines), to transport_verification_openface_2026-10-04.txt, with the
+same three truncation-order failures. turbulence_verification passes.
+
+Pipe verification after the clamp (Mac, finished 04:13; pipe_after_axis_clamp_2026-10-05.txt):
+nr 16 and nr 32 print the same history and judged values as turbulence_pipe_2026-10-04.txt (the
+Mac run before the clamp), digit for digit, including the mass budgets 3.42e-11 and 1.93e-11
+(both FAIL against 1e-12, as recorded). nr 64 was stopped at 0.5 ms to free the Mac for the next
+test; its 0.5 ms line equals the backhouse run without the clamp.

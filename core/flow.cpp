@@ -715,7 +715,10 @@ void Flow::radialProfiles() {
     }
     // Mass fractions (and specific k and omega) are even in r and reconstructed like density: r^2
     // curvature on the axis row, limited centroid slopes inside, the limited one-sided slope (face >=
-    // half the cell value) at the wall.
+    // half the cell value) at the wall. The axis-row curvature is bounded like the wall slope: the
+    // profile stays within half the cell value of it at the first face and on the axis. Unbounded, a
+    // cell near zero beside large off-axis values gets a large face value, and outward flow there
+    // removes more than the cell holds at any step size (omega past a throat, 5 October 2026).
     for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
         auto q=m.index(i,j);const auto& cell=m.cells[q];
         double low=m.radialFaceRadius(i,j)-cell.r,high=m.radialFaceRadius(i,j+1)-cell.r;
@@ -727,6 +730,8 @@ void Flow::radialProfiles() {
                 if(m.nr>=3) {
                     auto moment=[&](int b){return m.cells[m.index(i,b)].radialSecondMoment;};
                     double curvature=minmod((y(1,k)-c)/(moment(1)-moment(0)),(y(2,k)-y(1,k))/(moment(2)-moment(1)));
+                    const double reach=std::max(m.radialFaceSecondMoment(i,1)-cell.radialSecondMoment,cell.radialSecondMoment);
+                    curvature=std::clamp(curvature,-0.5*c/reach,0.5*c/reach);
                     highValue+=curvature*(m.radialFaceSecondMoment(i,1)-cell.radialSecondMoment);
                 }
             } else if(definition_.secondOrder) {
