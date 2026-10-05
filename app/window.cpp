@@ -106,7 +106,7 @@ struct Window::Impl {
         for(int sign:{-1,1})for(int i=0;i<d.nz;++i)for(int j=0;j<d.nr;++j){
             vtkIdType ids[4];int k=0;
             for(auto corner:{std::pair{i,j},std::pair{i+1,j},std::pair{i+1,j+1},std::pair{i,j+1}})
-                ids[k++]=points->InsertNextPoint(d.length*corner.first/d.nz,sign*s.radius[corner.first]*corner.second/d.nr,0);
+                ids[k++]=points->InsertNextPoint(d.length*corner.first/d.nz,sign*s.radius[corner.first]*s.fraction[corner.second],0);
             faces->InsertNextCell(4,ids);
         }
         mesh->SetPoints(points);mesh->SetPolys(faces);values->SetNumberOfTuples(2*s.cells.size());mesh->GetCellData()->SetScalars(values);

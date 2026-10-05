@@ -45,7 +45,7 @@ std::array<Neighbour, 4> neighbours(const Mesh& m, bool chamber, const std::vect
     auto cell=[&](int a,int b){ auto q=m.index(a,b);return Neighbour{Neighbour::Cell,q,m.cells[q].z-c.z,m.cells[q].r-c.r,0,0}; };
     auto axial=[&](int face) {
         auto kind=face==0 && chamber?(faceSupply[j]<0?Neighbour::Wall:Neighbour::Supply):Neighbour::Open;
-        return Neighbour{kind,0,face*m.dz-c.z,m.radius[face]*(j+0.5)/m.nr-c.r,-1,0};
+        return Neighbour{kind,0,face*m.dz-c.z,m.ringMiddle(face,j)-c.r,-1,0};
     };
     out[0]=i>0?cell(i-1,j):axial(0);
     out[1]=i<m.nz-1?cell(i+1,j):axial(m.nz);
@@ -173,7 +173,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
         for(std::size_t k=0;k<ns_;++k) { speciesDerivative[a*ns_+k]-=area*jn[k];speciesDerivative[b*ns_+k]+=area*jn[k]; }
     };
     for(int i=0;i<=m.nz;++i) for(int j=0;j<m.nr;++j) {
-        double area=m.axialArea(i,j),rf=m.radius[i]*(j+0.5)/m.nr;
+        double area=m.axialArea(i,j),rf=m.ringMiddle(i,j);
         if(i>0 && i<m.nz) { exchange(m.index(i-1,j),m.index(i,j),area,faceFlux(m.index(i-1,j),m.index(i,j),nullptr,1,0,rf,false));continue; }
         auto q=m.index(i==0?0:m.nz-1,j);
         auto n=neighbours(m,chamber,faceSupply_,i==0?0:m.nz-1,j)[i==0?0:1];
@@ -197,7 +197,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
     }
     for(int i=0;i<m.nz;++i) for(int j=1;j<=m.nr;++j) {
         auto ar=m.radialAreaVector(i,j);double area=std::hypot(ar[0],ar[1]);
-        double nz=ar[0]/area,nr=ar[1]/area,rf=0.5*(m.radius[i]+m.radius[i+1])*j/m.nr;
+        double nz=ar[0]/area,nr=ar[1]/area,rf=m.radialFaceMiddle(i,j);
         auto a=m.index(i,j-1);
         if(j<m.nr) { exchange(a,m.index(i,j),area,faceFlux(a,m.index(i,j),nullptr,nz,nr,rf,j==1));continue; }
         auto n=neighbours(m,chamber,faceSupply_,i,j-1)[3];

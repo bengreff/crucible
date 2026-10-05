@@ -69,3 +69,27 @@ A second fix was tried and had no effect. Following the two-failed-fixes rule, I
 - The solution-level test (pipe decay) converges at second order. Energy and species converge at second order in truncation.
 - The momentum truncation error converges at first to second order near the axis and the sloped wall. That is typical for cell-centred finite volumes with least-squares gradients, where the solution can still converge faster than the truncation error. But it is not what I stated, and it stays a failure until it is fixed or explained by a solution-level test on a sloped wall.
 - The FreeFlame comparison (next) exercises species and energy, not these two terms.
+
+## Wall-clustered rings (check 4, `Definition::radialStretching`)
+
+Added for the near-wall resolution SST needs (y+ about 1). Ring boundary j sits at tanh(b s) / tanh(b) of the local radius, s = j / nr. Zero keeps equal rings, with the old expressions taken bit for bit. Criteria were stated in the header of `tests/transport_tests.cpp` before the first run. Raw output: `transport_verification_stretch_2026-10-04.txt`.
+
+- **Corrected before any run used it.** The first form, 1 - tanh(b (1 - s)) / tanh(b), has slope b / tanh(b) > 1 at the wall, so it clustered rings toward the axis. Caught on reading; no result came from it.
+- **Unchanged on equal rings (measured).** Checks 1 to 3 give output identical to `transport_verification_2026-10-04.txt`. The core checks on the new build are queued; their comparison against the previous output is recorded below when it runs.
+
+At b = 2 the wall ring is 0.166 and the axis ring 2.06 of the equal height (64 x 16).
+
+| Check | Criterion | Measured |
+|---|---|---|
+| 4a. cell volumes against the exact duct volume | < 1e-13 | 1.8e-15 |
+| 4a. axial-face areas against pi R^2, worst column | < 1e-13 | 3.3e-16 |
+| 4b. operator order, axial momentum | >= 1.8 | 1.879 |
+| 4b. radial momentum | >= 1.8 | 1.287, **FAIL** |
+| 4b. energy | >= 1.8 | 1.885 |
+| 4b. species | >= 1.8 | 1.902 |
+| 4c. pipe decay order, nr 16 to 32 | >= 1.8 | 1.692, **FAIL** |
+| 4c. pipe decay L1 error at nr 32 | < 1e-3 | 1.89e-4 |
+| 4c. momentum balance | < 1e-12 | 1.0e-17 |
+
+- **4b radial momentum** fails as it does on equal rings (1.189 there): the near-axis mechanism above. Stretching does not add a new failure mode in the operator.
+- **4c.** The L1 errors at nr 8, 16 and 32 are 3.17e-3, 6.10e-4 and 1.89e-4 (orders 2.38, then 1.69). On equal rings they are 3.01e-3, 7.69e-4 and 1.94e-4 (1.97, 1.99), so the absolute error at nr 32 is the same. A non-monotone order suggests two second-order error parts of opposite sign (inferred, not shown). A scratch diagnostic at nr 64, also measuring the error against the exact cell average, is queued, and its result goes here.

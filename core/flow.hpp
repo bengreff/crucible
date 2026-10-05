@@ -76,6 +76,11 @@ struct Definition {
     // 1992); the incoming characteristic relaxes the outlet pressure toward backPressure at the rate
     // K = sigma (1 - M^2) a / span, and outgoing waves leave (reflection -1 / (1 + 2 i omega / K)).
     double outletRelaxation{0};
+    // Radial rings. Zero: equal heights, ring j spanning the fractions j / nr to (j + 1) / nr of the
+    // local radius. Positive (b): clustered toward the wall, the fraction at s = j / nr being
+    // tanh(b s) / tanh(b); the wall ring is then about 2b / sinh(2b) of the equal height (0.15 at
+    // b = 2) and the axis ring b / tanh(b) of it.
+    double radialStretching{0};
     [[nodiscard]] double span() const;  // axial length of the domain
     [[nodiscard]] Medium medium() const;
     [[nodiscard]] std::vector<double> massFractions() const;
@@ -89,9 +94,15 @@ struct Mesh {
     int nz{}, nr{};
     double dz{};
     std::vector<double> radius;
+    // Radial position of ring boundary j (0..nr) as a fraction of the local wall radius.
+    std::vector<double> fraction;
+    bool uniform{true};
     std::vector<Cell> cells;
     std::size_t index(int i, int j) const { return static_cast<std::size_t>(i)*nr+j; }
     double axialArea(int face, int j) const;
+    // Radius of the middle of ring j on axial face `face`, and of radial face j at the middle of column i.
+    double ringMiddle(int face, int j) const;
+    double radialFaceMiddle(int i, int j) const;
     std::array<double, 2> radialAreaVector(int i, int face) const;
     // Reference radius r_f and r^2 moment of a radial face: a quantity linear in r (or in r^2)
     // integrates over the face's radial area component exactly at these values.
@@ -119,7 +130,7 @@ struct Measurements {
 struct FieldSnapshot {
     Definition definition;
     std::vector<Primitive> cells;
-    std::vector<double> radius;
+    std::vector<double> radius, fraction;
     Measurements measurements;
     double appliedTotalPressure{};
     std::uint64_t appliedControlSequence{}, generation{};

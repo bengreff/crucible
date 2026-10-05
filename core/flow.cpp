@@ -75,6 +75,8 @@ void Definition::validate() const {
     checkComposition(massFractions());
     if(!(wallTemperature>=0) || !std::isfinite(wallTemperature))
         throw std::invalid_argument("Wall temperature must be finite and non-negative (zero: adiabatic).");
+    if(!(radialStretching>=0 && radialStretching<=20))
+        throw std::invalid_argument("Radial stretching must lie in [0, 20] (zero: rings of equal height).");
     if(!(outletRelaxation>=0) || !std::isfinite(outletRelaxation))
         throw std::invalid_argument("Outlet relaxation must be finite and non-negative (zero: fixed back pressure).");
     if(!contour.empty()) {
@@ -127,9 +129,15 @@ Mesh::Mesh(const Definition& d):nz(d.nz),nr(d.nr),dz(d.span()/d.nz) {
             radius[i]=d.throatRadius+(d.exitRadius-d.throatRadius)*(1-std::cos(pi*t))/2;
         }
     }
+    fraction.resize(nr+1);
+    uniform=!(d.radialStretching>0);
+    for(int j=0;j<=nr;++j) {
+        double s=static_cast<double>(j)/nr;
+        fraction[j]=uniform || j==0 || j==nr?s:std::tanh(d.radialStretching*s)/std::tanh(d.radialStretching);
+    }
     cells.resize(static_cast<std::size_t>(nz)*nr);
     for(int i=0;i<nz;++i) for(int j=0;j<nr;++j) {
-        double a=static_cast<double>(j)/nr,b=static_cast<double>(j+1)/nr;
+        double a=fraction[j],b=fraction[j+1];
         double r0=radius[i],r1=radius[i+1];
         double v=pi*dz/3*(r0*r0+r0*r1+r1*r1)*(b*b-a*a);
         // Exact radial moments of the frustum ring (wall radius linear in z across the cell).
@@ -139,19 +147,28 @@ Mesh::Mesh(const Definition& d):nz(d.nz),nr(d.nr),dz(d.span()/d.nz) {
     }
 }
 double Mesh::axialArea(int face,int j) const {
-    return pi*sq(radius[face])*(2*j+1)/sq(nr);
+    if(uniform) return pi*sq(radius[face])*(2*j+1)/sq(nr);
+    return pi*sq(radius[face])*(sq(fraction[j+1])-sq(fraction[j]));
+}
+double Mesh::ringMiddle(int face,int j) const {
+    if(uniform) return radius[face]*(j+0.5)/nr;
+    return radius[face]*0.5*(fraction[j]+fraction[j+1]);
+}
+double Mesh::radialFaceMiddle(int i,int j) const {
+    if(uniform) return 0.5*(radius[i]+radius[i+1])*j/nr;
+    return 0.5*(radius[i]+radius[i+1])*fraction[j];
 }
 std::array<double,2> Mesh::radialAreaVector(int i,int face) const {
-    double f=static_cast<double>(face)/nr;
+    double f=fraction[face];
     double r0=f*radius[i],r1=f*radius[i+1];
     return {-pi*(r0+r1)*(r1-r0),pi*(r0+r1)*dz};
 }
 double Mesh::radialFaceRadius(int i,int face) const {
-    double f=static_cast<double>(face)/nr,r0=radius[i],r1=radius[i+1];
+    double f=fraction[face],r0=radius[i],r1=radius[i+1];
     return face==0?0:2*f*(r0*r0+r0*r1+r1*r1)/(3*(r0+r1));
 }
 double Mesh::radialFaceSecondMoment(int i,int face) const {
-    double f=static_cast<double>(face)/nr;
+    double f=fraction[face];
     return f*f*(sq(radius[i])+sq(radius[i+1]))/2;
 }
 Conserved conservative(Primitive w,double e) {
@@ -295,7 +312,7 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_
         ambient_=inletComposition_;
         faceSupply_.assign(d.nr,-1);supplyArea_.assign(d.supplies.size(),0);
         for(int j=0;j<d.nr;++j) {
-            double centre=mesh_.radius[0]*(j+0.5)/d.nr;
+            double centre=mesh_.ringMiddle(0,j);
             for(std::size_t s=0;s<d.supplies.size();++s)
                 if(centre>=d.supplies[s].innerRadius && centre<d.supplies[s].outerRadius) {
                     if(faceSupply_[j]>=0) throw std::invalid_argument("Supplies overlap at the injector face.");
@@ -880,7 +897,7 @@ Measurements Flow::measurements() const {
 }
 FieldSnapshot Flow::snapshot() const {
     FieldSnapshot out;
-    out.definition=definition_;out.radius=mesh_.radius;out.measurements=measurements();out.appliedTotalPressure=totalPressure_;
+    out.definition=definition_;out.radius=mesh_.radius;out.fraction=mesh_.fraction;out.measurements=measurements();out.appliedTotalPressure=totalPressure_;
     out.cells.reserve(state_.size());for(std::size_t q=0;q<state_.size();++q) out.cells.push_back(cellPrimitive(q));
     return out;
 }

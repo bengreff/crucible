@@ -20,6 +20,13 @@
 //   3. Budgets with transport. A Chamber (closed plate, isothermal side wall and plate, ambient
 //      exit) started from the field of test 1: mass, energy (with the wall heat) and axial momentum
 //      (with the wall shear) budgets below 1e-12 after 200 steps.
+//   4. Wall-clustered rings (Definition::radialStretching, stated 4 October 2026 before its first
+//      run). With b = 2 (wall ring about 0.16 of the equal height, axis ring about 2.07):
+//      (a) on the contoured duct of test 1 at 64 x 16 the cell volumes sum to the exact volume of
+//          the duct within 1e-13 relative, and each column's axial-face areas to pi R^2 likewise;
+//      (b) test 1 on these rings meets the criterion of test 1 (order at least 1.8 off the wall
+//          row and the end columns, two finest grids);
+//      (c) test 2 on these rings meets the criteria of test 2.
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -113,10 +120,11 @@ struct Exact {
 const double gaussX[5] = {0.04691007703066800, 0.2307653449471585, 0.5, 0.7692346550528415, 0.9530899229693320};
 const double gaussW[5] = {0.1184634425280945, 0.2393143352496832, 0.2844444444444444, 0.2393143352496832, 0.1184634425280945};
 
-Definition fieldDefinition(const Field& f, const Medium& medium, const TransportFits& fits, int nz, int nr) {
+Definition fieldDefinition(const Field& f, const Medium& medium, const TransportFits& fits, int nz, int nr,
+                           double stretching = 0) {
   Definition d;
   d.experiment = Case::UniformDuct;
-  d.nz = nz; d.nr = nr;
+  d.nz = nz; d.nr = nr; d.radialStretching = stretching;
   d.species = medium.species();
   d.composition.assign(medium.size(), 0.0); d.composition[f.iN2] = 1;
   for (int i = 0; i <= nz; ++i) { double z = f.length * i / nz; d.contour.push_back({z, f.radius(z)}); }
@@ -163,112 +171,118 @@ int main() {
 
   std::printf("1. transport operator order on a contoured duct (h2o2.yaml, no-slip wall at %.0f K)\n", field.tWall);
   const char* names[4] = {"axial momentum", "radial momentum", "energy", "species"};
-  std::vector<std::array<double, 4>> errors;
-  std::vector<int> grids = {32, 64, 128, 256};
-  for (int nz : grids) {
-    int nr = nz / 4;
-    Flow flow(fieldDefinition(field, medium, fits, nz, nr));
-    setField(flow, field);
-    std::vector<Conserved> rate;
-    std::vector<double> speciesRate;
-    flow.transportDerivative(rate, speciesRate);
-    const auto& m = flow.mesh();
-    std::array<double, 4> num{}, den{}, wallNum{}, wallDen{};
-    for (int i = 1; i < nz - 1; ++i)
-      for (int j = 0; j < nr; ++j) {
-        auto q = m.index(i, j);
-        const auto& c = m.cells[q];
-        // Exact cell average: -(1/V) (outward face integrals) + (1/V) integral of -tau_thth / r dV.
-        std::vector<double> total(3 + n, 0.0);
-        auto face = [&](double z0, double r0, double z1, double r1, double nzOut, double nrOut) {
-          double len = std::hypot(z1 - z0, r1 - r0);
-          if (!(r0 + r1 > 0)) return;
-          for (int g = 0; g < 5; ++g) {
-            double z = z0 + gaussX[g] * (z1 - z0), r = r0 + gaussX[g] * (r1 - r0);
-            auto fl = exact.flux(z, r, nzOut, nrOut, nullptr);
-            for (std::size_t k = 0; k < fl.size(); ++k) total[k] -= gaussW[g] * 2 * pi * r * len * fl[k];
+  auto operatorOrder = [&](double stretching, const char* tag) {
+    std::vector<std::array<double, 4>> errors;
+    std::vector<int> grids = {32, 64, 128, 256};
+    for (int nz : grids) {
+      int nr = nz / 4;
+      Flow flow(fieldDefinition(field, medium, fits, nz, nr, stretching));
+      setField(flow, field);
+      std::vector<Conserved> rate;
+      std::vector<double> speciesRate;
+      flow.transportDerivative(rate, speciesRate);
+      const auto& m = flow.mesh();
+      std::array<double, 4> num{}, den{}, wallNum{}, wallDen{};
+      for (int i = 1; i < nz - 1; ++i)
+        for (int j = 0; j < nr; ++j) {
+          auto q = m.index(i, j);
+          const auto& c = m.cells[q];
+          // Exact cell average: -(1/V) (outward face integrals) + (1/V) integral of -tau_thth / r dV.
+          std::vector<double> total(3 + n, 0.0);
+          auto face = [&](double z0, double r0, double z1, double r1, double nzOut, double nrOut) {
+            double len = std::hypot(z1 - z0, r1 - r0);
+            if (!(r0 + r1 > 0)) return;
+            for (int g = 0; g < 5; ++g) {
+              double z = z0 + gaussX[g] * (z1 - z0), r = r0 + gaussX[g] * (r1 - r0);
+              auto fl = exact.flux(z, r, nzOut, nrOut, nullptr);
+              for (std::size_t k = 0; k < fl.size(); ++k) total[k] -= gaussW[g] * 2 * pi * r * len * fl[k];
+            }
+          };
+          double a = m.fraction[j], b = m.fraction[j + 1], z0 = i * m.dz, z1 = (i + 1) * m.dz;
+          double ra = m.radius[i], rb = m.radius[i + 1], dr = rb - ra;
+          face(z0, a * ra, z0, b * ra, -1, 0);
+          face(z1, a * rb, z1, b * rb, 1, 0);
+          // Radial faces: outward unit normals (a dr, -dz)/L below and (-b dr, dz)/L above.
+          face(z0, a * ra, z1, a * rb, a * dr / std::hypot(m.dz, a * dr), -m.dz / std::hypot(m.dz, a * dr));
+          face(z0, b * ra, z1, b * rb, -b * dr / std::hypot(m.dz, b * dr), m.dz / std::hypot(m.dz, b * dr));
+          for (int g = 0; g < 5; ++g)
+            for (int h = 0; h < 5; ++h) {
+              double z = z0 + gaussX[g] * m.dz, wallR = ra + gaussX[g] * dr, sigma = a + gaussX[h] * (b - a);
+              double hoop = 0;
+              exact.flux(z, sigma * wallR, 1, 0, &hoop);
+              total[1] -= gaussW[g] * gaussW[h] * m.dz * (b - a) * 2 * pi * wallR * hoop;
+            }
+          bool wallRow = j == nr - 1;
+          auto& en = wallRow ? wallNum : num;
+          auto& ed = wallRow ? wallDen : den;
+          for (int k = 0; k < 3; ++k) {
+            double e = total[k] / c.volume;
+            en[k] += c.volume * std::abs(rate[q][k + 1] - e);
+            ed[k] += c.volume * std::abs(e);
           }
-        };
-        double a = double(j) / nr, b = double(j + 1) / nr, z0 = i * m.dz, z1 = (i + 1) * m.dz;
-        double ra = m.radius[i], rb = m.radius[i + 1], dr = rb - ra;
-        face(z0, a * ra, z0, b * ra, -1, 0);
-        face(z1, a * rb, z1, b * rb, 1, 0);
-        // Radial faces: outward unit normals (a dr, -dz)/L below and (-b dr, dz)/L above.
-        face(z0, a * ra, z1, a * rb, a * dr / std::hypot(m.dz, a * dr), -m.dz / std::hypot(m.dz, a * dr));
-        face(z0, b * ra, z1, b * rb, -b * dr / std::hypot(m.dz, b * dr), m.dz / std::hypot(m.dz, b * dr));
-        for (int g = 0; g < 5; ++g)
-          for (int h = 0; h < 5; ++h) {
-            double z = z0 + gaussX[g] * m.dz, wallR = ra + gaussX[g] * dr, sigma = a + gaussX[h] * (b - a);
-            double hoop = 0;
-            exact.flux(z, sigma * wallR, 1, 0, &hoop);
-            total[1] -= gaussW[g] * gaussW[h] * m.dz * (b - a) * 2 * pi * wallR * hoop;
+          for (std::size_t k = 0; k < n; ++k) {
+            double e = total[3 + k] / c.volume;
+            en[3] += c.volume * std::abs(speciesRate[q * n + k] - e);
+            ed[3] += c.volume * std::abs(e);
           }
-        bool wallRow = j == nr - 1;
-        auto& en = wallRow ? wallNum : num;
-        auto& ed = wallRow ? wallDen : den;
-        for (int k = 0; k < 3; ++k) {
-          double e = total[k] / c.volume;
-          en[k] += c.volume * std::abs(rate[q][k + 1] - e);
-          ed[k] += c.volume * std::abs(e);
         }
-        for (std::size_t k = 0; k < n; ++k) {
-          double e = total[3 + k] / c.volume;
-          en[3] += c.volume * std::abs(speciesRate[q * n + k] - e);
-          ed[3] += c.volume * std::abs(e);
-        }
-      }
-    std::array<double, 4> e{};
-    std::printf("  %4dx%-3d", nz, nr);
-    for (int k = 0; k < 4; ++k) { e[k] = num[k] / den[k]; std::printf("  %s %.3e", names[k], e[k]); }
-    std::printf("\n           wall row:");
-    for (int k = 0; k < 4; ++k) std::printf("  %.3e", wallNum[k] / wallDen[k]);
-    std::printf("\n");
-    errors.push_back(e);
-  }
-  for (int k = 0; k < 4; ++k) {
-    double order = std::log2(errors[errors.size() - 2][k] / errors.back()[k]);
-    char what[96];
-    std::snprintf(what, sizeof what, "%s: observed order (two finest grids)", names[k]);
-    check(order >= 1.8, what, order, 1.8);
-  }
+      std::array<double, 4> e{};
+      std::printf("  %4dx%-3d", nz, nr);
+      for (int k = 0; k < 4; ++k) { e[k] = num[k] / den[k]; std::printf("  %s %.3e", names[k], e[k]); }
+      std::printf("\n           wall row:");
+      for (int k = 0; k < 4; ++k) std::printf("  %.3e", wallNum[k] / wallDen[k]);
+      std::printf("\n");
+      errors.push_back(e);
+    }
+    for (int k = 0; k < 4; ++k) {
+      double order = std::log2(errors[errors.size() - 2][k] / errors.back()[k]);
+      char what[128];
+      std::snprintf(what, sizeof what, "%s%s: observed order (two finest grids)", tag, names[k]);
+      check(order >= 1.8, what, order, 1.8);
+    }
+  };
+  operatorOrder(0, "");
 
   std::printf("2. pipe decay, u_z = U J0(j01 r/R) exp(-nu j01^2 t/R^2), N2 at 1 kPa, R = 1 mm\n");
   const double j01 = 2.404825557695773, radius = 1e-3, pressure = 1000, temperature = 300, speed = 1;
-  std::vector<double> decay;
-  double momentumWorst = 0;
-  for (int nr : {8, 16, 32}) {
-    Definition d;
-    d.experiment = Case::UniformDuct;
-    d.nz = 4; d.nr = nr; d.length = 1e-3; d.inletRadius = d.exitRadius = d.throatRadius = radius;
-    d.species = medium.species();
-    d.composition.assign(n, 0.0); d.composition[field.iN2] = 1;
-    d.totalPressure = d.backPressure = pressure; d.totalTemperature = temperature;
-    d.transport = fits; d.wallTemperature = temperature;
-    Flow flow(d);
-    std::vector<double> diffusion(n), work;
-    auto props = medium.transport(temperature, pressure, d.composition.data(), diffusion.data(), work);
-    const double rho = pressure / (medium.gasConstant(d.composition.data()) * temperature), nu = props.viscosity / rho;
-    const auto& m = flow.mesh();
-    std::vector<Primitive> cells(m.cells.size());
-    for (std::size_t q = 0; q < cells.size(); ++q) cells[q] = {rho, speed * besselJ0(j01 * m.cells[q].r / radius), 0, pressure};
-    flow.setInitialState(cells);
-    const double tEnd = radius * radius / (nu * j01 * j01);
-    flow.advanceTo(tEnd);
-    double num = 0, den = 0, factor = std::exp(-1.0);
-    for (std::size_t q = 0; q < cells.size(); ++q) {
-      double ex = speed * besselJ0(j01 * m.cells[q].r / radius) * factor;
-      num += m.cells[q].volume * std::abs(flow.cellPrimitive(q).uz - ex);
-      den += m.cells[q].volume * std::abs(ex);
+  auto pipeDecay = [&](double stretching, const char* tag) {
+    std::vector<double> decay;
+    double momentumWorst = 0;
+    for (int nr : {8, 16, 32}) {
+      Definition d;
+      d.experiment = Case::UniformDuct;
+      d.nz = 4; d.nr = nr; d.radialStretching = stretching; d.length = 1e-3; d.inletRadius = d.exitRadius = d.throatRadius = radius;
+      d.species = medium.species();
+      d.composition.assign(n, 0.0); d.composition[field.iN2] = 1;
+      d.totalPressure = d.backPressure = pressure; d.totalTemperature = temperature;
+      d.transport = fits; d.wallTemperature = temperature;
+      Flow flow(d);
+      std::vector<double> diffusion(n), work;
+      auto props = medium.transport(temperature, pressure, d.composition.data(), diffusion.data(), work);
+      const double rho = pressure / (medium.gasConstant(d.composition.data()) * temperature), nu = props.viscosity / rho;
+      const auto& m = flow.mesh();
+      std::vector<Primitive> cells(m.cells.size());
+      for (std::size_t q = 0; q < cells.size(); ++q) cells[q] = {rho, speed * besselJ0(j01 * m.cells[q].r / radius), 0, pressure};
+      flow.setInitialState(cells);
+      const double tEnd = radius * radius / (nu * j01 * j01);
+      flow.advanceTo(tEnd);
+      double num = 0, den = 0, factor = std::exp(-1.0);
+      for (std::size_t q = 0; q < cells.size(); ++q) {
+        double ex = speed * besselJ0(j01 * m.cells[q].r / radius) * factor;
+        num += m.cells[q].volume * std::abs(flow.cellPrimitive(q).uz - ex);
+        den += m.cells[q].volume * std::abs(ex);
+      }
+      auto meas = flow.measurements();
+      momentumWorst = std::max(momentumWorst, std::abs(meas.momentumBalanceError));
+      std::printf("  nr %-3d  t %.4e s  steps %llu  L1 error %.3e  momentum balance %.2e  energy balance %.2e\n", nr, tEnd,
+                  static_cast<unsigned long long>(meas.steps), num / den, meas.momentumBalanceError, meas.energyBalanceError);
+      decay.push_back(num / den);
     }
-    auto meas = flow.measurements();
-    momentumWorst = std::max(momentumWorst, std::abs(meas.momentumBalanceError));
-    std::printf("  nr %-3d  t %.4e s  steps %llu  L1 error %.3e  momentum balance %.2e  energy balance %.2e\n", nr, tEnd,
-                static_cast<unsigned long long>(meas.steps), num / den, meas.momentumBalanceError, meas.energyBalanceError);
-    decay.push_back(num / den);
-  }
-  check(std::log2(decay[1] / decay[2]) >= 1.8, "pipe decay: observed order (nr 16 -> 32)", std::log2(decay[1] / decay[2]), 1.8);
-  check(decay.back() < 1e-3, "pipe decay: L1 error at nr 32", decay.back(), 1e-3);
-  check(momentumWorst < 1e-12, "pipe decay: momentum balance (wall shear)", momentumWorst, 1e-12);
+    check(std::log2(decay[1] / decay[2]) >= 1.8, (std::string(tag) + "pipe decay: observed order (nr 16 -> 32)").c_str(), std::log2(decay[1] / decay[2]), 1.8);
+    check(decay.back() < 1e-3, (std::string(tag) + "pipe decay: L1 error at nr 32").c_str(), decay.back(), 1e-3);
+    check(momentumWorst < 1e-12, (std::string(tag) + "pipe decay: momentum balance (wall shear)").c_str(), momentumWorst, 1e-12);
+  };
+  pipeDecay(0, "");
 
   std::printf("3. budgets with transport: closed chamber, isothermal wall and plate, ambient exit\n");
   {
@@ -283,6 +297,28 @@ int main() {
     check(std::abs(meas.massBalanceError) < 1e-12, "mass balance", std::abs(meas.massBalanceError), 1e-12);
     check(std::abs(meas.energyBalanceError) < 1e-12, "energy balance (with wall heat)", std::abs(meas.energyBalanceError), 1e-12);
     check(std::abs(meas.momentumBalanceError) < 1e-12, "axial momentum balance (with wall shear)", std::abs(meas.momentumBalanceError), 1e-12);
+  }
+  std::printf("4. wall-clustered rings, radial stretching b = 2\n");
+  {
+    const double b = 2;
+    Flow flow(fieldDefinition(field, medium, fits, 64, 16, b));
+    const auto& m = flow.mesh();
+    double volume = 0, exactVolume = 0, areaWorst = 0;
+    for (const auto& c : m.cells) volume += c.volume;
+    for (int i = 0; i <= m.nz; ++i) {
+      double r = field.radius(field.length * i / m.nz), area = 0;
+      for (int j = 0; j < m.nr; ++j) area += m.axialArea(i, j);
+      areaWorst = std::max(areaWorst, std::abs(area / (pi * r * r) - 1));
+      if (i < m.nz) {
+        double r1 = field.radius(field.length * (i + 1) / m.nz);
+        exactVolume += pi * m.dz / 3 * (r * r + r * r1 + r1 * r1);
+      }
+    }
+    std::printf("  64x16: wall ring %.4f, axis ring %.4f of the equal height\n", (1 - m.fraction[m.nr - 1]) * m.nr, m.fraction[1] * m.nr);
+    check(std::abs(volume / exactVolume - 1) < 1e-13, "4a. total cell volume against the duct", std::abs(volume / exactVolume - 1), 1e-13);
+    check(areaWorst < 1e-13, "4a. axial-face areas against pi R^2 (worst column)", areaWorst, 1e-13);
+    operatorOrder(b, "4b. ");
+    pipeDecay(b, "4c. ");
   }
   std::printf("%d failures\n", failures);
   return failures == 0 ? 0 : 1;
