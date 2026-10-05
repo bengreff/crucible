@@ -76,7 +76,7 @@
 //      12.9 us (s 1). The check passes only if the stretched rise still runs at the 30 us
 //      sample, so it measures where the samples fall, not the closure. Stopped after two
 //      attempts at the fractional case; this check stays failing until it is restated.
-//      Restated 5 October 2026 (03:15), before run 5, which is run once: the closure's effect is
+//      Restated 5 October 2026 (03:08), before run 5, which is run once: the closure's effect is
 //      read from a fine record of the two converged references, T at 1280 equal times (every
 //      1/64 of a sample, 0.23 us apart), which resolves the 3.6 to 12.9 us rise wherever it
 //      falls. Check, for each case with s > 0: the largest relative T difference between the

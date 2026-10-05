@@ -1,6 +1,6 @@
 # C2: PaSR turbulence-chemistry closure
 
-Status (5 October 2026, 03:30): implemented; criteria 1, 2 and 3 pass (run 5). Criterion 2's test-power check failed twice for the fractional-segregation case because of where its samples fell. It was restated at 03:15, before run 5, to read a fine record of the references, and run once: it passes. Criteria were stated in the header of `tests/pasr_tests.cpp` on 4 October 2026, before the closure was written (c259fb5). The amendments are dated there. Criterion 4 (a turbulent reacting chamber with the closure, judged against the same run without it) was stated at 03:20 on 5 October (c44a933); it has not been run.
+Status (5 October 2026, 03:12): implemented; criteria 1, 2 and 3 pass (run 5). Criterion 2's test-power check failed twice for the fractional-segregation case because of where its samples fell. It was restated at 03:08 (53f8870), before run 5, to read a fine record of the references, and run once: it passes. Criteria were stated in the header of `tests/pasr_tests.cpp` on 4 October 2026, before the closure was written (c259fb5). The amendments are dated there. Criterion 4 (a turbulent reacting chamber with the closure, judged against the same run without it) was stated at 03:09 on 5 October (c44a933); it has not been run.
 
 All numbers are measured unless they are marked derived or inferred.
 
@@ -72,7 +72,7 @@ Raw outputs, all in `pasr/`:
   - So the check measures where the samples fall, not the closure.
   - After two attempts at the fractional case, work on it stopped (the working rule). It stays failing until the check is restated.
   - The closure's fractional-s arithmetic is covered by 1(a), at s 0.5 and 0.2.
-- **Restatement (03:15, 5 October, at the Director's instruction; committed in 53f8870 before run 5).** The check now reads T from both converged references at 1280 equal times (every 1/64 of a sample, 0.23 us apart), so the rise is resolved wherever it falls. The cases, the 20 samples and the accuracy checks are unchanged. Predicted for (1e-5 s, 0.9): order 0.1.
+- **Restatement (03:08, 5 October, at the Director's instruction; committed in 53f8870 before run 5).** The check now reads T from both converged references at 1280 equal times (every 1/64 of a sample, 0.23 us apart), so the rise is resolved wherever it falls. The cases, the 20 samples and the accuracy checks are unchanged. Predicted for (1e-5 s, 0.9): order 0.1.
 - **Run 5, run once.** Every check passes.
   - The fractional case: the largest gap is 0.457 at 21.1 us, where T is 1648 K with the closure and 3033 K laminar. For s = 1 it is 0.498 at 22.0 us.
   - The prediction was low by about 4.6 times. It assumed both rises start together. In the record, the closure run is 21% through its rise (1200 K to 3369 K) when the laminar run is 85% through, so the closure also delays the start of the rise.
