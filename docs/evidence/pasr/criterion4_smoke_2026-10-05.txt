@@ -1,0 +1,39 @@
+PaSR criterion 4 harness, first smoke runs (5 October 2026, Mac, before any criterion 4 run).
+Not a criterion 4 run: 32x6 to 0.5 ms only, to exercise the harness past light-off.
+Command: crucible_chamber_study <frp|frt> 32 6 5e-4 8 /tmp/c4smoke/<mode>
+(frp = closure on, frt = control; viscous, SST-2003, igniter 300 J over 1 ms from 0.2 ms)
+
+== frp stdout ==
+mesh 32x6: dz 5.208 mm, throat station 16 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 8 at z 0.0443 m
+chemistry frp; igniter 300 J over 1 ms from 0.2 ms; viscous, SST, PaSR closure on
+
+exception at 0.136273 ms after 842 steps: Could not advance an admissible gas state after 14 timestep reductions.
+criterion 4 (b): the run did not reach its end  FAIL
+exit 1
+
+== frt stdout ==
+mesh 32x6: dz 5.208 mm, throat station 16 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 8 at z 0.0443 m
+chemistry frt; igniter 300 J over 1 ms from 0.2 ms; viscous, SST, closure off (control)
+
+exception at 0.136273 ms after 818 steps: Could not advance an admissible gas state after 14 timestep reductions.
+criterion 4 (b): the run did not reach its end  FAIL
+exit 1
+
+== Diagnosis (temporary print in Flow::step, reverted after the run; not in the committed code) ==
+On the control run, the inadmissible cell at the last attempts of each step was always cell 108
+(i 18, j 0): the axis cell one column downstream of the throat station (16). The failing check was
+rho*omega > 0 after the first (explicit) RK stage. Lines as printed (attempts are 0-based; dt
+halves per attempt):
+DIAG attempt 11 dt 1.525e-10 stage cell 108 (i 18 j 0): rho 4.328679e-02 sumrho 4.328679e-02 E 2.437536e+04 kin 1.669019e+04 rhok 5.418274e-01 rhow -2.703002e-05 floor*rho -1.341400e+04
+DIAG attempt 12 dt 7.623e-11 stage cell 108 (i 18 j 0): rho 4.328643e-02 sumrho 4.328643e-02 E 2.437514e+04 kin 1.669023e+04 rhok 5.418576e-01 rhow -6.846037e-06 floor*rho -1.341391e+04
+(many more like these; the run creeps at dt near 4e-11 s until even attempt 13 fails)
+Derived from the attempt 11 and 12 pair of one step: the stage removes rho*omega at about
+6e5 kg/(m^3 s^2), against about 4.4e-5 kg/(m^3 s) present, so only dt below about 7e-11 s keeps
+it positive, and the drain does not shrink with the cell's own omega.
+
+omega [1/s] at the last state (frt_field_000136.csv), columns i 16-19, rings j 0 (axis) to 5 (wall):
+i 16  4.99e+03 1.46e+04 2.88e+04 6.24e+04 1.60e+05 9.78e+05
+i 17  2.07e+00 3.50e+01 2.29e+04 6.51e+04 1.79e+05 1.11e+06
+i 18  1.89e-03 4.53e+03 2.83e+04 8.09e+04 2.15e+05 1.05e+06
+i 19  3.12e+03 8.24e+03 2.54e+04 8.00e+04 2.13e+05 8.21e+05
+The largest eddy viscosity in the field was 1.2e-3 Pa s (not runaway).

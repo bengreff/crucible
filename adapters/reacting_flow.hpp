@@ -30,6 +30,7 @@ class ReactingFlow {
     long asymmetricSteps = 0;  // flow step came back shorter than planned (step rejection)
     long replans = 0;          // first half reaction redone because it lowered the CFL step
     double maxTemperatureMismatch = 0;  // |T_chemistry - T_core| after reaction substeps [K]
+    double maxClippedFraction = 0;      // largest -Y_k set to zero after a reaction substep
   };
   ReactingFlow(Flow& flow, const std::string& mechanism, int threads, double rtol = 1e-8,
                double atol = 1e-14, Chemistry chemistry = Chemistry::FiniteRate);

@@ -1,6 +1,6 @@
 # C2: PaSR turbulence-chemistry closure
 
-Status (5 October 2026, 03:12): implemented; criteria 1, 2 and 3 pass (run 5). Criterion 2's test-power check failed twice for the fractional-segregation case because of where its samples fell. It was restated at 03:08 (53f8870), before run 5, to read a fine record of the references, and run once: it passes. Criteria were stated in the header of `tests/pasr_tests.cpp` on 4 October 2026, before the closure was written (c259fb5). The amendments are dated there. Criterion 4 (a turbulent reacting chamber with the closure, judged against the same run without it) was stated at 03:09 on 5 October (c44a933); it has not been run.
+Status (5 October 2026, 03:12): implemented; criteria 1, 2 and 3 pass (run 5). Criterion 2's test-power check failed twice for the fractional-segregation case because of where its samples fell. It was restated at 03:08 (53f8870), before run 5, to read a fine record of the references, and run once: it passes. Criteria were stated in the header of `tests/pasr_tests.cpp` on 4 October 2026, before the closure was written (c259fb5). The amendments are dated there. Criterion 4 (a turbulent reacting chamber with the closure, judged against the same run without it) was stated at 03:09 on 5 October (c44a933). Its harness is written (`tests/chamber_study.cpp`, modes `frp` and `frt`), but it cannot run yet: a smoke run on 32x6 stops at 0.136 ms, before the igniter fires, in both the closure run and the control. The fault is in omega's transport next to the throat, not in the closure (see Criterion 4 below).
 
 All numbers are measured unless they are marked derived or inferred.
 
@@ -77,6 +77,28 @@ Raw outputs, all in `pasr/`:
   - The fractional case: the largest gap is 0.457 at 21.1 us, where T is 1648 K with the closure and 3033 K laminar. For s = 1 it is 0.498 at 22.0 us.
   - The prediction was low by about 4.6 times. It assumed both rises start together. In the record, the closure run is 21% through its rise (1200 K to 3369 K) when the laminar run is 85% through, so the closure also delays the start of the rise.
   - Every accuracy number is the same as in run 4. The fine record only adds stores of T to the reference integrations.
+
+## Criterion 4: harness and first smoke run (5 October, 03:45)
+
+- **Harness.** `crucible_chamber_study frp|frt <nz> <nr> <end> <threads> <prefix>` builds the C1 chamber, made viscous and turbulent as in `tests/step_cost.cpp`, with the closure on (`frp`) or off (`frt`). It judges (a) to (d) and prints the reported items.
+  - The igniter is the one C1's FiniteRate run used: 300 J over 1 ms from 0.2 ms. The criterion's statement says only "igniter", so this is written down here and in the harness header before any run.
+  - Light-off is the first 2 us sample at which some cell has Y_H2O > 0.5. The chamber volume for the s > 0.01 fraction is the cells upstream of the throat. Both definitions were declared with the harness, before any run.
+  - `ReactingFlow::Stats::maxClippedFraction` is new. It reports the largest negative mass fraction set to zero after a reaction substep.
+- **Smoke run, 32x6 to 0.5 ms (measured, [criterion4_smoke_2026-10-05.txt](pasr/criterion4_smoke_2026-10-05.txt)).** Both runs stop at 0.136273 ms with "Could not advance an admissible gas state after 14 timestep reductions". This is before the igniter starts at 0.2 ms, so the closure plays no part.
+- **Where it fails (measured, with a temporary print, since reverted).**
+  - The failing cell is the axis cell one column past the throat (i 18, j 0).
+  - The failing check is rho*omega > 0 after the first explicit stage.
+  - omega there has fallen to 1.9e-3 1/s. Its neighbours hold 2 to 5e3 1/s along the axis and 4.5e3 1/s off it. The ambient value is about 78 1/s (derived from the Spalart-Rumsey formula).
+- **Mechanism (inferred, not yet isolated).**
+  - A monotone transport operator cannot dig a hole six orders of magnitude below every neighbour. Some part of omega's explicit flux is not sign-preserving.
+  - The stage drains about 6e5 kg/(m^3 s^2) of rho*omega (derived from two halvings), whatever the cell holds. So halving the step only helps until rho*omega is below that rate times the step, and then nothing helps.
+  - The likely source is the one `core/flow.cpp` already documents for k: on contoured rings the face gradient's part off the line of centres can draw a field out of a cell at any value. For k the code clips rho*k at zero. That cannot work for omega, which must stay positive.
+  - The axis treatment and the convective reconstruction have not been ruled out.
+- **Next.**
+  1. Isolate the term on this case: switch off the off-line part of k and omega's face gradient, and then the reconstruction, one at a time.
+  2. If it is the diffusion, limit the off-line part of the k and omega face gradients so that a face's flux keeps the sign of the two-point difference (as OpenFOAM's limited Laplacian does). That makes their diffusion monotone under the existing step limit.
+  3. Rerun the turbulence verification and this smoke case before any criterion 4 run.
+- **Consequence.** No viscous turbulent chamber can start from cold until this is fixed. That covers criterion 4, C3 and the RL10 case. The step-cost runs did not see it: they start from a settled equilibrium field, with the valve fully open.
 
 ## Limits
 

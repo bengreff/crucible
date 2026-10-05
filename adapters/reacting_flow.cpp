@@ -16,7 +16,7 @@ struct ReactingFlow::Worker {
   ReactionSource source;
   ReactionStep step;
   std::vector<double> z;
-  double mismatch = 0;
+  double mismatch = 0, clipped = 0;
   Worker(const std::string& mechanism, double rtol, double atol)
       : source(mechanism), step(source, rtol, atol), z(source.nSpecies() + 1) {}
 };
@@ -70,6 +70,7 @@ void ReactingFlow::react(double dt) {
   auto run = [&](std::size_t w) {
     Worker& worker = *workers_[w];
     worker.mismatch = 0;
+    worker.clipped = 0;
     for (std::size_t start; (start = next.fetch_add(kBlock)) < cells;)
     for (std::size_t q = start; q < std::min(cells, start + kBlock); ++q) {
       const double rho = flow_.state()[q][0];
@@ -80,7 +81,11 @@ void ReactingFlow::react(double dt) {
       else if (closure_) worker.step.advance(rho, worker.z.data(), dt, {mixingTime_[q], segregation_[q]}, closureSpecies_);
       else worker.step.advance(rho, worker.z.data(), dt);
       double sum = 0;
-      for (std::size_t k = 0; k < ns; ++k) { y[k] = std::max(worker.z[k + 1], 0.0); sum += y[k]; }
+      for (std::size_t k = 0; k < ns; ++k) {
+        worker.clipped = std::max(worker.clipped, -worker.z[k + 1]);
+        y[k] = std::max(worker.z[k + 1], 0.0);
+        sum += y[k];
+      }
       for (double& v : y) v /= sum;
       flow_.setMassFractions(q, y.data());
       worker.mismatch = std::max(worker.mismatch, std::abs(flow_.temperature(q) - worker.z[0]));
@@ -90,7 +95,10 @@ void ReactingFlow::react(double dt) {
   for (std::size_t w = 1; w < n; ++w) pool.emplace_back(run, w);
   run(0);
   for (auto& t : pool) t.join();
-  for (const auto& w : workers_) stats_.maxTemperatureMismatch = std::max(stats_.maxTemperatureMismatch, w->mismatch);
+  for (const auto& w : workers_) {
+    stats_.maxTemperatureMismatch = std::max(stats_.maxTemperatureMismatch, w->mismatch);
+    stats_.maxClippedFraction = std::max(stats_.maxClippedFraction, w->clipped);
+  }
 }
 
 double ReactingFlow::step(double maxDt) {

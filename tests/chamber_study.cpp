@@ -23,15 +23,25 @@
 //  - Vacuum thrust: device thrust plus ambient pressure times exit area (valid with a supersonic
 //    exit, checked).
 //
-// Usage: crucible_chamber_study <eq|fr|frozen> <nz> <nr> <end time s> <threads> <output prefix>
-//        [igniter energy J (0.5)] [igniter duration s (2e-4)]
+// Usage: crucible_chamber_study <eq|fr|frozen|frt|frp> <nz> <nr> <end time s> <threads> <output prefix>
+//        [igniter energy J] [igniter duration s]
 // Writes <prefix>_history.csv (every 2 us), <prefix>_mesh.csv (stations) and <prefix>_field_<us>.csv
 // snapshots; tools/chamber_plots.py renders them.
+//
+// PaSR criterion 4 (stated in tests/pasr_tests.cpp): "frt" and "frp" are FiniteRate made viscous
+// and turbulent as in tests/step_cost.cpp, "frp" with the closure (C_mix 1, S = {H2, O2, H2O}) and
+// "frt" the control without it. Their default igniter is the one C1's FiniteRate run used, 300 J
+// over 1 ms from 0.2 ms (CHAMBER_C1.md); the others default to 0.5 J over 0.2 ms. They judge (a)
+// to (d) of criterion 4 and report its unjudged items. Light-off is the first history sample at
+// which some cell has Y_H2O > 0.5 (a half-burnt cell; declared with the harness, before any run).
+// The chamber volume for the s > 0.01 fraction is the cells upstream of the throat. The first-cell
+// y+ is the laminar estimate sqrt(rho |u| d / mu) at the wall row, d the wall distance.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <numbers>
 #include <string>
 #include <vector>
@@ -114,17 +124,19 @@ double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const d
 
 int main(int argc, char** argv) {
   if (argc < 7) {
-    std::fprintf(stderr, "usage: %s <eq|fr|frozen> <nz> <nr> <end s> <threads> <prefix> [igniter J] [igniter s]\n",
+    std::fprintf(stderr, "usage: %s <eq|fr|frozen|frt|frp> <nz> <nr> <end s> <threads> <prefix> [igniter J] [igniter s]\n",
                  argv[0]);
     return 2;
   }
   const std::string mode = argv[1], prefix = argv[6];
   const int nz = std::atoi(argv[2]), nr = std::atoi(argv[3]), threads = std::atoi(argv[5]);
   const double end = std::atof(argv[4]);
-  const double igniterEnergy = argc > 7 ? std::atof(argv[7]) : 0.5, igniterDuration = argc > 8 ? std::atof(argv[8]) : 2e-4;
+  const bool turbulent = mode == "frt" || mode == "frp", closure = mode == "frp";
+  const double igniterEnergy = argc > 7 ? std::atof(argv[7]) : turbulent ? 300 : 0.5;
+  const double igniterDuration = argc > 8 ? std::atof(argv[8]) : turbulent ? 1e-3 : 2e-4;
   const auto chemistry = mode == "eq" ? thermo::Chemistry::LocalEquilibrium
-                         : mode == "fr" ? thermo::Chemistry::FiniteRate
-                                        : thermo::Chemistry::Frozen;
+                         : mode == "fr" || turbulent ? thermo::Chemistry::FiniteRate
+                                                     : thermo::Chemistry::Frozen;
   thermo::ReactionSource source("h2o2.yaml");
   const auto geo = geometry();
 
@@ -151,9 +163,24 @@ int main(int argc, char** argv) {
   // Igniter: from 0.2 ms in a 10 mm by 10 mm core 5 mm off the injector face; 0.5 J over 0.2 ms
   // unless given. Local equilibrium burns any premixed gas at once, so in "eq" mode it has no role.
   d.igniter = {0.005, 0.015, 0.010, igniterEnergy, 2e-4, igniterDuration};
+  if (turbulent) {  // as tests/step_cost.cpp: Spalart-Rumsey ambient, supply I 0.05 and ratio 10
+    d.transport = thermo::transportFits("h2o2.yaml");
+    d.wallTemperature = 600;
+    d.turbulence.enabled = true;
+    d.supplies[0].turbulenceIntensity = 0.05;
+    d.supplies[0].viscosityRatio = 10;
+    const Medium medium = d.medium();
+    std::vector<double> diffusion(d.species.size()), work;
+    const double a0 = medium.soundSpeed(kAmbientT, d.composition.data());
+    const double rho0 = kAmbientP / (medium.gasConstant(d.composition.data()) * kAmbientT);
+    const double mu0 = medium.transport(kAmbientT, kAmbientP, d.composition.data(), diffusion.data(), work).viscosity;
+    d.turbulence.ambientK = 9e-9 * a0 * a0;
+    d.turbulence.ambientOmega = 1e-6 * rho0 * a0 * a0 / mu0;
+  }
 
   Flow flow(d);
   thermo::ReactingFlow reacting(flow, "h2o2.yaml", threads, 1e-6, 1e-12, chemistry);
+  if (closure) reacting.setMixingClosure(1.0, {"H2", "O2", "H2O"});
   const auto& mesh = flow.mesh();
   double rMin = 1e9;
   int throatStation = 0;
@@ -167,8 +194,9 @@ int main(int argc, char** argv) {
               "chamber-end column %d at z %.4f m\n",
               nz, nr, mesh.dz * 1e3, throatStation, throatStation * mesh.dz, geo.throat, rMin, eps, endColumn,
               mesh.cells[mesh.index(endColumn, 0)].z);
-  std::printf("chemistry %s; igniter %.4g J over %.4g ms from 0.2 ms\n", mode.c_str(), igniterEnergy,
-              igniterDuration * 1e3);
+  std::printf("chemistry %s; igniter %.4g J over %.4g ms from 0.2 ms%s\n", mode.c_str(), igniterEnergy,
+              igniterDuration * 1e3,
+              turbulent ? (closure ? "; viscous, SST, PaSR closure on" : "; viscous, SST, closure off (control)") : "");
 
   {
     FILE* f = std::fopen((prefix + "_mesh.csv").c_str(), "w");
@@ -183,12 +211,51 @@ int main(int argc, char** argv) {
     return ns;
   };
   const std::size_t iH2O = speciesIndex("H2O"), iN2 = speciesIndex("N2"), iO2 = speciesIndex("O2");
+  const std::vector<std::size_t> closureSpecies = {speciesIndex("H2"), iO2, iH2O};
+
+  // Criterion 4 (d): kappa_eff in (0, 1] and s in [0, 1] at every field snapshot; the closure's
+  // inputs are evaluated on the snapshot's state (Flow::mixingInputs) and kappa_eff from the
+  // laminar rates there (reactingFraction). The control reports s too; its kappa_eff is 1.
+  std::vector<double> mixTime, segregation, kappa;
+  double worstKappa = 1, worstSegregation = 0, minKappa = 1, maxSegregation = 0;
+  bool admissible = true;
+  auto closureFields = [&]() {
+    flow.mixingInputs(1.0, closureSpecies, mixTime, segregation);
+    kappa.assign(flow.state().size(), 1.0);
+    std::vector<double> z(ns + 1), dzdt(ns + 1);
+    for (std::size_t q = 0; q < flow.state().size(); ++q) {
+      if (closure) {
+        auto y = flow.massFractions(q);
+        z[0] = flow.temperature(q);
+        std::copy(y.begin(), y.end(), z.begin() + 1);
+        source.rates(flow.state()[q][0], z.data(), dzdt.data());
+        kappa[q] = thermo::reactingFraction(z.data(), dzdt.data(), closureSpecies, {mixTime[q], segregation[q]});
+      }
+      if (!(kappa[q] > 0 && kappa[q] <= 1) || !(segregation[q] >= 0 && segregation[q] <= 1)) {
+        if (admissible) { worstKappa = kappa[q]; worstSegregation = segregation[q]; }
+        admissible = false;
+      }
+      minKappa = std::min(minKappa, kappa[q]);
+      maxSegregation = std::max(maxSegregation, segregation[q]);
+    }
+  };
+  // Fraction of the chamber volume (cells upstream of the throat) with s > 0.01.
+  auto segregatedFraction = [&]() {
+    double v = 0, total = 0;
+    for (std::size_t q = 0; q < flow.state().size(); ++q)
+      if (mesh.cells[q].z < geo.throat) {
+        total += mesh.cells[q].volume;
+        if (segregation[q] > 0.01) v += mesh.cells[q].volume;
+      }
+    return v / total;
+  };
 
   auto writeField = [&](double t) {
     char name[512];
     std::snprintf(name, sizeof name, "%s_field_%06.0f.csv", prefix.c_str(), t * 1e6);
     FILE* f = std::fopen(name, "w");
-    std::fprintf(f, "i,j,z,r,T,p,mach,uz,ur,Y_H2O,Y_O2,Y_N2\n");
+    if (turbulent) closureFields();
+    std::fprintf(f, "i,j,z,r,T,p,mach,uz,ur,Y_H2O,Y_O2,Y_N2%s\n", turbulent ? ",k,omega,mu_t,tau_mix,s,kappa_eff" : "");
     for (int i = 0; i < nz; ++i)
       for (int j = 0; j < nr; ++j) {
         auto q = mesh.index(i, j);
@@ -196,8 +263,13 @@ int main(int argc, char** argv) {
         auto y = flow.massFractions(q);
         double temp = flow.temperature(q);
         double a = flow.medium().soundSpeed(temp, y.data());
-        std::fprintf(f, "%d,%d,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e\n", i, j, mesh.cells[q].z,
+        std::fprintf(f, "%d,%d,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e", i, j, mesh.cells[q].z,
                      mesh.cells[q].r, temp, w.p, std::hypot(w.uz, w.ur) / a, w.uz, w.ur, y[iH2O], y[iO2], y[iN2]);
+        if (turbulent)
+          std::fprintf(f, ",%.6e,%.6e,%.6e,%.6e,%.6e,%.6e", flow.turbulence()[2 * q] / w.rho,
+                       flow.turbulence()[2 * q + 1] / w.rho, flow.eddyViscosities()[q], mixTime[q], segregation[q],
+                       kappa[q]);
+        std::fprintf(f, "\n");
       }
     std::fclose(f);
   };
@@ -212,8 +284,30 @@ int main(int argc, char** argv) {
   double nextSample = 0;
   struct Row { double t, outlet, pInj, fVac; };
   std::vector<Row> rows;
+  // Criterion 4 (a) over the whole run and (b) at every sample.
+  const double initialEnergy = flow.measurements().energy;
+  double worstMass = 0, worstEnergyResidual = 0, negativeAt = -1, lightOff = -1, segregatedAtLightOff = 0;
   auto sample = [&]() {
     auto m = flow.measurements();
+    if (turbulent) {
+      worstMass = std::max(worstMass, std::abs(m.massBalanceError));
+      worstEnergyResidual = std::max(worstEnergyResidual, std::abs(m.energyBalanceError * initialEnergy));
+      double yMax = 0;
+      for (std::size_t q = 0; q < flow.state().size(); ++q) {
+        auto w = flow.cellPrimitive(q);
+        if (negativeAt < 0 && !(w.rho > 0 && w.p > 0 && flow.temperature(q) > 0 && flow.turbulence()[2 * q] > 0 &&
+                                flow.turbulence()[2 * q + 1] > 0))
+          negativeAt = m.time;
+        yMax = std::max(yMax, flow.massFractions(q)[iH2O]);
+      }
+      if (lightOff < 0 && yMax > 0.5) {
+        lightOff = m.time;
+        writeField(m.time);
+        segregatedAtLightOff = segregatedFraction();
+        std::printf("light-off at %.4f ms (largest Y_H2O %.3f); chamber volume with s > 0.01: %.4f\n", m.time * 1e3,
+                    yMax, segregatedAtLightOff);
+      }
+    }
     double exitMin = 1e9, tMax = 0, pEnd = 0, area = 0;
     for (int j = 0; j < nr; ++j) {
       auto q = mesh.index(nz - 1, j);
@@ -233,6 +327,7 @@ int main(int argc, char** argv) {
     rows.push_back({m.time, m.outletMassFlow, m.injectorPressure, fVac});
   };
   writeField(0);
+  auto march = [&](double end) {
   while (flow.time() < end) {
     double target = std::min({end, nextSample, nextSnapshot < snapshots.size() ? snapshots[nextSnapshot] : end});
     if (target <= flow.time()) target = std::min(end, flow.time() + 2e-6);
@@ -254,7 +349,38 @@ int main(int argc, char** argv) {
       ++nextSnapshot;
     }
   }
-  writeField(flow.time());
+  };
+  // Settling over the last millisecond (declared criterion: relative drift below 1e-3).
+  auto drift = [&](auto get) {
+    double lo = 1e300, hi = -1e300, last = get(rows.back());
+    for (const auto& r : rows)
+      if (r.t >= rows.back().t - 1e-3) { lo = std::min(lo, get(r)); hi = std::max(hi, get(r)); }
+    return (hi - lo) / std::abs(last);
+  };
+  auto settled = [&]() {
+    const auto m = flow.measurements();
+    return std::max({drift([](const Row& r) { return r.outlet; }), drift([](const Row& r) { return r.pInj; }),
+                     drift([](const Row& r) { return r.fVac; })}) < 1e-3 &&
+           std::abs(m.outletMassFlow / m.supplyMassFlow - 1) < 1e-3;
+  };
+  try {
+    march(end);
+    writeField(flow.time());
+    // Criterion 4 (c): a run that fails only the settling check is extended once to 12 ms.
+    const double energyEnd = std::abs(flow.measurements().energy);
+    if (turbulent && end < 12e-3 && !settled() && worstMass < 1e-11 && worstEnergyResidual / energyEnd < 1e-11 &&
+        negativeAt < 0 && admissible) {
+      std::printf("criterion 4 (c) fails alone at %.3f ms: extending once to 12 ms\n", flow.time() * 1e3);
+      march(12e-3);
+      writeField(flow.time());
+    }
+  } catch (const std::exception& e) {
+    std::fclose(history);
+    std::printf("\nexception at %.6f ms after %ld steps: %s\n", flow.time() * 1e3, reacting.stats().steps, e.what());
+    writeField(flow.time());  // the last state the run reached, for the diagnosis
+    if (turbulent) std::printf("criterion 4 (b): the run did not reach its end  FAIL\n");
+    return 1;
+  }
   std::fclose(history);
   if (std::getenv("CHEMPROFILE")) {
     // Time one equilibrium call per cell on the final state and list the slowest cells.
@@ -280,13 +406,6 @@ int main(int argc, char** argv) {
   }
   const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - clock0).count();
 
-  // Settling over the last millisecond (declared criterion: relative drift below 1e-3).
-  auto drift = [&](auto get) {
-    double lo = 1e300, hi = -1e300, last = get(rows.back());
-    for (const auto& r : rows)
-      if (r.t >= rows.back().t - 1e-3) { lo = std::min(lo, get(r)); hi = std::max(hi, get(r)); }
-    return (hi - lo) / std::abs(last);
-  };
   const auto m = flow.measurements();
   std::printf("\nend %.3f ms after %ld steps (%ld replans), wall %.0f s\n", m.time * 1e3, reacting.stats().steps,
               reacting.stats().replans, wall);
@@ -338,5 +457,55 @@ int main(int argc, char** argv) {
   } catch (const std::exception& e) {
     std::printf("ideal-rocket comparison failed at p0 = %.0f Pa: %s\n", p0, e.what());
   }
-  return 0;
+  if (!turbulent) return 0;
+
+  // PaSR criterion 4: judged (a) to (d), then the reported items.
+  int failed = 0;
+  auto judge = [&](bool ok, const char* what, double value, double limit) {
+    std::printf("  %-62s %.3e (limit %.1e)  %s\n", what, value, limit, ok ? "ok" : "FAIL");
+    if (!ok) ++failed;
+  };
+  const double energyEnd = std::abs(m.energy);
+  std::printf("\nPaSR criterion 4, %s, %dx%d, to %.3f ms\n", closure ? "closure on" : "control (closure off)", nz, nr,
+              m.time * 1e3);
+  judge(worstMass < 1e-11, "(a) mass budget, largest over the run (initial fill)", worstMass, 1e-11);
+  judge(worstEnergyResidual / energyEnd < 1e-11, "(a) energy budget, largest over the run (|E| at the end)",
+        worstEnergyResidual / energyEnd, 1e-11);
+  std::printf("  reported: energy budget against the initial N2 fill, largest %.3e, at the end %.3e\n",
+              worstEnergyResidual / std::abs(initialEnergy), m.energyBalanceError);
+  std::printf("  (b) positivity of rho, p, T, k, omega at every sample (%zu samples)  %s\n", rows.size(),
+              negativeAt < 0 ? "ok" : "FAIL");
+  if (negativeAt >= 0) { std::printf("      first non-positive value at %.6f ms\n", negativeAt * 1e3); ++failed; }
+  const double settle = std::max({drift([](const Row& r) { return r.outlet; }), drift([](const Row& r) { return r.pInj; }),
+                                  drift([](const Row& r) { return r.fVac; })});
+  judge(settle < 1e-3, "(c) largest drift over the last 1 ms", settle, 1e-3);
+  judge(std::abs(mdot / m.supplyMassFlow - 1) < 1e-3, "(c) outlet mass flow against the supply",
+        std::abs(mdot / m.supplyMassFlow - 1), 1e-3);
+  std::printf("  (d) kappa_eff in (0, 1] and s in [0, 1] at every field snapshot  %s (smallest kappa_eff %.4e, "
+              "largest s %.4e)\n", admissible ? "ok" : "FAIL", minKappa, maxSegregation);
+  if (!admissible) { std::printf("      first bad cell: kappa_eff %.6e, s %.6e\n", worstKappa, worstSegregation); ++failed; }
+  std::printf("reported: light-off at %s ms; chamber volume with s > 0.01: %.4f at light-off, %.4f at the end\n",
+              lightOff < 0 ? "never" : std::to_string(lightOff * 1e3).c_str(), segregatedAtLightOff, segregatedFraction());
+  std::printf("reported: largest mass fraction clipped to zero after a reaction substep %.3e\n",
+              reacting.stats().maxClippedFraction);
+  {
+    std::vector<double> yPlus, diffusion(ns), work;
+    double chamberMax = 0;
+    for (int i = 0; i < nz; ++i) {
+      auto q = mesh.index(i, nr - 1);
+      auto w = flow.cellPrimitive(q);
+      auto y = flow.massFractions(q);
+      const double mu = flow.medium().transport(flow.temperature(q), w.p, y.data(), diffusion.data(), work).viscosity;
+      yPlus.push_back(std::sqrt(w.rho * std::hypot(w.uz, w.ur) * flow.wallDistances()[q] / mu));
+      if (mesh.cells[q].z < geo.throat) chamberMax = std::max(chamberMax, yPlus.back());
+    }
+    std::vector<double> sorted = yPlus;
+    std::sort(sorted.begin(), sorted.end());
+    std::printf("reported: first-cell y+ at the wall row (laminar estimate): median %.1f, largest %.1f, largest "
+                "upstream of the throat %.1f\n", sorted[sorted.size() / 2], sorted.back(), chamberMax);
+  }
+  std::printf("reported against the control: light-off, injector pressure %.6f MPa, c* %.2f m/s, vacuum Isp %.2f s\n",
+              m.injectorPressure / 1e6, cstarSim, ispSim);
+  std::printf("%d failures\n", failed);
+  return failed ? 1 : 0;
 }
