@@ -1,0 +1,12 @@
+T_ad 2387.637 K; reference wall 0.6 s
+free flame: S_L 2.336386 m/s, S_c 2.368396 m/s (+1.370%), 141 points
+free flame: S_L 2.332536 m/s, S_c 2.334085 m/s (+0.066%), 373 points
+free flame: S_L 2.330470 m/s, S_c 2.329797 m/s (-0.029%), 716 points
+mesh 150 x 1: dz 40.00 um, area 3.141593e-06 m^2 (pi R^2 3.141593e-06)
+t 0.100 ms  x_f nan mm  S_c nan m/s  T_max 189.9 K  steps 14937  wall 49 s
+t 0.200 ms  x_f nan mm  S_c nan m/s  T_max 116.6 K  steps 20072  wall 62 s
+
+[CVODES ERROR]  CVode
+  At t = 0 and h = 3.86803e-77, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+libc++abi: terminating due to uncaught exception of type std::runtime_error: CVODES failed with flag -4

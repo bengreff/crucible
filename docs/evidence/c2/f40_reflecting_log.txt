@@ -1,0 +1,18 @@
+T_ad 2387.637 K; reference wall 0.6 s
+free flame: S_L 2.336386 m/s, S_c 2.368396 m/s (+1.370%), 141 points
+free flame: S_L 2.332536 m/s, S_c 2.334085 m/s (+0.066%), 373 points
+free flame: S_L 2.330470 m/s, S_c 2.329797 m/s (-0.029%), 716 points
+mesh 150 x 1: dz 40.00 um, area 3.141593e-06 m^2 (pi R^2 3.141593e-06)
+t 0.100 ms  x_f 3.8856 mm  S_c 2.24951 m/s  T_max 2308.2 K  steps 16418  wall 45 s
+t 0.200 ms  x_f 3.6723 mm  S_c 3.00758 m/s  T_max 2144.9 K  steps 32341  wall 97 s
+t 0.300 ms  x_f 3.3685 mm  S_c 2.67993 m/s  T_max 2163.4 K  steps 48107  wall 158 s
+t 0.400 ms  x_f 3.2045 mm  S_c 2.31355 m/s  T_max 2171.8 K  steps 64019  wall 221 s
+t 0.500 ms  x_f 3.2382 mm  S_c 2.01154 m/s  T_max 2192.8 K  steps 79965  wall 278 s
+t 0.600 ms  x_f 2.9149 mm  S_c 2.76731 m/s  T_max 2190.1 K  steps 95918  wall 337 s
+t 0.700 ms  x_f 2.4646 mm  S_c 2.97661 m/s  T_max 2254.1 K  steps 111937  wall 393 s
+t 0.800 ms  x_f 2.2250 mm  S_c 2.99944 m/s  T_max 2256.2 K  steps 128077  wall 452 s
+t 0.900 ms  x_f 1.9980 mm  S_c 2.57153 m/s  T_max 2226.0 K  steps 144323  wall 519 s
+t 1.000 ms  x_f 1.8896 mm  S_c 2.21664 m/s  T_max 2224.7 K  steps 160745  wall 581 s
+end 1.000 ms after 160745 steps, wall 581 s; mass budget 7.439e-15, energy budget 4.725e-15
+dz 40.00 um: S_c 2.806549 m/s (+20.428%), S_d 2.860950 m/s (+22.763%), S_c drift over the last 0.2 ms 3.115%; S_L 2.330470 m/s
+reference: levels differ 0.089%, free-flame S_c vs S_L -0.029%
