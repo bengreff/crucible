@@ -1,6 +1,6 @@
 # C2 step 2: a freely propagating laminar flame against Cantera's free flame
 
-Status: in progress. Criteria were stated 4 October 2026 in the header of `tests/flame_study.cpp`, before any engine flame result, and have not changed. The case and the outlet were changed twice after runs, and the header records both changes. Raw outputs are in `c2/`.
+Status: done (5 October 2026). All four criteria pass at 10 um (see Verdict). The 10 um run was made on backhouse after the open-face fix, the 40 and 20 um runs on the Mac before it. Criteria were stated 4 October 2026 in the header of `tests/flame_study.cpp`, before any engine flame result, and have not changed. The case and the outlet were changed twice after runs, and the header records both changes. Raw outputs are in `c2/`.
 
 ## The test
 
@@ -64,9 +64,9 @@ Raw output: `core_verification_outlet_2026-10-04.txt`.
 |---|---|---|---|---|---|---|
 | 40 um | 2.361664 | +1.339% | 2.352410 | +0.941% | 0.031% | 1057 s |
 | 20 um | 2.341939 | +0.492% | 2.335204 | +0.203% | 0.023% | 5369 s |
-| 10 um | (rerun on backhouse at 4e2ee5c, after the open-face fix; started 03:02 on 5 October) | | | | | |
+| 10 um | 2.336968 | +0.279% | 2.331505 | +0.044% | 0.018% | 6084 s (backhouse) |
 
-40 um, measured: mass budget -5.2e-15, energy budget 5.5e-15. 20 um: -3.6e-16 and -1.4e-14 (`c2/f20_log.txt`).
+40 um, measured: mass budget -5.2e-15, energy budget 5.5e-15. 20 um: -3.6e-16 and -1.4e-14 (`c2/f20_log.txt`). 10 um: 8.1e-14 and 1.6e-13 (`c2/f10_log.txt`; history and profiles in `c2/f10_history.png` and `c2/f10_profiles.png`). The 10 um run: backhouse (WSL2 Ubuntu, gcc 13, Cantera 3.2.0), commit 4e2ee5c, after the open-face fix (1e0fd9e), 16 threads beside other users' jobs, 5 October 03:02 to 04:46.
 - The start-up transient dies out by about 0.3 ms. After that S_c sits within 0.02 m/s of its final value (`c2/f40_history.png`).
 - The pressure spread in the duct falls from 1.2 kPa at start-up to 78 to 91 Pa after 0.5 ms. The resonance of run 1 is gone.
 - The temperature, H2, H and OH profiles lie on the free flame's (`c2/f40_profiles.png`). T_max (2273 K at 1 ms) stays below T_ad (2388 K) because the products are still recombining behind the flame, as in the free flame.
@@ -77,3 +77,17 @@ Raw output: `core_verification_outlet_2026-10-04.txt`.
   - S_d is measured against gas at rest, so an exact engine would show S_d +0.12%.
   - S_c divides the mass burning rate by the reference's unburned density (300 K, 1 atm), as stated. The engine's unburned gas is 0.198% denser, so an exact engine would show S_c +0.32%.
   - The criteria and the reference are unchanged. These offsets are part of the gap and are reported, not subtracted.
+
+## Verdict (5 October 2026)
+
+| Criterion | Measured | Limit | Result |
+|---|---|---|---|
+| 1. S_c at 10 um | +0.279% | within 1% | pass |
+| 2. \|S_c/S_L - 1\| falls at each refinement | 1.339%, 0.492%, 0.279% | falls | pass |
+| 3. S_d at 10 um | +0.044% | within 1% | pass |
+| 4. Settled at 10 um: S_c means over the two halves of the last 0.2 ms | 0.018% | < 0.2% | pass |
+
+- At 10 um the temperature, H2, H and OH profiles lie on the free flame's (`c2/f10_profiles.png`). After the start-up transient (about 0.3 ms), S_c sits within 0.02 m/s of its final value (`c2/f10_history.png`).
+- Criterion 2 compares across a code change: the 10 um run has the open-face fix, the 40 and 20 um runs do not. The fix changes only the end columns of the duct. Its effect on these flames was not measured.
+- The outlet offset derived above (an exact engine would show S_c +0.32% and S_d +0.12%) is as large as the 10 um gaps. So at 10 um this check cannot separate the engine's own error from the outlet's offset; it bounds the sum. The gap's fall from 20 to 10 um (a ratio of 1.76, against 2.72 from 40 to 20; derived) is consistent with the offset dominating (inferred).
+- What this verifies: flow, mixture-averaged transport and CVODES chemistry, coupled through the Strang split, reproduce a laminar flame speed within 0.3% at 10 um. It does not test turbulence, the closure or walls.
