@@ -91,3 +91,14 @@ FiniteRate substep [s]           s per cell
 
 == backhouse crucible_chemistry_cost (reported by the setup agent, same build except the two portability fixes)
 one rates() evaluation: 0.56 us; finite rate 50 ns, rtol 1e-06: 74.8 us (near equilibrium), 119.8 us (fresh at 1500 K) per call
+
+== run cost_64x12_equil.txt: build/crucible_step_cost 64 12 6e-4 200 10 equilibrium (Mac, 5 October 2026, about 03:00 to 03:17, through slot)
+Frozen and LocalEquilibrium (Cantera constant-(u, v) equilibrium per cell after each flow step, no CVODES); no substep sweep.
+setup 64x12 (768 cells): LocalEquilibrium to 0.600 ms, 9800 steps, 215 s wall; injector p 1.9003 MPa, outlet 0.2032 kg/s
+config    chemistry  threads dt start [s]  mean dt [s]  wall/step [s]   cell updates/s replans/step
+inviscid  frozen           1   5.6674e-08   5.7473e-08     1.0381e-03       7.3984e+05         0.00
+inviscid  equil            1   5.6674e-08   5.6693e-08     3.9858e-02       1.9269e+04         0.00
+inviscid  equil           10   5.6674e-08   5.6693e-08     1.2132e-02       6.3302e+04         0.00
+viscous   frozen           1   5.6382e-08   5.7289e-08     3.2255e-03       2.3810e+05         0.00
+viscous   equil            1   5.6382e-08   5.6507e-08     4.2056e-02       1.8262e+04         0.00
+viscous   equil           10   5.6382e-08   5.6507e-08     1.4193e-02       5.4113e+04         0.00

@@ -18,8 +18,11 @@
 // substep lengths, because the CVODES cost of a substep may depend on its length: half the
 // measured flow step, and the halves of the explicit steps estimated for a wall-resolved RL10
 // grid (TECHNICAL_PLAN, "Compute budget").
+// With the optional last argument "equilibrium" (added 5 October 2026), the configurations are
+// Frozen and LocalEquilibrium (a constant-(u, v) equilibrium per cell after each flow step, no
+// CVODES) instead of Frozen and FiniteRate, and the substep sweep is skipped.
 //
-// Usage: crucible_step_cost <nz> <nr> <setup time s> <timed steps> <threads>
+// Usage: crucible_step_cost <nz> <nr> <setup time s> <timed steps> <threads> [equilibrium]
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -83,11 +86,13 @@ Geometry geometry() {
 
 int main(int argc, char** argv) {
   if (argc < 6) {
-    std::fprintf(stderr, "usage: %s <nz> <nr> <setup time s> <timed steps> <threads>\n", argv[0]);
+    std::fprintf(stderr, "usage: %s <nz> <nr> <setup time s> <timed steps> <threads> [equilibrium]\n", argv[0]);
     return 2;
   }
   const int nz = std::atoi(argv[1]), nr = std::atoi(argv[2]), steps = std::atoi(argv[4]), threads = std::atoi(argv[5]);
   const double setup = std::atof(argv[3]);
+  const bool equilibrium = argc > 6 && std::string(argv[6]) == "equilibrium";
+  const auto reactingMode = equilibrium ? thermo::Chemistry::LocalEquilibrium : thermo::Chemistry::FiniteRate;
   thermo::ReactionSource source("h2o2.yaml");
   const auto geo = geometry();
   Definition d;
@@ -137,7 +142,7 @@ int main(int argc, char** argv) {
   std::printf("%-9s %-10s %7s %12s %12s %14s %16s %12s\n", "config", "chemistry", "threads", "dt start [s]", "mean dt [s]",
               "wall/step [s]", "cell updates/s", "replans/step");
   for (bool viscous : {false, true})
-    for (auto chemistry : {thermo::Chemistry::Frozen, thermo::Chemistry::FiniteRate})
+    for (auto chemistry : {thermo::Chemistry::Frozen, reactingMode})
       for (int t : {1, threads}) {
         if (t != 1 && (chemistry == thermo::Chemistry::Frozen || threads == 1)) continue;
         Definition c = d;
@@ -179,10 +184,11 @@ int main(int argc, char** argv) {
         for (int i = 0; i < steps; ++i) reacting.step();
         const double wall = since(t0);
         std::printf("%-9s %-10s %7d %12.4e %12.4e %14.4e %16.4e %12.2f\n", viscous ? "viscous" : "inviscid",
-                    chemistry == thermo::Chemistry::Frozen ? "frozen" : "finite", t, dt0, (flow.time() - sim0) / steps,
+                    chemistry == thermo::Chemistry::Frozen ? "frozen" : equilibrium ? "equil" : "finite", t, dt0, (flow.time() - sim0) / steps,
                     wall / steps, double(cells) * steps / wall, double(reacting.stats().replans - replans0) / steps);
         std::fflush(stdout);
       }
+  if (equilibrium) return 0;
   std::printf("%-26s %16s\n", "FiniteRate substep [s]", "s per cell");
   Definition open = d;
   open.supplies[0].ramp = 1e-9;

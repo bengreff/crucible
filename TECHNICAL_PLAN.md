@@ -135,8 +135,15 @@ Ben asked what a full 1 s RL10 run costs. Every number is labelled: **measured**
 | Inviscid, finite rate | 8.7e3 to 9.6e3 | 4.4e4 to 5.2e4 |
 | Viscous (SST), frozen chemistry | 2.3e5 to 2.4e5 | not run (serial) |
 | Viscous (SST), finite rate | 8.3e3 to 9.3e3 | 3.7e4 to 4.3e4 |
+| Inviscid, local equilibrium (one run) | 1.9e4 | 6.3e4 |
+| Viscous (SST), local equilibrium (one run) | 1.8e4 | 5.4e4 |
 
 - Chemistry is 96% of the single-thread viscous step (derived). It costs about 1.0e-4 s per cell per step.
+- **Local (shifting) equilibrium needs no CVODES, but it is not much cheaper** (measured with the `equilibrium` option of `step_cost`, 5 October 2026).
+  - Viscous, per step: 4.2e-2 s on one thread, against 8.3e-2 s for finite rate. That is 2.0 times cheaper.
+  - On 10 threads: 1.4e-2 s against 1.8e-2 s, only 1.25 times cheaper. Equilibrium gains 3.0x from 10 threads where finite rate gains 4.6x; the cause is not measured.
+  - One cell's constant-(u, v) equilibrium costs about 5.1e-5 s (derived from the step). That agrees with the 62 us of an isolated near-equilibrium cell (measured, `crucible_chemistry_cost`).
+  - It is also a different physical model (no finite-rate kinetics, no ignition delay), so it cannot stand in for finite rate on the reference path.
 - 10 threads give about 4.6x. The flow step is serial, and 4 of the 10 cores are efficiency cores.
 - Each step makes 3.0 reaction substeps rather than 2 (measured). Once per step the first half-substep lowers the CFL step and is redone ("replans", 1.01 per step).
 - One CVODES substep costs about 3.4e-5 s per cell at the measured half step (derived from the above).
