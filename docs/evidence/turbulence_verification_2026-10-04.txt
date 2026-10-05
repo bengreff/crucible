@@ -1,0 +1,7 @@
+1. wall distance
+  (a) straight duct, equal rings: |d - (R - r)| / R          0.000e+00 (limit 1.0e-13)  ok
+  (a) straight duct, b = 2: |d - (R - r)| / R                0.000e+00 (limit 1.0e-13)  ok
+  (b) nozzle, b = 1.5: against the segment search            3.965e-16 (limit 1.0e-13)  ok
+  (c) nozzle with plate rings 0, 3, 4, 7: segment search     2.478e-16 (limit 1.0e-13)  ok
+  (d) no walls: every distance infinite (1 = yes)            1.000e+00 (limit 1.0e+00)  ok
+0 failures
