@@ -144,6 +144,29 @@ Ben asked what a full 1 s RL10 run costs. Every number is labelled: **measured**
   - On 10 threads: 1.4e-2 s against 1.8e-2 s, only 1.25 times cheaper. Equilibrium gains 3.0x from 10 threads where finite rate gains 4.6x; the cause is not measured.
   - One cell's constant-(u, v) equilibrium costs about 5.1e-5 s (derived from the step). That agrees with the 62 us of an isolated near-equilibrium cell (measured, `crucible_chemistry_cost`).
   - It is also a different physical model (no finite-rate kinetics, no ignition delay), so it cannot stand in for finite rate on the reference path.
+- **A chemistry cache would buy about 2x on this chamber, and at most 5x** (the `cache` option of `step_cost`, 5 October 2026; output in `docs/evidence/chemistry_cache_2026-10-05.txt`).
+  - The stream (measured): every cell of every reaction call in 200 viscous finite-rate steps on 64x12, 464,640 calls. The steps start from the inviscid equilibrium setup state, so the cells are adjusting, not settled.
+  - The table: calls are binned by T, Y_k, ln rho and ln dt. A call whose bin already holds an earlier call is a hit. It is answered from that record either as the record's increment (constant) or plus a first-order correction from the record's Jacobian (linear, as ISAT, [Pope 1997](https://iopscience.iop.org/article/10.1088/1364-7830/1/1/006)).
+  - Accuracy is measured against each call's own CVODES result, on CVODES's weighted scale (1 = its local tolerance). On that scale the march's own integration error, against rtol 1e-10, is 0.74 at the median and 4.4 at the 99th percentile (measured).
+  - Measured, bins of 1 K, 1e-3 in Y, 0.1% in rho and 1% in dt:
+
+    | | Hits | Hits within weighted error 10, linear | Same, constant |
+    |---|---|---|---|
+    | Records from any cell | 85% of calls | 84% | 24% |
+    | Records from other cells only | 28% | 28% | 6% |
+
+    - Most reuse is a cell reusing its own previous call. Across cells only 28% of calls could be answered within 10.
+    - Wider bins hit more often but answer worse: at 10 K bins only 31% of calls are within 10. Narrower bins hit less: at 0.1 K, 56%.
+    - The worst linear answer at 1 K bins has a weighted error of 2400 (|dY| 1.5e-6, against 8e-8 for the integration). So the cache needs error control on every retrieval, as ISAT has.
+  - Cost:
+    - One retrieval costs 3.1e-7 s (measured), about 1% of a direct call (3.4e-5 s, derived above).
+    - Each record needs a Jacobian of the reaction map. Here it took 14 CVODES calls (forward differences). With CVODES sensitivities it is guessed at 2 to 5 calls.
+  - What it buys (derived, with 96% of the step in chemistry):
+    - With free records: a 6x saving on the chemistry and 5x on the step.
+    - With records at 2 direct calls: 2x on the step. At 5 calls: nothing.
+    - From reuse across cells alone: at most 1.4x.
+  - Pope reports a thousand-fold saving, on a statistically stationary reactor ([abstract](https://iopscience.iop.org/article/10.1088/1364-7830/1/1/006)). Here each record serves only about 5 later calls. A light-off, or the larger state changes per step of dual time stepping, should give less reuse (inferred).
+  - Inferred: tabulation is not the large lever. The larger one is the cost per call. A CVODES call costs as much as about 15 to 40 rate evaluations, whatever the substep (derived from the measured costs above). A lean stiff integrator for short substeps, with an analytic Jacobian, is the candidate, and it would also suit the GPU port. Its gain is not measured.
 - 10 threads give about 4.6x. The flow step is serial, and 4 of the 10 cores are efficiency cores.
 - Each step makes 3.0 reaction substeps rather than 2 (measured). Once per step the first half-substep lowers the CFL step and is redone ("replans", 1.01 per step).
 - One CVODES substep costs about 3.4e-5 s per cell at the measured half step (derived from the above).
@@ -188,7 +211,7 @@ A 1 s explicit run at wall-resolved resolution is out of reach on every machine 
 | Thread the flow step (serial today) | Up to about 8 on 10 cores, once chemistry is no longer dominant (guessed) | None. |
 | Wall functions: first cell at y+ 30 to 100 instead of 1 | 30 to 100 on the step (derived from the cell size), and fewer rings | A declared wall model replaces the resolved sublayer. Wall heat flux and friction, which are entries in the RL10 loss ledger, become model outputs. |
 | Implicit or dual time stepping for the flow | 10 to 700 (guessed) | None if the physical step resolves the transient. The inner pseudo-time iterations converge each physical step and do not alter the history, so this is consistent with step 1. Assumes a physical step of 1e-7 to 1e-6 s with 10 to 30 inner iterations, each costing 2 to 5 explicit steps. Needs a new solver and its verification, about a week (guessed). |
-| Chemistry tabulation (ISAT, Pope 1997) | 5 to 20 overall at a 96% chemistry share (guessed) | An approximation with an error tolerance that must be verified. |
+| Chemistry tabulation (ISAT, Pope 1997) | About 2 on the step, at most 5 (derived from the measured reuse, 5 October; see *A chemistry cache* above). It replaces the guess of 5 to 20. | An approximation with an error tolerance that must be verified, and it needs error control on every retrieval. |
 | Local time stepping once settled | 1e4 or more on that part (guessed) | The history after the switch is pseudo-time. That conflicts with step 1 as written ("no pseudo-time acceleration"), so it needs Ben's ruling. |
 | GPU port | 20 to 200 over the Mac (guessed) | None in f64. A large port of the flow and the chemistry. |
 

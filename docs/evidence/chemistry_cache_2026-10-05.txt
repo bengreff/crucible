@@ -1,0 +1,24 @@
+Chemistry cache study, 5 October 2026, Mac M2 Pro, Release build, commit 47ba19d plus the "cache" option of
+tests/step_cost.cpp (committed with this file). Run through slot, about 03:21 to 03:33:
+build/crucible_step_cost 64 12 6e-4 200 10 cache
+What it measures is stated in the header of tests/step_cost.cpp (written before this run; one smoke run
+on 16x4 for 5 steps preceded it). The stream is the first 200 steps (11 us) after the viscous FiniteRate
+configuration starts from the inviscid local-equilibrium setup state, so the cells are adjusting to the
+new physics, not settled. Columns: c<=E and l<=E are the fractions of ALL queries that are hits with
+weighted error at most E (constant and linear retrieval); errors are on the integrator's weighted scale
+(1 = CVODES's local tolerance in C1).
+
+setup 64x12 (768 cells): LocalEquilibrium to 0.600 ms, 9800 steps, 209 s wall; injector p 1.9003 MPa, outlet 0.2032 kg/s
+cache study: viscous FiniteRate, 200 steps (1.133e-05 s simulated), 605 reaction calls of 768 cells, 464640 queries
+integration error (rtol 1e-6 march against rtol 1e-10, 4791 calls): weighted 50% 7.449e-01, 99% 4.443e+00, largest 1.258e+01; largest |dT| 7.827e-04 K, largest |dY| 8.404e-08
+w       table    queries      hits   records   const 50%   const 99%   const max     lin 50%     lin 99%     lin max    c<=1   c<=10  c<=100    l<=1   l<=10  l<=100 lin max dT K  lin max dY
+1e-02   any       464640    457405      7235   9.767e+01   9.831e+03   1.370e+04   3.733e+01   1.533e+04   5.553e+04  0.0460  0.1307  0.5018  0.0752  0.3106  0.6256    5.048e-02   8.328e-05
+1e-02   other     464640    265999      7235   8.490e+01   6.655e+03   1.123e+04   4.654e+01   1.990e+04   5.553e+04  0.0331  0.0977  0.3680  0.0389  0.1705  0.3367    5.048e-02   8.328e-05
+1e-03   any       464640    393435     71205   8.481e+01   5.649e+03   1.370e+04   5.828e-01   9.419e+00   2.383e+03  0.1237  0.2421  0.5323  0.5895  0.8399  0.8464    8.808e-04   1.525e-06
+retrieval: 3.053e-07 s per query (key, lookup, linear sum where the record has J; checksum 1.302e+05)
+1e-03   other     464640    129441     71205   7.676e+01   2.268e+03   8.026e+03   5.563e-01   5.826e+00   2.383e+03  0.0251  0.0613  0.2431  0.2193  0.2776  0.2782    8.808e-04   1.525e-06
+1e-04   any       464640    259609    205031   6.373e+01   8.159e+02   2.267e+03   3.446e-01   2.596e+00   2.395e+01  0.2155  0.2431  0.4458  0.5211  0.5587  0.5587    5.544e-04   1.891e-07
+1e-04   other     464640     72508    205031   2.214e+01   1.076e+02   2.212e+03   4.232e-01   1.902e+00   2.395e+01  0.0477  0.0708  0.1514  0.1524  0.1560  0.1561    5.544e-04   1.891e-07
+1e-05   any       464640    170203    294437   1.585e-02   5.744e+01   4.517e+02   3.945e-04   5.455e-01   2.392e+01  0.3456  0.3545  0.3650  0.3647  0.3663  0.3663    5.389e-04   1.888e-07
+1e-05   other     464640     16932    294437   2.321e-01   8.078e+01   1.105e+02   9.317e-03   2.303e+00   2.392e+01  0.0302  0.0349  0.0364  0.0354  0.0364  0.0364    3.423e-04   1.888e-07
+Jacobians computed: 237371
