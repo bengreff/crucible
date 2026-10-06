@@ -1,0 +1,12 @@
+old4 rc=0 wall=169.2 end 4.000 ms after 68366 steps (0 replans), wall 169 s
+new4 rc=0 wall=78.6 end 4.000 ms after 68366 steps (0 replans), wall 78 s
+old6 rc=0 wall=171.7 end 4.000 ms after 68366 steps (0 replans), wall 172 s
+new6 rc=0 wall=57.2 end 4.000 ms after 68366 steps (0 replans), wall 57 s
+new1 rc=0 wall=233.8 end 4.000 ms after 68366 steps (0 replans), wall 234 s
+new4 identical to old4
+new6 identical to old4
+new1 identical to old4
+old6 identical to old4
+eqt8 rc=0 wall=40.1 end 8.000 ms after 136228 steps (0 replans), wall 40 s
+eqt8 identical to before64
+DONE

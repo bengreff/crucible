@@ -23,10 +23,13 @@
 //  - Vacuum thrust: device thrust plus ambient pressure times exit area (valid with a supersonic
 //    exit, checked).
 //
-// Usage: crucible_chamber_study <eq|eqt|fr|frozen|frt|frp> <nz> <nr> <end time s> <threads> <output prefix>
+// Usage: crucible_chamber_study <eq|eqt|eqtt|fr|frozen|frt|frp> <nz> <nr> <end time s> <threads> <output prefix>
 //        [igniter energy J] [igniter duration s]
 // "eqt" is "eq" with the equilibrium from Table A (docs/evidence/TABLE_A.md): the table file is
 // CRUCIBLE_EQ_TABLE, and CRUCIBLE_EQ_AUDIT (default 0, none) sets the audit's interval in reaction calls.
+// "eqtt" (added 5 October 2026) is "eqt" made viscous and turbulent as "frt" (no PaSR closure, and
+// eqt's igniter): the turbulent C1 of the wall-function criteria (docs/evidence/WALL_FUNCTIONS.md).
+// It reports the first-cell y+ and the wall heat flow and axial force at the end; criterion 4 is not judged.
 // Writes <prefix>_history.csv (every 2 us), <prefix>_mesh.csv (stations) and <prefix>_field_<us>.csv
 // snapshots; tools/chamber_plots.py renders them.
 //
@@ -127,17 +130,18 @@ double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const d
 
 int main(int argc, char** argv) {
   if (argc < 7) {
-    std::fprintf(stderr, "usage: %s <eq|eqt|fr|frozen|frt|frp> <nz> <nr> <end s> <threads> <prefix> [igniter J] [igniter s]\n",
+    std::fprintf(stderr, "usage: %s <eq|eqt|eqtt|fr|frozen|frt|frp> <nz> <nr> <end s> <threads> <prefix> [igniter J] [igniter s]\n",
                  argv[0]);
     return 2;
   }
   const std::string mode = argv[1], prefix = argv[6];
   const int nz = std::atoi(argv[2]), nr = std::atoi(argv[3]), threads = std::atoi(argv[5]);
   const double end = std::atof(argv[4]);
-  const bool turbulent = mode == "frt" || mode == "frp", closure = mode == "frp";
-  const double igniterEnergy = argc > 7 ? std::atof(argv[7]) : turbulent ? 300 : 0.5;
-  const double igniterDuration = argc > 8 ? std::atof(argv[8]) : turbulent ? 1e-3 : 2e-4;
-  const bool tabulated = mode == "eqt";
+  // pasr: the criterion-4 runs (judged); turbulent: those and eqtt.
+  const bool pasr = mode == "frt" || mode == "frp", turbulent = pasr || mode == "eqtt", closure = mode == "frp";
+  const double igniterEnergy = argc > 7 ? std::atof(argv[7]) : pasr ? 300 : 0.5;
+  const double igniterDuration = argc > 8 ? std::atof(argv[8]) : pasr ? 1e-3 : 2e-4;
+  const bool tabulated = mode == "eqt" || mode == "eqtt";
   const auto chemistry = mode == "eq" || tabulated ? thermo::Chemistry::LocalEquilibrium
                          : mode == "fr" || turbulent ? thermo::Chemistry::FiniteRate
                                                      : thermo::Chemistry::Frozen;
@@ -210,7 +214,8 @@ int main(int argc, char** argv) {
               mesh.cells[mesh.index(endColumn, 0)].z);
   std::printf("chemistry %s; igniter %.4g J over %.4g ms from 0.2 ms%s\n", mode.c_str(), igniterEnergy,
               igniterDuration * 1e3,
-              turbulent ? (closure ? "; viscous, SST, PaSR closure on" : "; viscous, SST, closure off (control)") : "");
+              pasr ? (closure ? "; viscous, SST, PaSR closure on" : "; viscous, SST, closure off (control)")
+              : turbulent ? "; viscous, SST" : "");
 
   {
     FILE* f = std::fopen((prefix + "_mesh.csv").c_str(), "w");
@@ -382,7 +387,7 @@ int main(int argc, char** argv) {
     writeField(flow.time());
     // Criterion 4 (c): a run that fails only the settling check is extended once to 12 ms.
     const double energyEnd = std::abs(flow.measurements().energy);
-    if (turbulent && end >= 8e-3 && end < 12e-3 && !settled() && worstMass < 1e-11 && worstEnergyResidual / energyEnd < 1e-11 &&
+    if (pasr && end >= 8e-3 && end < 12e-3 && !settled() && worstMass < 1e-11 && worstEnergyResidual / energyEnd < 1e-11 &&
         negativeAt < 0 && admissible) {
       std::printf("criterion 4 (c) fails alone at %.3f ms: extending once to 12 ms\n", flow.time() * 1e3);
       march(12e-3);
@@ -392,7 +397,7 @@ int main(int argc, char** argv) {
     std::fclose(history);
     std::printf("\nexception at %.6f ms after %ld steps: %s\n", flow.time() * 1e3, reacting.stats().steps, e.what());
     writeField(flow.time());  // the last state the run reached, for the diagnosis
-    if (turbulent) std::printf("criterion 4 (b): the run did not reach its end  FAIL\n");
+    if (pasr) std::printf("criterion 4 (b): the run did not reach its end  FAIL\n");
     return 1;
   }
   std::fclose(history);
@@ -497,7 +502,31 @@ int main(int argc, char** argv) {
   } catch (const std::exception& e) {
     std::printf("ideal-rocket comparison failed at p0 = %.0f Pa: %s\n", p0, e.what());
   }
-  if (!turbulent) return 0;
+  // The first-cell y+ at the wall row (laminar estimate) and, for eqtt, the wall heat flow and axial force.
+  auto reportWall = [&]() {
+    std::vector<double> yPlus, diffusion(ns), work;
+    double chamberMax = 0;
+    for (int i = 0; i < nz; ++i) {
+      auto q = mesh.index(i, nr - 1);
+      auto w = flow.cellPrimitive(q);
+      auto y = flow.massFractions(q);
+      const double mu = flow.medium().transport(flow.temperature(q), w.p, y.data(), diffusion.data(), work).viscosity;
+      yPlus.push_back(std::sqrt(w.rho * std::hypot(w.uz, w.ur) * flow.wallDistances()[q] / mu));
+      if (mesh.cells[q].z < geo.throat) chamberMax = std::max(chamberMax, yPlus.back());
+    }
+    std::vector<double> sorted = yPlus;
+    std::sort(sorted.begin(), sorted.end());
+    std::printf("reported: first-cell y+ at the wall row (laminar estimate): median %.1f, largest %.1f, largest "
+                "upstream of the throat %.1f\n", sorted[sorted.size() / 2], sorted.back(), chamberMax);
+  };
+  if (!pasr) {
+    if (turbulent) {
+      reportWall();
+      std::printf("reported: wall heat flow into the gas %.6e W, wall axial force on the gas %.6e N\n", m.wallHeatFlow,
+                  m.wallAxialForce);
+    }
+    return 0;
+  }
 
   // PaSR criterion 4: judged (a) to (d), then the reported items.
   int failed = 0;
@@ -528,22 +557,7 @@ int main(int argc, char** argv) {
               lightOff < 0 ? "never" : std::to_string(lightOff * 1e3).c_str(), segregatedAtLightOff, segregatedFraction());
   std::printf("reported: largest mass fraction clipped to zero after a reaction substep %.3e\n",
               reacting.stats().maxClippedFraction);
-  {
-    std::vector<double> yPlus, diffusion(ns), work;
-    double chamberMax = 0;
-    for (int i = 0; i < nz; ++i) {
-      auto q = mesh.index(i, nr - 1);
-      auto w = flow.cellPrimitive(q);
-      auto y = flow.massFractions(q);
-      const double mu = flow.medium().transport(flow.temperature(q), w.p, y.data(), diffusion.data(), work).viscosity;
-      yPlus.push_back(std::sqrt(w.rho * std::hypot(w.uz, w.ur) * flow.wallDistances()[q] / mu));
-      if (mesh.cells[q].z < geo.throat) chamberMax = std::max(chamberMax, yPlus.back());
-    }
-    std::vector<double> sorted = yPlus;
-    std::sort(sorted.begin(), sorted.end());
-    std::printf("reported: first-cell y+ at the wall row (laminar estimate): median %.1f, largest %.1f, largest "
-                "upstream of the throat %.1f\n", sorted[sorted.size() / 2], sorted.back(), chamberMax);
-  }
+  reportWall();
   std::printf("reported against the control: light-off, injector pressure %.6f MPa, c* %.2f m/s, vacuum Isp %.2f s\n",
               m.injectorPressure / 1e6, cstarSim, ispSim);
   std::printf("%d failures\n", failed);

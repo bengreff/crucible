@@ -17,7 +17,7 @@
   - One persistent pool (`core/pool`) runs the flow step and the reaction call.
   - The result is bit-identical to the serial code on 1, 4 and 6 threads: eqt 64x12 to 1 and 8 ms, frp 32x6 to 0.25 ms. Faces are computed alone and summed per cell in the serial order; the fused-multiply-add lesson is in the record.
   - C1 64x12 to full thrust (4 ms): 28 s on 4 threads (77 s before), 20 s on 6. To 8 ms: 56 s and 41 s (153 s before).
-  - Transport (`core/transport.cpp`) is still serial.
+  - Transport (`core/transport.cpp`) threaded on 6 October, the same pattern: turbulent C1 (`eqtt`, SST, Table A) 64x12 to 4 ms in 79 s on 4 threads (169 s with serial transport), 57 s on 6; bit-identical to serial transport on 1, 4 and 6 threads (`THREAD_POOL.md`, *Transport on the pool*).
 - **Stale notes fixed** (the Director's item 3):
   - the `archive/README.md` link now points to RESEARCH.md section 7;
   - the pre-pivot memory files are marked historical;
@@ -51,7 +51,7 @@
 ## Next, in order
 
 TECHNICAL_PLAN *Lightweight engine*, order of work:
-1. **Thread transport** (`core/transport.cpp`) on the pool with the same face-array pattern, before the turbulent wall-function runs (the viscous step is 3.1 times the inviscid one, measured).
+1. ~~Thread transport~~: done 6 October (`THREAD_POOL.md`).
 2. **Wall functions** (item 3) to the criteria in `docs/evidence/WALL_FUNCTIONS.md` (stated 5 October, about 23:30, before code). Nichols and Nelson, read from the author's own chapter of the method (the AIAA J. article is paywalled). Build order: the criterion-0 test program; the reference's heating option and N2 properties to 3,500 K; the engine's wall face, first-cell k and omega, and ledger booking; then the pipes (criteria 1, 2), C1 (criterion 3) and cost (criterion 4). The constants kappa and B are read from the Re_tau 10,000 reference profile before any wall-function run.
 3. **Table B, the finite-rate manifold** (item 4). Do the design and research pass before code. Open: a progress variable that keeps ignition delay, the table size, and mixing states off the manifold. Table A's lessons apply: use axes on which the diluent drops out, and cluster at kinks.
 4. **AMR** (item 5), then the **RL10-like cold start** measured against the 5-minute target (item 6).

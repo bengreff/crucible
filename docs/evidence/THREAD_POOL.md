@@ -2,6 +2,8 @@
 
 Status: done 5 October 2026, about 23:25 (TECHNICAL_PLAN *Lightweight engine*, order of work item 2). The flow step and the reaction call run on one persistent pool. The result is the same bit for bit on any number of threads and equal to the serial code's. The C1 64x12 cold start reaches full thrust (4 ms) in 28 s on 4 threads, against 77 s before, and in 20 s on 6.
 
+
+Transport added 6 October 2026, about 00:10: the transport properties, gradients, eddy viscosity, SST sources and transport fluxes now run on the same pool. The turbulent C1 (`eqtt`, Table A chemistry with SST) at 64x12 reaches 4 ms in 79 s on 4 threads, against 169 s with serial transport, and in 57 s on 6. The result is the same bit for bit as with serial transport (section *Transport on the pool* below).
 ## What was built
 
 - **`core/pool.hpp`, `core/pool.cpp`: a persistent pool.**
@@ -63,8 +65,43 @@ The frp runs end with the same 2 criterion-4 failures as the old binary. The 0.2
 
 ## Limits and what is still serial
 
-- **Transport (`core/transport.cpp`) is serial:** the transport properties, gradients, eddy viscosity, SST sources and transport fluxes. The inviscid C1 above does not use it. The viscous and turbulent step (4.2 to 4.3 us per cell update on one thread, measured, `step_cost_2026-10-05.txt`) is mostly transport, so threading it is the next lever for the turbulent cases. The same face-array and gather pattern applies.
+- Transport was serial in the first version; it is threaded since 6 October (next section).
 - The serial boundary-rate sums and the body-force loop are O(nz + nr) and O(cells) of trivial work.
 - `ReactingFlow::step` computes `Flow::stableDt` and `Flow::step` computes it again: a duplicate per step (not measured).
 - Parallel efficiency is 69% to 76% on 768 cells. The parallel stages are short (a 64x12 step takes about 0.4 ms on 6 threads), so the spin and wake-up costs and the serial gaps weigh more than they will on larger meshes (inferred, not measured).
 - The pool is not reentrant, and `ReactingFlow` refuses a change of the flow's thread count while it lives (`checkThreads`).
+
+## Transport on the pool (6 October 2026)
+
+**What changed** (`core/transport.cpp`, `core/flow.hpp`, `core/flow.cpp`).
+- The per-cell loops (properties, gradients, eddy viscosity, SST sources) run in blocks of 32 cells. Each worker has its own scratch (`TransportScratch`: the work array of `Medium::transport`, the wall's diffusion coefficients, the face mass fractions and species enthalpies), which replaces the shared arrays `transportWork_`, `faceEnthalpy_` and `wallDiffusion_`.
+- The wall-face omega is computed per wall cell. `wallCells_` lists each cell next to a no-slip wall once: the side wall's, then the injector plate's not already listed. The serial loop visited the corner cell twice and kept the second value; the second value is the same expression on the same inputs, so listing it once changes nothing.
+- The transport fluxes follow the convective pattern. The axial faces (i = 0..nz, with the end faces' kind: plate, supply ring, inlet, outlet) and the radial faces (j = 1..nr, the side wall at j = nr) are computed alone, in blocks of 4, into `axialViscous_` and `radialViscous_` (bulk per unit area, then the species and k, omega fluxes per unit area). Each cell then sums its faces in the serial loops' order: axial face i, i + 1, radial face j, j + 1, then the hoop stress. The boundary rates (wall heat flow, wall axial force) are summed serially in the serial loops' order: the end faces at i = 0, at i = nz, then the side wall by column.
+
+**Bit identity** (`thread_pool/transport_eqtt_summary.txt`: `cmp` of the raw final state and of the history CSV). The old binary is 12613a5 with the `eqtt` mode: flow threaded, transport serial.
+
+| Case | Old, 4 threads | Old, 6 threads | New, 1 thread | New, 4 threads | New, 6 threads |
+|---|---|---|---|---|---|
+| `eqtt` 64x12 to 4 ms (viscous, SST, Table A; 68,366 steps) | reference | identical | identical | identical | identical |
+| `eqt` 64x12 to 8 ms (inviscid; does not use transport) | | | | | identical to the 5 October reference |
+
+**Wall time, turbulent C1 64x12 to 4 ms** (`crucible_chamber_study eqtt 64 12 4e-3`; runs back to back, 5 October 23:40 to 6 October 00:00; `thread_pool/eqtt64_4ms_transport_*.txt`).
+
+| Run | To 4 ms | Per cell update | Speedup on old, 4 threads | Speedup on new, 1 thread | Reaction share |
+|---|---|---|---|---|---|
+| Old, 4 threads (transport serial) | 169 s | 3.22 us | 1 | 1.38 | 2.6% |
+| Old, 6 threads | 172 s | 3.27 us | 0.99 | 1.36 | 2.0% |
+| New, 1 thread | 234 s | 4.45 us | 0.72 | 1 | 5.2% |
+| New, 4 threads | 79 s | 1.50 us | 2.15 | 2.97 | 5.2% |
+| New, 6 threads | 57 s | 1.09 us | 2.96 | 4.09 | 4.7% |
+
+- Parallel efficiency against 1 thread is 74% on 4 threads and 68% on 6 (derived), as for the inviscid step.
+- One thread costs 4.45 us per cell update, against the 4.2 to 4.3 us measured on 5 October for the viscous turbulent step (`step_cost_2026-10-05.txt`; a different case, so the comparison is rough).
+- All runs end with the same values: c* 2444.94 m/s, vacuum thrust 1682.54 N, vacuum Isp 428.98 s; budgets mass 3.76e-13 and energy -2.25e-11. The first-cell y+ at the wall row (laminar estimate) has median 57.7 and largest 75.9: this mesh's wall cells sit in the log layer, which is what the wall functions are for (`WALL_FUNCTIONS.md`).
+- The per-cell-update figures are derived: the wall time divided by steps times cells (52.5 million).
+
+**Tests.**
+- `core_tests` passes, including *Threads*, whose chamber is turbulent and so now exercises threaded transport on 1 and 4 threads (`thread_pool/core_tests_transport.txt`).
+- The fast ctest suite: 6 of 7 pass, with the new `wall_function_verification` (`ctest_main_2026-10-06_transport_threads.txt`). `transport_verification` fails on the same three truncation-order criteria with the same values as before (axial momentum 1.799, radial 1.223, 4b radial 1.446, limit 1.8); its output is identical to the 5 October record apart from the test numbering.
+
+**Still serial:** the boundary-rate sums (O(nz + nr)) and the source split's bookkeeping between the loops.

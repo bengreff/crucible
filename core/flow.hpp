@@ -280,6 +280,9 @@ private:
     std::vector<std::array<double, 2>> bodyForce_;
     std::vector<double> pressureSource_;
     std::unique_ptr<Pool> pool_;
+    // Pool blocks: cells, and faces. Face blocks are small so the dozen costly supply faces of the
+    // first row (supplyFace) spread over the workers.
+    static constexpr std::size_t kCells=32,kFaces=4;
     // Face fluxes of one right-hand side: bulk per unit area, and the transported mass fractions
     // with k and omega times the area (stride nw_; at a supply face, its k and omega fluxes per unit
     // area). Axial face (i, j) at i nr + j for i = 0..nz; radial face j of column i at i (nr + 1) + j,
@@ -288,8 +291,12 @@ private:
     // the compiler may fuse it), so the result does not depend on the thread count.
     std::vector<Conserved> axialFlux_, radialFlux_;
     std::vector<double> axialTransported_, radialTransported_, axialArea_, radialArea_;
-    // Per worker: face mass fractions (left, right), the stage's admissibility and smallest stable step.
+    // Per worker: face mass fractions (left, right), the stage's admissibility and smallest stable step,
+    // and the transport scratch (Medium::transport's work, the wall's diffusion coefficients, the face
+    // mass fractions and species enthalpies).
+    struct TransportScratch { std::vector<double> work, diffusion, face, enthalpy; };
     std::vector<std::vector<double>> faceFractions_;
+    std::vector<TransportScratch> transportScratch_;
     std::vector<char> workerOk_;
     std::vector<double> workerDt_;
     // Per cell: inside the igniter; rho k V added by the last stage's clip (Flow::step).
@@ -336,16 +343,21 @@ private:
     std::vector<double> ambient_;  // Chamber: ambient composition (then ambient k and omega)
     // Molecular transport (core/transport.cpp): cell viscosity, conductivity, mixture diffusion
     // coefficients and mole fractions; least-squares gradients of u_z, u_r, T and the mole fractions
-    // (cell-major, 3 + ns_ fields of {d/dz, d/dr}); each cell's inverse least-squares matrix.
-    std::vector<double> viscosity_, conductivity_, diffusion_, moles_, gradients_, transportWork_, faceEnthalpy_;
+    // (cell-major, 3 + ns_ fields of {d/dz, d/dr}); each cell's inverse least-squares matrix. The
+    // transport face fluxes, indexed like axialFlux_ and radialFlux_: bulk per unit area, then the
+    // species and k, omega fluxes per unit area (stride ns_ + nt_), summed per cell like the convective ones.
+    std::vector<double> viscosity_, conductivity_, diffusion_, moles_, gradients_;
     std::vector<std::array<double, 3>> leastSquares_;
+    std::vector<Conserved> axialViscous_, radialViscous_;
+    std::vector<double> axialViscousTransported_, radialViscousTransported_;
     // Turbulence: eddy viscosity mu_t, turbulent conductivity cp mu_t / Pr_t and the turbulent parts
     // sigma_k mu_t, sigma_omega mu_t of the k and omega diffusivities (stride 2) per cell; the wall
-    // distance, and the wall-face omega of the cells next to a no-slip wall. sources_ holds what
+    // distance, and the wall-face omega of the cells next to a no-slip wall (wallCells_, each once). sources_ holds what
     // the source split freezes per half step: S^2 and S of the mean flow, the cross-diffusion
     // product grad k . grad omega, the molecular nu and the inverse wall distance.
     struct SourceCoefficients { double strain2{}, strain{}, crossGradient{}, nu{}, inverseDistance{}; };
-    std::vector<double> eddy_, eddyConductivity_, eddyDiffusion_, wallDistance_, wallOmega_, wallDiffusion_;
+    std::vector<double> eddy_, eddyConductivity_, eddyDiffusion_, wallDistance_, wallOmega_;
+    std::vector<std::size_t> wallCells_;
     std::vector<SourceCoefficients> sources_, sourcesStart_;
     void prepareTransport();
     void transportProperties();

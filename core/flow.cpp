@@ -43,9 +43,6 @@ Conserved faceFlux(LowMach lowMach,Primitive l,Thermal tl,Primitive r,Thermal tr
     if(lowMach==LowMach::Thornber && interior) thornberScale(l,r,tl.a,tr.a);
     return hllc(l,tl,r,tr,nz,nr);
 }
-// Pool blocks: cells, and faces. Face blocks are small so the dozen costly supply faces of the
-// first row (supplyFace) spread over the workers.
-constexpr std::size_t kCells=32,kFaces=4;
 }
 
 double Supply::opening(double time) const {
@@ -378,6 +375,7 @@ void Flow::setThreads(int threads) {
     pool_=std::make_unique<Pool>(threads);
     const auto n=static_cast<std::size_t>(pool_->threads());
     faceFractions_.assign(2*n,std::vector<double>(nw_));
+    transportScratch_.assign(n,TransportScratch{{},std::vector<double>(ns_),std::vector<double>(ns_),std::vector<double>(ns_)});
     workerOk_.assign(n,1);workerDt_.assign(n,0.0);
 }
 template<class F> bool Flow::allCells(F f) {
