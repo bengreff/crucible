@@ -27,8 +27,25 @@ A segregated iteration on a coarse grid gives the start; each grid is then solve
 method (sparse finite-difference Jacobian, pseudo-time continuation), the unknowns u, k, omega, T
 per cell and the uniform p + 2/3 rho k.
 
+With --correction hp (6 October 2026; docs/evidence/WALL_FUNCTIONS.md, *Restated 6 October*) the model is
+SSTs with the variable-property and intrinsic-compressibility corrections of Hasan, Elias, Menter and
+Pecnik (J. Fluid Mech. 1019, A8, 2025), full form: the k and omega diffusion become F1 times the inner
+(semi-local) form plus (1 - F1) times the outer form, the cross-diffusion term is replaced by its
+corrected form, mu_t is multiplied by D^ic, and the corrected k diffusion also enters the energy equation
+(its non-divergence part, int Phi_k dV, is reported). psi = sqrt(rho)/mu, S_n = 1/(psi + l n.grad psi)
+with l = R - r and n = -r_hat, its denominator floored at psi/10 (the fraction of cells where the floor
+acts is reported). Face coefficients are two-cell means and prefactors the cell's own, as for the
+conventional terms. --hp-form inner uses the inner form everywhere and the conventional cross-diffusion
+(the authors' channel solver), --no-dic drops D^ic.
+Options for check R2 (the authors' published channel solver in the same configuration): --planar (a
+half channel of half-height R, symmetric about y = 0), --powerlaw n (mu = mu_w (T/T_w)^n, lambda/c_p =
+mu_w, c_p constant at its wall value), --constant-pressure (p fixed at p0 instead of the mass),
+--their-closure (their P_k limit of 20 beta* rho k omega in k only, omega's production unlimited,
+gamma = beta/beta* - sigma_w kappa^2/sqrt(beta*) with kappa 0.41, and the CD floor 1e-20).
+--check-operator runs check R1 and exits.
+
 Usage: sst_pipe_1d.py --radius R --p0 P --twall T --force F --grids 100,200,400 [--stretch 2]
-       [--prt 0.9] [--omega-factor 10] [--heat Q] [--profile out.csv]
+       [--prt 0.9] [--omega-factor 10] [--heat Q] [--profile out.csv] [--correction hp]
 Heated runs also report the mixing-cup temperature T_b = int rho u T dA / int rho u dA and the Stanton
 number St = q_w / (rho_b c_p(T_b) u_b (T_b - T_w)), q_w the heat flux into the wall.
 """
@@ -49,30 +66,61 @@ GAMMA = (5.0 / 9.0, 0.44)
 BETA_STAR, A1 = 0.09, 0.31
 
 
-def properties():
+def properties(powerlaw=None, t_wall=None):
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "n2_properties.csv")
     data = np.genfromtxt(path, delimiter=",", skip_header=1, names=True)
     t = data["T_K"]
     gas_r = float(data["R_J_kg_K"][0])
-    return (lambda temp: np.interp(temp, t, data["mu_Pa_s"]),
-            lambda temp: np.interp(temp, t, data["lambda_W_m_K"]),
-            lambda temp: np.interp(temp, t, data["cp_J_kg_K"]), gas_r)
+    mu_of = lambda temp: np.interp(temp, t, data["mu_Pa_s"])
+    cp_of = lambda temp: np.interp(temp, t, data["cp_J_kg_K"])
+    if powerlaw is not None:
+        # Check R2's property laws: mu = mu_w (T/T_w)^n, Pr = mu/mu_w (lambda = c_p mu_w), c_p constant.
+        mu_w, cp_w = float(mu_of(t_wall)), float(cp_of(t_wall))
+        return (lambda temp: mu_w * (np.asarray(temp) / t_wall) ** powerlaw,
+                lambda temp: np.full_like(np.asarray(temp, dtype=float), cp_w * mu_w),
+                lambda temp: np.full_like(np.asarray(temp, dtype=float), cp_w), gas_r)
+    return mu_of, lambda temp: np.interp(temp, t, data["lambda_W_m_K"]), cp_of, gas_r
+
+
+def hp_damping(rt, mt):
+    """D^ic = D(R_t, M_t) / D(R_t, 0), D = [1 - exp(-R_t / (3.5 + 0.39 M_t^0.77))]^2 (Hasan et al. eq. 4.3-4.5)."""
+    rt = np.maximum(rt, 1e-12)
+    return (np.expm1(-rt / (3.5 + 0.39 * mt ** 0.77)) / np.expm1(-rt / 3.5)) ** 2
 
 
 class Pipe:
-    def __init__(self, radius, p0, t_wall, force, n, stretch=2.0, pr_t=0.9, omega_factor=10.0, heat=0.0):
-        self.mu_of, self.lam_of, self.cp_of, self.gas_r = properties()
+    def __init__(self, radius, p0, t_wall, force, n, stretch=2.0, pr_t=0.9, omega_factor=10.0, heat=0.0,
+                 correction="none", hp_form="full", dic=True, planar=False, powerlaw=None, constant_pressure=False,
+                 their_closure=False):
+        self.mu_of, self.lam_of, self.cp_of, self.gas_r = properties(powerlaw, t_wall)
         self.radius, self.t_wall, self.force, self.n, self.pr_t, self.omega_factor = radius, t_wall, force, n, pr_t, omega_factor
-        self.heat = heat
+        self.heat, self.p0 = heat, p0
+        self.hp, self.hp_inner, self.dic = correction == "hp", hp_form == "inner", dic
+        self.constant_pressure, self.their_closure = constant_pressure, their_closure
+        if their_closure:
+            kappa = 0.41
+            self.gamma_pair = tuple(b / BETA_STAR - sw * kappa ** 2 / math.sqrt(BETA_STAR) for b, sw in zip(BETA, SIGMA_W))
+            self.pk_limit, self.limit_omega_production, self.cd_floor = 20.0, False, 1e-20
+        else:
+            self.gamma_pair, self.pk_limit, self.limit_omega_production, self.cd_floor = GAMMA, 10.0, True, 1e-10
         rf = radius * np.tanh(stretch * np.arange(n + 1) / n) / np.tanh(stretch)
         rf[0], rf[-1] = 0.0, radius
         self.rf = rf
-        self.vol = 0.5 * (rf[1:] ** 2 - rf[:-1] ** 2)              # per radian, per unit length
-        self.rc = (2.0 / 3.0) * (rf[1:] ** 3 - rf[:-1] ** 3) / (rf[1:] ** 2 - rf[:-1] ** 2)
+        if planar:
+            # A half channel: faces y = rf from the centreline, the wall at y = R; unit face weights.
+            self.wf = np.ones(n + 1)
+            self.vol = np.diff(rf)
+            self.rc = 0.5 * (rf[1:] + rf[:-1])
+            self.area = radius
+        else:
+            self.wf = rf
+            self.vol = 0.5 * (rf[1:] ** 2 - rf[:-1] ** 2)          # per radian, per unit length
+            self.rc = (2.0 / 3.0) * (rf[1:] ** 3 - rf[:-1] ** 3) / (rf[1:] ** 2 - rf[:-1] ** 2)
+            self.area = 0.5 * radius ** 2
         self.d = radius - self.rc                                  # wall distance
         self.dc = np.diff(self.rc)
         self.dw = radius - self.rc[-1]
-        self.mass = 0.5 * radius ** 2 * p0 / (self.gas_r * t_wall) # per radian, per unit length
+        self.mass = self.area * p0 / (self.gas_r * t_wall)         # per radian, per unit length (pipe)
         self.mu_wall, self.lam_wall = float(self.mu_of(t_wall)), float(self.lam_of(t_wall))
 
     def unpack(self, x):
@@ -89,8 +137,8 @@ class Pipe:
     def conductance(self, gamma_c, gamma_wall):
         c = np.empty(self.n + 1)
         c[0] = 0.0
-        c[1:-1] = self.rf[1:-1] * 0.5 * (gamma_c[:-1] + gamma_c[1:]) / self.dc
-        c[-1] = self.rf[-1] * gamma_wall / self.dw
+        c[1:-1] = self.wf[1:-1] * 0.5 * (gamma_c[:-1] + gamma_c[1:]) / self.dc
+        c[-1] = self.wf[-1] * gamma_wall / self.dw
         return c
 
     @staticmethod
@@ -107,24 +155,66 @@ class Pipe:
         s["rho"] = rho = pu / (self.gas_r * t + 2.0 / 3.0 * k)
         s["mu"] = mu = self.mu_of(t)
         s["lam"], s["cp"] = self.lam_of(t), self.cp_of(t)
-        rho_wall = pu / (self.gas_r * self.t_wall)
+        s["rho_wall"] = rho_wall = pu / (self.gas_r * self.t_wall)
         s["w_wall"] = self.omega_factor * 6 * (self.mu_wall / rho_wall) / (BETA[0] * self.dw ** 2)
         dudr, dkdr, dwdr = self.grad(u, 0.0), self.grad(k, 0.0), self.grad(w, s["w_wall"])
         nu, d = mu / rho, self.d
         strain = np.abs(dudr)
-        cd = np.maximum(2 * rho * SIGMA_W[1] / w * dkdr * dwdr, 1e-10)
+        cd = np.maximum(2 * rho * SIGMA_W[1] / w * dkdr * dwdr, self.cd_floor)
         arg1 = np.minimum(np.maximum(np.sqrt(k) / (BETA_STAR * w * d), 500 * nu / (d ** 2 * w)),
                           4 * rho * SIGMA_W[1] * k / (cd * d ** 2))
         f1 = np.tanh(arg1 ** 4)
         arg2 = np.maximum(2 * np.sqrt(k) / (BETA_STAR * w * d), 500 * nu / (d ** 2 * w))
         f2 = np.tanh(arg2 ** 2)
-        s["mu_t"] = mu_t = rho * A1 * k / np.maximum(A1 * w, strain * f2)
+        mu_t = rho * A1 * k / np.maximum(A1 * w, strain * f2)
+        if self.hp and self.dic:
+            sound = np.sqrt(s["cp"] / (s["cp"] - self.gas_r) * self.gas_r * t)
+            mu_t = mu_t * hp_damping(rho * k / (mu * w), np.sqrt(2 * np.maximum(k, 0.0)) / sound)
+        s["mu_t"] = mu_t
         blend = lambda pair: f1 * pair[0] + (1 - f1) * pair[1]
-        s["sk"], s["sw"], s["beta"], s["gamma"] = blend(SIGMA_K), blend(SIGMA_W), blend(BETA), blend(GAMMA)
-        s["prod"] = np.minimum(mu_t * strain ** 2, 10 * BETA_STAR * rho * w * k)
+        s["sk"], s["sw"], s["beta"], s["gamma"] = blend(SIGMA_K), blend(SIGMA_W), blend(BETA), blend(self.gamma_pair)
+        s["prod"] = np.minimum(mu_t * strain ** 2, self.pk_limit * BETA_STAR * rho * w * k)
+        s["omega_prod"] = s["gamma"] * rho * (s["prod"] / mu_t if self.limit_omega_production else strain ** 2)
         s["cross"] = 2 * (1 - f1) * rho * SIGMA_W[1] * dkdr * dwdr  # C in C / omega
         s["f1"] = f1
+        if self.hp:
+            self.hp_fields(s, k, w)
         return s
+
+    def hp_fields(self, s, k, w):
+        """S_n and, in the full form, the corrected cross-diffusion (conventional plus Phi_CD), C in C / omega."""
+        rho, mu, sq_w = s["rho"], s["mu"], math.sqrt(s["rho_wall"])
+        # S_n = 1 / (psi + l n.grad psi), n = -r_hat, l = R - r; the denominator floored at psi / 10.
+        psi = np.sqrt(rho) / mu
+        den = psi - self.d * self.grad(psi, sq_w / self.mu_wall)
+        s["sn_floored"] = den < 0.1 * psi
+        s["sn"] = 1.0 / np.maximum(den, 0.1 * psi)
+        if not self.hp_inner:
+            sq = np.sqrt(rho)
+            s["cross"] = (2 * (1 - s["f1"]) * SIGMA_W[1] / sq * self.grad(rho * k, 0.0)
+                          * self.grad(sq * w, sq_w * s["w_wall"]))
+
+    def diffusion(self, s, k, w):
+        """Volume-integrated k and omega diffusion (corrected under hp), and the conventional k diffusion's face flux."""
+        net = lambda flux: flux[1:] - flux[:-1]
+        mu, mu_t, rho = s["mu"], s["mu_t"], s["rho"]
+        muk, muw = mu + s["sk"] * mu_t, mu + s["sw"] * mu_t
+        fk = self.face_flux(self.conductance(muk, self.mu_wall), k, 0.0)
+        if not self.hp:
+            return net(fk), net(self.face_flux(self.conductance(muw, self.mu_wall), w, s["w_wall"])), fk
+        sq_w, w_wall = math.sqrt(s["rho_wall"]), s["w_wall"]
+        sn_mu = s["sn"] / mu                     # at the wall S_n = 1/psi_w, so S_n/mu = 1/sqrt(rho_w)
+        rk = rho * k
+        inner_k = sn_mu * net(self.face_flux(self.conductance(muk * sn_mu, self.mu_wall / sq_w), rk, 0.0))
+        inner_w = rho / mu * sn_mu * net(self.face_flux(self.conductance(muw * sn_mu, self.mu_wall / sq_w), mu * w,
+                                                        self.mu_wall * w_wall))
+        if self.hp_inner:
+            return inner_k, inner_w, fk
+        sq = np.sqrt(rho)
+        outer_k = net(self.face_flux(self.conductance(muk / sq, self.mu_wall / sq_w), rk, 0.0)) / sq
+        outer_w = net(self.face_flux(self.conductance(muw / sq, self.mu_wall / sq_w), sq * w, sq_w * w_wall))
+        f1 = s["f1"]
+        return f1 * inner_k + (1 - f1) * outer_k, f1 * inner_w + (1 - f1) * outer_w, fk
 
     def residual(self, x):
         u, k, w, t, pu = self.unpack(x)
@@ -132,17 +222,20 @@ class Pipe:
         rho, mu, mu_t, vol = s["rho"], s["mu"], s["mu_t"], self.vol
         net = lambda flux: flux[1:] - flux[:-1]
         fu = self.face_flux(self.conductance(mu + mu_t, self.mu_wall), u, 0.0)
-        fk = self.face_flux(self.conductance(mu + s["sk"] * mu_t, self.mu_wall), k, 0.0)
-        fw = self.face_flux(self.conductance(mu + s["sw"] * mu_t, self.mu_wall), w, s["w_wall"])
+        diff_k, diff_w, fk = self.diffusion(s, k, w)
         ft = self.face_flux(self.conductance(s["lam"] + s["cp"] * mu_t / self.pr_t, self.lam_wall), t, self.t_wall)
         uf = np.zeros(self.n + 1)
         uf[1:-1] = 0.5 * (u[:-1] + u[1:])
-        work = uf * fu + fk                                        # shear work and k diffusion, inward
         ru = net(fu) + self.force * vol
-        rk = net(fk) + (s["prod"] - BETA_STAR * rho * w * k) * vol
-        rw = net(fw) + (s["gamma"] * rho * s["prod"] / mu_t - s["beta"] * rho * w ** 2 + s["cross"] / w) * vol
-        rt = net(ft) + net(work) + (self.force * u + self.heat) * vol
-        rm = np.sum(rho * vol) - self.mass
+        rk = diff_k + (s["prod"] - BETA_STAR * rho * w * k) * vol
+        rw = diff_w + (s["omega_prod"] - s["beta"] * rho * w ** 2 + s["cross"] / w) * vol
+        if self.hp:
+            # The corrected k diffusion enters the energy too (Hasan et al. eq. 7.1).
+            rt = net(ft) + net(uf * fu) + diff_k + (self.force * u + self.heat) * vol
+        else:
+            work = uf * fu + fk                                    # shear work and k diffusion, inward
+            rt = net(ft) + net(work) + (self.force * u + self.heat) * vol
+        rm = pu - self.p0 if self.constant_pressure else np.sum(rho * vol) - self.mass
         return np.concatenate([ru, rk, rw, rt, [rm]])
 
     def jacobian(self, x, r0):
@@ -170,19 +263,22 @@ class Pipe:
         rows.append(np.arange(4 * n))
         cols.append(np.full(4 * n, 4 * n))
         vals.append(dr[:4 * n])
-        # Mass row, analytic: sum rho V with rho = pu / (R T + 2/3 k).
+        # Mass row, analytic: sum rho V with rho = pu / (R T + 2/3 k); or p fixed.
         u, k, w, t, pu = self.unpack(x)
         den = self.gas_r * t + 2.0 / 3.0 * k
         rho = pu / den
-        rows += [np.full(n, 4 * n), np.full(n, 4 * n), [4 * n]]
-        cols += [3 * n + np.arange(n), n + np.arange(n), [4 * n]]
-        vals += [-rho * self.gas_r * self.vol / den, -rho * (2.0 / 3.0) * self.vol / den, [np.sum(self.vol / den)]]
+        if self.constant_pressure:
+            rows.append([4 * n]); cols.append([4 * n]); vals.append([1.0])
+        else:
+            rows += [np.full(n, 4 * n), np.full(n, 4 * n), [4 * n]]
+            cols += [3 * n + np.arange(n), n + np.arange(n), [4 * n]]
+            vals += [-rho * self.gas_r * self.vol / den, -rho * (2.0 / 3.0) * self.vol / den, [np.sum(self.vol / den)]]
         return coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))),
                           shape=(4 * n + 1, 4 * n + 1)).tocsc()
 
     def newton(self, x, tol=1e-12, max_steps=400, log=True):
         n = self.n
-        u_tau = math.sqrt(self.force * self.radius / (2 * self.mass / (0.5 * self.radius ** 2)))
+        u_tau = math.sqrt(self.force * self.area / self.wf[-1] / (self.mass / self.area))
         dtau = 1e-3 * self.radius / u_tau
         for step in range(max_steps):
             r0 = self.residual(x)
@@ -212,10 +308,10 @@ class Pipe:
     def start(self, coarse=None):
         """Initial state: interpolated from a coarser solution (in wall distance), else the log law."""
         n, d = self.n, self.d
-        rho0 = self.mass / (0.5 * self.radius ** 2)
+        rho0 = self.mass / self.area
         nu = self.mu_wall / rho0
         if coarse is None:
-            u_tau = math.sqrt(self.force * self.radius / (2 * rho0))
+            u_tau = math.sqrt(self.force * self.area / self.wf[-1] / rho0)
             yplus = d * u_tau / nu
             u = u_tau * np.minimum(yplus, 2.5 * np.log(np.maximum(yplus, 1e-30)) + 5.5)
             k = u_tau ** 2 / math.sqrt(BETA_STAR) * np.minimum(1.0, (yplus / 10.0) ** 2)
@@ -233,18 +329,25 @@ class Pipe:
         s = self.closure(x)
         tau_w = self.mu_wall * u[-1] / self.dw
         rho_wall = pu / (self.gas_r * self.t_wall)
-        area = 0.5 * self.radius ** 2
-        rho_b = self.mass / area
+        area, ww = self.area, self.wf[-1]
+        rho_b = np.sum(s["rho"] * self.vol) / area if self.constant_pressure else self.mass / area
         u_b = np.sum(s["rho"] * u * self.vol) / (rho_b * area)
         u_tau = math.sqrt(tau_w / rho_wall)
-        heat_in = self.lam_wall * (self.t_wall - t[-1]) / self.dw * self.radius
-        k_in = self.mu_wall * (0.0 - k[-1]) / self.dw * self.radius
+        heat_in = self.lam_wall * (self.t_wall - t[-1]) / self.dw * ww
+        k_in = self.mu_wall * (0.0 - k[-1]) / self.dw * ww
+        diff_k, _, fk = self.diffusion(s, k, w)
+        phi_k = float(np.sum(diff_k) - fk[-1]) if self.hp else 0.0   # int Phi_k dV, the non-divergence part
         flux = s["rho"] * u * self.vol
         t_b = np.sum(flux * t) / np.sum(flux)
-        q_w = -heat_in / self.radius
+        q_w = -heat_in / ww
         stanton = q_w / (rho_b * float(self.cp_of(t_b)) * u_b * (t_b - self.t_wall)) if self.heat > 0 else float("nan")
-        return dict(tau_w=tau_w, force_balance=tau_w * self.radius / (self.force * area) - 1,
-                    energy_balance=-(heat_in + k_in) / (self.force * np.sum(u * self.vol) + self.heat * area) - 1,
+        supplied = self.force * np.sum(u * self.vol) + self.heat * area
+        floored = float(np.sum(s["f1"] * s["sn_floored"]) / np.sum(s["f1"])) if self.hp else 0.0
+        r0, r1 = self.rc[0] ** 2, self.rc[1] ** 2
+        centre = lambda phi: (phi[0] * r1 - phi[1] * r0) / (r1 - r0)   # symmetric quadratic through two centroids
+        return dict(tau_w=tau_w, force_balance=tau_w * ww / (self.force * area) - 1,
+                    energy_balance=-(heat_in + k_in + phi_k) / supplied - 1, phi_k=phi_k / supplied,
+                    sn_floored=floored, u_c_plus=centre(u) / u_tau, t_c=centre(t),
                     t_b=t_b, q_w=q_w, stanton=stanton,
                     u_b=u_b, rho_b=rho_b, c_f=2 * tau_w / (rho_b * u_b ** 2), u_tau=u_tau,
                     re_tau=rho_wall * u_tau * self.radius / self.mu_wall, re_b=rho_b * u_b * 2 * self.radius / self.mu_wall,
@@ -253,7 +356,8 @@ class Pipe:
 
 
 def segregated(pipe, x, iterations=20000, tol=1e-8):
-    """Under-relaxed segregated iteration (one tridiagonal solve per equation), for a starting state."""
+    """Under-relaxed segregated iteration (one tridiagonal solve per equation), for a starting state; conventional
+    diffusion only (the corrected model starts from it)."""
     n = pipe.n
     for it in range(iterations):
         u, k, w, t, pu = pipe.unpack(x)
@@ -274,7 +378,7 @@ def segregated(pipe, x, iterations=20000, tol=1e-8):
         k_new = np.maximum(solve(pipe.conductance(mu + s["sk"] * mu_t, pipe.mu_wall), BETA_STAR * rho * w * vol,
                                  s["prod"] * vol, k, 0.0, 0.6), 1e-30)
         c = s["cross"]
-        src = (s["gamma"] * rho * s["prod"] / mu_t + s["beta"] * rho * w ** 2 + np.where(c > 0, c / w, 2 * c / w)) * vol
+        src = (s["omega_prod"] + s["beta"] * rho * w ** 2 + np.where(c > 0, c / w, 2 * c / w)) * vol
         sink = (2 * s["beta"] * rho * w + np.where(c > 0, 0.0, -c / w ** 2)) * vol
         w_new = np.maximum(solve(pipe.conductance(mu + s["sw"] * mu_t, pipe.mu_wall), sink, src, w, s["w_wall"], 0.6), 1e-30)
         x_mid = np.concatenate([u_new, k_new, w_new, t, [pu]])
@@ -284,7 +388,7 @@ def segregated(pipe, x, iterations=20000, tol=1e-8):
         conduction = pipe.face_flux(ct, t, pipe.t_wall)
         t_new = solve(ct, 0.0, r - (conduction[1:] - conduction[:-1]), t, pipe.t_wall, 0.8)
         shape = 1 / (pipe.gas_r * t_new + 2.0 / 3.0 * k_new)
-        pu_new = pipe.mass / np.sum(shape * vol)
+        pu_new = pipe.p0 if pipe.constant_pressure else pipe.mass / np.sum(shape * vol)
         x_new = np.concatenate([u_new, k_new, w_new, t_new, [pu_new]])
         change = max(np.max(np.abs(u_new - u)) / np.max(np.abs(u_new)), np.max(np.abs(k_new - k)) / np.max(k_new),
                      np.max(np.abs(w_new - w) / w_new), np.max(np.abs(t_new - t)) / pipe.t_wall)
@@ -294,8 +398,107 @@ def segregated(pipe, x, iterations=20000, tol=1e-8):
     return x
 
 
+def check_operator(grids=(100, 200, 400)):
+    """Check R1: the discrete Phi_k, Phi_omega and Phi_CD against a nested fourth-order evaluation of the same
+    expressions on manufactured profiles (s = r/R, R = 1), and their vanishing for constant rho and mu."""
+    ok = True
+
+    def fields(r, heated):
+        s2 = r ** 2
+        theta = 1 + 3.9 * (1 - s2) if heated else np.ones_like(r)
+        f1 = s2 ** 2
+        return dict(rho=1 / theta, mu=theta ** 0.7, k=(1 - s2) ** 2 * (1 + s2), w=1 + 10 / ((1 - s2) + 0.2) ** 2,
+                    mu_t=50 * (1 - s2) * (1 + s2), f1=f1, sk=f1 * SIGMA_K[0] + (1 - f1) * SIGMA_K[1],
+                    sw=f1 * SIGMA_W[0] + (1 - f1) * SIGMA_W[1])
+
+    def exact(r, heated):
+        """Phi_k, Phi_omega and Phi_CD at r by nested five-point stencils."""
+        h = np.minimum(1e-3, r / 10)
+        d = lambda g: lambda x: (-g(x + 2 * h) + 8 * g(x + h) - 8 * g(x - h) + g(x - 2 * h)) / (12 * h)
+        div = lambda flux: lambda x: d(lambda y: y * flux(y))(x) / x
+        f = lambda name: lambda x: fields(x, heated)[name]
+        psi = lambda x: np.sqrt(f("rho")(x)) / f("mu")(x)
+        sn = lambda x: 1 / (psi(x) - (1 - x) * d(psi)(x))
+        snmu = lambda x: sn(x) / f("mu")(x)
+        muk = lambda x: f("mu")(x) + f("sk")(x) * f("mu_t")(x)
+        muw = lambda x: f("mu")(x) + f("sw")(x) * f("mu_t")(x)
+        sq = lambda x: np.sqrt(f("rho")(x))
+        rk = lambda x: f("rho")(x) * f("k")(x)
+        mw = lambda x: f("mu")(x) * f("w")(x)
+        sw_ = lambda x: sq(x) * f("w")(x)
+        conv_k = div(lambda x: muk(x) * d(f("k"))(x))(r)
+        conv_w = div(lambda x: muw(x) * d(f("w"))(x))(r)
+        in_k = snmu(r) * div(lambda x: muk(x) * snmu(x) * d(rk)(x))(r)
+        out_k = div(lambda x: muk(x) / sq(x) * d(rk)(x))(r) / sq(r)
+        in_w = f("rho")(r) / f("mu")(r) * snmu(r) * div(lambda x: muw(x) * snmu(x) * d(mw)(x))(r)
+        out_w = div(lambda x: muw(x) / sq(x) * d(sw_)(x))(r)
+        fl = fields(r, heated)
+        phi_cd = 2 * (1 - fl["f1"]) * SIGMA_W[1] * (d(rk)(r) * d(sw_)(r) / (sq(r) * fl["w"])
+                                                       - fl["rho"] * d(f("k"))(r) * d(f("w"))(r) / fl["w"])
+        return (fl["f1"] * in_k + (1 - fl["f1"]) * out_k - conv_k, fl["f1"] * in_w + (1 - fl["f1"]) * out_w - conv_w,
+                phi_cd, conv_k, conv_w)
+
+    def discrete(n, heated):
+        pipe = Pipe(1.0, 1e5, 300.0, 1.0, n, correction="hp")
+        pipe.mu_wall = 1.0
+        net = lambda flux: flux[1:] - flux[:-1]
+        fl = fields(pipe.rc, heated)
+        st = dict(rho=fl["rho"], mu=fl["mu"], mu_t=fl["mu_t"], sk=fl["sk"], sw=fl["sw"], f1=fl["f1"],
+                  rho_wall=1.0, w_wall=float(fields(np.array([1.0]), heated)["w"][0]))
+        k, w = fl["k"], fl["w"]
+        conv_cross = 2 * (1 - fl["f1"]) * fl["rho"] * SIGMA_W[1] * pipe.grad(k, 0.0) * pipe.grad(w, st["w_wall"])
+        pipe.hp_fields(st, k, w)
+        diff_k, diff_w, fk = pipe.diffusion(st, k, w)
+        conv_k = net(fk)
+        conv_w = net(pipe.face_flux(pipe.conductance(fl["mu"] + fl["sw"] * fl["mu_t"], 1.0), w, st["w_wall"]))
+        v = pipe.vol
+        return (pipe, (diff_k - conv_k) / v, (diff_w - conv_w) / v, (st["cross"] - conv_cross) / w, conv_k / v, conv_w / v,
+                float(np.mean(st["sn_floored"])))
+
+    print("R1, constant rho and mu: largest |Phi| over the largest conventional diffusion (pass 1e-12)")
+    for n in grids:
+        pipe, pk, pw, pcd, ck, cw, fl = discrete(n, False)
+        worst = max(np.max(np.abs(pk)) / np.max(np.abs(ck)), np.max(np.abs(pw)) / np.max(np.abs(cw)),
+                    np.max(np.abs(pcd)) / np.max(np.abs(cw)))
+        ok &= worst <= 1e-12
+        print(f"  N {n:4d}  {worst:.2e}")
+    print("R1, manufactured heated profile: relative errors against the nested fourth-order evaluation")
+    errs = {"Phi_k": [], "Phi_omega": [], "Phi_CD": []}
+    for n in grids:
+        pipe, pk, pw, pcd, ck, cw, floored = discrete(n, True)
+        ek, ew, ecd, eck, ecw = exact(pipe.rc, True)
+        v = pipe.vol
+        line = f"  N {n:4d}  S_n floor acts in {floored:.0%} of cells"
+        for name, num, ref in (("Phi_k", pk, ek), ("Phi_omega", pw, ew), ("Phi_CD", pcd, ecd)):
+            inner = slice(0, n - 1)
+            l1 = np.sum(np.abs(num - ref)[inner] * v[inner]) / np.sum(np.abs(ref)[inner] * v[inner])
+            errs[name].append(l1)
+            scale = np.max(np.abs(ref))
+            line += (f"\n    {name:9s} L1 (all but the wall cell) {l1:.3e}  wall cell {abs(num[-1] - ref[-1]) / scale:.3e}"
+                     f"  largest {np.max(np.abs(num - ref)) / scale:.3e} (of the largest |exact|)"
+                     f" at r/R {pipe.rc[np.argmax(np.abs(num - ref))]:.4f}, cell {np.argmax(np.abs(num - ref))}")
+            if name == "Phi_k":
+                line += (f"\n    int Phi_k dV error {abs(np.sum(num * v) - np.sum(ref * v)) / np.sum(np.abs(ref) * v):.3e}"
+                         f" of int |Phi_k| dV")
+        line += (f"\n    conventional k diffusion, wall cell {abs(ck[-1] - eck[-1]) / np.max(np.abs(eck)):.3e}"
+                 f", axis cell {abs(ck[0] - eck[0]) / np.max(np.abs(eck)):.3e}; omega, wall cell "
+                 f"{abs(cw[-1] - ecw[-1]) / np.max(np.abs(ecw)):.3e} (of the largest |exact|)")
+        print(line)
+    for name, e in errs.items():
+        orders = [math.log(e[i] / e[i + 1]) / math.log(grids[i + 1] / grids[i]) for i in range(len(e) - 1)]
+        good = all(abs(o - 2) <= 0.25 for o in orders)
+        ok &= good
+        print(f"  {name:9s} observed orders " + ", ".join(f"{o:.3f}" for o in orders) + ("" if good else "  FAILS"))
+    print("R1 " + ("passes" if ok else "FAILS"))
+    return ok
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--check-operator", action="store_true", help="run check R1 and exit")
+    a0, _ = ap.parse_known_args()
+    if a0.check_operator:
+        sys.exit(0 if check_operator() else 1)
     ap.add_argument("--radius", type=float, required=True)
     ap.add_argument("--p0", type=float, required=True, help="fill pressure at the wall temperature (Pa)")
     ap.add_argument("--twall", type=float, required=True)
@@ -306,22 +509,35 @@ def main():
     ap.add_argument("--omega-factor", type=float, default=10.0)
     ap.add_argument("--heat", type=float, default=0.0, help="uniform volumetric heating (W/m^3)")
     ap.add_argument("--profile", help="CSV of the finest profile")
+    ap.add_argument("--correction", choices=("none", "hp"), default="none")
+    ap.add_argument("--hp-form", choices=("full", "inner"), default="full")
+    ap.add_argument("--no-dic", action="store_true")
+    ap.add_argument("--planar", action="store_true")
+    ap.add_argument("--powerlaw", type=float)
+    ap.add_argument("--constant-pressure", action="store_true")
+    ap.add_argument("--their-closure", action="store_true")
     a = ap.parse_args()
     grids = [int(g) for g in a.grids.split(",")]
-    first = Pipe(a.radius, a.p0, a.twall, a.force, min(grids[0], 50), a.stretch, a.prt, a.omega_factor, a.heat)
+    options = dict(planar=a.planar, powerlaw=a.powerlaw, constant_pressure=a.constant_pressure,
+                   their_closure=a.their_closure)
+    first = Pipe(a.radius, a.p0, a.twall, a.force, min(grids[0], 50), a.stretch, a.prt, a.omega_factor, a.heat, **options)
     previous = (first, segregated(first, first.start()))
     rows = []
     for n in grids:
-        pipe = Pipe(a.radius, a.p0, a.twall, a.force, n, a.stretch, a.prt, a.omega_factor, a.heat)
+        pipe = Pipe(a.radius, a.p0, a.twall, a.force, n, a.stretch, a.prt, a.omega_factor, a.heat,
+                    correction=a.correction, hp_form=a.hp_form, dic=not a.no_dic, **options)
         x, steps, change = pipe.newton(pipe.start(previous))
         m = pipe.measures(x)
         rows.append((n, m))
         print(f"N {n:5d}  Newton steps {steps:3d}  last update {change:.1e}  force balance {m['force_balance']:+.1e}  "
               f"energy balance {m['energy_balance']:+.1e}  y1+ {m['y1plus']:.4f}  Re_tau {m['re_tau']:.4f}  "
               f"u_b {m['u_b']:.8f} m/s  c_f {m['c_f']:.10f}  T_axis {m['t_axis']:.6f} K"
-              + (f"  T_b {m['t_b']:.6f} K  St {m['stanton']:.10f}" if a.heat > 0 else ""), flush=True)
+              + (f"  T_b {m['t_b']:.6f} K  St {m['stanton']:.10f}" if a.heat > 0 else "")
+              + (f"  int Phi_k dV {m['phi_k']:+.3e} of supply  S_n floored {m['sn_floored']:.1%}" if pipe.hp else "")
+              + (f"  u_c+ {m['u_c_plus']:.8f}  T_c/T_w {m['t_c'] / a.twall:.8f}" if a.planar else ""),
+              flush=True)
         previous = (pipe, x)
-    for key in ("c_f", "u_b", "t_axis") + (("t_b", "stanton") if a.heat > 0 else ()):
+    for key in ("c_f", "u_b", "t_axis") + (("t_b", "stanton") if a.heat > 0 else ()) + (("u_c_plus", "t_c") if a.planar else ()):
         vals = [m[key] for _, m in rows]
         for i in range(2, len(vals)):
             e1, e2 = vals[i - 1] - vals[i - 2], vals[i] - vals[i - 1]

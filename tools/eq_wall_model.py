@@ -14,7 +14,7 @@ mu, lambda and c_p from tools/n2_properties.csv (Cantera, the reference's own pr
 kappa is the SST model's own (0.3697, WALL_FUNCTIONS.md design item 7); A+ is fitted here so the cold
 profile's a priori shear error is smallest over y+ 5 to 1,000; Pr_t 0.9 is the reference's.
 
-Usage: eq_wall_model.py [--aplus A] [--fit] | --transforms
+Usage: eq_wall_model.py [--reference sst|hp] [--aplus A] [--fit] | --transforms
 """
 import argparse
 import math
@@ -30,6 +30,9 @@ RADIUS = 5e-3
 CASES = {
     "cold": dict(profile="reference_re_tau_1e4_profile_6400.csv", twall=300.0, force=45690.0, heat=0.0),
     "heated": dict(profile="reference_heated_profile_6400.csv", twall=600.0, force=19800.0, heat=1.95e9),
+    # SSTs with the Hasan, Elias, Menter and Pecnik corrections (sst_pipe_1d.py --correction hp), the same cases.
+    "cold_hp": dict(profile="reference_hp_cold_profile_6400.csv", twall=300.0, force=45690.0, heat=0.0),
+    "heated_hp": dict(profile="reference_hp_heated_profile_6400.csv", twall=600.0, force=19800.0, heat=1.95e9),
 }
 
 
@@ -117,7 +120,7 @@ def apriori(case, kappa, aplus, prt, targets=(1, 5, 11, 30, 100, 300, 1000, 3000
     return out
 
 
-def transforms():
+def transforms(cold="cold", heated="heated"):
     """The heated profile under van Driest (y+, wall units) and Trettel-Larsson (y*, semi-local) scaling
     against the cold profile's u+(y+), with the local slopes 1 / (du / d ln y)."""
     def one(case):
@@ -133,11 +136,11 @@ def transforms():
         g = s * (1 + 0.5 * y / rho * np.gradient(rho, y) - y / mu * np.gradient(mu, y))
         integral = lambda f: np.concatenate([[0.0], np.cumsum(0.5 * (f[1:] + f[:-1]) * np.diff(up))]) + f[0] * up[0]
         return yp, up, integral(s), ystar, integral(g)
-    yc, uc, _, _, _ = one("cold")
-    yh, uh, uvd, ys, utl = one("heated")
+    yc, uc, _, _, _ = one(cold)
+    yh, uh, uvd, ys, utl = one(heated)
     slope = lambda yy, uu: 1 / np.gradient(uu, np.log(yy))
     kc, kv, kt = slope(yc, uc), slope(yh, uvd), slope(ys, utl)
-    print("heated SST profile (T_w 600 K, Re_tau 9,950) under compressible scalings, against the cold profile")
+    print(f"{heated} profile (T_w 600 K, Re_tau {yh.max():.0f}) under compressible scalings, against the {cold} profile")
     print(f"{'y+ or y*':>9} {'cold u+':>8} {'heated u+':>10} {'u_vD+(y+)':>10} {'u_TL+(y*)':>10} {'vD-cold':>8} {'TL-cold':>8}"
           f" {'kappa cold':>10} {'kappa vD':>9} {'kappa TL':>9}")
     for target in (1, 5, 11, 30, 100, 300, 1000):
@@ -154,21 +157,23 @@ def main():
     ap.add_argument("--prt", type=float, default=0.9)
     ap.add_argument("--fit", action="store_true", help="fit A+ to the cold profile first")
     ap.add_argument("--transforms", action="store_true", help="only the scaling diagnostic of the heated profile")
+    ap.add_argument("--reference", choices=("sst", "hp"), default="sst", help="standard SST or the corrected SST")
     a = ap.parse_args()
+    cold, heated = ("cold", "heated") if a.reference == "sst" else ("cold_hp", "heated_hp")
     if a.transforms:
-        transforms()
+        transforms(cold, heated)
         return
     aplus = a.aplus
     if a.fit:
         best = None
         for trial in np.arange(10.0, 30.01, 0.5):
-            errs = [abs(e[1]) for e in apriori("cold", a.kappa, trial, a.prt, targets=(5, 11, 30, 100, 300, 1000), quiet=True)]
+            errs = [abs(e[1]) for e in apriori(cold, a.kappa, trial, a.prt, targets=(5, 11, 30, 100, 300, 1000), quiet=True)]
             rms = math.sqrt(sum(e * e for e in errs) / len(errs))
             if best is None or rms < best[0]:
                 best = (rms, trial)
         aplus = best[1]
         print(f"A+ fitted on the cold profile (y+ 5 to 1,000, rms shear error {best[0]:.3e}): {aplus}")
-    for case in ("cold", "heated"):
+    for case in (cold, heated):
         apriori(case, a.kappa, aplus, a.prt)
 
 

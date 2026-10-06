@@ -1,0 +1,27 @@
+R1, constant rho and mu: largest |Phi| over the largest conventional diffusion (pass 1e-12)
+  N  100  1.89e-16
+  N  200  1.66e-16
+  N  400  1.76e-16
+R1, manufactured heated profile: relative errors against the nested fourth-order evaluation
+  N  100  S_n floor acts in 0% of cells
+    Phi_k     L1 (all but the wall cell) 1.270e-03  wall cell 5.190e-05  largest 5.068e-02 (of the largest |exact|) at r/R 0.0138, cell 0
+    int Phi_k dV error 3.479e-04 of int |Phi_k| dV
+    Phi_omega L1 (all but the wall cell) 1.077e-03  wall cell 9.141e-02  largest 9.141e-02 (of the largest |exact|) at r/R 0.9993, cell 99
+    Phi_CD    L1 (all but the wall cell) 6.953e-04  wall cell 5.756e-05  largest 9.508e-04 (of the largest |exact|) at r/R 0.9444, cell 76
+    conventional k diffusion, wall cell 1.333e-02, axis cell 8.348e-02; omega, wall cell 1.217e-01 (of the largest |exact|)
+  N  200  S_n floor acts in 0% of cells
+    Phi_k     L1 (all but the wall cell) 3.173e-04  wall cell 4.008e-05  largest 5.078e-02 (of the largest |exact|) at r/R 0.0069, cell 0
+    int Phi_k dV error 8.694e-05 of int |Phi_k| dV
+    Phi_omega L1 (all but the wall cell) 2.711e-04  wall cell 9.753e-02  largest 9.753e-02 (of the largest |exact|) at r/R 0.9996, cell 199
+    Phi_CD    L1 (all but the wall cell) 1.737e-04  wall cell 1.683e-05  largest 2.376e-04 (of the largest |exact|) at r/R 0.9435, cell 152
+    conventional k diffusion, wall cell 1.379e-02, axis cell 8.327e-02; omega, wall cell 1.135e-01 (of the largest |exact|)
+  N  400  S_n floor acts in 0% of cells
+    Phi_k     L1 (all but the wall cell) 7.931e-05  wall cell 2.328e-05  largest 5.081e-02 (of the largest |exact|) at r/R 0.0035, cell 0
+    int Phi_k dV error 2.173e-05 of int |Phi_k| dV
+    Phi_omega L1 (all but the wall cell) 6.788e-05  wall cell 1.004e-01  largest 1.004e-01 (of the largest |exact|) at r/R 0.9998, cell 399
+    Phi_CD    L1 (all but the wall cell) 4.340e-05  wall cell 4.504e-06  largest 5.939e-05 (of the largest |exact|) at r/R 0.9440, cell 305
+    conventional k diffusion, wall cell 1.397e-02, axis cell 8.321e-02; omega, wall cell 1.094e-01 (of the largest |exact|)
+  Phi_k     observed orders 2.001, 2.000
+  Phi_omega observed orders 1.990, 1.998
+  Phi_CD    observed orders 2.001, 2.000
+R1 passes

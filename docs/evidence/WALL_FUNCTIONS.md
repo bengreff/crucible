@@ -98,9 +98,11 @@ Test infrastructure this needs (none of it changes the criteria):
 
 Every run labels its wall treatment. The wall heat flux and friction become model outputs. Their error bands in the RL10 loss ledger come from criteria 2 and 3.
 
-### Restated 6 October 2026, about 01:30, before any code or rerun: Ben's decision on the hot wall
+### Restated 6 October 2026 (committed 00:55 CDT, 5c3b747), before any code or rerun: Ben's decision on the hot wall
 
-**The decision** (Ben, through the Director, 6 October about 01:05): Option B. The RL10 is an expander engine, so wall heat is the quantity that matters, and DNS beats standard SST; the correction is published, so it is not a bespoke fix. The correction goes into the engine and into the reference alike. Criterion 2 is restated against the corrected SST before it is rerun. The wall model is tabulated offline. A measured hot-wall heat-flux dataset is added, so the truth is not only model against model. The change of SST form is recorded in TECHNICAL_PLAN. The results of criterion 2 below (against standard SST) stay as the record of why.
+*Times in this section were corrected at 01:10 CDT. The first stamps (01:05, 01:30, 02:20) were estimates, not read from the clock, and they were late. The commit times are the record.*
+
+**The decision** (Ben, through the Director, 6 October, between 00:43 and 00:55 CDT): Option B. The RL10 is an expander engine, so wall heat is the quantity that matters, and DNS beats standard SST; the correction is published, so it is not a bespoke fix. The correction goes into the engine and into the reference alike. Criterion 2 is restated against the corrected SST before it is rerun. The wall model is tabulated offline. A measured hot-wall heat-flux dataset is added, so the truth is not only model against model. The change of SST form is recorded in TECHNICAL_PLAN. The results of criterion 2 below (against standard SST) stay as the record of why.
 
 **The model, in the engine and the reference alike: SSTs with the corrections of Hasan, Elias, Menter and Pecnik** (J. Fluid Mech. 1019, A8, 2025; arXiv 2410.14637; the authors' solver is github.com/Fluid-Dynamics-Of-Energy-Systems-Team/RANS_Scaling2024). In their full form (their sections 3 to 5, the 2-D test of section 7 and appendix C):
 - ψ = √ρ/μ, ℓ the wall distance, n the unit wall normal, S_n = 1 / (ψ + ℓ n·∇ψ); μ_k = μ + σ_k μ_t and μ_ω = μ + σ_ω μ_t, σ blended by F1 as in SSTs.
@@ -114,8 +116,25 @@ Every run labels its wall treatment. The wall heat flux and friction become mode
 
 **Checks on the reference, before it is used** (`tools/sst_pipe_1d.py`; a failure stops the reference):
 - **R1, the operator.** With constant ρ and μ, every Φ is zero to 1e-12 of the conventional diffusion. On a smooth manufactured profile (ρ, μ, k, ω and μ_t analytic in r, a heated-pipe shape), the tool's discrete Φ_k, Φ_ω and Φ_CD converge to a fourth-order finite-difference evaluation of the same expressions on 100,000 points, with observed order 2 ± 0.25 over three grids.
+  - *The norm, made precise 6 October about 01:00 CDT, before R1 ran.* The tool takes the wall face's gradient from the wall value and the last centroid. So the last cell's truncation error is of order one for any diffusion operator, the conventional one included. Derived for a uniform planar grid: there the discrete operator is 0.75 of the exact one. Every other cell's error is second order. The order is therefore judged on the volume-weighted L1 error over all cells but the wall cell, relative to the reference's L1 norm over the same cells. Reported beside it: the wall cell's error, the largest error, and the error in ∫Φ_k dV over the whole pipe, with the conventional operator's own wall-cell error for comparison. The reference is not a 100,000-point grid: three nested derivatives on a step of 1e-5 R would lose about 1e-6 to round-off. It is a nested five-point (fourth-order) stencil at each centroid, with step h = min(R/1000, r/10).
 - **R2, the authors' code.** Their published solver, unchanged except for imports that newer SciPy renamed, on their low-Mach channel of Pecnik and Patel (2017): Re_τ 950, uniform heating 75 μ_w c_p T_w / (Pr_w h²), μ ∝ T^0.7, Pr ∝ μ, Pr_t 1, the inner corrections throughout and no Φ_CD, as in their paper. The tool runs the same configuration (planar, the same property laws, the inner form throughout, their P_k limit of 20 β*ρkω). Both are grid-converged: each value changes by less than 0.1% on doubling the grid. Pass: the centreline u+ and (T_c − T_w)/T_w within 0.5%.
+  - *What the first runs showed, and R2 restated (6 October, 01:14 CDT, before the longer runs).*
+    - Their solver converges at first order in the grid, as the tool does. Their u_c+ is 41.340, 40.275 and 39.760 at 2N 120, 240 and 480 (the last doubling changes it by 1.3%). The tool's is first order too, observed order 1.04 from 800 to 3,200 rings.
+    - At 2N 960 their Picard loop stops at its 100,000-iteration cap with its change still above its 1e-7 tolerance. That value (39.320) is not converged and is not used.
+    - So "less than 0.1% on doubling" cannot be met by either code at a grid it can afford. Restated:
+      - (i) One change to their solver: the iteration cap is raised from 1e5 to 2e6. Their tolerance stays 1e-7. Their 2N 960 and 1,920 are rerun with it.
+      - (ii) Each code's value is its Richardson extrapolation over its last three grids. It is accepted when the observed order is between 0.7 and 1.3 and the extrapolation moves by less than 0.1% from the previous triplet's.
+      - (iii) Iteration error: their 2N 480 is rerun with tolerance 1e-8. The change is reported and must be under 0.05%; if not, every grid is rerun at the tighter tolerance.
+    - The pass is unchanged: u_c+ and (T_c − T_w)/T_w within 0.5%.
+    - *(iii) measured, 01:16 CDT.* Their 2N 480 at tolerance 1e-8 against 1e-7: u_c+ 39.78010 against 39.76012 (+0.050%), (T_c − T_w)/T_w 3.85251 against 3.84729 (+0.136%). That is over 0.05%, so every grid of theirs is rerun at 1e-8 (2N 240, 480, 960 and 1,920). Their 2N 480 at 1e-9 is reported as the check on 1e-8.
 - **R3, constant properties.** Criterion 1's cold pipe with the corrections: the Richardson c_f within 0.5% of the uncorrected 0.00337113. The corrections vanish for constant properties. What is left is the pipe's small viscous heating and D^ic at a turbulent Mach number of about 0.02 (derived).
+  - *What the first two grids showed, and R3 restated (6 October about 01:07 CDT, before the grid sequence ran).*
+    - On 200 and 400 rings, the corrected cold pipe's c_f is 0.96% below the uncorrected one on the same grid. Without D^ic the gap is 0.16%. So the variable-property terms do vanish, apart from the pipe's small heating; D^ic does not.
+    - D^ic lowers c_f by about 0.8% at M_τ 0.009. The 0.5% band rested on my own derivation that D^ic is negligible at M_t 0.02, and that derivation was wrong. f(M_t) = 0.39 M_t^0.77 has an infinite slope at zero. The paper's calibration (C − 5.2 = 7.18 M_τ, their appendix B) gives a log-law shift of 0.065 here, about 0.5% in c_f (derived).
+    - So R3 as stated fails on D^ic, which is the model working as published, not an error in the tool. Restated:
+      - (i) without D^ic, the Richardson c_f within 0.5% of 0.00337113 (the check R3 was meant to be);
+      - (ii) with D^ic, the Richardson c_f and the equivalent shift in u_b+ are reported beside the paper's 7.18 M_τ, not judged;
+      - (iii) D^ic itself: unity at M_t = 0, and equal to a hand evaluation at R_t 3.5, M_t 0.1 (0.978300). Measured: 1 exactly at R_t 0.5, 3.5 and 20; 0.9783002707 against 0.9783002707 (4e-16).
 - Reported, not judged: the corrected heated profile's u+ under semi-local (Trettel-Larsson) scaling against the cold one at y* 30, 100 and 300. This is the collapse the correction is built for.
 
 **κ, B and A+ are re-read from the corrected cold reference** by design item 7's rule, before any wall-model run. If they move by less than the fit's own range (κ 0.364 to 0.375), the present values stay.
@@ -286,7 +305,7 @@ Criterion 2(b) fails at y+ 300 and 1,000, as the a priori check predicts.
 
 The correction changes the k and ω diffusion so that the model follows semi-local scaling (after Pecnik and Patel, JFM 823 R1, 2017), and it adds a damping for intrinsic compressibility. So the 20% gap measured here is a known property of standard SST under strong heating. Both wall laws follow scalings that DNS supports; the reference does not.
 
-*Corrected 6 October about 01:30.* This paragraph first said "Hasan and Pecnik ... errors up to 23% in velocity and 29% in temperature ... brings this to 3% and 8%". Those numbers are not in the paper; I had written them before reading it. The 00:50 milestone reply carried them too.
+*Corrected 6 October (committed 00:55 CDT).* This paragraph first said "Hasan and Pecnik ... errors up to 23% in velocity and 29% in temperature ... brings this to 3% and 8%". Those numbers are not in the paper; I had written them before reading it. The milestone reply sent just before carried them too.
 
 **The question this raises, for the Director and Ben.** Criterion 2's reference is standard SST resolved to the wall. A wall function can match it only by carrying SST's own heated buffer layer (for example a 1-D SST sub-grid in the first cell). That would carry SST's known heated-wall error, about 20% here, into the hot-gas wall heat flux. The alternative is semi-local physics in both places: a variable-property wall model (the ODE model above, or Nichols and Nelson with a semi-local correction) and the Hasan-Pecnik correction in the engine's SST. Criterion 2's reference would then be the corrected SST, with its published DNS errors as the reference's own band. Nothing is changed until this is decided.
 
@@ -301,6 +320,82 @@ Criterion 3's reference is 32 rings with the largest first-cell y+ at 1 or less.
 C1 eqtt 64x12 to 1 ms, the law against the no-slip wall, 2 threads each, run side by side in two repeats (same load; other jobs were running on the Mac). Wall time per step from whole seconds: no-slip 46 s and 46 s for 17,088 steps (3.51 µs per cell update); law 49 s and 48 s for 17,049 steps (3.70 µs). Extra cost per cell update: **+4.6% to +6.8%** (+9.0% at worst with each time off by half a second), band 10%: **pass**. The four outputs are in `/tmp/wf4` (not committed).
 
 Reported, the payoff: criterion 3(b) itself, C1 to 8 ms with the law on 12 rings, took 218 s on 4 threads; its stated reference is estimated at about 60 hours (above).
+
+### The corrected SST: checks R1 and R3, the corrected references and the a priori check (6 October 2026, 01:00 to 01:20 CDT)
+
+Outputs: `wall_functions/hp_r1_operator_2026-10-06.txt`, `hp_r3_cold_nodic_2026-10-06.txt`, `hp_r3_cold_dic_2026-10-06.txt`, `reference_hp_cold_2026-10-06.txt`, `reference_hp_heated_2026-10-06.txt` (with their 6,400-ring profiles), `log_law_fit_hp_re_tau_1e4.txt`, `apriori_ode_model_hp_2026-10-06.txt` and `heated_hp_scaling_2026-10-06.txt`.
+
+**R1, the operator: pass.**
+- With constant ρ and μ, the largest |Φ| is 1.9e-16 of the largest conventional diffusion (limit 1e-12).
+- On the manufactured heated profile, the observed orders over N 100, 200 and 400 are 2.001 and 2.000 for Φ_k, 1.990 and 1.998 for Φ_ω, and 2.001 and 2.000 for Φ_CD (band 2 ± 0.25). The L1 error at N 400 is 7.9e-5 for Φ_k, 6.8e-5 for Φ_ω and 4.3e-5 for Φ_CD.
+- The error in ∫Φ_k dV is 2.2e-5 at N 400, and it falls as second order.
+- The wall cell's Φ_ω error is 0.09 to 0.10. The conventional ω diffusion's own wall-cell error is 0.11 to 0.12, as derived. The axis cell's Φ_k error is 5% and does not shrink with the grid, as the conventional k diffusion's (8%) does not. Its volume shrinks as h², so it does not change the order. It is reported here because the engine's axis cells use the same face rule.
+
+**R3, constant properties: pass on (i) and (iii); (ii) reported.**
+- (i) Without D^ic, the Richardson c_f is 0.00336607 (observed order 1.00), 0.150% below 0.00337113.
+- (ii) With D^ic, the Richardson c_f is 0.00333874, 0.81% below (i). That is a shift of +0.0996 in u_b+, against the paper's 7.18 M_τ calibration of 0.065.
+- (iii) D^ic: as recorded in the restatement above.
+
+**κ, B and A+ from the corrected cold reference** (the R3 pipe with D^ic, 6,400 rings, Re_τ 9,941.5), by design item 7's rule:
+- κ is 0.3693 and B is 3.853, against the present 0.3697 and 3.752. Both move less than the fit's own range (κ 0.363 to 0.375, B 3.49 to 4.08), so the present values stay. B's rise of 0.10 is D^ic's shift in (ii).
+- A+ refits to 14.5 against the present 14.0, one step of the fit's grid. The a priori check is run with both.
+
+**The corrected heated reference** (criterion 2's case, held fixed: N2, wall 600 K, p0 3 MPa, R 5 mm, f 19,800 N/m³, Q 1.95e9 W/m³; 200 to 6,400 rings).
+- Richardson limits (1,600 to 6,400 rings, observed order 0.93): c_f 0.00565337, St 0.00310987, u_b 32.2411 m/s, T_axis 3,167.0 K and T_b 2,792.4 K. Re_τ is 10,382 on 6,400 rings.
+- Against standard SST on the same case (c_f 0.00725704, St 0.00394250, T_axis 2,941 K, Re_τ 9,950), the correction lowers c_f by 22.1% and St by 21.1%.
+- ∫Φ_k dV is −1.4e-6 of the supplied heat. The S_n floor acts in no cell.
+- **Scaling (reported):** under Trettel-Larsson scaling the corrected heated profile lies on the cold one. u_TL+ minus the cold u+ is −0.03, +0.04 and +0.20 at y* 30, 100 and 300. Standard SST sat 2.0 below. This is the collapse the correction is built for.
+
+**A priori, the Kawai-Larsson ODE against the corrected heated reference: fails on τ_w.** Errors, model minus reference:
+
+| y+ | 30 | 100 | 300 | 1,000 |
+|---|---|---|---|---|
+| τ_w, A+ 14.0 | −1.1% | −1.8% | +1.8% | **+3.9%** |
+| q_w, A+ 14.0 | −1.3% | −1.8% | +2.0% | +4.2% |
+| τ_w, A+ 14.5 | **−2.6%** | **−4.4%** | −0.9% | +1.4% |
+| q_w, A+ 14.5 | −2.6% | −4.3% | −0.5% | +1.9% |
+
+- The pass needs τ_w within 2.5% and q_w within 5% from y+ 30 to 1,000. q_w passes with either A+; τ_w fails with either.
+- Against standard SST, the same check was −17% to −25%. The correction removes most of that gap. What is left is the mixing-length model's own buffer layer: on the corrected cold profile with A+ 14.5, its τ_w error at y+ 30 is −2.9% too.
+- So the stated fallback applies. The wall model becomes the corrected SST's own inner layer: the 1-D constant-stress, constant-heat-flux layer with the corrected k and ω equations, tabulated the same way, with the a priori check repeated. Nothing else is tried.
+
+### The measured check, pre-registered (6 October 2026, 01:20 CDT, before any measured value is read)
+
+The search (inputs only) found five candidates. Their measured values were not read.
+- Back, Massier and Gier, JPL TR 32-415 (1965), a cooled nozzle on heated air.
+- Schacht, Quentmeyer and Jones, NASA TN D-2832 (1965), an H2/O2 heat-sink nozzle.
+- Schacht and Quentmeyer, NASA TN D-7207 (1973), an H2/O2 calorimeter chamber.
+- Marshall, Pal, Woodward and Santoro, AIAA 2005-3572, the GO2/GH2 single element (RCM-1).
+- Celano et al., EUCASS 2015, a GOX/GCH4 single element.
+
+**The case: Back, Massier and Gier, JPL TR 32-415** (NASA-CR-57326, free on NTRS).
+- **Geometry.** A water-cooled convergent-divergent nozzle with throat diameter 45.8 mm (1.803 in), contraction area ratio 7.75 and expansion area ratio 2.68. The half-angles are 30° convergent and 15° divergent. Upstream is a cooled approach section, 129 mm (5.07 in) in diameter.
+- **The gas.** Air heated by burning a little methanol, mixed in a calming section before the nozzle.
+- **Why this case.** The calming section separates the wall heat transfer from injector mixing and combustion. So the comparison tests the wall model and the turbulence model, not a combustion model. It has 21 axial stations, and the inlet boundary layer is measured.
+- **Its limits.** It is air, not combustion products. Its highest pressures (about 1.7 MPa) are at the bottom of the rocket range.
+
+**The run, chosen by its inputs alone:** the highest stagnation pressure at the highest stagnation temperature, with the longest approach section (the most developed inlet boundary layer). If the TR lists several runs at those settings, the first listed.
+
+**Inputs taken from the TR:**
+- the contour;
+- the stagnation pressure and temperature;
+- the measured wall temperature along the wall, as the boundary condition;
+- the inlet boundary-layer thickness, matched by the length of the approach section in the domain;
+- the gas, as air with the stated methanol products.
+
+An agent extracts these under the same rule as the RL10 inputs: no measured heat flux is reported.
+
+**The quantity:** the wall heat flux along the nozzle at the TR's stations, from the nozzle inlet to the exit, and its integral over the nozzle wall.
+
+**The runs:**
+- the engine as it will run the RL10: corrected SST, the tabulated wall model, and the production grid rule;
+- the same with the wall resolved, so the wall model's error is separated from the turbulence model's.
+
+**The bands, stated now:**
+- the integrated heat flow within 10%;
+- the local heat flux within 20% at every station.
+
+The strongly accelerated stations near the throat (K = ν/u² du/dz above 2e-6 in the simulation) are judged like the rest. RANS without a transition model is known to be weakest there, and the RL10's throat is such a region, so excluding them would hide the error that matters. A failure is not tuned away: its size becomes the wall-heat error band in the RL10 loss ledger.
 
 ### Where this leaves the criteria (6 October, 00:45)
 

@@ -1,0 +1,18 @@
+N   200  Newton steps  28  last update 4.2e-16  force balance +2.2e-16  energy balance -3.2e-13  y1+ 0.3229  Re_tau 9942.2975  u_b 78.99659628 m/s  c_f 0.0032595280  T_axis 302.450828 K  int Phi_k dV -1.902e-05 of supply  S_n floored 0.0%
+N   400  Newton steps  23  last update 4.1e-16  force balance +2.2e-16  energy balance -4.6e-13  y1+ 0.1600  Re_tau 9941.7426  u_b 78.38420566 m/s  c_f 0.0033106583  T_axis 302.416963 K  int Phi_k dV -2.031e-05 of supply  S_n floored 0.0%
+N   800  Newton steps  23  last update 2.7e-16  force balance +2.2e-16  energy balance +1.4e-13  y1+ 0.0797  Re_tau 9941.4558  u_b 78.06200399 m/s  c_f 0.0033380442  T_axis 302.399462 K  int Phi_k dV -2.106e-05 of supply  S_n floored 0.0%
+N  1600  Newton steps  23  last update 4.5e-16  force balance +2.2e-16  energy balance -2.1e-12  y1+ 0.0397  Re_tau 9941.3120  u_b 77.89905866 m/s  c_f 0.0033520235  T_axis 302.390689 K  int Phi_k dV -2.146e-05 of supply  S_n floored 0.0%
+N  3200  Newton steps  32  last update 7.5e-13  force balance +0.0e+00  energy balance -7.5e-12  y1+ 0.0199  Re_tau 9941.2404  u_b 77.81752125 m/s  c_f 0.0033590517  T_axis 302.386317 K  int Phi_k dV -2.166e-05 of supply  S_n floored 0.0%
+N  6400  Newton steps  27  last update 5.4e-13  force balance +2.2e-16  energy balance +9.0e-12  y1+ 0.0099  Re_tau 9941.2047  u_b 77.77688028 m/s  c_f 0.0033625631  T_axis 302.384143 K  int Phi_k dV -2.177e-05 of supply  S_n floored 0.0%
+c_f: grids 200-400-800  observed order 0.901  Richardson 0.003369630337
+c_f: grids 400-800-1600  observed order 0.970  Richardson 0.003366599975
+c_f: grids 800-1600-3200  observed order 0.992  Richardson 0.003366157872
+c_f: grids 1600-3200-6400  observed order 1.001  Richardson 0.003366068923
+u_b: grids 200-400-800  observed order 0.926  Richardson 77.70425808
+u_b: grids 400-800-1600  observed order 0.984  Richardson 77.7323389
+u_b: grids 800-1600-3200  observed order 0.999  Richardson 77.73585411
+u_b: grids 1600-3200-6400  observed order 1.005  Richardson 77.7364932
+t_axis: grids 200-400-800  observed order 0.952  Richardson 302.3807489
+t_axis: grids 400-800-1600  observed order 0.996  Richardson 302.3818677
+t_axis: grids 800-1600-3200  observed order 1.005  Richardson 302.381976
+t_axis: grids 1600-3200-6400  observed order 1.008  Richardson 302.3819915
