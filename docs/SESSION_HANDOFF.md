@@ -1,6 +1,34 @@
 # Session handoff
 
-6 October 2026, about 00:50 · branch `main` (one line).
+6 October 2026, about 03:15 CDT · branch `main` (one line). Parked early (the Director's 02:55 usage note: each night is budgeted at about 20% of the week).
+
+## Stopped at (6 October, 03:15 CDT)
+
+- **The hot wall, Option B (Ben, 6 October), is in.** The corrected SST of Hasan, Elias, Menter and Pecnik (JFM 1019 A8, 2025) is in the engine (`CRUCIBLE_SST_CORRECTION=hp`, +12% per step) and in the 1-D reference. R1, R2 (against the authors' own solver: −0.006% in u_c+) and R3 pass. TECHNICAL_PLAN records the change of SST form and Ben's reason. The Kawai-Larsson ODE wall model fails its a priori check, so the declared fallback applies: the corrected SST's own 1-D wall layer (`tools/sst_wall_layer.py`). It passes a priori to y+ 300 and misses τ_w by +2.79% at y+ 1,000. All of it is in `docs/evidence/WALL_FUNCTIONS.md` (status table at the end) and commit 0db3e93.
+- **Criterion 3, the shorter reference (the Director's item 2).** The settling test is declared and coded (two consecutive settled windows of 0.05 ms, contraction or span clause, cap 1 ms). 64 columns cost 63 min per 0.05 ms (projection 17 h or more), so the reference is cut to 32 columns. The coverage cost is stated in WALL_FUNCTIONS.md. The 32x32 reference has been running since 03:06 (below).
+- **The measured check.** Back, Massier and Gier, JPL TR 32-415, test 298 (0.87 MPa, 1,115 K). Its inputs were extracted blind into `docs/validation/BACK_MASSIER_GIER_INPUTS.md` and screened for outcomes. A blindness incident is recorded (three unlabelled rows of the TR's page 33 table seen in an agent transcript; not used). Never read that agent's raw transcript; never open the TR's results pages.
+- **Table B, design only** (`docs/evidence/TABLE_B.md`). The criteria were stated before code. Probes (1) to (4) (`tests/table_b_probe.cpp`):
+  - The snap keeps the cell's moles per kg once the branch recombines (nozzle snap error 245 K to 3.2 K).
+  - Burnt gas mixed into fresh gas below about 70% burnt is on no curve. Amended at 03:10: a counted CVODES fallback (c off the curve, or a snap moving any Y by more than 0.01), frozen branches kept and flagged, gate 2(c) restated, and 3(e) reported.
+  - Nothing is built yet.
+- **ctest** (`ctest_main_2026-10-06_wall_functions.txt`): 9 of the 10 that finished pass. `transport_verification` keeps its known radial-order failures (1.218, 1.444). The slow `turbulence_pipe_verification` was stopped by the time limit and has not been rerun since the transport changes. **Rerun it first** (`ctest -R turbulence_pipe` through slot.py, with a long alarm).
+
+## Exact next steps (in order)
+
+1. **Collect the backhouse runs** (list below). For c2a_off, record the drift direction only. For c2a_hp, when its stop test fires, judge criterion 2(a)'s resolved half against the corrected 1-D reference (c_f 0.00565337, St 0.00310987, Richardson limits) at the restated bands. For c3r, record the time to 0.1 ms and the projection, then the settling result (or the cap) and the means over the last 0.1 ms. These are the reference values for 3(a) and 3(b).
+2. **Rerun `turbulence_pipe_verification`** on the Mac (slot.py, alarm about 1 h) and record it in the evidence README.
+3. **Criterion 0(e): the offline wall-model table.** For N2 (the pipe cases), tabulate `tools/sst_wall_layer.py` on backhouse (inputs Re_1, T_1/T_w, T_w, u_1²/(c_p,w T_w); outputs y_1+ and B_q). For C1's mixture, first port the layer solver to C++ on the engine's property routines, because neither machine has Python Cantera. Check the port against the tool within 0.01% (WALL_FUNCTIONS.md, *The table, offline*). Check it against 2,000 random direct solves: 0.5% at the 99th percentile, 1% at most. Then wire the engine to read it, and rerun 1(a), 1(b), 2(a)'s wall-model half, 2(b) and 4 with it.
+4. **Table B builder**, to the amended design: gates 2(a) to 2(c) first, then criterion 3 (a) to (e). C1's wall-layer composition axes come from this design, so 3(a) and 3(b) wait for it.
+5. **The Back, Massier and Gier comparison**, once the wall model passes: run the engine as it will run the RL10, then compare with the TR's heat flux (heat flow within 10%, local within 20%). Only then may anyone read the TR's results.
+6. Then AMR (Lightweight engine item 5) and the RL10-like cold start (item 6), as before.
+
+## Left running on backhouse (03:15 CDT; ours, may continue)
+
+- tmux `crucible_c3r`: `/home/greff/crucible_c3/c3r.sh`. The criterion 3 reference: 32x32, stretching 5, corrected SST, from `law32_hp.state`, 8 threads. It stops at the settling test or at 1 ms. Expected about 7 h at tonight's load (2 µs took 53 s). Outputs: `c3r.txt`, `c3r_history.csv`, `c3r_field_*.csv`, `c3r_time.txt`, final state `c3r.state`.
+- tmux `crucible_c2a_hp`: `/home/greff/crucible_wf/c2a_hp.sh`. 2(a)'s resolved half: 64 rings, corrected SST, to its stop test (cap 80 ms), about 20 h. At 3.5 ms: c_f 0.00529, St 0.002929, u_b still rising about 0.2% per ms. Output `c2a_hp.txt`.
+- tmux `crucible_c2a_off`: the same with the corrections off, to 5 ms (ends about 03:20). Output `c2a_off.txt`.
+- c3t, the 64-column cost probe, was stopped at 0.05 ms by me (`c3t_cost.txt`, copied to `docs/evidence/wall_functions/c3_cost_64col_2026-10-06.txt`).
+- Not ours, do not touch: s12vis_*, flyapp-*, and every other session.
 
 ## Stopped at (5 October, evening)
 
@@ -27,7 +55,7 @@
   - Pass: criterion 0 (a) to (d); 1(b) at y+ 99, 289 and 956 (c_f -2.5% to -3.6%, band 5%); 4 (cost +4.6% to +6.8%, band 10%).
   - **Fails: criterion 2(b)**, the hot pipe (T_axis/T_w 4.9) against standard SST. c_f is -17% to -19% and St -15% (bands 5% and 10%). A semi-local ODE wall model (Kawai and Larsson, `tools/eq_wall_model.py`) misses by as much. The reference SST's heated buffer layer sits 1.7 lower in u+ than the cold law under van Driest scaling, and DNS does not do this (Hasan, Elias, Menter and Pecnik, JFM 2025: standard SST's errors against DNS reach about 15% in velocity and 40% in temperature over 39 boundary layers; an earlier version of this line quoted 23% and 29%, which are not in the paper). **Decided 6 October by Ben: Option B**, the corrected SST in the engine and the reference, criterion 2 restated against it (`WALL_FUNCTIONS.md`, *Restated 6 October*).
   - Criterion 3's explicit reference (32 rings, y+ 1 on C1) is estimated at about 60 h; raised. 3(b), C1 to 8 ms with the law on 12 rings: c* -0.47%, Isp_vac -3.1%, 313 kW to the wall (34 kW with the no-slip wall), 218 s on 4 threads.
-- Running when stopped: on the Mac, 1(b) at nr 167 (`/tmp/wf1b/law167.txt`) and 2(b) at nr 50 (`/tmp/wf2/law50.txt`), under slot.py. On backhouse, 1(a) in tmux `crucible_wf_res` and `crucible_wf_law` (`/home/greff/crucible_wf/c1a_*.txt`, about 6 to 7 h to steady state from 00:27).
+- (Superseded 03:15 on 6 October: the 1(a) runs were lost with the backhouse tmux server at 01:40, and the Mac runs finished; see *Left running on backhouse*.)
 
 ## For Ben
 
@@ -59,8 +87,8 @@
 
 TECHNICAL_PLAN *Lightweight engine*, order of work:
 1. ~~Thread transport~~: done 6 October (`THREAD_POOL.md`).
-2. **Wall functions** (item 3): built and partly passing (`WALL_FUNCTIONS.md`, *Where this leaves the criteria*). Blocked on the hot-wall decision (*For Ben*). Then: collect 1(a) and 1(b) nr 167; criterion 2(a); set the AMR wall strip from the largest passing y+.
-3. **Table B, the finite-rate manifold** (item 4). Do the design and research pass before code. Open: a progress variable that keeps ignition delay, the table size, and mixing states off the manifold. Table A's lessons apply: use axes on which the diluent drops out, and cluster at kinks.
+2. **Wall functions** (item 3): the hot-wall decision is answered (B) and in. Follow *Exact next steps* above, then set the AMR wall strip from the largest passing y+.
+3. **Table B, the finite-rate manifold** (item 4): designed and probed (`TABLE_B.md`); the builder is next, after the wall-model table.
 4. **AMR** (item 5), then the **RL10-like cold start** measured against the 5-minute target (item 6).
 5. Optional or carried:
    - the pipe divergence with the SST limiter active (`TURBULENCE_C2.md`);
@@ -72,7 +100,8 @@ TECHNICAL_PLAN *Lightweight engine*, order of work:
 
 - `/home/greff/crucible`: the engine at 4e2ee5c (f10 ran from here; outputs `/home/greff/c2flame/`).
 - `/home/greff/crucible_c4`: the tree committed as 03d56e3 (the criterion 4 runs; outputs `/home/greff/c4runs/`, done).
-- `/home/greff/crucible_wf`: the wall-function study binary and the criterion 1(a) runs (tmux `crucible_wf_res`, `crucible_wf_law`, ours).
+- `/home/greff/crucible_wf`: the wall-function study binaries (`wfs_hp_bin` has the corrected SST), Table A (`table_a.bin`), the law states, and the c2a runs.
+- `/home/greff/crucible_c3`: the criterion 3 binaries (`study_bin`, `study_c3r`) and runs.
 - Not ours, do not touch: gate_wg, ltaste2, battery2, flyapp-lib, lsug3, flyapp-m9r, s12spec_* (other users' jobs).
 - Never write to `/home/greff/inquiry-project` (the old Rust project).
 
