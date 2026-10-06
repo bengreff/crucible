@@ -3,8 +3,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <vector>
 #include "core/medium.hpp"
+#include "core/pool.hpp"
 
 namespace crucible {
 // SI throughout. z is axial, r is radial; no swirl in this first gas model.
@@ -188,6 +190,12 @@ double chokedMassFlow(const Definition& definition);
 class Flow {
 public:
     explicit Flow(Definition definition);
+    // Threads for the loops of the step (1 by default). The result is the same bit for bit on any
+    // number: every cell and face is computed alone, and the sums over them keep the serial order.
+    void setThreads(int threads);
+    [[nodiscard]] int threads() const { return pool_->threads(); }
+    // The step's threads, for per-cell work between steps (ReactingFlow). Not reentrant.
+    [[nodiscard]] Pool& pool() { return *pool_; }
     double step(double maxDt=std::numeric_limits<double>::infinity());
     void advanceTo(double time);
     void setTotalPressure(double pressure);
@@ -271,6 +279,22 @@ private:
     std::vector<double> fractionsLow_, fractionsHigh_, temperature_, sound_;
     std::vector<std::array<double, 2>> bodyForce_;
     std::vector<double> pressureSource_;
+    std::unique_ptr<Pool> pool_;
+    // Face fluxes of one right-hand side: bulk per unit area, and the transported mass fractions
+    // with k and omega times the area (stride nw_; at a supply face, its k and omega fluxes per unit
+    // area). Axial face (i, j) at i nr + j for i = 0..nz; radial face j of column i at i (nr + 1) + j,
+    // j = 1..nr (j = 0 is the axis); the face areas likewise. The cells sum them afterwards with the
+    // arithmetic and in the order of the serial face loops (each area product inside the sum, where
+    // the compiler may fuse it), so the result does not depend on the thread count.
+    std::vector<Conserved> axialFlux_, radialFlux_;
+    std::vector<double> axialTransported_, radialTransported_, axialArea_, radialArea_;
+    // Per worker: face mass fractions (left, right), the stage's admissibility and smallest stable step.
+    std::vector<std::vector<double>> faceFractions_;
+    std::vector<char> workerOk_;
+    std::vector<double> workerDt_;
+    // Per cell: inside the igniter; rho k V added by the last stage's clip (Flow::step).
+    std::vector<char> igniterCell_;
+    std::vector<double> clippedCell_;
     double time_{}, dt_{}, totalPressure_{}, initialMass_{}, initialEnergy_{};
     double integratedMassFlux_{}, integratedEnergyFlux_{}, initialMomentum_{};
     double integratedMomentumSource_{}, integratedMomentumGross_{}, integratedHeat_{}, clippedTurbulentEnergy_{};
@@ -283,7 +307,17 @@ private:
     std::uint64_t steps_{}, rejectedSteps_{};
     BoundaryRates lastRates_{};
     void resetAccounting();
-    void radialProfiles();
+    // Column i's limited axial slopes and radial face states.
+    void axialSlopes(int i);
+    void radialProfiles(int i);
+    // One axial or radial face's area-weighted flux into axialFlux_ / radialFlux_ (y: the worker's scratch).
+    void axialFace(int i, int j, double time, std::vector<double>& yl, std::vector<double>& yr);
+    void radialFace(int i, int j, std::vector<double>& yl, std::vector<double>& yr);
+    // Cell q's sum of its face fluxes, igniter and body force (before transport, the pressure source and the volume).
+    void gather(std::size_t q, std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
+                std::vector<double>& turbulenceDerivative) const;
+    // Applies f(q) to every cell on the pool; true if it returned true for all.
+    template<class F> bool allCells(F f);
     void refresh(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence);
     BoundaryRates rhs(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence,
                       std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,

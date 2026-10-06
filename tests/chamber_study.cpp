@@ -396,6 +396,18 @@ int main(int argc, char** argv) {
     return 1;
   }
   std::fclose(history);
+  if (const char* path = std::getenv("CRUCIBLE_STATE_DUMP")) {
+    // The final state's raw doubles (conserved, partial densities, turbulence), to compare builds bit for bit.
+    FILE* f = std::fopen(path, "wb");
+    if (!f) {
+      std::fprintf(stderr, "cannot write %s\n", path);
+      return 1;
+    }
+    std::fwrite(flow.state().data(), sizeof(Conserved), flow.state().size(), f);
+    std::fwrite(flow.partialDensities().data(), sizeof(double), flow.partialDensities().size(), f);
+    std::fwrite(flow.turbulence().data(), sizeof(double), flow.turbulence().size(), f);
+    std::fclose(f);
+  }
   if (std::getenv("CHEMPROFILE")) {
     // Time one equilibrium call per cell on the final state and list the slowest cells.
     struct Slow { double us, t, p, yH2O, yO2, yN2; std::size_t q; };

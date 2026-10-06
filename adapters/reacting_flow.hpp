@@ -39,6 +39,8 @@ class ReactingFlow {
     double auditTemperature = 0, auditMassFraction = 0;
     double reactWall = 0;  // wall time inside react() [s]
   };
+  // Sets the flow's thread count (Flow::setThreads), whose pool then runs the reaction loops too;
+  // it must not change while this object lives.
   ReactingFlow(Flow& flow, const std::string& mechanism, int threads, double rtol = 1e-8,
                double atol = 1e-14, Chemistry chemistry = Chemistry::FiniteRate);
   ~ReactingFlow();
@@ -67,6 +69,7 @@ class ReactingFlow {
 
  private:
   struct Worker;
+  void checkThreads() const;
   Flow& flow_;
   std::vector<std::unique_ptr<Worker>> workers_;
   Stats stats_;

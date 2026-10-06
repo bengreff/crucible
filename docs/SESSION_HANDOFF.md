@@ -1,6 +1,6 @@
 # Session handoff
 
-5 October 2026, about 23:00 · branch `main` (one line).
+5 October 2026, about 23:30 · branch `main` (one line).
 
 ## Stopped at (5 October, evening)
 
@@ -13,6 +13,11 @@
   - Agreement with Cantera: c* -0.0053%, Isp equal to the printed digit, vacuum thrust -0.0006%.
   - The flow step is now 85% to 90% of the step.
   - Use it: `crucible_build_equilibrium_table build/table_a.bin 20 64 1e-4 129 97 1e-8 30 4`, then `CRUCIBLE_EQ_TABLE=build/table_a.bin crucible_chamber_study eqt ...`. The table file is not in git.
+- **Threaded flow step: done** (`docs/evidence/THREAD_POOL.md`; the Director's 22:50 item).
+  - One persistent pool (`core/pool`) runs the flow step and the reaction call.
+  - The result is bit-identical to the serial code on 1, 4 and 6 threads: eqt 64x12 to 1 and 8 ms, frp 32x6 to 0.25 ms. Faces are computed alone and summed per cell in the serial order; the fused-multiply-add lesson is in the record.
+  - C1 64x12 to full thrust (4 ms): 28 s on 4 threads (77 s before), 20 s on 6. To 8 ms: 56 s and 41 s (153 s before).
+  - Transport (`core/transport.cpp`) is still serial.
 - **Stale notes fixed** (the Director's item 3):
   - the `archive/README.md` link now points to RESEARCH.md section 7;
   - the pre-pivot memory files are marked historical;
@@ -46,7 +51,7 @@
 ## Next, in order
 
 TECHNICAL_PLAN *Lightweight engine*, order of work:
-1. **Thread the flow step** (item 2). It is serial today, and after Table A it is the step. Use one persistent worker pool for the flow and the reaction call. The reaction call now starts its threads afresh every step, which costs about 84 us per call on 32x6 (`TABLE_A.md`, criterion 4). Measure C1 64x12 to 4 ms against the 82 s of tonight.
+1. **Thread transport** (`core/transport.cpp`) on the pool with the same face-array pattern, before the turbulent wall-function runs (the viscous step is 3.1 times the inviscid one, measured).
 2. **Wall functions** (item 3). Read Nichols and Nelson (AIAA J. 42(6), 2004) in full first. The criteria (pipe at y+ 30 to 1,000, a heated compressible case, C1 turbulent 64x12) are stated in *Lightweight engine*.
 3. **Table B, the finite-rate manifold** (item 4). Do the design and research pass before code. Open: a progress variable that keeps ignition delay, the table size, and mixing states off the manifold. Table A's lessons apply: use axes on which the diluent drops out, and cluster at kinks.
 4. **AMR** (item 5), then the **RL10-like cold start** measured against the 5-minute target (item 6).

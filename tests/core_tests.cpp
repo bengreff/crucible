@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -369,6 +370,21 @@ void chamberChecks() {
      std::cout<<"Supplied chamber at 6 ms: injector-face pressure "<<m.injectorPressure<<" Pa, outflow "<<m.outletMassFlow
               <<" kg/s, mass budget "<<m.massBalanceError<<", energy budget "<<m.energyBalanceError<<", steps "<<m.steps<<'\n';
      require(std::abs(m.massBalanceError)<1e-12 && std::abs(m.energyBalanceError)<1e-12,"Supplied chamber budgets");}
+    // Threads (Flow::setThreads): the state after 200 steps is the same bit for bit on 1 and 4
+    // threads, with supply and plate rings on the injector face, the igniter and a body force.
+    {auto run=[](int threads) {
+        Definition d=chamber();d.supplies[0].outerRadius=0.02;d.supplies[0].opens=0;d.supplies[0].ramp=1e-4;
+        d.igniter={0.01,0.03,0.01,5,0,1e-4};
+        Flow f(d);f.setThreads(threads);
+        f.setBodyForce(std::vector<std::array<double,2>>(f.state().size(),{2e3,-1e3}));
+        for(int n=0;n<200;++n) f.step();
+        auto m=f.measurements();
+        return std::make_pair(f.state(),std::array<double,3>{m.energyBalanceError,m.massBalanceError,m.momentumBalanceError});
+     };
+     auto one=run(1),four=run(4);
+     std::cout<<"Threads: 200 chamber steps on 1 and 4 threads, energy budget "<<one.second[0]<<'\n';
+     require(std::memcmp(one.first.data(),four.first.data(),one.first.size()*sizeof(Conserved))==0 &&
+             std::memcmp(one.second.data(),four.second.data(),sizeof(one.second))==0,"The step must not depend on the thread count");}
 }
 int main(int argc,char** argv) {
     try {

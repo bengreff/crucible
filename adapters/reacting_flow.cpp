@@ -1,17 +1,19 @@
 #include "adapters/reacting_flow.hpp"
 
 #include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <stdexcept>
-#include <thread>
 #include <utility>
 #include <vector>
 
 #include "adapters/reaction.hpp"
 
 namespace crucible::thermo {
+
+namespace {
+constexpr std::size_t kBlock = 8;  // cells per block of the reaction loops
+}
 
 struct ReactingFlow::Worker {
   ReactionSource source;
@@ -29,7 +31,9 @@ struct ReactingFlow::Worker {
 ReactingFlow::ReactingFlow(Flow& flow, const std::string& mechanism, int threads, double rtol,
                            double atol, Chemistry chemistry)
     : flow_(flow), chemistry_(chemistry) {
-  for (int i = 0; i < std::max(1, threads); ++i)
+  // One worker per thread of the flow's pool, which runs the reaction loops too.
+  flow_.setThreads(threads);
+  for (int i = 0; i < flow_.threads(); ++i)
     workers_.push_back(std::make_unique<Worker>(mechanism, rtol, atol));
   const auto& mine = flow.medium().species();
   const auto theirs = workers_[0]->source.medium().species();
@@ -41,6 +45,11 @@ ReactingFlow::ReactingFlow(Flow& flow, const std::string& mechanism, int threads
 }
 
 ReactingFlow::~ReactingFlow() = default;
+
+void ReactingFlow::checkThreads() const {
+  if (static_cast<std::size_t>(flow_.threads()) != workers_.size())
+    throw std::logic_error("The flow's thread count changed after the ReactingFlow was made.");
+}
 
 void ReactingFlow::setMixingClosure(double cmix, const std::vector<std::string>& species) {
   if (chemistry_ != Chemistry::FiniteRate)
@@ -80,16 +89,16 @@ void ReactingFlow::useEquilibriumTable(const EquilibriumTable& table, long audit
 void ReactingFlow::reactTable() {
   const bool audit = audit_ > 0 && tableCalls_ % audit_ == 0;
   ++tableCalls_;
-  const std::size_t cells = flow_.state().size(), n = workers_.size();
+  const std::size_t cells = flow_.state().size();
   const std::size_t ns = flow_.medium().size(), nt = flow_.turbulence().size() / cells;
-  constexpr std::size_t kBlock = 8;
-  std::atomic<std::size_t> next{0};
-  auto run = [&](std::size_t w) {
+  checkThreads();
+  for (const auto& w : workers_) {
+    w->mismatch = w->clipped = w->auditT = w->auditY = 0;
+    w->table = w->clamped = w->fallbacks = w->audited = 0;
+  }
+  flow_.pool().blocks(cells, kBlock, [&](std::size_t begin, std::size_t end, int w) {
     Worker& worker = *workers_[w];
-    worker.mismatch = worker.clipped = worker.auditT = worker.auditY = 0;
-    worker.table = worker.clamped = worker.fallbacks = worker.audited = 0;
-    for (std::size_t start; (start = next.fetch_add(kBlock)) < cells;)
-    for (std::size_t q = start; q < std::min(cells, start + kBlock); ++q) {
+    for (std::size_t q = begin; q < end; ++q) {
       const auto& u = flow_.state()[q];
       const double rho = u[0];
       const double* partial = flow_.partialDensities().data() + q * ns;
@@ -126,11 +135,7 @@ void ReactingFlow::reactTable() {
         for (std::size_t k = 0; k < ns; ++k) worker.auditY = std::max(worker.auditY, std::abs(worker.out[k] - worker.z[k + 1]));
       }
     }
-  };
-  std::vector<std::thread> pool;
-  for (std::size_t w = 1; w < n; ++w) pool.emplace_back(run, w);
-  run(0);
-  for (auto& t : pool) t.join();
+  });
   for (const auto& w : workers_) {
     stats_.maxTemperatureMismatch = std::max(stats_.maxTemperatureMismatch, w->mismatch);
     stats_.maxClippedFraction = std::max(stats_.maxClippedFraction, w->clipped);
@@ -156,20 +161,17 @@ void ReactingFlow::react(double dt) {
     return;
   }
   const bool equilibrium = chemistry_ == Chemistry::LocalEquilibrium;
-  const std::size_t cells = flow_.state().size(), n = workers_.size();
+  const std::size_t cells = flow_.state().size();
   const std::size_t ns = flow_.medium().size();
+  checkThreads();
   if (closure_) flow_.mixingInputs(cmix_, closureSpecies_, mixingTime_, segregation_);
   // Workers take small blocks of cells from a shared counter, so the hot cells of a flame or a
   // light-off do not all fall to one worker. Each cell's result is independent of which worker
   // takes it (the integrator is reinitialised per cell).
-  constexpr std::size_t kBlock = 8;
-  std::atomic<std::size_t> next{0};
-  auto run = [&](std::size_t w) {
+  for (const auto& w : workers_) w->mismatch = w->clipped = 0;
+  flow_.pool().blocks(cells, kBlock, [&](std::size_t begin, std::size_t end, int w) {
     Worker& worker = *workers_[w];
-    worker.mismatch = 0;
-    worker.clipped = 0;
-    for (std::size_t start; (start = next.fetch_add(kBlock)) < cells;)
-    for (std::size_t q = start; q < std::min(cells, start + kBlock); ++q) {
+    for (std::size_t q = begin; q < end; ++q) {
       const double rho = flow_.state()[q][0];
       auto y = flow_.massFractions(q);
       worker.z[0] = flow_.temperature(q);
@@ -187,11 +189,7 @@ void ReactingFlow::react(double dt) {
       flow_.setMassFractions(q, y.data());
       worker.mismatch = std::max(worker.mismatch, std::abs(flow_.temperature(q) - worker.z[0]));
     }
-  };
-  std::vector<std::thread> pool;
-  for (std::size_t w = 1; w < n; ++w) pool.emplace_back(run, w);
-  run(0);
-  for (auto& t : pool) t.join();
+  });
   for (const auto& w : workers_) {
     stats_.maxTemperatureMismatch = std::max(stats_.maxTemperatureMismatch, w->mismatch);
     stats_.maxClippedFraction = std::max(stats_.maxClippedFraction, w->clipped);

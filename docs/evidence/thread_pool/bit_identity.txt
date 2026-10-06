@@ -1,0 +1,22 @@
+# Bit identity of the threaded flow step against the serial code (fef9cde), 5 October 2026, Mac.
+# Each line is `cmp` of the raw final state (CRUCIBLE_STATE_DUMP) or the history CSV; "==" means cmp found no byte different.
+# old = chamber_study built from fef9cde plus the state dump; new = the same tree with core/pool and the threaded Flow.
+# q_old, t_old and before64 were run with the old binary on 4 threads.
+q_new4.state == q_old.state (eqt 64x12 to 1 ms)
+q_new4_history.csv == q_old_history.csv
+q_new1.state == q_old.state (eqt 64x12 to 1 ms)
+q_new1_history.csv == q_old_history.csv
+T_old4.state == before64.state (eqt 64x12 to 8 ms)
+T_old4_history.csv == before64_history.csv
+T_new4.state == before64.state (eqt 64x12 to 8 ms)
+T_new4_history.csv == before64_history.csv
+T_new1.state == before64.state (eqt 64x12 to 8 ms)
+T_new1_history.csv == before64_history.csv
+T_new6.state == before64.state (eqt 64x12 to 8 ms)
+T_new6_history.csv == before64_history.csv
+frp_new4.state == t_old.state (frp 32x6 to 0.25 ms, old binary 4 threads)
+frp_new4_history.csv == t_old_history.csv
+frp_new1.state == t_old.state (frp 32x6 to 0.25 ms, old binary 4 threads)
+frp_new1_history.csv == t_old_history.csv
+# The first frp comparison (prefixes t_new4, t_new1) was also identical when run, but the macOS file system is
+# case-insensitive and the later T_new4 / T_new1 timing runs overwrote those files; frp_new4 / frp_new1 are the rerun.

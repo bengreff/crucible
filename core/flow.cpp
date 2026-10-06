@@ -37,6 +37,15 @@ void normalise(const double* partial, std::size_t n, double* y) {
     if(!(sum>0)) throw std::runtime_error("Non-admissible gas state: no species mass in a cell.");
     for(std::size_t k=0;k<n;++k) y[k]/=sum;
 }
+// Low-Mach corrections act on interior faces and the mirror (slip) wall; inlet/outlet models keep their own states.
+Conserved faceFlux(LowMach lowMach,Primitive l,Thermal tl,Primitive r,Thermal tr,double nz,double nr,bool interior) {
+    if(lowMach==LowMach::HllcLm && interior) return hllcLm(l,tl,r,tr,nz,nr);
+    if(lowMach==LowMach::Thornber && interior) thornberScale(l,r,tl.a,tr.a);
+    return hllc(l,tl,r,tr,nz,nr);
+}
+// Pool blocks: cells, and faces. Face blocks are small so the dozen costly supply faces of the
+// first row (supplyFace) spread over the workers.
+constexpr std::size_t kCells=32,kFaces=4;
 }
 
 double Supply::opening(double time) const {
@@ -297,6 +306,15 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_
     for(auto* v:{&fractions_,&fractionSlopesZ_,&fractionsLow_,&fractionsHigh_}) v->resize(count*nw_);
     for(auto* v:{&turbulence_,&turbulenceStage_,&turbulenceNext_,&turbulenceRhs_,&turbulenceStart_}) v->resize(count*nt_);
     temperature_.assign(count,d.totalTemperature); sound_.resize(count);
+    axialFlux_.resize(static_cast<std::size_t>(d.nz+1)*d.nr);axialTransported_.resize(axialFlux_.size()*nw_);
+    radialFlux_.resize(static_cast<std::size_t>(d.nz)*(d.nr+1));radialTransported_.resize(radialFlux_.size()*nw_);
+    axialArea_.resize(axialFlux_.size());radialArea_.resize(radialFlux_.size());
+    for(int i=0;i<=d.nz;++i) for(int j=0;j<d.nr;++j) axialArea_[static_cast<std::size_t>(i)*d.nr+j]=mesh_.axialArea(i,j);
+    for(int i=0;i<d.nz;++i) for(int j=1;j<=d.nr;++j) {
+        auto ar=mesh_.radialAreaVector(i,j);radialArea_[static_cast<std::size_t>(i)*(d.nr+1)+j]=std::hypot(ar[0],ar[1]);
+    }
+    igniterCell_.assign(count,0);clippedCell_.assign(count,0.0);
+    setThreads(1);
     // Initial fill: the reservoir composition, prepared with its frozen properties at the total temperature.
     const double* y0=inletComposition_.data();
     const double gasR=medium_.gasConstant(y0),cv0=medium_.cv(d.totalTemperature,y0),g=(cv0+gasR)/cv0;
@@ -341,7 +359,7 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_
         if(g.energy>0) {
             for(std::size_t q=0;q<count;++q) {
                 const auto& c=mesh_.cells[q];
-                if(c.z>=g.zMin && c.z<=g.zMax && c.r<=g.rMax) { igniterCells_.push_back(q);igniterVolume_+=c.volume; }
+                if(c.z>=g.zMin && c.z<=g.zMax && c.r<=g.rMax) { igniterCells_.push_back(q);igniterCell_[q]=1;igniterVolume_+=c.volume; }
             }
             if(igniterCells_.empty()) throw std::invalid_argument("The igniter region contains no cell centroid.");
         }
@@ -355,6 +373,19 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_
     std::vector<double> fractions;
     for(std::size_t q=0;q<count;++q) fractions.insert(fractions.end(),inletComposition_.begin(),inletComposition_.end());
     setInitialState(cells,fractions);
+}
+void Flow::setThreads(int threads) {
+    pool_=std::make_unique<Pool>(threads);
+    const auto n=static_cast<std::size_t>(pool_->threads());
+    faceFractions_.assign(2*n,std::vector<double>(nw_));
+    workerOk_.assign(n,1);workerDt_.assign(n,0.0);
+}
+template<class F> bool Flow::allCells(F f) {
+    std::fill(workerOk_.begin(),workerOk_.end(),char{1});
+    pool_->blocks(state_.size(),kCells,[&](std::size_t begin,std::size_t end,int worker) {
+        for(std::size_t q=begin;q<end;++q) if(!f(q)) workerOk_[worker]=0;
+    });
+    return std::find(workerOk_.begin(),workerOk_.end(),char{0})==workerOk_.end();
 }
 double Flow::BoundaryRates::grossMomentum() const {
     return std::abs(inletMomentum)+std::abs(outletMomentum)+std::abs(wallAxial)+std::abs(bodyAxial);
@@ -470,18 +501,20 @@ Primitive Flow::cellPrimitive(std::size_t q) const {
 }
 // Cell primitives, mass fractions (then specific k and omega), temperatures and frozen sound speeds of a state.
 void Flow::refresh(const std::vector<Conserved>& state,const std::vector<double>& species,const std::vector<double>& turbulence) {
-    for(std::size_t q=0;q<state.size();++q) {
-        const auto& u=state[q];double* y=fractions_.data()+q*nw_;
-        normalise(species.data()+q*ns_,ns_,y);
-        double k=0;
-        if(nt_) { k=y[ns_]=turbulence[q*nt_]/u[0];y[ns_+1]=turbulence[q*nt_+1]/u[0]; }
-        if(!admissibleBulk(u,medium_.energyFloor(y)+k))
-            throw std::runtime_error("Non-admissible gas state: density or internal energy is not positive.");
-        double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y,temperature_[q]);
-        auto props=medium_.properties(t,y);
-        temperature_[q]=t;sound_[q]=std::sqrt((props.cv+props.r)/props.cv*props.r*t);
-        primitives_[q]={u[0],u[1]/u[0],u[2]/u[0],u[0]*props.r*t};
-    }
+    pool_->blocks(state.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
+        for(std::size_t q=begin;q<end;++q) {
+            const auto& u=state[q];double* y=fractions_.data()+q*nw_;
+            normalise(species.data()+q*ns_,ns_,y);
+            double k=0;
+            if(nt_) { k=y[ns_]=turbulence[q*nt_]/u[0];y[ns_+1]=turbulence[q*nt_+1]/u[0]; }
+            if(!admissibleBulk(u,medium_.energyFloor(y)+k))
+                throw std::runtime_error("Non-admissible gas state: density or internal energy is not positive.");
+            double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y,temperature_[q]);
+            auto props=medium_.properties(t,y);
+            temperature_[q]=t;sound_[q]=std::sqrt((props.cv+props.r)/props.cv*props.r*t);
+            primitives_[q]={u[0],u[1]/u[0],u[2]/u[0],u[0]*props.r*t};
+        }
+    });
 }
 // Face thermodynamics from reconstructed (rho, p), mass fractions and (with turbulence) k; y is
 // clipped and normalised in place. The face energy includes k, so the flux carries rho k in E.
@@ -643,9 +676,13 @@ double Flow::stableDt() {
     const bool transport=medium_.hasTransport();
     if(transport) transportProperties();
     if(nt_) { transportGradients();eddyViscosity(true); }
-    double dt=std::numeric_limits<double>::infinity();
-    for(int i=0;i<mesh_.nz;++i) for(int j=0;j<mesh_.nr;++j) {
-        auto q=mesh_.index(i,j);const auto& w=primitives_[q];
+    // Each worker's smallest step, then the smallest of those (a minimum does not depend on the order).
+    std::fill(workerDt_.begin(),workerDt_.end(),std::numeric_limits<double>::infinity());
+    pool_->blocks(mesh_.cells.size(),kCells,[&](std::size_t begin,std::size_t end,int worker) {
+      double dt=std::numeric_limits<double>::infinity();
+      for(std::size_t q=begin;q<end;++q) {
+        const int i=static_cast<int>(q/mesh_.nr),j=static_cast<int>(q%mesh_.nr);
+        const auto& w=primitives_[q];
         double a=sound_[q],volume=mesh_.cells[q].volume;
         double sumArea2=sq(mesh_.axialArea(i,j))+sq(mesh_.axialArea(i+1,j));
         double rate=(mesh_.axialArea(i,j)+mesh_.axialArea(i+1,j))*(std::abs(w.uz)+a);
@@ -666,8 +703,10 @@ double Flow::stableDt() {
             rate+=2*nu*sumArea2/volume;
         }
         dt=std::min(dt,definition_.cfl*volume/rate);
-    }
-    return dt;
+      }
+      workerDt_[worker]=std::min(workerDt_[worker],dt);
+    });
+    return *std::min_element(workerDt_.begin(),workerDt_.end());
 }
 // Radial reconstruction. Cell averages are r-weighted, so they are point values at the volume
 // centroid r_c, not at the cell midpoint; near the axis the two differ by O(dr), which made the
@@ -676,9 +715,9 @@ double Flow::stableDt() {
 // u_r is odd (u_r = s r, s limited against the slope to the next centroid) and rho, u_z, p are
 // even (linear in r^2 about <r^2>). pressureSource_ is the exact integral of p/r dV over the
 // reconstructed profile, so a pressure gradient balanced by a body force stays at rest.
-void Flow::radialProfiles() {
+void Flow::radialProfiles(int i) {
     const auto& m=mesh_;
-    for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
+    for(int j=0;j<m.nr;++j) {
         auto q=m.index(i,j);const auto& cell=m.cells[q];auto c=values(primitives_[q]);
         double low=m.radialFaceRadius(i,j)-cell.r,high=m.radialFaceRadius(i,j+1)-cell.r;
         Conserved slope{};
@@ -701,7 +740,7 @@ void Flow::radialProfiles() {
         }
         if(definition_.secondOrder && j<m.nr-1)
             for(int k=0;k<4;++k) slope[k]=minmod(centroidSlope(j-1,j,k),centroidSlope(j,j+1,k));
-        // Wall row: limited one-sided slope (see oneSided above), with density and pressure face
+        // Wall row: limited one-sided slope (see Flow::axialSlopes), with density and pressure face
         // values kept at least half the cell value.
         if(definition_.secondOrder && j==m.nr-1 && m.nr>=3) {
             double reach=std::max(-low,high);
@@ -719,7 +758,7 @@ void Flow::radialProfiles() {
     // profile stays within half the cell value of it at the first face and on the axis. Unbounded, a
     // cell near zero beside large off-axis values gets a large face value, and outward flow there
     // removes more than the cell holds at any step size (omega past a throat, 5 October 2026).
-    for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
+    for(int j=0;j<m.nr;++j) {
         auto q=m.index(i,j);const auto& cell=m.cells[q];
         double low=m.radialFaceRadius(i,j)-cell.r,high=m.radialFaceRadius(i,j+1)-cell.r;
         auto y=[&](int b,std::size_t k){return fractions_[m.index(i,b)*nw_+k];};
@@ -747,28 +786,20 @@ void Flow::radialProfiles() {
         }
     }
 }
-Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vector<double>& species,const std::vector<double>& turbulence,
-                              std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative,
-                              std::vector<double>& turbulenceDerivative,double time) {
-    const auto& d=definition_;const auto& m=mesh_;
-    std::fill(derivative.begin(),derivative.end(),Conserved{});
-    std::fill(speciesDerivative.begin(),speciesDerivative.end(),0.0);
-    std::fill(turbulenceDerivative.begin(),turbulenceDerivative.end(),0.0);
-    refresh(state,species,turbulence);
-    std::fill(slopesZ_.begin(),slopesZ_.end(),Conserved{});
-    std::fill(fractionSlopesZ_.begin(),fractionSlopesZ_.end(),0.0);
-    if(d.secondOrder) for(int i=1;i<m.nz-1;++i) for(int j=0;j<m.nr;++j) {
-        auto q=m.index(i,j); auto c=values(primitives_[q]);
-        auto ql=m.index(i-1,j),qr=m.index(i+1,j);
-        auto l=values(primitives_[ql]),r=values(primitives_[qr]);
-        for(int k=0;k<4;++k) slopesZ_[q][k]=minmod(c[k]-l[k],r[k]-c[k]);
-        for(std::size_t k=0;k<nw_;++k)
-            fractionSlopesZ_[q*nw_+k]=minmod(fractions_[q*nw_+k]-fractions_[ql*nw_+k],fractions_[qr*nw_+k]-fractions_[q*nw_+k]);
+// Limited axial slopes of column i. Boundary columns have no outer neighbour. A zero slope there
+// makes wall, inlet and outlet face states first-order (measured: wall-row entropy error order
+// ~1.1). Use the limited one-sided slope minmod(c-n1, n1-n2), which is second-order for smooth data
+// and falls back towards zero across a jump. Density/pressure/mass-fraction face values stay >= half
+// the cell value.
+void Flow::axialSlopes(int i) {
+    const auto& m=mesh_;
+    if(!definition_.secondOrder) {
+        for(int j=0;j<m.nr;++j) {
+            auto q=m.index(i,j);slopesZ_[q]={};
+            std::fill_n(fractionSlopesZ_.begin()+static_cast<std::ptrdiff_t>(q*nw_),nw_,0.0);
+        }
+        return;
     }
-    // Boundary rows/columns have no outer neighbour. A zero slope there makes wall, inlet and
-    // outlet face states first-order (measured: wall-row entropy error order ~1.1). Use the
-    // limited one-sided slope minmod(c-n1, n1-n2), which is second-order for smooth data and
-    // falls back towards zero across a jump. Density/pressure/mass-fraction face values stay >= half the cell value.
     auto oneSided=[&](std::size_t q,std::size_t n1,std::size_t n2,double sign) {
         auto c=values(primitives_[q]),a=values(primitives_[n1]),b=values(primitives_[n2]);
         auto& slope=slopesZ_[q];
@@ -779,122 +810,172 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
             fractionSlopesZ_[q*nw_+k]=std::clamp(sign*minmod(yc-fractions_[n1*nw_+k],fractions_[n1*nw_+k]-fractions_[n2*nw_+k]),-yc,yc);
         }
     };
-    if(d.secondOrder) for(int j=0;j<m.nr;++j) {
-        oneSided(m.index(0,j),m.index(1,j),m.index(2,j),-1);
-        oneSided(m.index(m.nz-1,j),m.index(m.nz-2,j),m.index(m.nz-3,j),1);
+    for(int j=0;j<m.nr;++j) {
+        if(i==0) { oneSided(m.index(0,j),m.index(1,j),m.index(2,j),-1);continue; }
+        if(i==m.nz-1) { oneSided(m.index(m.nz-1,j),m.index(m.nz-2,j),m.index(m.nz-3,j),1);continue; }
+        auto q=m.index(i,j); auto c=values(primitives_[q]);
+        auto ql=m.index(i-1,j),qr=m.index(i+1,j);
+        auto l=values(primitives_[ql]),r=values(primitives_[qr]);
+        for(int k=0;k<4;++k) slopesZ_[q][k]=minmod(c[k]-l[k],r[k]-c[k]);
+        for(std::size_t k=0;k<nw_;++k)
+            fractionSlopesZ_[q*nw_+k]=minmod(fractions_[q*nw_+k]-fractions_[ql*nw_+k],fractions_[qr*nw_+k]-fractions_[q*nw_+k]);
     }
-    radialProfiles();
-    std::vector<double> yl(nw_),yr(nw_);
+}
+// Species follow the mass flux with the upwind face composition (Larrouturou, JCP 95, 1991):
+// positivity-preserving, and the species fluxes sum to the mass flux. rho k and rho omega follow it
+// likewise with the upwind face k and omega.
+void Flow::axialFace(int i,int j,double time,std::vector<double>& yl,std::vector<double>& yr) {
+    const auto& d=definition_;const auto& m=mesh_;
+    const auto f=static_cast<std::size_t>(i)*m.nr+j;
+    auto& stored=axialFlux_[f];double* transported=axialTransported_.data()+f*nw_;
     auto reconstructed=[&](std::size_t q,double direction,std::vector<double>& y) {
         auto w=values(primitives_[q]);
         for(int k=0;k<4;++k) w[k]+=direction*0.5*slopesZ_[q][k];
         for(std::size_t k=0;k<nw_;++k) y[k]=fractions_[q*nw_+k]+direction*0.5*fractionSlopesZ_[q*nw_+k];
         return unpack(w);
     };
-    // Low-Mach corrections act on interior faces and the mirror (slip) wall; inlet/outlet models keep their own states.
-    auto faceFlux=[&](Primitive l,Thermal tl,Primitive r,Thermal tr,double nz,double nr,bool interior) {
-        if(d.lowMach==LowMach::HllcLm && interior) return hllcLm(l,tl,r,tr,nz,nr);
-        if(d.lowMach==LowMach::Thornber && interior) thornberScale(l,r,tl.a,tr.a);
-        return hllc(l,tl,r,tr,nz,nr);
-    };
-    // Species follow the mass flux with the upwind face composition (Larrouturou, JCP 95, 1991):
-    // positivity-preserving, and the species fluxes sum to the mass flux. rho k and rho omega
-    // follow it likewise with the upwind face k and omega.
-    auto speciesFlux=[&](double massFlux,std::size_t into,std::size_t from,double area,bool addInto,bool addFrom) {
-        const auto& y=massFlux>=0?yl:yr;
-        for(std::size_t k=0;k<ns_;++k) {
-            double f=area*massFlux*y[k];
-            if(addFrom) speciesDerivative[from*ns_+k]-=f;
-            if(addInto) speciesDerivative[into*ns_+k]+=f;
+    auto il=m.index(std::max(0,i-1),j),ir=m.index(std::min(m.nz-1,i),j);
+    // Boundary models receive the reconstructed interior face state.
+    Primitive l=reconstructed(il,1,yl),r=reconstructed(ir,-1,yr);
+    double area=axialArea_[f];
+    if(i==0 && d.experiment==Case::Chamber) {
+        // Injector face: a supply ring (its species flux is g Y_supply, g = flux[0]) or the closed
+        // plate (a slip wall, no species flux).
+        if(int s=faceSupply_[j];s>=0) {
+            const auto& supply=d.supplies[s];
+            double g=supply.massFlow*supply.opening(time)/supplyArea_[s];
+            const auto face=supplyFace(supply,g,r,yr.data());
+            stored=face.flux;
+            for(std::size_t k=0;k<nt_;++k) transported[ns_+k]=face.turbulenceFlux[k];
+        } else {
+            Thermal t=faceThermal(r,yr.data());
+            stored=faceFlux(d.lowMach,reflect(r,1,0),t,r,t,1,0,true);
+            stored[0]=0;stored[3]=0;
         }
-        for(std::size_t k=0;k<nt_;++k) {
-            double f=area*massFlux*y[ns_+k];
-            if(addFrom) turbulenceDerivative[from*nt_+k]-=f;
-            if(addInto) turbulenceDerivative[into*nt_+k]+=f;
-        }
-    };
-    BoundaryRates rates{};
-    // Igniter: constant power over the step (set by step()), shared by the cells by volume.
-    if(igniterPower_>0) for(auto q:igniterCells_) derivative[q][3]+=igniterPower_*m.cells[q].volume/igniterVolume_;
-    rates.energy+=igniterPower_;rates.heat+=igniterPower_;
-    for(int i=0;i<=m.nz;++i) for(int j=0;j<m.nr;++j) {
-        auto il=m.index(std::max(0,i-1),j),ir=m.index(std::min(m.nz-1,i),j);
-        // Boundary models receive the reconstructed interior face state.
-        Primitive l=reconstructed(il,1,yl),r=reconstructed(ir,-1,yr);
-        double area=m.axialArea(i,j);
-        if(i==0 && d.experiment==Case::Chamber) {
-            // Injector face: a supply ring or the closed plate (a slip wall).
-            Conserved flux{};
-            if(int s=faceSupply_[j];s>=0) {
-                const auto& supply=d.supplies[s];
-                double g=supply.massFlow*supply.opening(time)/supplyArea_[s];
-                const auto face=supplyFace(supply,g,r,yr.data());
-                flux=face.flux;
-                for(std::size_t k=0;k<ns_;++k) speciesDerivative[ir*ns_+k]+=area*g*supply.composition[k];
-                for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[ir*nt_+k]+=area*face.turbulenceFlux[k];
-                rates.mass+=area*g;rates.energy+=area*flux[3];rates.inlet+=area*g;rates.inletMomentum+=area*flux[1];
-            } else {
-                Thermal t=faceThermal(r,yr.data());
-                flux=faceFlux(reflect(r,1,0),t,r,t,1,0,true);
-                flux[0]=0;flux[3]=0;
-                rates.wallAxial+=area*flux[1];
-            }
-            for(int k=0;k<4;++k) derivative[ir][k]+=area*flux[k];
-            continue;
-        }
-        // Inflow at the reservoir composition; a transmissive inlet (UniformDuct, ShockTube) passes the
-        // interior k and omega.
-        if(i==0) { l=inlet(r);std::copy(inletComposition_.begin(),inletComposition_.end(),yl.begin());std::copy(yr.begin()+ns_,yr.end(),yl.begin()+ns_); }
-        Thermal tl=faceThermal(l,yl.data());
-        if(i==m.nz) { bool ambientInflow=false;r=outlet(l,yl.data(),primitives_[il],ambientInflow);yr=ambientInflow?ambient_:yl; }
-        Thermal tr=faceThermal(r,yr.data());
-        auto flux=faceFlux(l,tl,r,tr,1,0,i>0 && i<m.nz);
-        for(int k=0;k<4;++k) {
-            if(i>0) derivative[il][k]-=area*flux[k];
-            if(i<m.nz) derivative[ir][k]+=area*flux[k];
-        }
-        speciesFlux(flux[0],ir,il,area,i<m.nz,i>0);
-        if(i==0) {
-            rates.mass+=area*flux[0];rates.energy+=area*flux[3];rates.inlet+=area*flux[0];rates.inletMomentum+=area*flux[1];
-        }
-        if(i==m.nz) {
-            rates.mass-=area*flux[0];rates.energy-=area*flux[3];rates.outlet+=area*flux[0];rates.outletMomentum+=area*flux[1];
-        }
+        return;
     }
-    for(int i=0;i<m.nz;++i) for(int j=1;j<=m.nr;++j) {
-        auto il=m.index(i,j-1),ir=m.index(i,std::min(m.nr-1,j));
-        auto ar=m.radialAreaVector(i,j);double area=std::hypot(ar[0],ar[1]);
-        double nz=ar[0]/area,nr=ar[1]/area;
-        Primitive l=radialHigh_[il];
-        std::copy_n(fractionsHigh_.begin()+static_cast<std::ptrdiff_t>(il*nw_),nw_,yl.begin());
-        Primitive r=l;
-        if(j==m.nr) { r=reflect(l,nz,nr);yr=yl; }
-        else { r=radialLow_[ir];std::copy_n(fractionsLow_.begin()+static_cast<std::ptrdiff_t>(ir*nw_),nw_,yr.begin()); }
-        Thermal tl=faceThermal(l,yl.data()),tr=faceThermal(r,yr.data());
-        auto flux=faceFlux(l,tl,r,tr,nz,nr,true);
-        // A stationary slip wall has exactly zero mass and energy exchange.
-        if(j==m.nr) { flux[0]=0;flux[3]=0; }
-        for(int k=0;k<4;++k) {
-            derivative[il][k]-=area*flux[k];
-            if(j<m.nr) derivative[ir][k]+=area*flux[k];
-        }
-        speciesFlux(flux[0],ir,il,area,j<m.nr,true);
-        if(j==m.nr) rates.wallAxial-=area*flux[1];
-    }
-    // Volumetric forces (e.g. a Lorentz force): the axial integral is rates.bodyAxial, whose reaction
-    // acts on the equipment (coils) in deviceThrust; their work is an external energy exchange.
-    if(!bodyForce_.empty()) for(std::size_t q=0;q<state.size();++q) {
+    // Inflow at the reservoir composition; a transmissive inlet (UniformDuct, ShockTube) passes the
+    // interior k and omega.
+    if(i==0) { l=inlet(r);std::copy(inletComposition_.begin(),inletComposition_.end(),yl.begin());std::copy(yr.begin()+ns_,yr.end(),yl.begin()+ns_); }
+    Thermal tl=faceThermal(l,yl.data());
+    if(i==m.nz) { bool ambientInflow=false;r=outlet(l,yl.data(),primitives_[il],ambientInflow);yr=ambientInflow?ambient_:yl; }
+    Thermal tr=faceThermal(r,yr.data());
+    stored=faceFlux(d.lowMach,l,tl,r,tr,1,0,i>0 && i<m.nz);
+    const auto& y=stored[0]>=0?yl:yr;
+    for(std::size_t k=0;k<nw_;++k) transported[k]=area*stored[0]*y[k];
+}
+void Flow::radialFace(int i,int j,std::vector<double>& yl,std::vector<double>& yr) {
+    const auto& m=mesh_;
+    const auto f=static_cast<std::size_t>(i)*(m.nr+1)+j;
+    auto il=m.index(i,j-1),ir=m.index(i,std::min(m.nr-1,j));
+    auto ar=m.radialAreaVector(i,j);double area=radialArea_[f];
+    double nz=ar[0]/area,nr=ar[1]/area;
+    Primitive l=radialHigh_[il];
+    std::copy_n(fractionsHigh_.begin()+static_cast<std::ptrdiff_t>(il*nw_),nw_,yl.begin());
+    Primitive r=l;
+    if(j==m.nr) { r=reflect(l,nz,nr);yr=yl; }
+    else { r=radialLow_[ir];std::copy_n(fractionsLow_.begin()+static_cast<std::ptrdiff_t>(ir*nw_),nw_,yr.begin()); }
+    Thermal tl=faceThermal(l,yl.data()),tr=faceThermal(r,yr.data());
+    auto& flux=radialFlux_[f];
+    flux=faceFlux(definition_.lowMach,l,tl,r,tr,nz,nr,true);
+    // A stationary slip wall has exactly zero mass and energy exchange.
+    if(j==m.nr) { flux[0]=0;flux[3]=0; }
+    const auto& y=flux[0]>=0?yl:yr;
+    for(std::size_t k=0;k<nw_;++k) radialTransported_[f*nw_+k]=area*flux[0]*y[k];
+}
+// The igniter's share, the faces in the order the serial face loops reached the cell (axial faces
+// i then i + 1, radial faces j then j + 1), then the body force.
+void Flow::gather(std::size_t q,std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative,
+                  std::vector<double>& turbulenceDerivative) const {
+    const auto& m=mesh_;
+    const int j=static_cast<int>(q%m.nr);
+    const std::size_t i=q/m.nr,a0=q,a1=q+m.nr,r0=i*(m.nr+1)+j,r1=r0+1;
+    const bool injector=i==0 && definition_.experiment==Case::Chamber;
+    const int supply=injector?faceSupply_[j]:-1;
+    Conserved u{};
+    if(igniterPower_>0 && igniterCell_[q]) u[3]+=igniterPower_*m.cells[q].volume/igniterVolume_;
+    for(int k=0;k<4;++k) u[k]+=axialArea_[a0]*axialFlux_[a0][k];
+    for(int k=0;k<4;++k) u[k]-=axialArea_[a1]*axialFlux_[a1][k];
+    if(j>0) for(int k=0;k<4;++k) u[k]+=radialArea_[r0]*radialFlux_[r0][k];
+    for(int k=0;k<4;++k) u[k]-=radialArea_[r1]*radialFlux_[r1][k];
+    if(!bodyForce_.empty()) {
         const auto& f=bodyForce_[q];double v=m.cells[q].volume;
         double work=(f[0]*primitives_[q].uz+f[1]*primitives_[q].ur)*v;
-        derivative[q][1]+=f[0]*v;derivative[q][2]+=f[1]*v;derivative[q][3]+=work;
-        rates.bodyAxial+=f[0]*v;rates.energy+=work;
+        u[1]+=f[0]*v;u[2]+=f[1]*v;u[3]+=work;
     }
-    if(medium_.hasTransport()) transportFluxes(derivative,speciesDerivative,turbulenceDerivative,rates);
-    for(std::size_t q=0;q<state.size();++q) {
+    derivative[q]=u;
+    for(std::size_t k=0;k<nw_;++k) {
+        double s=0;
+        if(supply>=0) {
+            const double area=axialArea_[a0],g=axialFlux_[a0][0];
+            if(k<ns_) s+=area*g*definition_.supplies[supply].composition[k];
+            else s+=area*axialTransported_[a0*nw_+k];
+        }
+        else if(!injector) s+=axialTransported_[a0*nw_+k];
+        s-=axialTransported_[a1*nw_+k];
+        if(j>0) s+=radialTransported_[r0*nw_+k];
+        s-=radialTransported_[r1*nw_+k];
+        if(k<ns_) speciesDerivative[q*ns_+k]=s; else turbulenceDerivative[q*nt_+k-ns_]=s;
+    }
+}
+// The faces are computed alone into face arrays and summed per cell in the order of the serial face
+// loops, and the boundary exchange rates are summed from them in that order, so the result is the
+// same bit for bit on any number of threads.
+Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vector<double>& species,const std::vector<double>& turbulence,
+                              std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative,
+                              std::vector<double>& turbulenceDerivative,double time) {
+    const auto& d=definition_;const auto& m=mesh_;
+    refresh(state,species,turbulence);
+    // Per column: axial slopes, radial profiles and the radial faces (which use only the column's profiles).
+    pool_->blocks(static_cast<std::size_t>(m.nz),1,[&](std::size_t begin,std::size_t end,int worker) {
+        auto& yl=faceFractions_[2*worker];auto& yr=faceFractions_[2*worker+1];
+        for(auto i=static_cast<int>(begin);i<static_cast<int>(end);++i) {
+            axialSlopes(i);radialProfiles(i);
+            for(int j=1;j<=m.nr;++j) radialFace(i,j,yl,yr);
+        }
+    });
+    pool_->blocks(axialFlux_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
+        auto& yl=faceFractions_[2*worker];auto& yr=faceFractions_[2*worker+1];
+        for(std::size_t f=begin;f<end;++f) axialFace(static_cast<int>(f/m.nr),static_cast<int>(f%m.nr),time,yl,yr);
+    });
+    const bool transport=medium_.hasTransport();
+    auto finish=[&](std::size_t q) {
         derivative[q][2]+=pressureSource_[q];
         for(double& v:derivative[q]) v/=m.cells[q].volume;
         for(std::size_t k=0;k<ns_;++k) speciesDerivative[q*ns_+k]/=m.cells[q].volume;
         for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]/=m.cells[q].volume;
+    };
+    pool_->blocks(state.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
+        for(std::size_t q=begin;q<end;++q) { gather(q,derivative,speciesDerivative,turbulenceDerivative);if(!transport) finish(q); }
+    });
+    // Boundary exchange rates: the igniter (constant power over the step, set by step()), the inlet
+    // and outlet faces, the side wall, and the volumetric forces (e.g. a Lorentz force), whose axial
+    // integral is rates.bodyAxial, reacting on the equipment (coils) in deviceThrust, and whose work
+    // is an external energy exchange.
+    BoundaryRates rates{};
+    rates.energy+=igniterPower_;rates.heat+=igniterPower_;
+    for(int j=0;j<m.nr;++j) {
+        const auto& flux=axialFlux_[j];const double area=axialArea_[j];
+        if(d.experiment==Case::Chamber && faceSupply_[j]<0) { rates.wallAxial+=area*flux[1];continue; }
+        rates.mass+=area*flux[0];rates.energy+=area*flux[3];rates.inlet+=area*flux[0];rates.inletMomentum+=area*flux[1];
+    }
+    for(int j=0;j<m.nr;++j) {
+        const auto f=static_cast<std::size_t>(m.nz)*m.nr+j;
+        const auto& flux=axialFlux_[f];const double area=axialArea_[f];
+        rates.mass-=area*flux[0];rates.energy-=area*flux[3];rates.outlet+=area*flux[0];rates.outletMomentum+=area*flux[1];
+    }
+    for(int i=0;i<m.nz;++i) {
+        const auto f=static_cast<std::size_t>(i)*(m.nr+1)+m.nr;
+        rates.wallAxial-=radialArea_[f]*radialFlux_[f][1];
+    }
+    if(!bodyForce_.empty()) for(std::size_t q=0;q<state.size();++q) {
+        const auto& f=bodyForce_[q];double v=m.cells[q].volume;
+        double work=(f[0]*primitives_[q].uz+f[1]*primitives_[q].ur)*v;
+        rates.bodyAxial+=f[0]*v;rates.energy+=work;
+    }
+    if(transport) {
+        transportFluxes(derivative,speciesDerivative,turbulenceDerivative,rates);
+        pool_->blocks(state.size(),kCells,[&](std::size_t begin,std::size_t end,int) { for(std::size_t q=begin;q<end;++q) finish(q); });
     }
     return rates;
 }
@@ -915,14 +996,17 @@ double Flow::step(double maxDt) {
     const double event=nextEvent(time_);
     bool landing=false;
     if(event-time_<=dt) { dt=event-time_;landing=true; }
-    const std::size_t n=state_.size();
     const auto& ig=definition_.igniter;
     if(nt_) { turbulenceStart_=turbulence_;sourcesStart_=sources_; }
     for(int attempt=0;attempt<14;++attempt) {
+        // Each cell's clip is kept, and the stage's are summed in cell order.
         double clipped=0;
         auto clip=[&](std::vector<double>& turbulence,std::size_t q) {
-            if(nt_ && turbulence[q*nt_]<0) { clipped-=turbulence[q*nt_]*mesh_.cells[q].volume;turbulence[q*nt_]=0; }
+            if(!nt_) return;
+            clippedCell_[q]=0;
+            if(turbulence[q*nt_]<0) { clippedCell_[q]=turbulence[q*nt_]*mesh_.cells[q].volume;turbulence[q*nt_]=0; }
         };
+        auto sumClipped=[&] { if(nt_) for(double c:clippedCell_) clipped-=c; };
         // Mean igniter power over [t, t + dt]; steps end on its switching times, so this is exact.
         igniterPower_=0;
         if(ig.energy>0) {
@@ -933,34 +1017,36 @@ double Flow::step(double maxDt) {
         if(nt_) {
             turbulence_=turbulenceStart_;
             turbulenceSource(state_,turbulence_,sourcesStart_,0.5*dt);
-            for(std::size_t q=0;q<n;++q) ok=ok&&admissible(state_[q],species_.data()+q*ns_,turbulence_.data()+q*nt_);
+            ok=allCells([&](std::size_t q) { return admissible(state_[q],species_.data()+q*ns_,turbulence_.data()+q*nt_); });
         }
         BoundaryRates first{},second{};
         if(ok) {
             first=rhs(state_,species_,turbulence_,rhs_,speciesRhs_,turbulenceRhs_,time_);
-            for(std::size_t q=0;q<n;++q) {
+            ok=allCells([&](std::size_t q) {
                 for(int k=0;k<4;++k) stage_[q][k]=state_[q][k]+dt*rhs_[q][k];
                 for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesStage_[k]=species_[k]+dt*speciesRhs_[k];
                 for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceStage_[k]=turbulence_[k]+dt*turbulenceRhs_[k];
                 clip(turbulenceStage_,q);
-                ok=ok&&admissible(stage_[q],speciesStage_.data()+q*ns_,turbulenceStage_.data()+q*nt_);
-            }
+                return admissible(stage_[q],speciesStage_.data()+q*ns_,turbulenceStage_.data()+q*nt_);
+            });
+            sumClipped();
         }
         if(ok) {
             second=rhs(stage_,speciesStage_,turbulenceStage_,rhs_,speciesRhs_,turbulenceRhs_,time_+dt);
-            for(std::size_t q=0;q<n;++q) {
+            ok=allCells([&](std::size_t q) {
                 for(int k=0;k<4;++k) next_[q][k]=0.5*(state_[q][k]+stage_[q][k]+dt*rhs_[q][k]);
                 for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesNext_[k]=0.5*(species_[k]+speciesStage_[k]+dt*speciesRhs_[k]);
                 for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceNext_[k]=0.5*(turbulence_[k]+turbulenceStage_[k]+dt*turbulenceRhs_[k]);
                 clip(turbulenceNext_,q);
-                ok=ok&&admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
-            }
+                return admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
+            });
+            sumClipped();
         }
         if(ok && nt_) {
             refresh(next_,speciesNext_,turbulenceNext_);
             transportProperties();transportGradients();eddyViscosity(true);
             turbulenceSource(next_,turbulenceNext_,sources_,0.5*dt);
-            for(std::size_t q=0;q<n;++q) ok=ok&&admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
+            ok=allCells([&](std::size_t q) { return admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_); });
         }
         if(ok) {
             state_.swap(next_);species_.swap(speciesNext_);turbulence_.swap(turbulenceNext_);

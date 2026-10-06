@@ -1,0 +1,42 @@
+old4 start 23:08  up 13 days, 11:47, 7 users, load averages: 1.80 2.12 2.46
+old4 end 23:10  up 13 days, 11:49, 7 users, load averages: 3.52 2.69 2.63
+new4 start 23:10  up 13 days, 11:49, 7 users, load averages: 3.52 2.69 2.63
+new4 end 23:11  up 13 days, 11:50, 7 users, load averages: 4.26 3.03 2.76
+new1 start 23:11  up 13 days, 11:50, 7 users, load averages: 4.26 3.03 2.76
+new1 end 23:14  up 13 days, 11:53, 7 users, load averages: 2.15 2.47 2.57
+new6 start 23:14  up 13 days, 11:53, 7 users, load averages: 2.15 2.47 2.57
+new6 end 23:15  up 13 days, 11:54, 7 users, load averages: 4.89 3.15 2.81
+== old4
+end 8.000 ms after 136228 steps (0 replans), wall 153 s
+budgets: mass 0.00e+00  energy 9.28e-12
+reaction wall 13.8 s (9.0% of the run), 0.132 us per cell update
+simulated: mdot out 0.400000 kg/s (supply 0.400000), c* 2447.47 m/s, vacuum thrust 1681.20 N, vacuum Isp 428.59 s
+state = before64 (bit for bit)
+== new4
+end 8.000 ms after 136228 steps (0 replans), wall 56 s
+budgets: mass 0.00e+00  energy 9.28e-12
+reaction wall 7.8 s (13.9% of the run), 0.074 us per cell update
+simulated: mdot out 0.400000 kg/s (supply 0.400000), c* 2447.47 m/s, vacuum thrust 1681.20 N, vacuum Isp 428.59 s
+state = before64 (bit for bit)
+== new1
+end 8.000 ms after 136228 steps (0 replans), wall 170 s
+budgets: mass 0.00e+00  energy 9.28e-12
+reaction wall 23.9 s (14.1% of the run), 0.229 us per cell update
+simulated: mdot out 0.400000 kg/s (supply 0.400000), c* 2447.47 m/s, vacuum thrust 1681.20 N, vacuum Isp 428.59 s
+state = before64 (bit for bit)
+== new6
+end 8.000 ms after 136228 steps (0 replans), wall 41 s
+budgets: mass 0.00e+00  energy 9.28e-12
+reaction wall 5.4 s (13.4% of the run), 0.052 us per cell update
+simulated: mdot out 0.400000 kg/s (supply 0.400000), c* 2447.47 m/s, vacuum thrust 1681.20 N, vacuum Isp 428.59 s
+state = before64 (bit for bit)
+
+[exited with code 0]
+old4 start 23:08  up 13 days, 11:47, 7 users, load averages: 1.80 2.12 2.46
+old4 end 23:10  up 13 days, 11:49, 7 users, load averages: 3.52 2.69 2.63
+new4 start 23:10  up 13 days, 11:49, 7 users, load averages: 3.52 2.69 2.63
+new4 end 23:11  up 13 days, 11:50, 7 users, load averages: 4.26 3.03 2.76
+new1 start 23:11  up 13 days, 11:50, 7 users, load averages: 4.26 3.03 2.76
+new1 end 23:14  up 13 days, 11:53, 7 users, load averages: 2.15 2.47 2.57
+new6 start 23:14  up 13 days, 11:53, 7 users, load averages: 2.15 2.47 2.57
+new6 end 23:15  up 13 days, 11:54, 7 users, load averages: 4.89 3.15 2.81

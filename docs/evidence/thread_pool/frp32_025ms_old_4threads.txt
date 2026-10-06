@@ -1,0 +1,28 @@
+mesh 32x6: dz 5.208 mm, throat station 16 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 8 at z 0.0443 m
+chemistry frp; igniter 300 J over 1 ms from 0.2 ms; viscous, SST, PaSR closure on
+light-off at 0.2060 ms (largest Y_H2O 0.616); chamber volume with s > 0.01: 0.0197
+
+end 0.250 ms after 966 steps (324 replans), wall 5 s
+budgets: mass 4.82e-15  energy -7.25e-15
+reaction wall 4.1 s (80.3% of the run), 22.340 us per cell update
+drift over last 1 ms: outlet mass flow 1.62e+00, injector pressure 1.35e+00, vacuum thrust 2.51e+00
+chamber end: static 0.32298 MPa, equilibrium stagnation p0 0.33330 MPa; injector face 0.88705 MPa
+simulated: mdot out 0.034724 kg/s (supply 0.200000), c* 3015.46 m/s, vacuum thrust 994.84 N, vacuum Isp 2921.49 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3108.2 K, c* 2380.42 m/s, Isp_vac shifting 431.28 s, frozen 405.94 s, gamma 1.2163
+corrections: Cd 0.99644 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2388.93 m/s, Isp_vac shifting 424.50 s, frozen 399.47 s, F_vac 144.55 N
+simulated/predicted - 1: c* +26.2268%, Isp_vac (shifting) +588.2119%
+
+PaSR criterion 4, closure on, 32x6, to 0.250 ms
+  (a) mass budget, largest over the run (initial fill)           2.047e-14 (limit 1.0e-11)  ok
+  (a) energy budget, largest over the run (|E| at the end)       1.184e-15 (limit 1.0e-11)  ok
+  reported: energy budget against the initial N2 fill, largest 6.526e-14, at the end -7.251e-15
+  (b) positivity of rho, p, T, k, omega at every sample (126 samples)  ok
+  (c) largest drift over the last 1 ms                           2.508e+00 (limit 1.0e-03)  FAIL
+  (c) outlet mass flow against the supply                        8.264e-01 (limit 1.0e-03)  FAIL
+  (d) kappa_eff in (0, 1] and s in [0, 1] at every field snapshot  ok (smallest kappa_eff 9.9454e-01, largest s 1.0000e+00)
+reported: light-off at 0.206000 ms; chamber volume with s > 0.01: 0.0197 at light-off, 0.0000 at the end
+reported: largest mass fraction clipped to zero after a reaction substep 1.963e-129
+reported: first-cell y+ at the wall row (laminar estimate): median 38.5, largest 77.5, largest upstream of the throat 77.5
+reported against the control: light-off, injector pressure 0.887050 MPa, c* 3015.46 m/s, vacuum Isp 2921.49 s
+2 failures

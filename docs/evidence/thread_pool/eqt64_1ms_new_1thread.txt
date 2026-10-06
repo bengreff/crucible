@@ -1,0 +1,18 @@
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 64x12: dz 2.604 mm, throat station 32 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 17 at z 0.0456 m
+chemistry eqt; igniter 0.5 J over 0.2 ms from 0.2 ms
+t 0.500 ms  p_inj 1.5051 MPa  outlet 0.1521 kg/s  F_vac 782.1 N  steps 8153  wall 11 s
+t 1.000 ms  p_inj 2.7697 MPa  outlet 0.3249 kg/s  F_vac 1424.2 N  steps 17009  wall 22 s
+
+end 1.000 ms after 17009 steps (0 replans), wall 22 s
+budgets: mass -2.60e-13  energy 9.28e-13
+reaction wall 3.0 s (13.8% of the run), 0.230 us per cell update
+table: 13062912 cell updates from it (443005 clamped at an axis end), 0 outside it took the direct call (0.000e+00)
+drift over last 1 ms: outlet mass flow 1.01e+00, injector pressure 9.99e-01, vacuum thrust 9.96e-01
+chamber end: static 2.59443 MPa, equilibrium stagnation p0 2.61023 MPa; injector face 2.76967 MPa
+simulated: mdot out 0.324880 kg/s (supply 0.400000), c* 2524.10 m/s, vacuum thrust 1424.22 N, vacuum Isp 447.03 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3332.2 K, c* 2425.85 m/s, Isp_vac shifting 435.65 s, frozen 418.40 s, gamma 1.2080
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2434.49 m/s, Isp_vac shifting 428.78 s, frozen 411.74 s, F_vac 1366.09 N
+simulated/predicted - 1: c* +3.6809%, Isp_vac (shifting) +4.2546%
