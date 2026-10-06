@@ -1,6 +1,6 @@
 # Session handoff
 
-5 October 2026, about 23:30 · branch `main` (one line).
+6 October 2026, about 00:50 · branch `main` (one line).
 
 ## Stopped at (5 October, evening)
 
@@ -22,9 +22,16 @@
   - the `archive/README.md` link now points to RESEARCH.md section 7;
   - the pre-pivot memory files are marked historical;
   - the backhouse memory now gives `/home/greff/crucible`.
-- Running when stopped: nothing of ours on the Mac or backhouse.
+- **Wall functions (6 October; `docs/evidence/WALL_FUNCTIONS.md`, commits d972db1, 64b0c9e, e10356a, b29adb2).**
+  - Nichols and Nelson's law is in the engine on every no-slip face (side wall and plate rings). The first cell's k and omega are prescribed and booked; switch with `CRUCIBLE_WALL_FUNCTIONS=law`. With it off, the engine is bit-identical to before.
+  - Pass: criterion 0 (a) to (d); 1(b) at y+ 99, 289 and 956 (c_f -2.5% to -3.6%, band 5%); 4 (cost +4.6% to +6.8%, band 10%).
+  - **Fails: criterion 2(b)**, the hot pipe (T_axis/T_w 4.9) against standard SST. c_f is -17% to -19% and St -15% (bands 5% and 10%). A semi-local ODE wall model (Kawai and Larsson, `tools/eq_wall_model.py`) misses by as much. The reference SST's heated buffer layer sits 1.7 lower in u+ than the cold law under van Driest scaling, and DNS does not do this (Hasan and Pecnik 2025 report 23% and 29% SST errors). **Raised: which reference the hot wall should match** (see *For Ben*).
+  - Criterion 3's explicit reference (32 rings, y+ 1 on C1) is estimated at about 60 h; raised. 3(b), C1 to 8 ms with the law on 12 rings: c* -0.47%, Isp_vac -3.1%, 313 kW to the wall (34 kW with the no-slip wall), 218 s on 4 threads.
+- Running when stopped: on the Mac, 1(b) at nr 167 (`/tmp/wf1b/law167.txt`) and 2(b) at nr 50 (`/tmp/wf2/law50.txt`), under slot.py. On backhouse, 1(a) in tmux `crucible_wf_res` and `crucible_wf_law` (`/home/greff/crucible_wf/c1a_*.txt`, about 6 to 7 h to steady state from 00:27).
 
 ## For Ben
+
+- **Hot-wall heat flux: which reference?** Standard SST, resolved to the wall, puts about 20% more shear and heat through a hot wall (gas 4.9 times the wall temperature) than the published variable-property wall laws. The DNS-backed scaling sides with the laws. Option A: a wall function that copies standard SST's hot layer (it carries SST's known error into the RL10 heat ledger). Option B: the semi-local wall model plus the published Hasan-Pecnik correction to SST in the engine and the reference, with criterion 2 restated against the corrected SST. Recommended: B. Raised with the Director 6 October, about 00:50.
 
 - **The omega-production item is closed.** The published SSTs form replaced the bespoke fix (the Director's instruction: published over bespoke). The cold start survives. The settled 32x6 chamber moved by 3e-5 in c* and 9e-5 in Isp (`PASR_C2.md`, *SSTs*).
 - **The PaSR closure's laminar limit** (segregation-weighted kappa) is still flagged in TECHNICAL_PLAN step 7, as before.
@@ -52,7 +59,7 @@
 
 TECHNICAL_PLAN *Lightweight engine*, order of work:
 1. ~~Thread transport~~: done 6 October (`THREAD_POOL.md`).
-2. **Wall functions** (item 3) to the criteria in `docs/evidence/WALL_FUNCTIONS.md` (stated 5 October, about 23:30, before code). Nichols and Nelson, read from the author's own chapter of the method (the AIAA J. article is paywalled). Build order: the criterion-0 test program; the reference's heating option and N2 properties to 3,500 K; the engine's wall face, first-cell k and omega, and ledger booking; then the pipes (criteria 1, 2), C1 (criterion 3) and cost (criterion 4). The constants kappa and B are read from the Re_tau 10,000 reference profile before any wall-function run.
+2. **Wall functions** (item 3): built and partly passing (`WALL_FUNCTIONS.md`, *Where this leaves the criteria*). Blocked on the hot-wall decision (*For Ben*). Then: collect 1(a) and 1(b) nr 167; criterion 2(a); set the AMR wall strip from the largest passing y+.
 3. **Table B, the finite-rate manifold** (item 4). Do the design and research pass before code. Open: a progress variable that keeps ignition delay, the table size, and mixing states off the manifold. Table A's lessons apply: use axes on which the diluent drops out, and cluster at kinks.
 4. **AMR** (item 5), then the **RL10-like cold start** measured against the 5-minute target (item 6).
 5. Optional or carried:
@@ -65,7 +72,8 @@ TECHNICAL_PLAN *Lightweight engine*, order of work:
 
 - `/home/greff/crucible`: the engine at 4e2ee5c (f10 ran from here; outputs `/home/greff/c2flame/`).
 - `/home/greff/crucible_c4`: the tree committed as 03d56e3 (the criterion 4 runs; outputs `/home/greff/c4runs/`, done).
-- None of our tmux sessions remain. Not ours, do not touch: gate_wg, ltaste2, battery2, flyapp-lib, lsug3 (other users' jobs were using about 12 cores this morning).
+- `/home/greff/crucible_wf`: the wall-function study binary and the criterion 1(a) runs (tmux `crucible_wf_res`, `crucible_wf_law`, ours).
+- Not ours, do not touch: gate_wg, ltaste2, battery2, flyapp-lib, lsug3, flyapp-m9r, s12spec_* (other users' jobs).
 - Never write to `/home/greff/inquiry-project` (the old Rust project).
 
 ## Open items carried forward
