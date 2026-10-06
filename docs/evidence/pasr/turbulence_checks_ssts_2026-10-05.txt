@@ -1,0 +1,87 @@
+# turbulence_verification (TURBULENCE_C2 checks 1, 2, 3, 5), SSTs production; working tree on 74de409; Mac M2 Pro; 5 October 2026
+1. wall distance
+  (a) straight duct, equal rings: |d - (R - r)| / R          0.000e+00 (limit 1.0e-13)  ok
+  (a) straight duct, b = 2: |d - (R - r)| / R                0.000e+00 (limit 1.0e-13)  ok
+  (b) nozzle, b = 1.5: against the segment search            3.965e-16 (limit 1.0e-13)  ok
+  (c) nozzle with plate rings 0, 3, 4, 7: segment search     2.478e-16 (limit 1.0e-13)  ok
+  (d) no walls: every distance infinite (1 = yes)            1.000e+00 (limit 1.0e+00)  ok
+2. decaying homogeneous turbulence, N2 at 300 K and 1e5 Pa, slip walls
+  N 4   t 9.661836e-05 s (target 9.661836e-05)  k 2.635738e+04  omega 5.548714e+04  error 1.375e-03  T 331.8441 K
+  N 8   t 9.661836e-05 s (target 9.661836e-05)  k 2.638454e+04  omega 5.553842e+04  error 3.460e-04  T 331.8076 K
+  N 16  t 9.661836e-05 s (target 9.661836e-05)  k 2.639139e+04  omega 5.555127e+04  error 8.676e-05  T 331.7984 K
+  N 32  t 9.661836e-05 s (target 9.661836e-05)  k 2.639310e+04  omega 5.555448e+04  error 2.172e-05  T 331.7961 K
+  2a. observed order, N 16 -> 32                             1.998e+00 (limit 1.9e+00)  ok
+  2a. relative error at N 32                                 2.172e-05 (limit 1.0e-04)  ok
+  2b. against the MPRK22 formula, worst relative             1.110e-16 (limit 1.0e-12)  ok
+  2c. rho unchanged, worst relative                          0.000e+00 (limit 1.0e-13)  ok
+  2c. E unchanged, worst relative                            0.000e+00 (limit 1.0e-13)  ok
+  2c. T against e(T0) + k0 - k [K]                           5.684e-14 (limit 1.0e-08)  ok
+  2c. k and omega uniform, worst relative                    0.000e+00 (limit 1.0e-13)  ok
+  2c. largest |u| [m/s]                                      1.462e-15 (limit 1.0e-08)  ok
+  stiff: after 10 steps (t 3.623e-04 s) k 2.9291e+00 (exact 8.3049e+00), omega 7.0538e+03 (exact 3.3322e+04), 0 rejected
+  2d. stiff: positive, finite, decreasing every step (1 = yes) 1.000e+00 (limit 1.0e+00)  ok
+3. turbulent transport operator on a straight slip-wall duct (h2o2.yaml)
+    32x8    axial momentum 4.474e-02  radial momentum 4.533e-02  energy 3.091e-02  species 4.545e-02  rho k 4.209e-02  rho omega 4.372e-02
+           laminar:  axial momentum 1.482e-02  radial momentum 2.188e-02  energy 2.017e-02  species 1.743e-02
+    64x16   axial momentum 1.023e-02  radial momentum 1.625e-02  energy 7.616e-03  species 1.013e-02  rho k 1.018e-02  rho omega 1.017e-02
+           laminar:  axial momentum 4.365e-03  radial momentum 6.351e-03  energy 5.676e-03  species 5.156e-03
+   128x32   axial momentum 2.197e-03  radial momentum 4.651e-03  energy 1.827e-03  species 2.146e-03  rho k 2.202e-03  rho omega 2.189e-03
+           laminar:  axial momentum 1.145e-03  radial momentum 1.704e-03  energy 1.472e-03  species 1.330e-03
+   256x64   axial momentum 5.318e-04  radial momentum 1.229e-03  energy 5.036e-04  species 5.099e-04  rho k 5.345e-04  rho omega 5.301e-04
+           laminar:  axial momentum 2.916e-04  radial momentum 4.401e-04  energy 3.727e-04  species 3.340e-04
+  3a. mu_t against rho k / omega, worst relative             4.441e-16 (limit 1.0e-12)  ok
+  laminar orders (two finest): axial 1.973  radial 1.953  energy 1.982  species 1.993
+  3b. axial momentum: observed order (two finest grids)      2.046e+00 (limit 1.8e+00)  ok
+  3c. radial momentum: observed order (two finest grids)     1.920e+00 (limit 1.8e+00)  ok
+  3b. energy: observed order (two finest grids)              1.859e+00 (limit 1.8e+00)  ok
+  3b. species: observed order (two finest grids)             2.073e+00 (limit 1.8e+00)  ok
+  3b. rho k: observed order (two finest grids)               2.043e+00 (limit 1.8e+00)  ok
+  3b. rho omega: observed order (two finest grids)           2.046e+00 (limit 1.8e+00)  ok
+5. turbulent supplies (Chamber, N2)
+  g 50     subsonic  p 117523.357709 Pa  T 299.303279706 K  u 37.793433577 m/s  k 5.356289e+00 m^2/s^2  omega 3.925067e+04 1/s  (laminar face: T 299.311847082 K  u 37.794376954 m/s)
+  (a) g 50: h + u^2/2 + 5/3 k - h0, over cp T0               2.994e-17 (limit 1.0e-12)  ok
+  (a) g 50: choked as derived (1 = yes)                      1.000e+00 (limit 1.0e+00)  ok
+  (a) g 50: face p on the outgoing characteristic            1.554e-15 (limit 1.0e-12)  ok
+  (a) g 50: u = g R T / p                                    0.000e+00 (limit 1.0e-12)  ok
+  (a) g 50: k = 3/2 (I u)^2                                  2.220e-16 (limit 1.0e-14)  ok
+  (a) g 50: omega = rho k / (ratio mu)                       2.220e-16 (limit 1.0e-12)  ok
+  (a) g 50: the five fluxes from the face state              0.000e+00 (limit 1.0e-14)  ok
+  g 2000   choked    p 459260.180870 Pa  T 249.262086711 K  u 322.171033526 m/s  k 3.892282e+02 m^2/s^2  omega 1.542397e+07 1/s  (laminar face: T 249.785456589 K  u 322.505838207 m/s)
+  (a) g 2000: h + u^2/2 + 5/3 k - h0, over cp T0             1.030e-16 (limit 1.0e-12)  ok
+  (a) g 2000: choked as derived (1 = yes)                    1.000e+00 (limit 1.0e+00)  ok
+  (a) g 2000: u = a(T)                                       0.000e+00 (limit 1.0e-12)  ok
+  (a) g 2000: k = 3/2 (I u)^2                                2.220e-16 (limit 1.0e-14)  ok
+  (a) g 2000: omega = rho k / (ratio mu)                     2.220e-16 (limit 1.0e-12)  ok
+  (a) g 2000: the five fluxes from the face state            0.000e+00 (limit 1.0e-14)  ok
+  (b) I = 0 rejected with turbulence (1 = yes)               1.000e+00 (limit 1.0e+00)  ok
+  (b) ratio = 0 rejected with turbulence (1 = yes)           1.000e+00 (limit 1.0e+00)  ok
+  (b) the same supply accepted without turbulence (1 = yes)  1.000e+00 (limit 1.0e+00)  ok
+  (c) nz 32   k error 1.121e-03  omega error 9.866e-04  change over the last 0.25 ms 6.17e-06  radial spread of k 1.21e-14  steps 15219  wall 3 s
+  nz 32: (d) mass budget                                     1.431e-16 (limit 1.0e-12)  ok
+  nz 32: (d) energy budget                                   2.766e-15 (limit 1.0e-12)  ok
+  nz 32: (d) axial momentum budget                           7.453e-18 (limit 1.0e-12)  ok
+  nz 32: (d) clipped rho k V over the integral of rho k      0.000e+00 (limit 1.0e-12)  ok
+  (c) nz 64   k error 3.510e-04  omega error 3.054e-04  change over the last 0.25 ms 6.56e-06  radial spread of k 1.27e-14  steps 24821  wall 8 s
+  nz 64: (c) k against the plug-flow decay                   3.510e-04 (limit 2.0e-03)  ok
+  nz 64: (c) omega against the plug-flow decay               3.054e-04 (limit 2.0e-03)  ok
+  nz 64: (d) mass budget                                     6.417e-16 (limit 1.0e-12)  ok
+  nz 64: (d) energy budget                                   3.514e-15 (limit 1.0e-12)  ok
+  nz 64: (d) axial momentum budget                           7.230e-17 (limit 1.0e-12)  ok
+  nz 64: (d) clipped rho k V over the integral of rho k      0.000e+00 (limit 1.0e-12)  ok
+  (c) nz 128  k error 1.368e-04  omega error 1.162e-04  change over the last 0.25 ms 7.15e-06  radial spread of k 1.82e-14  steps 44093  wall 26 s
+  nz 128: (c) k against the plug-flow decay                  1.368e-04 (limit 2.0e-03)  ok
+  nz 128: (c) omega against the plug-flow decay              1.162e-04 (limit 2.0e-03)  ok
+  nz 128: (d) mass budget                                    8.394e-15 (limit 1.0e-12)  ok
+  nz 128: (d) energy budget                                  8.544e-15 (limit 1.0e-12)  ok
+  nz 128: (d) axial momentum budget                          6.112e-17 (limit 1.0e-12)  ok
+  nz 128: (d) clipped rho k V over the integral of rho k     0.000e+00 (limit 1.0e-12)  ok
+  (c) observed order of the larger error (reported): nz 32 -> 64 1.676, 64 -> 128 1.359
+  (d) ambient (Spalart and Rumsey): k 1.122280e-03 m^2/s^2  omega 7.846201e+03 1/s  mu_t / mu 0.0090
+  (d) no-slip chamber: t 3.000e-04 s  steps 5985  injector pressure 150910.5 Pa  outlet 1.7729e-04 kg/s  largest k 4.0920e+03 m^2/s^2  wall 3 s
+  (d) no-slip chamber: mass budget                           5.319e-15 (limit 1.0e-12)  ok
+  (d) no-slip chamber: energy budget                         9.923e-17 (limit 1.0e-12)  ok
+  (d) no-slip chamber: axial momentum budget                 1.160e-16 (limit 1.0e-12)  ok
+  (d) no-slip chamber: k and omega positive, finite (1 = yes) 1.000e+00 (limit 1.0e+00)  ok
+  (d) no-slip chamber: clipped rho k V over the integral of rho k 0.000e+00 (limit 1.0e-12)  ok
+0 failures
+exit 0

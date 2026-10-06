@@ -308,9 +308,9 @@ private:
     // Turbulence: eddy viscosity mu_t, turbulent conductivity cp mu_t / Pr_t and the turbulent parts
     // sigma_k mu_t, sigma_omega mu_t of the k and omega diffusivities (stride 2) per cell; the wall
     // distance, and the wall-face omega of the cells next to a no-slip wall. sources_ holds what
-    // the source split freezes per half step: the mean-flow strain terms, the cross-diffusion
+    // the source split freezes per half step: S^2 and S of the mean flow, the cross-diffusion
     // product grad k . grad omega, the molecular nu and the inverse wall distance.
-    struct SourceCoefficients { double strain2{}, strain{}, divergence{}, crossGradient{}, nu{}, inverseDistance{}; };
+    struct SourceCoefficients { double strain2{}, strain{}, crossGradient{}, nu{}, inverseDistance{}; };
     std::vector<double> eddy_, eddyConductivity_, eddyDiffusion_, wallDistance_, wallOmega_, wallDiffusion_;
     std::vector<SourceCoefficients> sources_, sourcesStart_;
     void prepareTransport();

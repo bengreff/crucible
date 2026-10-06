@@ -97,7 +97,7 @@ Raw outputs, all in `pasr/`:
   - **Mechanism (from the code, then tested).** Omega's production is gamma rho P / mu_t, with P = mu_t (S^2 - 2/3 div^2) - 2/3 rho k div. Where the SST limiter is active (a1 omega < S F2), rho k / mu_t is S F2 / a1, not omega. The production is then gamma rho [(S^2 - 2/3 div^2) - (2/3) div S F2 / a1]. In a strong expansion that is negative, and it does not depend on omega. MPRK22 books a negative production as destruction with coefficient |P| / omega, so each substep maps omega to about omega^2 / (dt |P|). That stays positive but falls faster than exponentially: the field at the stop held omega of 1e-100 to 1e-138 1/s across the divergent nozzle. Once omega is that small, any drain (the off-line diffusion, or round-off) is larger than the cell holds.
   - **Not kept:** bounding the off-line part of the diffusion by the two-point part (OpenFOAM's limited correction) only moved the stop from 0.346 to 0.357 ms.
   - **Isolation:** with the dilatation part removed from omega's production only (a temporary switch), the run reaches 0.5 ms with positivity at every sample, with or without the diffusion bound.
-  - **Fix (kept; CRUCIBLE choice, flagged for Ben).** In omega's production only, the dilatation part uses omega for rho k / mu_t. Where the limiter is inactive this is the exact form. Where it is active, it becomes a decay at a rate of at most (2/3) gamma div. The k equation keeps the exact P, so the work of the turbulent pressure on expansion stays in k's budget. The published alternative, TMR's SSTs form (P = mu_t S^2 in both equations, [NASA TMR](https://tmbwg.github.io/turbmodels/sst.html)), also removes that term from k. Recorded in TECHNICAL_PLAN step 7, the `core/transport.cpp` header and TURBULENCE_C2.md.
+  - **Fix (superseded the same evening by TMR's SSTs form; see *SSTs* below).** In omega's production only, the dilatation part uses omega for rho k / mu_t. Where the limiter is inactive this is the exact form. Where it is active, it becomes a decay at a rate of at most (2/3) gamma div. The k equation keeps the exact P, so the work of the turbulent pressure on expansion stays in k's budget. The published alternative, TMR's SSTs form (P = mu_t S^2 in both equations, [NASA TMR](https://tmbwg.github.io/turbmodels/sst.html)), also removes that term from k. Recorded in TECHNICAL_PLAN step 7, the `core/transport.cpp` header and TURBULENCE_C2.md.
   - **Verification of the fix.** The fast suite gives 5 of 6, with output identical line for line to the run before the change, including the three known truncation-order failures of `transport_verification` ([ctest_fast_omega_2026-10-05.txt](pasr/ctest_fast_omega_2026-10-05.txt)). `turbulence_verification` (TURBULENCE_C2 checks 1, 2, 3, 5) passes. The pipe (check 4, nr 16 and 32) still matches its reference: u_b within 2.07e-4 and 6.51e-5 (were 2.03e-4 and 6.37e-5). It moved by more than round-off (u_b +4.4e-6 on nr 16), and a reordered exact form reproduces the old values, so the pipe has non-zero divergence where the limiter is active at some point in the run (measured; where is open, see TURBULENCE_C2.md).
 - **Verification after the clamp (Mac).** The fast suite: 5 of 6 pass. `transport_verification` prints output identical, line for line, to the recorded open-face run, with the same three truncation-order failures. `turbulence_verification` passes. The slow pipe verification (TURBULENCE_C2 check 4) was then run with the clamp ([pipe_after_axis_clamp_2026-10-05.txt](pasr/pipe_after_axis_clamp_2026-10-05.txt)). nr 16 and 32 print every history line and every judged value as the recorded Mac run before the clamp, including the failing mass budgets 3.42e-11 and 1.93e-11. The nr 64 run was stopped at 0.5 ms to free the Mac; its 0.5 ms line matches the backhouse run without the clamp. So the clamp does not touch the pipe (measured).
 
@@ -154,3 +154,32 @@ The 64x12 pair confirms the 32x6 result: the closure acts only at light-off in t
 - The reference shares Cantera's rates and the closure formula with the engine. It checks the integration and the wiring, not the closure's physical validity.
 - The closure's constants (C_mix 1, Sc_t 0.7, beta* 0.09) and its form are model choices. Whether PaSR is right for the RL10's turbulence-chemistry interaction is a modelling question for validation, not verification.
 - The fast suite after the change: 5 of 6 pass. The output of `transport_verification` is identical to the recorded open-face run: the same three truncation-order failures, with the same values.
+
+### SSTs production replaces the omega fix (5 October, evening)
+
+The Director's instruction of 21:30: replace the CRUCIBLE-only omega fix with the published SSTs form (NASA TMR: P = mu_t S^2 in both equations, the -2/3 rho k delta_ij term kept in the stress; TECHNICAL_PLAN step 7). Both productions are then non-negative, so the mechanism above (a negative production that does not scale with omega) cannot arise. The criterion 4 closure run on 32x6 was rerun on the working tree over 74de409, Mac, 4 threads ([criterion4_32x6_ssts_2026-10-05.txt](pasr/criterion4_32x6_ssts_2026-10-05.txt)). The 64x12 pair was not rerun (the Director's 21:45 instruction).
+
+| Judged (closure run, 32x6) | SSTs | Before (omega fix) | Limit | Result |
+|---|---|---|---|---|
+| (a) mass budget, largest over the run | 4.6e-13 | 9.4e-13 | 1e-11 | pass |
+| (a) energy budget against \|E\| at the end, largest | 1.7e-14 | 7.7e-15 | 1e-11 | pass |
+| (b) reaches 8 ms; rho, p, T, k, omega positive at all 4000 samples | yes | yes | | pass |
+| (c) largest drift over the last 1 ms | 1.2e-7 | 1.1e-7 | 1e-3 | pass |
+| (c) outlet mass flow against the supply | 5.5e-8 | 7.3e-8 | 1e-3 | pass |
+| (d) kappa_eff in (0, 1], s in [0, 1] at the snapshots | yes (smallest kappa_eff 0.99948) | yes (0.99951) | | pass |
+
+Reported (measured), against the run with the omega fix:
+
+| | SSTs | Before |
+|---|---|---|
+| Light-off | 0.206 ms | 0.206 ms |
+| Injector pressure, settled | 3.311865 MPa | 3.311776 MPa |
+| c* | 2475.75 m/s (+1.5468% against the corrected 1-D prediction) | 2475.68 m/s (+1.5440%) |
+| Vacuum Isp | 423.77 s (-1.2393%) | 423.73 s (-1.2476%) |
+| Vacuum thrust | 1662.30 N | 1662.2 N (history) |
+| Injector pressure at 0.5 / 1 / 2 ms | 1.5839 / 2.8364 / 3.2670 MPa | 1.5838 / 2.8364 / 3.2669 MPa |
+| Steps to 8 ms; wall | 68293; 521 s | 68284; 583 s |
+
+- The cold start survives with SSTs, and the settled chamber moves by 3e-5 in c* and 9e-5 in Isp. The first-cell y+ (laminar estimate) is median 78, largest 105, as before.
+- The 64x12 result of the omega fix (c* +0.21%, Isp -1.26%) stands as the last 64x12 record; its SSTs rerun is not scheduled, since the Director's new main line (TECHNICAL_PLAN, *Lightweight engine*) replaces the wall treatment.
+

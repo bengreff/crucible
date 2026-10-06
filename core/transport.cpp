@@ -36,18 +36,17 @@
 // its k flux (zero in the continuum, where k ~ y^2) stays in the cell as heat, so the energy
 // through the wall is the conduction alone. A slip wall passes no k or omega flux, and its normal
 // stress includes -2/3 rho k of the cell. Face eddy properties are the mean of the two cells.
-// Sources: P = mu_t (S^2 - 2/3 div^2) - 2/3 rho k div, Pt = min(P, 10 beta* rho omega k),
+// Sources, in TMR's SSTs form (the -2/3 rho k delta_ij term kept in tau_ij for the momentum and
+// energy, the production approximated by P = mu_t S^2 in both equations; adopted 5 October 2026 in
+// place of the exact P, whose dilatation part -2/3 rho k div collapsed omega in the expanding nozzle,
+// docs/evidence/PASR_C2.md): Pt = min(mu_t S^2, 10 beta* rho omega k),
 //   d(rho k)/dt = Pt - beta* rho omega k,
-//   d(rho omega)/dt = gamma rho Pt / mu_t - beta rho omega^2 + 2 (1 - F1) rho sigma_w2 / omega grad k . grad omega,
-// except that in omega's production the dilatation part, -(2/3) (rho k / mu_t) div, uses omega for
-// rho k / mu_t (a CRUCIBLE choice of 5 October 2026; identical wherever the limiter a1 omega >= S F2
-// is inactive). Where the limiter is active, rho k / mu_t = S F2 / a1 > omega, and in a strong
-// expansion the exact form is a sink that does not scale with omega: it collapsed omega to 1e-138 in
-// the divergent nozzle of the turbulent chamber cold start (docs/evidence/PASR_C2.md). With omega
-// it is a decay at a rate below (2/3) gamma div. The k equation keeps the exact P. Sources are
+//   d(rho omega)/dt = gamma rho Pt / mu_t - beta rho omega^2 + 2 (1 - F1) rho sigma_w2 / omega grad k . grad omega.
+// Both productions are non-negative. The turbulent pressure's expansion work u . grad(2/3 rho k) is
+// in the energy flux and does not enter k; since k is part of E, the total energy is unchanged. Sources are
 // integrated per cell at fixed rho and E by the second-order positive modified Patankar
 // Runge-Kutta scheme MPRK22 (Kopecz and Meister, BIT 58, 2018; production explicit, destruction
-// weighted by the new over the old value), with the strain, divergence, grad k . grad omega, nu
+// weighted by the new over the old value), with S^2, S, grad k . grad omega, nu
 // and the wall distance frozen and F1, F2 and mu_t evaluated at each stage's k and omega.
 #include "core/flow.hpp"
 #include <algorithm>
@@ -193,7 +192,6 @@ void Flow::eddyViscosity(bool withSources) {
     for(std::size_t q=0;q<state_.size();++q) {
         const auto& w=primitives_[q];const double* g=&gradients_[q*nf*2];const double* y=fractions_.data()+q*nw_;
         const double k=y[ns_],omega=y[ns_+1],hoop=w.ur/mesh_.cells[q].r;
-        const double div=g[0]+g[3]+hoop;
         const double strain2=2*(sq(g[0])+sq(g[3])+sq(hoop))+sq(g[1]+g[2]),strain=std::sqrt(strain2);
         const double* gk=g+2*(3+ns_);const double* gw=g+2*(4+ns_);
         const double cross=gk[0]*gw[0]+gk[1]*gw[1],nu=viscosity_[q]/w.rho,inverse=1/wallDistance_[q];
@@ -203,7 +201,7 @@ void Flow::eddyViscosity(bool withSources) {
         eddy_[q]=mut;eddyConductivity_[q]=(props.cv+props.r)*mut/tu.prandtl;
         eddyDiffusion_[2*q]=(b.f1*sigmaK1+(1-b.f1)*sigmaK2)*mut;
         eddyDiffusion_[2*q+1]=(b.f1*sigmaW1+(1-b.f1)*sigmaW2)*mut;
-        if(withSources) sources_[q]={strain2-2.0/3*sq(div),strain,div,cross,nu,inverse};
+        if(withSources) sources_[q]={strain2,strain,cross,nu,inverse};
     }
 }
 void Flow::mixingInputs(double cmix,const std::vector<std::size_t>& species,std::vector<double>& time,
@@ -240,15 +238,14 @@ void Flow::turbulenceSource(const std::vector<Conserved>& state,std::vector<doub
         auto rates=[&](double k,double omega,double& pk,double& dk,double& pw,double& dw) {
             const auto b=blending(k,omega,rho,c.nu,c.inverseDistance,c.crossGradient);
             const double m=std::max(a1*omega,c.strain*b.f2);
-            // Pt / (rho k): mu_t / (rho k) = a1 / m.
-            const double rate=std::min(a1*c.strain2/m-2.0/3*c.divergence,10*betaStar*omega);
+            // Pt / (rho k), with mu_t / (rho k) = a1 / m, and gamma Pt / nu_t.
+            const double rate=std::min(a1*c.strain2/m,10*betaStar*omega);
             const double gamma=b.f1*gamma1+(1-b.f1)*gamma2,beta=b.f1*beta1+(1-b.f1)*beta2;
-            // gamma Pt / nu_t, with omega for rho k / mu_t in the dilatation part (header).
-            const double production=gamma*std::min(c.strain2-2.0/3*c.divergence*omega,10*betaStar*omega*m/a1);
+            const double production=gamma*std::min(c.strain2,10*betaStar*omega*m/a1);
             const double cross=2*(1-b.f1)*sigmaW2*c.crossGradient;
-            pk=k*std::max(rate,0.0);dk=std::max(-rate,0.0)+betaStar*omega;
-            pw=std::max(production,0.0)+std::max(cross,0.0)/omega;
-            dw=std::max(-production,0.0)/omega+beta*omega+std::max(-cross,0.0)/sq(omega);
+            pk=k*rate;dk=betaStar*omega;
+            pw=production+std::max(cross,0.0)/omega;
+            dw=beta*omega+std::max(-cross,0.0)/sq(omega);
         };
         const double k0=turbulence[q*nt_]/rho,w0=turbulence[q*nt_+1]/rho;
         double pk0,dk0,pw0,dw0,pk1,dk1,pw1,dw1;

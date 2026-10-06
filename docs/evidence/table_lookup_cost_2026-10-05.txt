@@ -1,0 +1,9 @@
+# tests/table_lookup_cost.cpp (prototype 4-D multilinear lookup, synthetic values); Mac M2 Pro, one thread, slot.py; 5 October 2026
+table 48 x 12 x 64 x 32 nodes, 11 values per node, 103.8 MB
+random    repeat 0: 349.0 ns per lookup (2000000 lookups)
+random    repeat 1: 329.0 ns per lookup (2000000 lookups)
+random    repeat 2: 328.5 ns per lookup (2000000 lookups)
+coherent  repeat 0: 72.7 ns per lookup (2000000 lookups)
+coherent  repeat 1: 78.8 ns per lookup (2000000 lookups)
+coherent  repeat 2: 73.4 ns per lookup (2000000 lookups)
+checksum -3.058148e+04
