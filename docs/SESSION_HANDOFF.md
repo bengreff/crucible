@@ -52,7 +52,7 @@
 
 TECHNICAL_PLAN *Lightweight engine*, order of work:
 1. **Thread transport** (`core/transport.cpp`) on the pool with the same face-array pattern, before the turbulent wall-function runs (the viscous step is 3.1 times the inviscid one, measured).
-2. **Wall functions** (item 3). Read Nichols and Nelson (AIAA J. 42(6), 2004) in full first. The criteria (pipe at y+ 30 to 1,000, a heated compressible case, C1 turbulent 64x12) are stated in *Lightweight engine*.
+2. **Wall functions** (item 3) to the criteria in `docs/evidence/WALL_FUNCTIONS.md` (stated 5 October, about 23:30, before code). Nichols and Nelson, read from the author's own chapter of the method (the AIAA J. article is paywalled). Build order: the criterion-0 test program; the reference's heating option and N2 properties to 3,500 K; the engine's wall face, first-cell k and omega, and ledger booking; then the pipes (criteria 1, 2), C1 (criterion 3) and cost (criterion 4). The constants kappa and B are read from the Re_tau 10,000 reference profile before any wall-function run.
 3. **Table B, the finite-rate manifold** (item 4). Do the design and research pass before code. Open: a progress variable that keeps ignition delay, the table size, and mixing states off the manifold. Table A's lessons apply: use axes on which the diluent drops out, and cluster at kinks.
 4. **AMR** (item 5), then the **RL10-like cold start** measured against the 5-minute target (item 6).
 5. Optional or carried:

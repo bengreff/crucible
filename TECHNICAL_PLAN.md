@@ -140,7 +140,7 @@
      - Kennedy and Carpenter 2003, "Additive Runge-Kutta schemes for convection-diffusion-reaction equations", Appl. Numer. Math. 44(1), 139-181: ARK3(2)4L[2]SA and its ESDIRK part ([Semantic Scholar](https://www.semanticscholar.org/paper/Additive-Runge-Kutta-Schemes-for-Equations-Kennedy-Carpenter/ad463b85089ac66ae41dad57e06523403acb11e6)).
      - Bijl, Carpenter, Vatsa and Kennedy 2002, "Implicit time integration schemes for the unsteady compressible Navier-Stokes equations: laminar flow", J. Comput. Phys. 179, 1-17: ESDIRK against BDF2 for unsteady flow.
      - Yoon and Jameson 1988, "Lower-upper symmetric-Gauss-Seidel method for the Euler and Navier-Stokes equations", AIAA J. 26, 1025-1026: LU-SGS ([PDF](http://aero-comlab.stanford.edu/Papers/AIAA-10007-471.pdf)).
-17. **Wall functions: the default wall treatment** (Ben's direction of 5 October 2026, 21:45, which reverses that morning's ruling "a declared option, never the default"). An SST wall treatment with no resolved sublayer, designed in *Lightweight engine*. The wall-resolved treatment of step 7 is kept as its verification reference. The verification criteria are stated in *Lightweight engine* before code, and every result labels its wall treatment.
+17. **Wall functions: the default wall treatment** (Ben's direction of 5 October 2026, 21:45, which reverses that morning's ruling "a declared option, never the default"). An SST wall treatment with no resolved sublayer, designed in *Lightweight engine*. The wall-resolved treatment of step 7 is kept as its verification reference. The method is Nichols and Nelson's; its verification criteria were stated before code on 5 October (`docs/evidence/WALL_FUNCTIONS.md`, summarised in *Lightweight engine*), and every result labels its wall treatment.
 
 ### Compute budget for a 1 s RL10 run (5 October 2026)
 
@@ -315,12 +315,16 @@ What the budget says (derived from the rows above):
 
 **Wall functions** (step 17, restated).
 - Read in full: Menter, Carregal Ferreira, Esch and Konno, IGTC2003-TS-059 (SST's automatic wall treatment). The velocity and omega blend between the sublayer and log-layer solutions (eqs. 15 to 18). The wall heat flux follows Kader's thermal law, Theta+ = (T_w - T) rho c_p u_tau / q_w as a function of Pr and y+ (eqs. 11 to 14). It switches "gradually ... from a classical low-Re formulation on fine grids to a log-wall function formulation on coarser meshes" (p. 2).
-- The chamber's wall layer is strongly compressible and heated: a wall at about 600 K under gas near 3,000 K is a density ratio of about 5. Kader's law is incompressible. The candidate for the velocity and temperature profiles is the compressible law of the wall (White and Christoph) as used by Nichols and Nelson (AIAA J. 42(6), 2004). Only its abstract has been read. It is read in full before code. A related NASA compressible derivation (De Chant and Tattar, CR-191185, 1994, full text read) reports 12.5% error for adiabatic flow and 18.5% with heat transfer against experiments.
-- Verification, criteria stated before code:
-  1. The fully developed pipe (TURBULENCE_C2 check 4) with wall functions at first-cell y+ 30, 100, 300 and 1,000 against the wall-resolved SST result on the same pipe.
-  2. A heated compressible case with the RL10's density ratio, against the wall-resolved SST result.
-  3. C1 turbulent on 64x12 against the wall-resolved run (c*, Isp, wall heat flux).
-- Every result labels its wall treatment. The wall heat flux becomes a model output, with its own error band in the RL10 loss ledger.
+- The chamber's wall layer is strongly compressible and heated: a wall at about 600 K under gas near 3,000 K is a density ratio of about 5. Kader's law is incompressible. A related NASA compressible derivation (De Chant and Tattar, CR-191185, 1994, full text read) reports 12.5% error for adiabatic flow and 18.5% with heat transfer against experiments.
+- **Choice: Nichols and Nelson** (AIAA J. 42(6), 2004). Read in full from the author's own chapter of the method (Nichols, *Turbulence Models and Their Application to Complex Flows*, Rev. 4.01, ch. 10). The journal article is paywalled and unread. Spalding's single formula from the wall to the log layer, with White and Christoph's compressible, heated outer law. Crocco-Busemann gives the temperature, and the first cell's k and omega are prescribed. One formula holds at every y+, so there is no switch to the resolved wall. Two printed equations (10.9, 10.13) disagree with their derivation; the corrected forms are used (`docs/evidence/WALL_FUNCTIONS.md`). The author caps the first point at y+ 100 (a rule of thumb of 50), against this plan's design point of 1,000 to 2,000 at the throat.
+- Verification: criteria stated before code on 5 October in `docs/evidence/WALL_FUNCTIONS.md`.
+  0. The algebra (limits, inversion, the derivative), bit identity on 1 and 4 threads, and closed budgets.
+  1. A fully developed pipe at Re_tau about 10,000 (about the RL10 throat's, derived), not the Re_tau 182 pipe of TURBULENCE_C2. Wall functions at first-cell y+ 1, 30, 100, 300 and 1,000 against the wall-resolved SST reference: c_f within 5%.
+  2. A heated compressible pipe at the RL10's density ratio of about 5: c_f within 5% and the Stanton number within 10%.
+  3. C1 turbulent (Table A, SST) on 12 rings against the wall-resolved run: c*, Isp and thrust within 0.2%, wall heat flow within 10%, wall axial force within 5%.
+  4. At most 10% extra cost per cell update.
+  - The largest y+ passing 1 and 2 is y+_max, which sets the wall strip's AMR level. Below 300, the budget in *Lightweight engine* is re-derived before AMR is built.
+- Every result labels its wall treatment. The wall heat flux and friction become model outputs, with error bands in the RL10 loss ledger from criteria 2 and 3.
 
 **Adaptive resolution** (Berger and Colella, J. Comput. Phys. 82, 1989, full text read; Berger and Oliger 1984 by summary).
 - **Choice: block-structured AMR in the logical (i, j) index space of the body-fitted mapping**, with refinement ratio 2 in space and time.
