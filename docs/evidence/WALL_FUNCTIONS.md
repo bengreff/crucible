@@ -101,3 +101,48 @@ Every run labels its wall treatment. The wall heat flux and friction become mode
 ---
 
 ## Results
+
+### Criterion 0 (a) to (c): pass (6 October 2026, about 00:20)
+
+The law is `crucible::wallLaw` in `core/walls.cpp`. The test program is `tests/wall_function_tests.cpp` (ctest `wall_function_verification`, 0.2 s). Its output is in `wall_functions_criterion0_2026-10-06.txt`. κ 0.4 and B 5.5 were used; the algebra does not depend on them.
+
+| Check | Measured | Limit |
+|---|---|---|
+| (a) eq. 10.6 against Spalding's eq. 10.3, u+ 0 to 40 | 2.1e-16 | 1e-12 |
+| (a) eq. 10.12 against eq. 10.11, u+ 0 to 40 | 1.9e-15 | 1e-12 |
+| (a) continuity: u_eq+ against an independent quadrature, 77,564 points, Γ 0 to 1e-2 | 1.7e-15 | 1e-13 |
+| (a) continuity: largest decrease of y+ as Γ grows, over its rounding allowance | 0.54 | 1 |
+| (b) solved u_τ against the constructed one (180 cases, at most 16 Newton iterations) | 5.9e-16 | 1e-12 |
+| (b) eq. 10.6 at the solved u+, Γ, β | 2.5e-14 | 1e-12 |
+| (b) T_1 back from the solved q_w through eq. 10.8 | 2.8e-14 | 1e-12 |
+| (c) corrected eq. 10.13 against a five-point central difference | 4.2e-10 | 1e-7 |
+| (c) reported: printed eq. 10.13 against the same difference | 1.10 (largest, at y+ 30, Γ 0, β 0.1) | none |
+
+**How the law is evaluated.**
+- u_eq+ (the integral of eq. 10.5) is evaluated in one closed form, the arctangent of an angle difference. It reduces to (2/β)(√(1 + βu+) − 1) at Γ = 0 and to u+ at Γ = β = 0. There is no series in √Γ and no separate branch at small Γ: the closed form has no cancellation there.
+- The bracket of eq. 10.6, exp(κu_eq+) − (1 + x + x²/2 + x³/6) with x = κu+, is computed in whichever of two forms rounds less:
+  - e^x expm1(κu_eq+ − x) plus the series of the exponential's tail;
+  - or the plain difference.
+- The isothermal solve uses u_eq+(u+; Γ, β) = u+ · u_eq+(1; G, θ) on its path, where G = r u_1²/(2 c_p T_w) and θ = T_1/T_w − 1 + G are fixed by the first cell. So one quadrature-free constant serves every iteration. The solve is Newton on u+ y+(u+) = Re_1 inside a bracket doubled up from u+ = 1, with bisection when a step leaves the bracket.
+
+**What failed first, and why, stated plainly.** The criteria did not change. The test's implementation of two of them did, and the first attempt's code had two bugs.
+- **(a) Continuity was first tested by three sub-checks that were wrongly posed. All three failed, and the failures were the exact law's own behaviour, not faults in the code.**
+  - y+ at Γ ≤ 1e-14 against Γ = 0, to 1e-12: measured 4.3e-11. The law's real first-order sensitivity is κ e^(−κB) e^(κu+) Γ u+³/6 relative to y+. At u+ 40 that is about 4,300 Γ, so a 1e-12 bound below Γ = 1e-14 cannot hold.
+  - The slope (y+(Γ = 1e-10) − y+(0)) / 1e-10 against the analytic slope, to 1e-6: measured 1.7e-4. At small u+ the change in y+ is below one unit in the last place of y+ (about u+), so the difference quotient measures rounding.
+  - y+ must not decrease as Γ grows, to 1e-15 relative: measured 8.1e-15. exp(κu_eq+) amplifies a relative rounding of u_eq+ by κu_eq+, about 16 at u+ 40.
+
+  They were replaced by two checks that test continuity directly. (1) Γ enters eq. 10.6 only through u_eq+, so u_eq+ is checked against an independent Gauss-Legendre quadrature of its integral (64 panels of 20 points) on a ladder of 2,804 values of Γ (0, 1e-300, 1e-100, then 10^(e/100) from 1e-30 to 1e-2). (2) y+ may not decrease along that ladder by more than 1e-15 (1 + κu_eq+) relative, its rounding.
+- **(a) eq. 10.12 against eq. 10.11: first measured 3.6e-9.** The test's reference for eq. 10.11 subtracted the polynomial from the exponential at small x and cancelled. The reference now sums the exponential's tail as a series below x = 1: 1.9e-15.
+- **(b) Two bugs in the solve, both fixed.**
+  - A false root. When heating makes u_eq+ < u+, the bracket subtracted two terms of size e^(κu+). At u+ 300 every digit was lost, so the solve stopped at a spurious root at u+ 339 (u_τ wrong by 89%). Eighteen cases were wrongly listed as having no layer. Fix: the two-form evaluation above, and a bracket that grows up from u+ = 1.
+  - A Newton safeguard. It required a step strictly inside the bracket, so a converged step that landed on the bracket's end was rejected, and the solve bisected away from the root (u_τ errors near 6e-14, up to 175 iterations). Fix: a step below 1e-13 u+ ends the solve.
+- **(c) Printed eq. 10.13.** Its error reaches 110% (its derivative has the wrong sign). Where Γ = 0 and β ≠ 0, (2Γu+ − β)²/Q² = 1, so the printed bracket [1 − (·)²]^(+1/2) is zero and the log-law term vanishes from dy+/du+. With the derived exponent −1/2 the factor cancels: since Q² − (2Γu+ − β)² = 4ΓD², the derived form is κ y+_White / D, with D = (1 + βu+ − Γu+²)^(1/2), and that is what the code evaluates. The printed form equals 4κΓD y+_White / Q², which is zero at Γ = 0. Its smaller errors at β = 0 are in *What was read* above.
+
+**A limit of the law found here: strong wall cooling** (derived from eq. 10.6 on the isothermal path, Γ = 0; a scratch scan, 6 October).
+- Along the isothermal solve's path, y+(u+) = u+ + e^(−κB)[exp(κu+ I) − P_4(κu+)], with I = u_eq+(1; G, θ) below 1 when T_1 > T_w.
+- Its slope dy+/du+ first becomes negative near T_1/T_w = 11 (I = 0.46, at u+ 20). Above this the law's velocity profile folds back, and no single y+ belongs to some u+.
+- The solve's own function u+ y+(u+) stays increasing until T_1/T_w ≈ 13.5. Above that, a first-cell Reynolds number can have more than one root.
+- C1's wall is 600 K against at most about 3,350 K in the gas, so T_1/T_w ≤ 5.6, where the smallest slope is 0.75 or more (derived). An RL10 hot-gas wall at 500 to 800 K gives about 4.5 to 7 (guessed wall temperatures).
+- The engine will refuse (throw) when T_1/T_w > 11 at a wall cell, rather than return a doubtful root. Whether that can happen in a cold start (a cold wall under a hot flame) is a question for criterion 3's runs.
+
+Criterion 0 (d) needs the engine integration and is not yet run.

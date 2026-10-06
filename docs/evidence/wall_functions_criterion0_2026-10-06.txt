@@ -1,0 +1,15 @@
+criterion 0, kappa 0.40, B 5.50
+(a) incompressible adiabatic limit
+  eq. 10.6 against Spalding's eq. 10.3, u+ 0 to 40                               2.130e-16 (limit 1e-12)  PASS
+  eq. 10.12 against eq. 10.11, u+ 0 to 40                                        1.896e-15 (limit 1e-12)  PASS
+  77564 (u+, Gamma, beta) points
+  continuity: u_eq+ against Gauss-Legendre quadrature, Gamma 0 to 1e-2           1.705e-15 (limit 1e-13)  PASS
+  continuity: largest decrease of y+ as Gamma grows, over its rounding allowance 5.399e-01 (limit 1e+00)  PASS
+(b) inversion and (c) derivative
+  180 cases solved, at most 16 iterations; 0 without a layer (T <= 0 before eq. 10.6 reaches y+):
+  (b) solved u_tau against the constructed one                                   5.921e-16 (limit 1e-12)  PASS
+  (b) eq. 10.6 at the solved u+, Gamma, beta                                     2.490e-14 (limit 1e-12)  PASS
+  (b) T_1 from the solved q_w through eq. 10.8                                   2.802e-14 (limit 1e-12)  PASS
+  (c) corrected eq. 10.13 against the five-point difference                      4.247e-10 (limit 1e-07)  PASS
+  reported: printed eq. 10.13 against the same difference, largest 1.095e+00 at y+ 30, Gamma 0, beta 0.1
+0 failures
