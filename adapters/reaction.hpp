@@ -43,10 +43,13 @@ class ReactionSource {
   // Adiabatic constant-(u, v) equilibrium of the same elements; z holds the start
   // state and returns the equilibrium.
   void equilibrateUV(double rho, double* z);
+  // Isothermal constant-(T, v) equilibrium at T = z[0] (built tables).
+  void equilibrateTV(double rho, double* z);
 
  private:
   struct Impl;
   std::unique_ptr<Impl> impl_;
+  void equilibrate(double rho, double* z, const char* constraints);
 };
 
 // Cantera's mixture-averaged transport fits for the mechanism's species, for the core's own

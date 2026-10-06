@@ -128,7 +128,10 @@ void ReactionSource::rates(double rho, const double* z, double* dzdt) {
   dzdt[0] = -heat / (rho * gas.cv_mass());
 }
 
-void ReactionSource::equilibrateUV(double rho, double* z) {
+void ReactionSource::equilibrateUV(double rho, double* z) { equilibrate(rho, z, "UV"); }
+void ReactionSource::equilibrateTV(double rho, double* z) { equilibrate(rho, z, "TV"); }
+
+void ReactionSource::equilibrate(double rho, double* z, const char* constraints) {
   // Equilibrium depends only on the elements; integrator round-off negatives (~1e-20)
   // are clipped so the solver starts from an admissible composition.
   auto& gas = *impl_->gas;
@@ -161,7 +164,7 @@ void ReactionSource::equilibrateUV(double rho, double* z) {
   for (std::size_t k = 0; k < ns; ++k)
     if (frozen[k]) { frozenMass += y[k]; active[k] = 0; }
   impl_->set(z[0], rho, active.data());
-  gas.equilibrate("UV");
+  gas.equilibrate(constraints);
   z[0] = gas.temperature();
   gas.getMassFractions(active.data());
   for (std::size_t k = 0; k < ns; ++k) z[k + 1] = frozen[k] ? y[k] : active[k] * (1 - frozenMass);

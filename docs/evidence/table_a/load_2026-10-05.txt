@@ -1,0 +1,8 @@
+Load on the Mac (uptime) at the start and end of each run, 5 October 2026. Two single-thread jobs of another project (fly-emulation) ran from 22:18 throughout.
+eq64 (Cantera reference): 21:48 to 22:22; load not recorded
+eqt32_audit: start 22:23, load averages 5.75 6.94 6.35
+eqt32: start 22:24, load averages 4.51 6.40 6.19
+eqt64_audit: 22:24  up 13 days, 11:04, 7 users, load averages: 4.68 6.25 6.14 / 22:27  up 13 days, 11:06, 7 users, load averages: 5.32 5.84 5.98
+eqt64: 22:27  up 13 days, 11:07, 7 users, load averages: 4.79 5.67 5.92 / 22:30  up 13 days, 11:09, 7 users, load averages: 5.11 5.49 5.80
+eqt64_1thread: 22:30  up 13 days, 11:09, 7 users, load averages: 5.11 5.49 5.80 / 22:33  up 13 days, 11:12, 7 users, load averages: 3.48 4.62 5.38
+eq32: 22:33  up 13 days, 11:12, 7 users, load averages: 3.48 4.62 5.38 / 22:37  up 13 days, 11:16, 7 users, load averages: 5.61 5.45 5.57

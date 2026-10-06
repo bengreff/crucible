@@ -17,7 +17,7 @@ Ignored build caches, generated runs, local settings, and virtual environments w
 
 The old environment was not revalidated during this documentation/archive operation. Virtual environments and cached binaries can contain absolute paths; recreate the environment before attempting execution from its new location. Historical build instructions, machine dependencies, and external GPU references may require adjustment. The prior Git revision remains available if an original-layout checkout is needed.
 
-Archive integrity verifies preservation, not physical correctness. Existing certificates and session reports retain their original qualifications and dates. See [rebuild notes](../REBUILD_NOTES.md) before interpreting or reusing them.
+Archive integrity verifies preservation, not physical correctness. Existing certificates and session reports retain their original qualifications and dates. See the rebuild notes, now [RESEARCH.md section 7](../RESEARCH.md#7-lessons-from-the-pre-pivot-attempt) (folded in from the former `REBUILD_NOTES.md` on 4 October 2026), before interpreting or reusing them.
 
 To check the archived snapshot without running the old simulator, from the repository root:
 

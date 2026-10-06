@@ -1,0 +1,16 @@
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.088252789879 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.3157994556273 K) outside valid range of 300 K to 3500 K
+Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+100000 samples (seed 1, rho 0.0001 to 30 kg/m3) in 2 s on 3 threads: 10430 outside the table (direct call in the run), 0 clamped, 0 Cantera failures
+criterion 1 (lookups): element error 4.44e-16, |sum Y - 1| 5.83e-16 (limit 1e-12): pass
+  T_eq  200-1000 K:  11258 states, |dT| median 0.000, 99th 0.000, max 0.000 K
+  T_eq 1000-2000 K:  19777 states, |dT| median 0.001, 99th 0.244, max 2.046 K
+  T_eq 2000-2500 K:  20015 states, |dT| median 0.190, 99th 1.173, max 4.473 K
+  T_eq 2500-3000 K:  23877 states, |dT| median 0.267, 99th 1.278, max 5.139 K
+  T_eq 3000-3500 K:  14639 states, |dT| median 0.280, 99th 1.584, max 5.439 K
+  T_eq 3500-4000 K:      4 states, |dT| median 2.003, 99th 2.332, max 4.539 K
+interpolated table T against Cantera's (consistency only): 99th 1.063 K
+max |dY_k|: H2 2.44e-04 H 5.26e-05 O 5.24e-04 O2 1.61e-03 OH 8.05e-04 H2O 1.56e-03 HO2 8.75e-06 H2O2 1.31e-06 AR 0.00e+00 N2 2.34e-10
+worst state in 200-4000 K: f 0.13423 z 0.2471 eta 0.68848 rho 8.6542e+00 T_eq 3448.6 K |dT| 5.439 K
+criterion 2(a): T_eq 200-4000 K, 89570 states: |dT| median 0.112 K, 99th percentile 1.063 K, max 5.439 K (limit 3 K on the 99th): pass
+exit 0

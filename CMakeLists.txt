@@ -11,7 +11,8 @@ option(CRUCIBLE_BUILD_APP "Build the native desktop application" ON)
 option(CRUCIBLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
 include(CTest)
 find_package(Threads REQUIRED)
-add_library(crucible_core core/flow.cpp core/medium.cpp core/session.cpp core/transport.cpp core/walls.cpp)
+add_library(crucible_core core/equilibrium_table.cpp core/flow.cpp core/medium.cpp core/session.cpp core/transport.cpp
+  core/walls.cpp)
 target_include_directories(crucible_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(crucible_core PUBLIC Threads::Threads)
 if(MSVC)
@@ -69,6 +70,11 @@ if(CRUCIBLE_WITH_CANTERA)
   target_compile_definitions(crucible_thermo PRIVATE CRUCIBLE_CANTERA_DATA="${CANTERA_ROOT}/data")
   target_link_libraries(crucible_thermo PUBLIC crucible_core PRIVATE ${CANTERA_ROOT}/build/lib/libcantera.a
     ${ACCELERATE_FRAMEWORK} Threads::Threads)
+  # Offline builder of the tabulated equilibrium (Table A); sees Cantera for its version string.
+  add_executable(crucible_build_equilibrium_table tools/build_equilibrium_table.cpp)
+  target_include_directories(crucible_build_equilibrium_table PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+  target_link_libraries(crucible_build_equilibrium_table PRIVATE crucible_thermo
+    ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
   if(BUILD_TESTING)
     add_executable(crucible_thermo_tests tests/thermo_tests.cpp)
     target_link_libraries(crucible_thermo_tests PRIVATE crucible_thermo)

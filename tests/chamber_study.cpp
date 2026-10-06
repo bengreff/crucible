@@ -23,8 +23,10 @@
 //  - Vacuum thrust: device thrust plus ambient pressure times exit area (valid with a supersonic
 //    exit, checked).
 //
-// Usage: crucible_chamber_study <eq|fr|frozen|frt|frp> <nz> <nr> <end time s> <threads> <output prefix>
+// Usage: crucible_chamber_study <eq|eqt|fr|frozen|frt|frp> <nz> <nr> <end time s> <threads> <output prefix>
 //        [igniter energy J] [igniter duration s]
+// "eqt" is "eq" with the equilibrium from Table A (docs/evidence/TABLE_A.md): the table file is
+// CRUCIBLE_EQ_TABLE, and CRUCIBLE_EQ_AUDIT (default 0, none) sets the audit's interval in reaction calls.
 // Writes <prefix>_history.csv (every 2 us), <prefix>_mesh.csv (stations) and <prefix>_field_<us>.csv
 // snapshots; tools/chamber_plots.py renders them.
 //
@@ -43,6 +45,7 @@
 #include <cstdlib>
 #include <exception>
 #include <numbers>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -124,7 +127,7 @@ double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const d
 
 int main(int argc, char** argv) {
   if (argc < 7) {
-    std::fprintf(stderr, "usage: %s <eq|fr|frozen|frt|frp> <nz> <nr> <end s> <threads> <prefix> [igniter J] [igniter s]\n",
+    std::fprintf(stderr, "usage: %s <eq|eqt|fr|frozen|frt|frp> <nz> <nr> <end s> <threads> <prefix> [igniter J] [igniter s]\n",
                  argv[0]);
     return 2;
   }
@@ -134,7 +137,8 @@ int main(int argc, char** argv) {
   const bool turbulent = mode == "frt" || mode == "frp", closure = mode == "frp";
   const double igniterEnergy = argc > 7 ? std::atof(argv[7]) : turbulent ? 300 : 0.5;
   const double igniterDuration = argc > 8 ? std::atof(argv[8]) : turbulent ? 1e-3 : 2e-4;
-  const auto chemistry = mode == "eq" ? thermo::Chemistry::LocalEquilibrium
+  const bool tabulated = mode == "eqt";
+  const auto chemistry = mode == "eq" || tabulated ? thermo::Chemistry::LocalEquilibrium
                          : mode == "fr" || turbulent ? thermo::Chemistry::FiniteRate
                                                      : thermo::Chemistry::Frozen;
   thermo::ReactionSource source("h2o2.yaml");
@@ -181,6 +185,16 @@ int main(int argc, char** argv) {
   Flow flow(d);
   thermo::ReactingFlow reacting(flow, "h2o2.yaml", threads, 1e-6, 1e-12, chemistry);
   if (closure) reacting.setMixingClosure(1.0, {"H2", "O2", "H2O"});
+  EquilibriumTable table;
+  long audit = 0;
+  if (tabulated) {
+    const char* path = std::getenv("CRUCIBLE_EQ_TABLE");
+    if (!path) throw std::runtime_error("eqt needs CRUCIBLE_EQ_TABLE");
+    if (const char* a = std::getenv("CRUCIBLE_EQ_AUDIT")) audit = std::atol(a);
+    table = EquilibriumTable::load(path);
+    reacting.useEquilibriumTable(table, audit);
+    std::printf("table %s: %s\naudit every %ld reaction calls\n", path, table.provenance.c_str(), audit);
+  }
   const auto& mesh = flow.mesh();
   double rMin = 1e9;
   int throatStation = 0;
@@ -410,6 +424,20 @@ int main(int argc, char** argv) {
   std::printf("\nend %.3f ms after %ld steps (%ld replans), wall %.0f s\n", m.time * 1e3, reacting.stats().steps,
               reacting.stats().replans, wall);
   std::printf("budgets: mass %.2e  energy %.2e\n", m.massBalanceError, m.energyBalanceError);
+  {
+    const auto& st = reacting.stats();
+    std::printf("reaction wall %.1f s (%.1f%% of the run), %.3f us per cell update\n", st.reactWall,
+                100 * st.reactWall / wall, 1e6 * st.reactWall / (static_cast<double>(st.steps) * flow.state().size()));
+    if (tabulated) {
+      const double updates = static_cast<double>(st.tableCells + st.tableFallbacks);
+      std::printf("table: %ld cell updates from it (%ld clamped at an axis end), %ld outside it took the direct call (%.3e)\n",
+                  st.tableCells, st.tableClamped, st.tableFallbacks, st.tableFallbacks / updates);
+      if (audit)
+        std::printf("audit: %ld cells, max |T_core(table Y) - T_Cantera| %.3f K, max |dY| %.3e; criterion 2(b) "
+                    "(max |dT| <= 3 K): %s\n", st.auditedCells, st.auditTemperature, st.auditMassFraction,
+                    st.auditTemperature <= 3 ? "pass" : "FAIL");
+    }
+  }
   std::printf("drift over last 1 ms: outlet mass flow %.2e, injector pressure %.2e, vacuum thrust %.2e\n",
               drift([](const Row& r) { return r.outlet; }), drift([](const Row& r) { return r.pInj; }),
               drift([](const Row& r) { return r.fVac; }));
