@@ -145,7 +145,7 @@ The law is `crucible::wallLaw` in `core/walls.cpp`. The test program is `tests/w
 - C1's wall is 600 K against at most about 3,350 K in the gas, so T_1/T_w ≤ 5.6, where the smallest slope is 0.75 or more (derived). An RL10 hot-gas wall at 500 to 800 K gives about 4.5 to 7 (guessed wall temperatures).
 - The engine will refuse (throw) when T_1/T_w > 11 at a wall cell, rather than return a doubtful root. Whether that can happen in a cold start (a cold wall under a hot flame) is a question for criterion 3's runs.
 
-Criterion 0 (d) needs the engine integration and is not yet run.
+Criterion 0 (d) is under *The law in the engine* below.
 
 ### κ and B (design item 7), recorded 6 October 2026, about 00:15, before any wall-function run
 
@@ -173,3 +173,99 @@ What the fit stands on, measured:
   - Nichols' 0.4 and 5.5 are 2% to 5% high in u+ from y+ 10 to 500 at both Re_τ, which is 4% to 10% in c_f at a first cell there (derived, c_f ∝ 1/u+²).
 
 So the wall function carries the SST model's own inner layer. With Nichols' constants it would carry a different one, and criterion 1(b)'s 5% band in c_f would be about used up by that alone.
+
+### The law in the engine (6 October 2026, about 00:20 to 01:00; commit e10356a)
+
+**As built** (`core/transport.cpp`, `core/flow.cpp`):
+- One law on every no-slip wall face: the side wall (one face per column; the normal is the contour's, so a contoured wall is not radial) and the plate rings outside the supply. The corner cell takes the nearer face, the side face on a tie.
+- The wall face carries the law's traction and heat flux and nothing else: no species, k or ω flux. For gradients the wall still carries u = 0 and T_w, and the cell's own k and ω (zero normal gradient).
+- The first cell's k and ω are prescribed after each stage at fixed total energy: μ_t = μ_w · max(0, eq. 10.12); ω = hypot(6μ_w/(β_1 ρ_w y²), u_τ/(√β* κ y)); ρk = ω μ_t. The change in ρkV is booked in the measurement `prescribedTurbulentEnergy`, so the budget stays closed. The cell's turbulence derivative and source are zeroed. Its eddy viscosity is ρk/ω without the SST limiter, because eq. 10.12 is already the constant-stress μ_t.
+- Layer properties: ρ_w = p_1/(R T_w); μ_w, k_w and Pr_w at T_w; c_p is the layer mean (h(T_1) − h(T_w))/(T_1 − T_w); the recovery factor is Pr_w^(1/3). The engine throws if T_1/T_w > 11 (the fold-back found under criterion 0).
+- A known artefact, small and bounded: in gas colder than the wall, eq. 10.12 gives μ_t up to μ_w − μ_1 even as u_1 → 0.
+- `Flow::setHeating` adds a uniform volumetric source for criterion 2 (booked in the energy budget). `crucible_wall_function_study` has the modes `threads`, `pipe` and `apriori`. `crucible_chamber_study` takes `CRUCIBLE_WALL_FUNCTIONS=law|printed` and `CRUCIBLE_RADIAL_STRETCHING`.
+
+**Criterion 0 (d): pass** (`wall_functions/wall_functions_criterion0d_2026-10-06.txt`; ctest `wall_function_threads`). A turbulent N2 chamber, 16x6, contoured (5 to 3.5 mm), supply over r < 3 mm so the plate rings including the corner carry the law, wall 400 K, 200 steps:
+- 1 and 4 threads: state, partial densities, ρk and ρω, the budgets, the wall heat flow and both turbulent ledgers are bit-identical (memcmp);
+- mass budget 3.4e-16, energy 3.2e-16 (limit 1e-11);
+- reported: wall heat flow 11.55 W with the law, 6.14 W with the no-slip rule on the same grid; wall axial force 0.6855 N against 0.6847 N; prescribed ρkV 1.5e-6 J.
+
+**Wall functions off: unchanged.** C1 eqtt 64x12 to 4 ms on 4 threads is bit-identical (cmp of the raw state and the history) to the 04cba9b run, 80 s.
+
+**Criterion 1 (b), the cold pipe** (`crucible_wall_function_study pipe`, 4 columns, started from the 6,400-ring reference interpolated to the ring centroids at its bulk density; steady when u_b changes less than 1e-5 per ms). Against c_f 0.00337113 and u_b 77.6781 m/s:
+
+| Rings | First-cell y+ (engine) | Steady at | c_f | c_f error | u_b error | T_axis − T_w | Pass (5%) |
+|---|---|---|---|---|---|---|---|
+| 5 | 956 | 42.5 ms | 0.00324881 | −3.63% | +1.86% | 1.78 K | yes |
+| 17 | 289 | 50.5 ms | 0.00327398 | −2.88% | +1.46% | 1.92 K | yes |
+| 50 | 99.0 | 51.0 ms | 0.00328661 | −2.51% | +1.27% | 2.05 K | yes |
+| 167 | about 30 | running (12 ms: c_f 0.00331035, −1.80%; not steady) | | | | | |
+
+The reference's T_axis − T_w is 2.38 K. The law alone is within 1% of the reference's wall shear at these y+ (the a priori check below), so most of the 2.5% to 3.6% is the coarse grid's outer flow.
+
+**Criterion 1 (a)** (64 rings, stretching 3.5, the law against the no-slip wall) is running on backhouse (`/home/greff/crucible_wf`, tmux `crucible_wf_res` and `crucible_wf_law`). dt is 5.9e-10 s (1 ms in 1,705,015 steps, measured), so 1 ms takes about 8 minutes on 4 threads and steady state (about 50 ms, as in 1(b)) about 6 to 7 hours (derived). At 1 ms: u_b 78.0212 (law) against 77.9839 m/s (no-slip), +0.05%. Neither is steady (force balance still 6% to 7% off at 1.5 ms).
+
+### Criterion 2: the published law fails against SST's heated pipe (6 October 2026, about 00:30 to 01:00)
+
+**The reference** (`tools/sst_pipe_1d.py --radius 5e-3 --p0 3e6 --twall 600 --force 19800 --heat 1.95e9 --stretch 3.5`, 200 to 6,400 rings; `wall_functions/reference_heated_2026-10-06.txt`). The force and heating were sized on 200 rings for Re_τ 10,000 and T_axis about 3,000 K. The run gives Re_τ 9,950, T_axis 2,941 K (T_axis/T_w 4.9), bulk Mach about 0.03 (derived). Observed order 0.98; Richardson limits from 1,600 to 6,400 rings (derived): **c_f 0.00725704, u_b 28.45659 m/s, T_axis 2,940.790 K, T_b 2,568.923 K, St 0.00394250**.
+
+**A priori, without a march** (`crucible_wall_function_study apriori`; `wall_functions/apriori_nichols_nelson_2026-10-06.txt`). The law, with the engine's property choices, is given the reference profile's (u, y, T, p) at one point and compared with the reference's own wall shear (f R/2) and wall heat flux (from the energy balance):
+
+| y+ | T_1/T_w | cold: τ_w error | heated: τ_w error | heated: q_w error |
+|---|---|---|---|---|
+| 1 | 1.09 | −0.01% | −3.1% | −3.7% |
+| 5 | 1.39 | +1.0% | −12.8% | −14.9% |
+| 30 | 2.19 | +0.27% | −24.4% | −25.1% |
+| 100 | 2.75 | +0.12% | −20.6% | −19.7% |
+| 300 | 3.26 | −0.55% | −17.9% | −16.0% |
+| 1,000 | 3.83 | −1.04% | −15.6% | −13.1% |
+
+(T_1/T_w is the heated case's.) The cold pipe is within about 1% everywhere. Criterion 0 verified the law's algebra to 1e-12, so this is the law's form, not the code.
+
+**In the engine** (criterion 2(b), the heated pipe started from the reference profile; against c_f 0.00725704, St 0.00394250, u_b 28.45659 m/s):
+
+| Rings | First-cell y+ | Steady at | c_f | c_f error (band 5%) | St | St error (band 10%) | u_b error |
+|---|---|---|---|---|---|---|---|
+| 5 | 989 | 98.0 ms | 0.00586155 | **−19.2%** | 0.00334083 | **−15.3%** | +11.3% |
+| 17 | 298 | 98.0 ms | 0.00600353 | **−17.3%** | 0.00336784 | **−14.6%** | +9.9% |
+| 50 | about 100 | running (20 ms: c_f 0.00614, St 0.00341; not steady) | | | | | |
+
+Criterion 2(b) fails at y+ 300 and 1,000, as the a priori check predicts.
+
+**Why: two separate effects, measured on the reference profile** (`tools/eq_wall_model.py --transforms`; `wall_functions/heated_sst_scaling_2026-10-06.txt`):
+1. **The sublayer's viscosity.** The law uses μ_w throughout. At y+ 1 the gas is already 9% hotter than the wall, and by y+ 5 39% hotter, so μ is 6% to 25% higher (derived). That alone is the −3% at y+ 1.
+2. **SST's heated buffer layer.** Under van Driest scaling the heated profile keeps the cold log slope (local κ 0.35 to 0.375 from y+ 100 to 1,000, against 0.357 to 0.377 cold), but sits 1.7 lower in u+ from y+ 30 on. Under semi-local (Trettel-Larsson) scaling it sits 2.0 lower, and the shift builds across y* 5 to 100. Nichols and Nelson assume the cold intercept in van Driest coordinates, so they miss by the 1.7, which is about 20% in τ_w at these u+ (derived).
+
+**A published model that handles effect 1 does not fix effect 2.** The equilibrium ODE wall model (Kawai and Larsson, Phys. Fluids 24, 015105, 2012) integrates the constant-stress, constant-heat-flux layer with ρ(T), μ(T), λ(T) and c_p(T), and a mixing length with semi-local van Driest damping. With κ 0.3697 and A+ 14.0 fitted to the cold profile, a priori (`wall_functions/apriori_ode_model_2026-10-06.txt`):
+- y+ 1: within 4e-4 in both pipes, so effect 1 is gone; heated y+ 5 and 11 are within 2.5%;
+- cold, y+ 5 to 3,000: τ_w within 2.1%;
+- heated, y+ 30 to 3,000: τ_w −17% to −25%, q_w −16% to −24%. No better than Nichols and Nelson.
+
+**What the literature says** (read 6 October, abstracts and the summary of one paper; not yet read in full). DNS of variable-property channels collapses onto the cold law under semi-local scaling (Patel et al. 2015; Trettel and Larsson 2016). Standard SST does not follow it: Hasan and Pecnik (JFM 2025, arXiv 2410.14637) report errors up to 23% in velocity and 29% in temperature for channels against DNS, with or without the Catris-Aupoix density correction. Their semi-local correction of the k and ω diffusion terms (after Pecnik and Patel, JFM 823 R1, 2017) brings this to 3% and 8%. So the 20% gap measured here is a known property of standard SST under strong heating. Both wall laws follow scalings that DNS supports; the reference does not.
+
+**The question this raises, for the Director and Ben.** Criterion 2's reference is standard SST resolved to the wall. A wall function can match it only by carrying SST's own heated buffer layer (for example a 1-D SST sub-grid in the first cell). That would carry SST's known heated-wall error, about 20% here, into the hot-gas wall heat flux. The alternative is semi-local physics in both places: a variable-property wall model (the ODE model above, or Nichols and Nelson with a semi-local correction) and the Hasan-Pecnik correction in the engine's SST. Criterion 2's reference would then be the corrected SST, with its published DNS errors as the reference's own band. Nothing is changed until this is decided.
+
+### Criterion 3: the stated reference cannot be run explicitly
+
+Criterion 3's reference is 32 rings with the largest first-cell y+ at 1 or less. On C1 that puts the wall ring at about 0.35 µm and dt at about 1.2e-10 s (estimated tonight from the 12-ring run's first-cell y+, not measured; for scale, the 1(a) pipe's measured dt is 5.9e-10 s at a ring of about 1 µm in 300 K N2). That is about 7e7 steps to 8 ms over 2,048 cells. At C1's measured 1.5 µs per cell update on 4 threads (eqtt 64x12 to 4 ms in 79 s, 04cba9b), it would take about 60 hours (derived). Even a factor of 4 error in dt leaves it at 15 hours or more. The criterion was stated without this estimate. It needs implicit time stepping, or a smaller reference (fewer columns or a shorter run), and that choice is raised, not made here.
+
+**Reported meanwhile: C1 eqtt 64x12 to 8 ms with the law** (12 uniform rings, wall 600 K; `/tmp/wf3`, not committed): c* 2,426.11 m/s (−0.47% against the predicted 2-D value), vacuum Isp 415.68 s (−3.12%), vacuum thrust 1,630.6 N; wall heat flow −312.8 kW (heat leaving the gas), against −33.7 kW with the no-slip rule on the same grid at 4 ms (`/tmp/wfreg/off4.txt`: c* +0.29%, Isp_vac −0.02% against the same prediction); wall axial force −4,469 N, the same as the no-slip run to 0.01% (it is mostly pressure). Laminar-estimate first-cell y+: median 60, largest 80. Drift over the last ms 5e-8. 218 s on 4 threads alongside other jobs. The prediction has no wall heat loss. With the law, 313 kW leaves through the wall, about 8% of the flow's sensible enthalpy above T_w (derived, c_p about 3.5 kJ/(kg K)), and the Isp gap opens from −0.02% to −3.1%. In the hot pipe of criterion 2 the law gives about 15% less wall heat than resolved SST.
+
+### Criterion 4: cost, pass
+
+C1 eqtt 64x12 to 1 ms, the law against the no-slip wall, 2 threads each, run side by side in two repeats (same load; other jobs were running on the Mac). Wall time per step from whole seconds: no-slip 46 s and 46 s for 17,088 steps (3.51 µs per cell update); law 49 s and 48 s for 17,049 steps (3.70 µs). Extra cost per cell update: **+4.6% to +6.8%** (+9.0% at worst with each time off by half a second), band 10%: **pass**. The four outputs are in `/tmp/wf4` (not committed).
+
+Reported, the payoff: criterion 3(b) itself, C1 to 8 ms with the law on 12 rings, took 218 s on 4 threads; its stated reference is estimated at about 60 hours (above).
+
+### Where this leaves the criteria (6 October, 00:45)
+
+| Criterion | State |
+|---|---|
+| 0 (a) to (d) | pass |
+| 1 (a) | running on backhouse; steady state about 6 to 7 h out |
+| 1 (b) | pass at y+ 99, 289 and 956; y+ 30 running |
+| 2 (a) | not run (the 64-ring stretched pair); expected to fail like 2(b) |
+| 2 (b) | **fails**: c_f −17% to −19%, St −15% at y+ 300 and 1,000 |
+| 3 | reference infeasible explicitly; 3(b) run and reported |
+| 4 | pass, +4.6% to +6.8% |
+
+The AMR wall strip is not set: it waits on the criterion 2 decision.
