@@ -1,0 +1,6 @@
+N  1600  Newton steps  41  last update 8.1e-14  force balance +0.0e+00  energy balance +1.2e-13  y1+ 0.3984  Re_tau 99633.2676  u_b 97.09813382 m/s  c_f 0.0021574946  T_axis 303.728472 K
+N  3200  Newton steps  25  last update 2.6e-13  force balance +0.0e+00  energy balance +2.4e-13  y1+ 0.1989  Re_tau 99625.9757  u_b 96.44120902 m/s  c_f 0.0021869869  T_axis 303.683999 K
+N  6400  Newton steps  32  last update 2.5e-13  force balance +0.0e+00  energy balance +1.4e-12  y1+ 0.0994  Re_tau 99621.9791  u_b 96.07475138 m/s  c_f 0.0022037024  T_axis 303.659625 K
+c_f: grids 1600-3200-6400  observed order 0.819  Richardson 0.002225570471
+u_b: grids 1600-3200-6400  observed order 0.842  Richardson 95.61242307
+t_axis: grids 1600-3200-6400  observed order 0.868  Richardson 303.6300687

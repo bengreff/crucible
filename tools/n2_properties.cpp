@@ -14,7 +14,7 @@ int main() {
   std::printf("# Cantera %s, h2o2.yaml, mixture-averaged, pure N2 at 101325 Pa (mu, lambda and cp do not depend on p here)\n",
               CANTERA_VERSION);
   std::printf("T_K,mu_Pa_s,lambda_W_m_K,cp_J_kg_K,R_J_kg_K\n");
-  for (int i = 0; i <= 400; ++i) {
+  for (int i = 0; i <= 3300; ++i) {  // 200 to 3,500 K: N2 is inert in h2o2.yaml (no N atoms in the mechanism)
     double t = 200 + i;
     gas->setState_TPX(t, 101325, "N2:1");
     std::printf("%.1f,%.12e,%.12e,%.12e,%.12e\n", t, tr->viscosity(), tr->thermalConductivity(), gas->cp_mass(),

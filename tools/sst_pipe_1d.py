@@ -6,12 +6,13 @@ shares no code with the engine: its own grid, discretisation and iteration, and 
 properties directly (tools/n2_properties.csv) where the engine uses its own fits.
 
 Problem (steady, axially periodic, u_r = 0, pure N2 between the axis and a no-slip isothermal wall
-at radius R, driven by a uniform axial body force f per unit volume):
+at radius R, driven by a uniform axial body force f per unit volume and optionally heated by a uniform
+volumetric source Q):
   axial momentum   (1/r) d/dr [r (mu + mu_t) du/dr] + f = 0
   k                (1/r) d/dr [r (mu + sigma_k mu_t) dk/dr] + Pt - beta* rho omega k = 0
   omega            (1/r) d/dr [r (mu + sigma_w mu_t) dw/dr] + (gamma / nu_t) Pt - beta rho omega^2
                      + 2 (1 - F1) rho sigma_w2 / omega dk/dr dw/dr = 0
-  total energy     (1/r) d/dr [r (q + u tau_rz + (mu + sigma_k mu_t) dk/dr)] + f u = 0,
+  total energy     (1/r) d/dr [r (q + u tau_rz + (mu + sigma_k mu_t) dk/dr)] + f u + Q = 0,
                      q = (lambda + cp mu_t / Pr_t) dT/dr, tau_rz = (mu + mu_t) du/dr
   radial momentum  p + 2/3 rho k uniform (the Reynolds normal stresses -2/3 rho k)
   state            p = rho R_gas T, mass per unit length fixed by the fill (p0, T_wall)
@@ -27,7 +28,9 @@ method (sparse finite-difference Jacobian, pseudo-time continuation), the unknow
 per cell and the uniform p + 2/3 rho k.
 
 Usage: sst_pipe_1d.py --radius R --p0 P --twall T --force F --grids 100,200,400 [--stretch 2]
-       [--prt 0.9] [--omega-factor 10] [--profile out.csv]
+       [--prt 0.9] [--omega-factor 10] [--heat Q] [--profile out.csv]
+Heated runs also report the mixing-cup temperature T_b = int rho u T dA / int rho u dA and the Stanton
+number St = q_w / (rho_b c_p(T_b) u_b (T_b - T_w)), q_w the heat flux into the wall.
 """
 import argparse
 import math
@@ -57,9 +60,10 @@ def properties():
 
 
 class Pipe:
-    def __init__(self, radius, p0, t_wall, force, n, stretch=2.0, pr_t=0.9, omega_factor=10.0):
+    def __init__(self, radius, p0, t_wall, force, n, stretch=2.0, pr_t=0.9, omega_factor=10.0, heat=0.0):
         self.mu_of, self.lam_of, self.cp_of, self.gas_r = properties()
         self.radius, self.t_wall, self.force, self.n, self.pr_t, self.omega_factor = radius, t_wall, force, n, pr_t, omega_factor
+        self.heat = heat
         rf = radius * np.tanh(stretch * np.arange(n + 1) / n) / np.tanh(stretch)
         rf[0], rf[-1] = 0.0, radius
         self.rf = rf
@@ -137,7 +141,7 @@ class Pipe:
         ru = net(fu) + self.force * vol
         rk = net(fk) + (s["prod"] - BETA_STAR * rho * w * k) * vol
         rw = net(fw) + (s["gamma"] * rho * s["prod"] / mu_t - s["beta"] * rho * w ** 2 + s["cross"] / w) * vol
-        rt = net(ft) + net(work) + self.force * u * vol
+        rt = net(ft) + net(work) + (self.force * u + self.heat) * vol
         rm = np.sum(rho * vol) - self.mass
         return np.concatenate([ru, rk, rw, rt, [rm]])
 
@@ -235,8 +239,13 @@ class Pipe:
         u_tau = math.sqrt(tau_w / rho_wall)
         heat_in = self.lam_wall * (self.t_wall - t[-1]) / self.dw * self.radius
         k_in = self.mu_wall * (0.0 - k[-1]) / self.dw * self.radius
+        flux = s["rho"] * u * self.vol
+        t_b = np.sum(flux * t) / np.sum(flux)
+        q_w = -heat_in / self.radius
+        stanton = q_w / (rho_b * float(self.cp_of(t_b)) * u_b * (t_b - self.t_wall)) if self.heat > 0 else float("nan")
         return dict(tau_w=tau_w, force_balance=tau_w * self.radius / (self.force * area) - 1,
-                    energy_balance=-(heat_in + k_in) / (self.force * np.sum(u * self.vol)) - 1,
+                    energy_balance=-(heat_in + k_in) / (self.force * np.sum(u * self.vol) + self.heat * area) - 1,
+                    t_b=t_b, q_w=q_w, stanton=stanton,
                     u_b=u_b, rho_b=rho_b, c_f=2 * tau_w / (rho_b * u_b ** 2), u_tau=u_tau,
                     re_tau=rho_wall * u_tau * self.radius / self.mu_wall, re_b=rho_b * u_b * 2 * self.radius / self.mu_wall,
                     y1plus=rho_wall * u_tau * self.dw / self.mu_wall, t_axis=t[0], p_wall=pu,
@@ -295,22 +304,24 @@ def main():
     ap.add_argument("--stretch", type=float, default=2.0)
     ap.add_argument("--prt", type=float, default=0.9)
     ap.add_argument("--omega-factor", type=float, default=10.0)
+    ap.add_argument("--heat", type=float, default=0.0, help="uniform volumetric heating (W/m^3)")
     ap.add_argument("--profile", help="CSV of the finest profile")
     a = ap.parse_args()
     grids = [int(g) for g in a.grids.split(",")]
-    first = Pipe(a.radius, a.p0, a.twall, a.force, min(grids[0], 50), a.stretch, a.prt, a.omega_factor)
+    first = Pipe(a.radius, a.p0, a.twall, a.force, min(grids[0], 50), a.stretch, a.prt, a.omega_factor, a.heat)
     previous = (first, segregated(first, first.start()))
     rows = []
     for n in grids:
-        pipe = Pipe(a.radius, a.p0, a.twall, a.force, n, a.stretch, a.prt, a.omega_factor)
+        pipe = Pipe(a.radius, a.p0, a.twall, a.force, n, a.stretch, a.prt, a.omega_factor, a.heat)
         x, steps, change = pipe.newton(pipe.start(previous))
         m = pipe.measures(x)
         rows.append((n, m))
         print(f"N {n:5d}  Newton steps {steps:3d}  last update {change:.1e}  force balance {m['force_balance']:+.1e}  "
               f"energy balance {m['energy_balance']:+.1e}  y1+ {m['y1plus']:.4f}  Re_tau {m['re_tau']:.4f}  "
-              f"u_b {m['u_b']:.8f} m/s  c_f {m['c_f']:.10f}  T_axis {m['t_axis']:.6f} K", flush=True)
+              f"u_b {m['u_b']:.8f} m/s  c_f {m['c_f']:.10f}  T_axis {m['t_axis']:.6f} K"
+              + (f"  T_b {m['t_b']:.6f} K  St {m['stanton']:.10f}" if a.heat > 0 else ""), flush=True)
         previous = (pipe, x)
-    for key in ("c_f", "u_b", "t_axis"):
+    for key in ("c_f", "u_b", "t_axis") + (("t_b", "stanton") if a.heat > 0 else ()):
         vals = [m[key] for _, m in rows]
         for i in range(2, len(vals)):
             e1, e2 = vals[i - 1] - vals[i - 2], vals[i] - vals[i - 1]

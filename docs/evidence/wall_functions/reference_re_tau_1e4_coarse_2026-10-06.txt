@@ -1,0 +1,6 @@
+N   100  Newton steps  23  last update 2.1e-16  force balance +2.2e-16  energy balance +2.4e-14  y1+ 0.6574  Re_tau 9943.2159  u_b 79.97127173 m/s  c_f 0.0031805591  T_axis 302.506884 K
+N   200  Newton steps  23  last update 1.6e-16  force balance +2.2e-16  energy balance -4.1e-13  y1+ 0.3229  Re_tau 9942.2389  u_b 78.93423571 m/s  c_f 0.0032646803  T_axis 302.447242 K
+N   400  Newton steps  23  last update 4.7e-16  force balance +2.2e-16  energy balance +7.0e-14  y1+ 0.1600  Re_tau 9941.6858  u_b 78.32328529 m/s  c_f 0.0033158104  T_axis 302.413485 K
+c_f: grids 100-200-400  observed order 0.718  Richardson 0.003395052331
+u_b: grids 100-200-400  observed order 0.763  Richardson 77.44726314
+t_axis: grids 100-200-400  observed order 0.821  Richardson 302.3694572

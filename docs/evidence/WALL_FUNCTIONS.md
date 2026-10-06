@@ -146,3 +146,30 @@ The law is `crucible::wallLaw` in `core/walls.cpp`. The test program is `tests/w
 - The engine will refuse (throw) when T_1/T_w > 11 at a wall cell, rather than return a doubtful root. Whether that can happen in a cold start (a cold wall under a hot flame) is a question for criterion 3's runs.
 
 Criterion 0 (d) needs the engine integration and is not yet run.
+
+### κ and B (design item 7), recorded 6 October 2026, about 00:15, before any wall-function run
+
+**The reference for criterion 1** (`tools/sst_pipe_1d.py --radius 5e-3 --p0 1e6 --twall 300 --force 45690 --stretch 3.5`; outputs in `wall_functions/`).
+- The force 45,690 N/m³ was sized for Re_τ 10,000 at the wall's properties (derived: u_τ = Re_τ μ_w/(ρ_w R), f = 2ρ_w u_τ²/R). The run gives Re_τ 9,941.
+- 100 to 400 rings are not yet in the asymptotic range (observed order 0.72 to 0.82), so the run was taken to 6,400 rings. From 800 rings on, the observed order is 0.99 to 1.01, the first order that the wall-omega rule gives (`SST_REFERENCE.md`).
+- Richardson limits from 1,600-3,200-6,400 rings (derived): **c_f 0.00337113, u_b 77.6781 m/s, T_axis 302.37868 K**. The 800-1,600-3,200 triple agrees to 2.6e-5 in c_f and 8e-6 in u_b. Bulk Mach about 0.22 (derived).
+- These are criterion 1's reference values.
+
+**The fit** (`tools/log_law_fit.py`, on the 6,400-ring profile; `wall_functions/log_law_fit_re_tau_1e4.txt`). By the stated rule, a least-squares line of u+ against ln y+ over 50 < y+ < 0.1 Re_τ (2,512 points):
+
+**κ = 0.3697, B = 3.752.** These become the defaults. Nichols' 0.4 and 5.5 are reported beside them.
+
+What the fit stands on, measured:
+- **The model's log layer is not a straight line at this Re_τ.** The local κ, 1/(du+/d ln y+), rises from 0.33 at y+ 50 to 0.378 at y+ 500 and falls to 0.369 at y+ 2,000. The line misses the profile by at most 0.12 in u+ over the fitted range.
+- **The fit depends on its range.** Over 30 to 0.1 Re_τ: κ 0.364, B 3.49. Over 100 to 0.1 Re_τ: κ 0.375, B 3.97. Over 50 to 0.05 and 50 to 0.2 Re_τ: κ 0.366 and 0.371. The 3,200-ring profile gives the same κ to 4 digits and B 0.01 higher.
+- **This is pure k-omega with the limiter off.** F1 is 1.0000 from y+ 30 to 3,000, the cross-diffusion is zero, and a_1 ω / S is 1.009 to 1.037, so the Bradshaw limiter is off (a 1,600-ring solve). Its constant-stress log layer has κ² = √β* (β_1/β* − γ_1)/σ_ω1, so κ = 0.408 with γ_1 = 5/9 (derived). The profile approaches that slope slowly.
+- **A diagnostic at Re_τ 100,000** (the same u_τ, R 5 cm; 6,400 rings, not converged, observed order 0.82; `wall_functions/log_law_fit_re_tau_1e5_diagnostic.txt`).
+  - Out to y+ 500 the inner profile is the same as at 10,000 within 0.7% in u+ (u+ 20.549 against 20.553 at y+ 500; 14.301 against 14.212 at y+ 50).
+  - The local κ reaches 0.395 at y+ 1,000 (y/R 0.01), then falls in the outer layer. At Re_τ 10,000, y+ 1,000 is already y/R 0.1, so the stress falling across the pipe caps the local κ at 0.378.
+  - The stated rule's fit there gives κ 0.388, B 4.49. The constants therefore depend on how much of the outer layer the range includes. They describe this model's inner layer, not a universal log law.
+- **Spalding's formula with the fitted constants against the model's own profile, y+ 1 to 2,000:**
+  - at Re_τ 10,000, within 1.0% in u+ (largest −1.0% at y+ 5; 0.3% or less from y+ 10 to 2,000);
+  - against the Re_τ 100,000 diagnostic with the same constants (a scratch check), within 1.2% up to y+ 1,000, +1.1% at y+ 2,000 and +1.5% at y+ 5,000. The diagnostic is not grid-converged (its u_b moves 0.4% from 3,200 to 6,400 rings), so its near-wall differences of about 1% are partly grid error.
+  - Nichols' 0.4 and 5.5 are 2% to 5% high in u+ from y+ 10 to 500 at both Re_τ, which is 4% to 10% in c_f at a first cell there (derived, c_f ∝ 1/u+²).
+
+So the wall function carries the SST model's own inner layer. With Nichols' constants it would carry a different one, and criterion 1(b)'s 5% band in c_f would be about used up by that alone.
