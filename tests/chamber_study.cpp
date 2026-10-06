@@ -30,6 +30,8 @@
 // "eqtt" (added 5 October 2026) is "eqt" made viscous and turbulent as "frt" (no PaSR closure, and
 // eqt's igniter): the turbulent C1 of the wall-function criteria (docs/evidence/WALL_FUNCTIONS.md).
 // It reports the first-cell y+ and the wall heat flow and axial force at the end; criterion 4 is not judged.
+// CRUCIBLE_WALL_FUNCTIONS (law or printed) and CRUCIBLE_RADIAL_STRETCHING set the wall law and the ring
+// clustering for the wall-function criteria 3 and 4.
 // Writes <prefix>_history.csv (every 2 us), <prefix>_mesh.csv (stations) and <prefix>_field_<us>.csv
 // snapshots; tools/chamber_plots.py renders them.
 //
@@ -184,6 +186,20 @@ int main(int argc, char** argv) {
     const double mu0 = medium.transport(kAmbientT, kAmbientP, d.composition.data(), diffusion.data(), work).viscosity;
     d.turbulence.ambientK = 9e-9 * a0 * a0;
     d.turbulence.ambientOmega = 1e-6 * rho0 * a0 * a0 / mu0;
+  }
+  // Wall-function criteria 3 and 4 (docs/evidence/WALL_FUNCTIONS.md): CRUCIBLE_WALL_FUNCTIONS = law or
+  // printed puts the wall law on every no-slip wall face; CRUCIBLE_RADIAL_STRETCHING clusters the rings
+  // at the wall (Definition::radialStretching). Neither set: the run is unchanged.
+  if (const char* law = std::getenv("CRUCIBLE_WALL_FUNCTIONS")) {
+    const std::string mode = law;
+    if (mode != "law" && mode != "printed") throw std::invalid_argument("CRUCIBLE_WALL_FUNCTIONS: law or printed");
+    d.turbulence.wallFunctions = true;
+    d.turbulence.printedDerivative = mode == "printed";
+    std::printf("wall functions: %s (kappa %.4f, B %.3f)\n", mode.c_str(), d.turbulence.wallKappa, d.turbulence.wallB);
+  }
+  if (const char* stretching = std::getenv("CRUCIBLE_RADIAL_STRETCHING")) {
+    d.radialStretching = std::atof(stretching);
+    std::printf("radial stretching %g\n", d.radialStretching);
   }
 
   Flow flow(d);

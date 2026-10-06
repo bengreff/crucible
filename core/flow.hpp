@@ -108,10 +108,19 @@ struct Definition {
     // ambientOmega [1/s], as does ambient gas drawn in at a Chamber exit. Chamber supplies carry
     // their declared inflow turbulence (Supply). The nozzle inlet's is not yet modelled, so Nozzle
     // does not accept turbulence.
+    // Wall functions (docs/evidence/WALL_FUNCTIONS.md): Nichols and Nelson's compressible, heated law
+    // (crucible::wallLaw) on every no-slip wall face in place of the resolved wall, on isothermal walls.
+    // The face passes tau_w against the first cell's tangential velocity and q_w, and no species, k or
+    // omega; the first cell's k and omega are prescribed after every stage (eqs. 10.12, 10.17 to 10.20)
+    // and its turbulence equations are not solved. wallKappa and wallB are the SST model's own log layer
+    // (the resolved pipe at Re_tau 9,941, WALL_FUNCTIONS.md); printedDerivative takes mu_t from the
+    // printed eq. 10.13 (to report its effect) instead of the derived one.
     struct Turbulence {
         bool enabled{false};
         double prandtl{0.9}, schmidt{0.7}, wallOmegaFactor{10};
         double ambientK{0}, ambientOmega{0};
+        bool wallFunctions{false}, printedDerivative{false};
+        double wallKappa{0.3697}, wallB{3.752};
     };
     Turbulence turbulence;
     [[nodiscard]] double span() const;  // axial length of the domain
@@ -158,8 +167,9 @@ struct Measurements {
     double supplyMassFlow{}, igniterPower{}, igniterEnergy{}, injectorPressure{};
     // Heat conducted into the gas through the walls [W] (molecular transport only).
     double wallHeatFlow{};
-    // Turbulence: rho k V added so far where a stage left rho k below zero [J] (Flow::step).
-    double clippedTurbulentEnergy{};
+    // Turbulence: rho k V added so far where a stage left rho k below zero [J] (Flow::step), and by
+    // the wall functions' prescription of the first cells' k (at fixed total energy).
+    double clippedTurbulentEnergy{}, prescribedTurbulentEnergy{};
     std::uint64_t steps{}, rejectedSteps{};
 };
 struct FieldSnapshot {
@@ -214,6 +224,9 @@ public:
     // Constant volumetric force density (N/m^3, {z, r}) per cell, e.g. a Lorentz force. Its axial
     // integral enters bodyAxialForce (reaction on the equipment) and its work the energy budget.
     void setBodyForce(std::vector<std::array<double, 2>> forcePerVolume);
+    // Constant volumetric heating (W/m^3) per cell, e.g. to hold a heated pipe fully developed. It
+    // enters the energy budget as an external exchange.
+    void setHeating(std::vector<double> powerPerVolume);
     [[nodiscard]] Measurements measurements() const;
     [[nodiscard]] FieldSnapshot snapshot() const;
     [[nodiscard]] const Definition& definition() const { return definition_; }
@@ -278,6 +291,7 @@ private:
     std::vector<double> turbulence_, turbulenceStage_, turbulenceNext_, turbulenceRhs_, turbulenceStart_;
     std::vector<double> fractionsLow_, fractionsHigh_, temperature_, sound_;
     std::vector<std::array<double, 2>> bodyForce_;
+    std::vector<double> heating_;
     std::vector<double> pressureSource_;
     std::unique_ptr<Pool> pool_;
     // Pool blocks: cells, and faces. Face blocks are small so the dozen costly supply faces of the
@@ -305,6 +319,7 @@ private:
     double time_{}, dt_{}, totalPressure_{}, initialMass_{}, initialEnergy_{};
     double integratedMassFlux_{}, integratedEnergyFlux_{}, initialMomentum_{};
     double integratedMomentumSource_{}, integratedMomentumGross_{}, integratedHeat_{}, clippedTurbulentEnergy_{};
+    double prescribedTurbulentEnergy_{};
     // Chamber: supply index of each injector-face ring (-1: plate), each supply's ring area, the
     // igniter's cells and their total volume.
     std::vector<int> faceSupply_;
@@ -359,6 +374,28 @@ private:
     std::vector<double> eddy_, eddyConductivity_, eddyDiffusion_, wallDistance_, wallOmega_;
     std::vector<std::size_t> wallCells_;
     std::vector<SourceCoefficients> sources_, sourcesStart_;
+    // Wall functions. Each no-slip wall face (the side wall by column, then the plate rings): its
+    // cell, whether it is on the plate, the unit normal out of the gas and the centroid's normal
+    // distance to it. Its solution at the current state: the wall's traction on the gas, q_w (gas to
+    // wall), and the first cell's mu_t and omega. Per entry of wallCells_ the face that sets that
+    // cell's k and omega (the nearer, the side wall on a tie); per ring the plate face (-1: none); per
+    // cell whether its turbulence is prescribed, and the rho k V the last prescription added.
+    struct WallFace { std::size_t cell; bool plate; double nz, nr, distance; };
+    struct WallSolution { double tz{}, tr{}, heat{}, eddy{}, omega{}; };
+    std::vector<WallFace> wallFaces_;
+    std::vector<WallSolution> wallSolutions_;
+    std::vector<std::size_t> wallCellFace_;
+    std::vector<int> plateWallFace_;
+    std::vector<char> prescribedCell_;
+    std::vector<double> prescribedChange_;
+    // The law at one wall face for the cell state (w, t1, mass fractions y, molecular viscosity mu1).
+    WallSolution wallSolve(const WallFace& face, const Primitive& w, double t1, const double* y, double mu1,
+                           TransportScratch& scratch) const;
+    // Sets rho k and rho omega of the wall-function cells of a stage from the law at that stage's
+    // state (total energy fixed) and records each change in prescribedChange_; false if a cell is
+    // then not admissible.
+    bool prescribeWallTurbulence(const std::vector<Conserved>& state, const std::vector<double>& species,
+                                 std::vector<double>& turbulence);
     void prepareTransport();
     void transportProperties();
     // Gradient field f of a cell (u_z, u_r, T, the mole fractions, then k and omega) and its value

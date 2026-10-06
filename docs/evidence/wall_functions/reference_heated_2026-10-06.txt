@@ -1,0 +1,27 @@
+N   400  Newton steps  24  last update 4.1e-16  force balance -1.1e-16  energy balance +4.2e-15  y1+ 0.1605  Re_tau 9967.9595  u_b 28.64018451 m/s  c_f 0.0071642813  T_axis 2950.396566 K  T_b 2578.408129 K  St 0.0038975407
+N   800  Newton steps  24  last update 5.7e-16  force balance -1.1e-16  energy balance -6.2e-15  y1+ 0.0798  Re_tau 9958.5559  u_b 28.55113846 m/s  c_f 0.0072090393  T_axis 2945.735647 K  T_b 2573.797154 K  St 0.0039192660
+N  1600  Newton steps  24  last update 4.5e-16  force balance +2.2e-16  energy balance +2.2e-14  y1+ 0.0398  Re_tau 9953.6600  u_b 28.50468662 m/s  c_f 0.0072325544  T_axis 2943.305703 K  T_b 2571.399746 K  St 0.0039306553
+N  3200  Newton steps  24  last update 7.9e-15  force balance +2.2e-16  energy balance +4.9e-15  y1+ 0.0199  Re_tau 9951.1585  u_b 28.48093061 m/s  c_f 0.0072446248  T_axis 2942.063159 K  T_b 2570.175615 K  St 0.0039364951
+N  6400  Newton steps  26  last update 5.5e-13  force balance -1.1e-16  energy balance +4.0e-15  y1+ 0.0099  Re_tau 9949.8930  u_b 28.46890766 m/s  c_f 0.0072507452  T_axis 2941.434293 K  T_b 2569.556555 K  St 0.0039394547
+c_f: grids 200-400-800  observed order 0.863  Richardson 0.007263721188
+c_f: grids 400-800-1600  observed order 0.929  Richardson 0.007258584927
+c_f: grids 800-1600-3200  observed order 0.962  Richardson 0.007257355126
+c_f: grids 1600-3200-6400  observed order 0.980  Richardson 0.007257040769
+u_b: grids 200-400-800  observed order 0.882  Richardson 28.44547692
+u_b: grids 400-800-1600  observed order 0.939  Richardson 28.4540278
+u_b: grids 800-1600-3200  observed order 0.967  Richardson 28.45606488
+u_b: grids 1600-3200-6400  observed order 0.983  Richardson 28.45658767
+t_axis: grids 200-400-800  observed order 0.885  Richardson 2940.229362
+t_axis: grids 400-800-1600  observed order 0.940  Richardson 2940.659047
+t_axis: grids 800-1600-3200  observed order 0.968  Richardson 2940.762907
+t_axis: grids 1600-3200-6400  observed order 0.982  Richardson 2940.789864
+t_b: grids 200-400-800  observed order 0.892  Richardson 2568.411525
+t_b: grids 400-800-1600  observed order 0.944  Richardson 2568.80323
+t_b: grids 800-1600-3200  observed order 0.970  Richardson 2568.898424
+t_b: grids 1600-3200-6400  observed order 0.984  Richardson 2568.923185
+stanton: grids 200-400-800  observed order 0.869  Richardson 0.003945543374
+stanton: grids 400-800-1600  observed order 0.932  Richardson 0.003943204864
+stanton: grids 800-1600-3200  observed order 0.964  Richardson 0.003942640609
+stanton: grids 1600-3200-6400  observed order 0.981  Richardson 0.003942495668
+
+[exited with code 0]

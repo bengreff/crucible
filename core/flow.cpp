@@ -86,6 +86,7 @@ void Definition::validate() const {
         throw std::invalid_argument("Radial stretching must lie in [0, 20] (zero: rings of equal height).");
     if(!(outletRelaxation>=0) || !std::isfinite(outletRelaxation))
         throw std::invalid_argument("Outlet relaxation must be finite and non-negative (zero: fixed back pressure).");
+    if(turbulence.wallFunctions && !turbulence.enabled) throw std::invalid_argument("Wall functions need turbulence.");
     if(turbulence.enabled) {
         const auto& t=turbulence;
         if(transport.viscosity.empty()) throw std::invalid_argument("Turbulence needs molecular transport.");
@@ -98,6 +99,12 @@ void Definition::validate() const {
         for(double x:{t.prandtl,t.schmidt,t.wallOmegaFactor,t.ambientOmega})
             if(!(x>0) || !std::isfinite(x)) throw std::invalid_argument("Turbulent Prandtl and Schmidt numbers, the wall omega factor and the ambient omega must be positive.");
         if(!(t.ambientK>=0) || !std::isfinite(t.ambientK)) throw std::invalid_argument("Ambient k must be finite and non-negative.");
+        if(t.wallFunctions) {
+            if(wallSlip || !(wallTemperature>0))
+                throw std::invalid_argument("Wall functions need no-slip isothermal walls (the adiabatic law is not implemented).");
+            if(!(t.wallKappa>0) || !std::isfinite(t.wallKappa) || !std::isfinite(t.wallB))
+                throw std::invalid_argument("Wall-function kappa must be positive and B finite.");
+        }
     }
     if(!contour.empty()) {
         if(contour.size()<2) throw std::invalid_argument("A wall contour needs at least two points.");
@@ -401,7 +408,7 @@ void Flow::resetAccounting() {
         initialMomentum_+=state_[q][1]*mesh_.cells[q].volume;
         initialEnergy_+=state_[q][3]*mesh_.cells[q].volume;
     }
-    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=clippedTurbulentEnergy_=0;
+    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=clippedTurbulentEnergy_=prescribedTurbulentEnergy_=0;
     lastRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
 }
 void Flow::setUniform(Primitive w) {
@@ -463,6 +470,11 @@ void Flow::setBodyForce(std::vector<std::array<double,2>> force) {
     if(!force.empty() && force.size()!=state_.size()) throw std::invalid_argument("Body force does not match the mesh.");
     for(const auto& f:force) if(!std::isfinite(f[0]) || !std::isfinite(f[1])) throw std::invalid_argument("Body force must be finite.");
     bodyForce_=std::move(force);
+}
+void Flow::setHeating(std::vector<double> power) {
+    if(!power.empty() && power.size()!=state_.size()) throw std::invalid_argument("Heating does not match the mesh.");
+    for(double h:power) if(!std::isfinite(h)) throw std::invalid_argument("Heating must be finite.");
+    heating_=std::move(power);
 }
 void Flow::setTotalPressure(double p) {
     if(!(p>0) || !std::isfinite(p)) throw std::invalid_argument("Reservoir pressure must be positive and finite.");
@@ -901,6 +913,7 @@ void Flow::gather(std::size_t q,std::vector<Conserved>& derivative,std::vector<d
         double work=(f[0]*primitives_[q].uz+f[1]*primitives_[q].ur)*v;
         u[1]+=f[0]*v;u[2]+=f[1]*v;u[3]+=work;
     }
+    if(!heating_.empty()) u[3]+=heating_[q]*m.cells[q].volume;
     derivative[q]=u;
     for(std::size_t k=0;k<nw_;++k) {
         double s=0;
@@ -937,11 +950,13 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         for(std::size_t f=begin;f<end;++f) axialFace(static_cast<int>(f/m.nr),static_cast<int>(f%m.nr),time,yl,yr);
     });
     const bool transport=medium_.hasTransport();
+    // A wall-function cell's k and omega are prescribed after the stage, not advanced.
+    const auto& prescribed=prescribedCell_;
     auto finish=[&](std::size_t q) {
         derivative[q][2]+=pressureSource_[q];
         for(double& v:derivative[q]) v/=m.cells[q].volume;
         for(std::size_t k=0;k<ns_;++k) speciesDerivative[q*ns_+k]/=m.cells[q].volume;
-        for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]/=m.cells[q].volume;
+        for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]=prescribed[q]?0.0:turbulenceDerivative[q*nt_+k]/m.cells[q].volume;
     };
     pool_->blocks(state.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
         for(std::size_t q=begin;q<end;++q) { gather(q,derivative,speciesDerivative,turbulenceDerivative);if(!transport) finish(q); }
@@ -971,11 +986,38 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         double work=(f[0]*primitives_[q].uz+f[1]*primitives_[q].ur)*v;
         rates.bodyAxial+=f[0]*v;rates.energy+=work;
     }
+    if(!heating_.empty()) for(std::size_t q=0;q<state.size();++q) rates.energy+=heating_[q]*m.cells[q].volume;
     if(transport) {
         transportFluxes(derivative,speciesDerivative,turbulenceDerivative,rates);
         pool_->blocks(state.size(),kCells,[&](std::size_t begin,std::size_t end,int) { for(std::size_t q=begin;q<end;++q) finish(q); });
     }
     return rates;
+}
+// The wall functions' first cells (core/transport.cpp): each cell's own state gives T_1 and mu_1; the
+// face that governs the cell gives k and omega; E is unchanged.
+bool Flow::prescribeWallTurbulence(const std::vector<Conserved>& state,const std::vector<double>& species,
+                                   std::vector<double>& turbulence) {
+    std::fill(workerOk_.begin(),workerOk_.end(),char{1});
+    pool_->blocks(wallCells_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
+        auto& s=transportScratch_[worker];double* y=faceFractions_[2*worker].data();
+        for(std::size_t n=begin;n<end;++n) {
+            const std::size_t q=wallCells_[n];const auto& u=state[q];
+            prescribedChange_[q]=0;
+            normalise(species.data()+q*ns_,ns_,y);
+            const double k=turbulence[q*nt_]/u[0];
+            if(!admissibleBulk(u,medium_.energyFloor(y)+k)) { workerOk_[worker]=0;continue; }
+            const double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y,temperature_[q]);
+            const Primitive w{u[0],u[1]/u[0],u[2]/u[0],u[0]*medium_.gasConstant(y)*t};
+            const double mu1=medium_.transport(t,w.p,y,s.diffusion.data(),s.work).viscosity;
+            const auto law=wallSolve(wallFaces_[wallCellFace_[n]],w,t,y,mu1,s);
+            // rho k = omega mu_t.
+            const double rhoK=law.omega*law.eddy;
+            prescribedChange_[q]=(rhoK-turbulence[q*nt_])*mesh_.cells[q].volume;
+            turbulence[q*nt_]=rhoK;turbulence[q*nt_+1]=u[0]*law.omega;
+            if(!admissible(u,species.data()+q*ns_,turbulence.data()+q*nt_)) workerOk_[worker]=0;
+        }
+    });
+    return std::find(workerOk_.begin(),workerOk_.end(),char{0})==workerOk_.end();
 }
 // One step: SSPRK2 on the fluxes. With turbulence the SST sources are Strang-split around it: half a
 // step of source (coefficients frozen at the start, from stableDt), the flux step, and half a step
@@ -997,14 +1039,22 @@ double Flow::step(double maxDt) {
     const auto& ig=definition_.igniter;
     if(nt_) { turbulenceStart_=turbulence_;sourcesStart_=sources_; }
     for(int attempt=0;attempt<14;++attempt) {
-        // Each cell's clip is kept, and the stage's are summed in cell order.
-        double clipped=0;
+        // Each cell's clip is kept, and the stage's are summed in cell order; likewise the wall
+        // functions' prescription, in the order of wallCells_.
+        double clipped=0,prescribed=0;
         auto clip=[&](std::vector<double>& turbulence,std::size_t q) {
             if(!nt_) return;
             clippedCell_[q]=0;
             if(turbulence[q*nt_]<0) { clippedCell_[q]=turbulence[q*nt_]*mesh_.cells[q].volume;turbulence[q*nt_]=0; }
         };
         auto sumClipped=[&] { if(nt_) for(double c:clippedCell_) clipped-=c; };
+        const bool law=nt_ && definition_.turbulence.wallFunctions;
+        auto prescribe=[&](std::vector<Conserved>& s,std::vector<double>& y,std::vector<double>& t) {
+            if(!law) return true;
+            const bool admitted=prescribeWallTurbulence(s,y,t);
+            for(std::size_t q:wallCells_) prescribed+=prescribedChange_[q];
+            return admitted;
+        };
         // Mean igniter power over [t, t + dt]; steps end on its switching times, so this is exact.
         igniterPower_=0;
         if(ig.energy>0) {
@@ -1028,6 +1078,7 @@ double Flow::step(double maxDt) {
                 return admissible(stage_[q],speciesStage_.data()+q*ns_,turbulenceStage_.data()+q*nt_);
             });
             sumClipped();
+            ok=ok && prescribe(stage_,speciesStage_,turbulenceStage_);
         }
         if(ok) {
             second=rhs(stage_,speciesStage_,turbulenceStage_,rhs_,speciesRhs_,turbulenceRhs_,time_+dt);
@@ -1039,6 +1090,7 @@ double Flow::step(double maxDt) {
                 return admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
             });
             sumClipped();
+            ok=ok && prescribe(next_,speciesNext_,turbulenceNext_);
         }
         if(ok && nt_) {
             refresh(next_,speciesNext_,turbulenceNext_);
@@ -1051,7 +1103,7 @@ double Flow::step(double maxDt) {
             time_=landing?event:time_+dt;dt_=dt;++steps_;
             lastRates_=BoundaryRates::average(first,second);
             integratedHeat_+=dt*lastRates_.heat;
-            clippedTurbulentEnergy_+=clipped;
+            clippedTurbulentEnergy_+=clipped;prescribedTurbulentEnergy_+=prescribed;
             integratedMassFlux_+=dt*lastRates_.mass;
             integratedEnergyFlux_+=dt*lastRates_.energy;
             integratedMomentumSource_+=dt*lastRates_.netMomentum();
@@ -1070,7 +1122,7 @@ void Flow::advanceTo(double target) {
 Measurements Flow::measurements() const {
     Measurements result{};
     result.time=time_;result.dt=dt_;result.steps=steps_;result.rejectedSteps=rejectedSteps_;
-    result.clippedTurbulentEnergy=clippedTurbulentEnergy_;
+    result.clippedTurbulentEnergy=clippedTurbulentEnergy_;result.prescribedTurbulentEnergy=prescribedTurbulentEnergy_;
     result.inletMassFlow=lastRates_.inlet;result.outletMassFlow=lastRates_.outlet;
     result.inletMomentumFlux=lastRates_.inletMomentum;result.outletMomentumFlux=lastRates_.outletMomentum;
     result.wallAxialForce=lastRates_.wallAxial;result.bodyAxialForce=lastRates_.bodyAxial;result.wallHeatFlow=lastRates_.wallHeat;
