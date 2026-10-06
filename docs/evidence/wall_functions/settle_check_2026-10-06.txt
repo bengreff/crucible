@@ -1,0 +1,26 @@
+window 1 to 0.050 ms: c* 2455.139 m/s, Isp_vac 415.5013 s, F_vac 1629.838 N, wall heat -3.097467e+05 W, wall force -4.545529e+03 N
+window 2 to 0.100 ms: c* 2455.069 m/s, Isp_vac 415.4873 s, F_vac 1629.860 N, wall heat -3.097378e+05 W, wall force -4.545646e+03 N
+window 3 to 0.150 ms: c* 2455.077 m/s, Isp_vac 415.4833 s, F_vac 1629.870 N, wall heat -3.097422e+05 W, wall force -4.545721e+03 N
+    c* rho -0.112 remainder inf span 2.87e-05 not settled; Isp_vac rho +0.284 remainder 3.82e-06 span 4.35e-05 settled; F_vac rho +0.468 remainder 5.58e-06 span 1.99e-05 settled; wall heat rho -0.492 remainder inf span 2.87e-05 settled; wall force rho +0.636 remainder 2.86e-05 span 4.22e-05 settled;
+window 4 to 0.200 ms: c* 2455.072 m/s, Isp_vac 415.4888 s, F_vac 1629.919 N, wall heat -3.097458e+05 W, wall force -4.545798e+03 N
+    c* rho -0.657 remainder inf span 3.21e-06 settled; Isp_vac rho -1.368 remainder inf span 1.32e-05 settled; F_vac rho +4.676 remainder inf span 3.60e-05 not settled; wall heat rho +0.828 remainder 5.61e-05 span 2.58e-05 settled; wall force rho +1.043 remainder inf span 3.35e-05 settled;
+window 5 to 0.250 ms: c* 2455.070 m/s, Isp_vac 415.4843 s, F_vac 1629.925 N, wall heat -3.097495e+05 W, wall force -4.545864e+03 N
+    c* rho +0.332 remainder 3.49e-07 span 2.81e-06 settled; Isp_vac rho -0.820 remainder inf span 1.32e-05 settled; F_vac rho +0.129 remainder 5.65e-07 span 3.35e-05 settled; wall heat rho +1.029 remainder inf span 2.37e-05 settled; wall force rho +0.843 remainder 7.72e-05 span 3.15e-05 settled;
+window 6 to 0.300 ms: c* 2455.066 m/s, Isp_vac 415.4850 s, F_vac 1629.949 N, wall heat -3.097518e+05 W, wall force -4.545919e+03 N
+    c* rho +2.433 remainder inf span 2.41e-06 settled; Isp_vac rho -0.168 remainder inf span 1.08e-05 settled; F_vac rho +3.901 remainder inf span 1.87e-05 settled; wall heat rho +0.596 remainder 1.06e-05 span 1.92e-05 settled; wall force rho +0.851 remainder 6.99e-05 span 2.67e-05 settled;
+settling test met at 0.300 ms. Means over the last 0.1 ms: c* 2455.068 m/s (two window ends), Isp_vac 415.4857 s, F_vac 1629.930 N, wall heat flow -3.097507e+05 W, wall axial force -4.545892e+03 N
+# first record (0.4 ms, the declared test alone):
+window 1 to 0.050 ms: c* 2455.139 m/s, Isp_vac 415.5013 s, F_vac 1629.838 N, wall heat -3.097467e+05 W, wall force -4.545529e+03 N
+window 2 to 0.100 ms: c* 2455.069 m/s, Isp_vac 415.4873 s, F_vac 1629.860 N, wall heat -3.097378e+05 W, wall force -4.545646e+03 N
+window 3 to 0.150 ms: c* 2455.077 m/s, Isp_vac 415.4833 s, F_vac 1629.870 N, wall heat -3.097422e+05 W, wall force -4.545721e+03 N
+    c* rho -0.112 remainder inf not settled; Isp_vac rho +0.284 remainder 3.82e-06 settled; F_vac rho +0.468 remainder 5.58e-06 settled; wall heat rho -0.492 remainder inf not settled; wall force rho +0.636 remainder 2.86e-05 settled;
+window 4 to 0.200 ms: c* 2455.072 m/s, Isp_vac 415.4888 s, F_vac 1629.919 N, wall heat -3.097458e+05 W, wall force -4.545798e+03 N
+    c* rho -0.657 remainder inf not settled; Isp_vac rho -1.368 remainder inf not settled; F_vac rho +4.676 remainder inf not settled; wall heat rho +0.828 remainder 5.61e-05 settled; wall force rho +1.043 remainder inf not settled;
+window 5 to 0.250 ms: c* 2455.070 m/s, Isp_vac 415.4843 s, F_vac 1629.925 N, wall heat -3.097495e+05 W, wall force -4.545864e+03 N
+    c* rho +0.332 remainder 3.49e-07 settled; Isp_vac rho -0.820 remainder inf not settled; F_vac rho +0.129 remainder 5.65e-07 settled; wall heat rho +1.029 remainder inf not settled; wall force rho +0.843 remainder 7.72e-05 settled;
+window 6 to 0.300 ms: c* 2455.066 m/s, Isp_vac 415.4850 s, F_vac 1629.949 N, wall heat -3.097518e+05 W, wall force -4.545919e+03 N
+    c* rho +2.433 remainder inf not settled; Isp_vac rho -0.168 remainder inf not settled; F_vac rho +3.901 remainder inf not settled; wall heat rho +0.596 remainder 1.06e-05 settled; wall force rho +0.851 remainder 6.99e-05 settled;
+window 7 to 0.350 ms: c* 2455.060 m/s, Isp_vac 415.4852 s, F_vac 1629.969 N, wall heat -3.097559e+05 W, wall force -4.545968e+03 N
+    c* rho +1.278 remainder inf not settled; Isp_vac rho +0.282 remainder 2.00e-07 settled; F_vac rho +0.814 remainder 5.32e-05 not settled; wall heat rho +1.873 remainder inf not settled; wall force rho +0.873 remainder 7.36e-05 settled;
+window 8 to 0.400 ms: c* 2455.081 m/s, Isp_vac 415.4901 s, F_vac 1629.986 N, wall heat -3.097657e+05 W, wall force -4.545998e+03 N
+    c* rho -3.772 remainder inf not settled; Isp_vac rho +22.782 remainder inf not settled; F_vac rho +0.843 remainder 5.50e-05 not settled; wall heat rho +2.359 remainder inf not settled; wall force rho +0.621 remainder 1.09e-05 settled;

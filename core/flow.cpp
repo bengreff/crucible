@@ -87,6 +87,8 @@ void Definition::validate() const {
     if(!(outletRelaxation>=0) || !std::isfinite(outletRelaxation))
         throw std::invalid_argument("Outlet relaxation must be finite and non-negative (zero: fixed back pressure).");
     if(turbulence.wallFunctions && !turbulence.enabled) throw std::invalid_argument("Wall functions need turbulence.");
+    if(turbulence.propertyCorrections && (!turbulence.enabled || wallSlip))
+        throw std::invalid_argument("The SST property corrections need turbulence and no-slip walls (S_n is defined from the wall).");
     if(turbulence.enabled) {
         const auto& t=turbulence;
         if(transport.viscosity.empty()) throw std::invalid_argument("Turbulence needs molecular transport.");
@@ -170,7 +172,11 @@ Mesh::Mesh(const Definition& d):nz(d.nz),nr(d.nr),dz(d.span()/d.nz) {
         // Exact radial moments of the frustum ring (wall radius linear in z across the cell).
         double first=2*pi/3*(b*b*b-a*a*a)*dz*(r0+r1)*(r0*r0+r1*r1)/4;
         double second=pi/2*(b*b*b*b-a*a*a*a)*dz*(r0*r0*r0*r0+r0*r0*r0*r1+r0*r0*r1*r1+r0*r1*r1*r1+r1*r1*r1*r1)/5;
-        cells[index(i,j)]={v,(i+0.5)*dz,first/v,pi*dz*(r0+r1)*(b-a),second/v};
+        // The axial centroid lies toward the wider end where the wall slopes: (z, r) is then the volume
+        // centroid, a point inside the cell. With the column centre and the radial centroid instead, a
+        // thin ring at a sloping wall would sit outside the wall line.
+        double centroid=(i+0.5)*dz+dz*(r1-r0)*(r1+r0)/(4*(r0*r0+r0*r1+r1*r1));
+        cells[index(i,j)]={v,centroid,first/v,pi*dz*(r0+r1)*(b-a),second/v};
     }
 }
 double Mesh::axialArea(int face,int j) const {
@@ -190,9 +196,15 @@ std::array<double,2> Mesh::radialAreaVector(int i,int face) const {
     double r0=f*radius[i],r1=f*radius[i+1];
     return {-pi*(r0+r1)*(r1-r0),pi*(r0+r1)*dz};
 }
+// On a sloping column the reconstruction's faces sit on the same column radius as the centroids
+// (cell.r is fraction-moment times R = 3 (r0 + r1)(r0^2 + r1^2) / (4 (r0^2 + r0 r1 + r1^2))), so each
+// centroid lies between its faces. With the face's area-weighted radius instead, a thin ring at a
+// sloping wall had both faces on one side of its centroid and its slopes extrapolated outside it.
 double Mesh::radialFaceRadius(int i,int face) const {
     double f=fraction[face],r0=radius[i],r1=radius[i+1];
-    return face==0?0:2*f*(r0*r0+r0*r1+r1*r1)/(3*(r0+r1));
+    if(face==0) return 0;
+    if(r0==r1) return 2*f*(r0*r0+r0*r1+r1*r1)/(3*(r0+r1));
+    return f*3*(r0+r1)*(r0*r0+r1*r1)/(4*(r0*r0+r0*r1+r1*r1));
 }
 double Mesh::radialFaceSecondMoment(int i,int face) const {
     double f=fraction[face];
@@ -302,7 +314,7 @@ double chokedMassFlow(const Definition& d) {
         std::sqrt(g/d.gas.specificR)*std::pow(2/(g+1),(g+1)/(2*(g-1)));
 }
 Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_.size()),nt_(d.turbulence.enabled?2:0),
-    nw_(ns_+nt_),inletComposition_(d.massFractions()),totalPressure_(d.totalPressure) {
+    nw_(ns_+nt_),inletComposition_(d.massFractions()),totalPressure_(d.totalPressure),corrections_(nt_ && d.turbulence.propertyCorrections) {
     auto count=mesh_.cells.size();
     state_.resize(count); stage_.resize(count); next_.resize(count); rhs_.resize(count);
     slopesZ_.resize(count); primitives_.resize(count); radialLow_.resize(count); radialHigh_.resize(count); pressureSource_.resize(count);
@@ -371,7 +383,7 @@ Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_
     if(nt_) {
         std::vector<bool> plate;
         if(d.experiment==Case::Chamber && !d.wallSlip) for(int s:faceSupply_) plate.push_back(s<0);
-        wallDistance_=wallDistance(mesh_,!d.wallSlip,plate);
+        wallDistance_=wallDistance(mesh_,!d.wallSlip,plate,corrections_?&wallDirection_:nullptr);
     }
     if(medium_.hasTransport()) prepareTransport();
     std::vector<double> fractions;
@@ -399,7 +411,8 @@ Flow::BoundaryRates Flow::BoundaryRates::average(const BoundaryRates& a,const Bo
     auto mean=[](double x,double y){return 0.5*(x+y);};
     return {mean(a.mass,b.mass),mean(a.energy,b.energy),mean(a.inlet,b.inlet),mean(a.outlet,b.outlet),
         mean(a.inletMomentum,b.inletMomentum),mean(a.outletMomentum,b.outletMomentum),
-        mean(a.wallAxial,b.wallAxial),mean(a.bodyAxial,b.bodyAxial),mean(a.heat,b.heat),mean(a.wallHeat,b.wallHeat)};
+        mean(a.wallAxial,b.wallAxial),mean(a.bodyAxial,b.bodyAxial),mean(a.heat,b.heat),mean(a.wallHeat,b.wallHeat),
+        mean(a.correction,b.correction)};
 }
 void Flow::resetAccounting() {
     initialMass_=initialEnergy_=initialMomentum_=0;
@@ -408,7 +421,7 @@ void Flow::resetAccounting() {
         initialMomentum_+=state_[q][1]*mesh_.cells[q].volume;
         initialEnergy_+=state_[q][3]*mesh_.cells[q].volume;
     }
-    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=clippedTurbulentEnergy_=prescribedTurbulentEnergy_=0;
+    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=clippedTurbulentEnergy_=prescribedTurbulentEnergy_=integratedCorrection_=0;
     lastRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
 }
 void Flow::setUniform(Primitive w) {
@@ -1106,6 +1119,7 @@ double Flow::step(double maxDt) {
             clippedTurbulentEnergy_+=clipped;prescribedTurbulentEnergy_+=prescribed;
             integratedMassFlux_+=dt*lastRates_.mass;
             integratedEnergyFlux_+=dt*lastRates_.energy;
+            integratedCorrection_+=dt*lastRates_.correction;
             integratedMomentumSource_+=dt*lastRates_.netMomentum();
             integratedMomentumGross_+=dt*lastRates_.grossMomentum();
             return dt;
@@ -1156,7 +1170,13 @@ Measurements Flow::measurements() const {
     result.momentumBalanceError=(result.axialMomentum-initialMomentum_-integratedMomentumSource_)/
         std::max(std::abs(initialMomentum_)+integratedMomentumGross_,std::numeric_limits<double>::min());
     result.massBalanceError=(result.mass-initialMass_-integratedMassFlux_)/initialMass_;
-    result.energyBalanceError=(result.energy-initialEnergy_-integratedEnergyFlux_)/initialEnergy_;
+    result.energyBalanceError=(result.energy-initialEnergy_-integratedEnergyFlux_-integratedCorrection_)/initialEnergy_;
+    result.correctionEnergy=integratedCorrection_;
+    if(corrections_) {
+        double weight=0,floored=0;
+        for(std::size_t q=0;q<state_.size();++q) { weight+=blendF1_[q];if(snFloored_[q]) floored+=blendF1_[q]; }
+        result.correctionFloored=weight>0?floored/weight:0;
+    }
     return result;
 }
 FieldSnapshot Flow::snapshot() const {

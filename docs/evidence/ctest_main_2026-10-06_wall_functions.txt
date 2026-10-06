@@ -1,0 +1,71 @@
+Test project /Users/ben/inquiry-project/build
+      Start  6: transport_verification
+      Start 10: pasr_verification
+ 1/11 Test #10: pasr_verification ................   Passed  185.86 sec
+      Start  7: turbulence_verification
+ 2/11 Test  #7: turbulence_verification ..........   Passed   50.33 sec
+      Start  4: thermo_cea_verification
+ 3/11 Test  #6: transport_verification ...........***Failed  238.71 sec
+1. transport operator order on a contoured duct (h2o2.yaml, no-slip wall at 600 K)
+    32x8    axial momentum 1.112e-02  radial momentum 8.295e-03  energy 1.042e-02  species 1.188e-02
+           wall row:  1.526e+00  3.318e-01  5.769e-01  1.010e-02
+    64x16   axial momentum 3.415e-03  radial momentum 3.077e-03  energy 2.907e-03  species 3.420e-03
+           wall row:  3.612e+00  3.756e-01  6.930e-01  6.235e-03
+   128x32   axial momentum 9.743e-04  radial momentum 1.257e-03  energy 7.387e-04  species 9.402e-04
+           wall row:  8.993e+00  4.053e-01  7.837e-01  4.485e-03
+   256x64   axial momentum 2.796e-04  radial momentum 5.406e-04  energy 1.921e-04  species 2.501e-04
+           wall row:  8.527e+00  4.228e-01  8.444e-01  2.773e-03
+  axial momentum: observed order (two finest grids)          1.801e+00 (limit 1.8e+00)  ok
+  radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL
+  energy: observed order (two finest grids)                  1.943e+00 (limit 1.8e+00)  ok
+  species: observed order (two finest grids)                 1.911e+00 (limit 1.8e+00)  ok
+2. pipe decay, u_z = U J0(j01 r/R) exp(-nu j01^2 t/R^2), N2 at 1 kPa, R = 1 mm
+  nr 8    t 1.0738e-04 s  steps 4189  L1 error 2.547e-03  momentum balance -1.75e-19  energy balance -5.26e-15
+  nr 16   t 1.0738e-04 s  steps 10804  L1 error 6.505e-04  momentum balance -1.41e-19  energy balance -5.33e-15
+  nr 32   t 1.0738e-04 s  steps 34229  L1 error 1.636e-04  momentum balance -2.73e-19  energy balance -9.28e-16
+  pipe decay: observed order (nr 16 -> 32)                   1.992e+00 (limit 1.8e+00)  ok
+  pipe decay: L1 error at nr 32                              1.636e-04 (limit 1.0e-03)  ok
+  pipe decay: momentum balance (wall shear)                  2.730e-19 (limit 1.0e-12)  ok
+3. budgets with transport: closed chamber, isothermal wall and plate, ambient exit
+  t 2.271e-05 s, wall heat flow -91.54 W, wall axial force 61.7 N
+  mass balance                                               5.823e-16 (limit 1.0e-12)  ok
+  energy balance (with wall heat)                            9.628e-16 (limit 1.0e-12)  ok
+  axial momentum balance (with wall shear)                   2.101e-17 (limit 1.0e-12)  ok
+4. wall-clustered rings, radial stretching b = 2
+  64x16: wall ring 0.1657, axis ring 2.0639 of the equal height
+  4a. total cell volume against the duct                     1.776e-15 (limit 1.0e-13)  ok
+  4a. axial-face areas against pi R^2 (worst column)         3.331e-16 (limit 1.0e-13)  ok
+    32x8    axial momentum 1.715e-02  radial momentum 1.921e-02  energy 2.837e-02  species 3.428e-02
+           wall row:  1.974e+01  9.140e-01  1.578e+00  1.476e-01
+    64x16   axial momentum 7.906e-03  radial momentum 6.223e-03  energy 9.079e-03  species 1.208e-02
+           wall row:  1.967e+01  1.207e+00  2.119e+00  6.647e-02
+   128x32   axial momentum 2.554e-03  radial momentum 2.079e-03  energy 2.861e-03  species 3.846e-03
+           wall row:  1.889e+01  1.378e+00  2.452e+00  3.148e-02
+   256x64   axial momentum 6.927e-04  radial momentum 7.643e-04  energy 7.769e-04  species 1.031e-03
+           wall row:  1.870e+01  1.471e+00  2.636e+00  1.532e-02
+  4b. axial momentum: observed order (two finest grids)      1.882e+00 (limit 1.8e+00)  ok
+  4b. radial momentum: observed order (two finest grids)     1.444e+00 (limit 1.8e+00)  FAIL
+  4b. energy: observed order (two finest grids)              1.881e+00 (limit 1.8e+00)  ok
+  4b. species: observed order (two finest grids)             1.900e+00 (limit 1.8e+00)  ok
+  nr 8    t 1.0738e-04 s  steps 33089  L1 error 6.294e-03  momentum balance -1.82e-19  energy balance 3.02e-15
+  nr 16   t 1.0738e-04 s  steps 143104  L1 error 1.488e-03  momentum balance 3.07e-17  energy balance -8.48e-14
+  nr 32   t 1.0738e-04 s  steps 600308  L1 error 3.697e-04  momentum balance 1.19e-17  energy balance -1.05e-12
+  4c. pipe decay: observed order (nr 16 -> 32)               2.009e+00 (limit 1.8e+00)  ok
+  4c. pipe decay: L1 error at nr 32                          3.697e-04 (limit 1.0e-03)  ok
+  4c. pipe decay: momentum balance (wall shear)              3.074e-17 (limit 1.0e-12)  ok
+2 failures
+
+      Start  3: core_slow_verification
+ 4/11 Test  #4: thermo_cea_verification ..........   Passed   42.39 sec
+      Start  1: core_verification
+ 5/11 Test  #1: core_verification ................   Passed   32.83 sec
+      Start 11: mixture_verification
+ 6/11 Test #11: mixture_verification .............   Passed    1.83 sec
+      Start  5: reaction_verification
+ 7/11 Test  #5: reaction_verification ............   Passed    1.06 sec
+      Start  9: wall_function_threads
+ 8/11 Test  #9: wall_function_threads ............   Passed    0.14 sec
+      Start  2: wall_function_verification
+ 9/11 Test  #2: wall_function_verification .......   Passed    0.21 sec
+      Start  8: turbulence_pipe_verification
+10/11 Test  #3: core_slow_verification ...........   Passed  104.12 sec

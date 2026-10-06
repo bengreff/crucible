@@ -31,9 +31,13 @@
 // eqt's igniter): the turbulent C1 of the wall-function criteria (docs/evidence/WALL_FUNCTIONS.md).
 // It reports the first-cell y+ and the wall heat flow and axial force at the end; criterion 4 is not judged.
 // CRUCIBLE_WALL_FUNCTIONS (law or printed) and CRUCIBLE_RADIAL_STRETCHING set the wall law and the ring
-// clustering for the wall-function criteria 3 and 4.
+// clustering for the wall-function criteria 3 and 4. CRUCIBLE_STATE_START = <dump>,<nz>,<nr>,<stretching>
+// (criterion 3's shorter reference) starts from a CRUCIBLE_STATE_DUMP of another grid, interpolated, with
+// the supply fully open and no igniter; time restarts at zero and the history adds c* every 0.05 ms.
+// The history carries the wall heat flow and the wall axial force in every run.
 // Writes <prefix>_history.csv (every 2 us), <prefix>_mesh.csv (stations) and <prefix>_field_<us>.csv
-// snapshots; tools/chamber_plots.py renders them.
+// snapshots (<prefix>_field_<us>_failed.csv for the last state of a run that stopped); tools/chamber_plots.py
+// renders them.
 //
 // PaSR criterion 4 (stated in tests/pasr_tests.cpp): "frt" and "frp" are FiniteRate made viscous
 // and turbulent as in tests/step_cost.cpp, "frp" with the closure (C_mix 1, S = {H2, O2, H2O}) and
@@ -50,6 +54,7 @@
 #include <cstdlib>
 #include <exception>
 #include <numbers>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -128,6 +133,127 @@ double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const d
   }
   return p0;
 }
+
+// Mass-flux-averaged equilibrium stagnation pressure (and static pressure) of a column.
+double columnStagnation(const Flow& flow, Cantera::ThermoPhase& gas, int column, double& pStatic) {
+  const auto& mesh = flow.mesh();
+  double p0 = 0, flux = 0;
+  pStatic = 0;
+  for (int j = 0; j < mesh.nr; ++j) {
+    auto q = mesh.index(column, j);
+    auto w = flow.cellPrimitive(q);
+    auto y = flow.massFractions(q);
+    double g = w.rho * w.uz * mesh.axialArea(column + 1, j);
+    p0 += g * stagnationPressure(gas, flow.temperature(q), w.p, y.data(), 0.5 * (w.uz * w.uz + w.ur * w.ur));
+    pStatic += g * w.p;
+    flux += g;
+  }
+  pStatic /= flux;
+  return p0 / flux;
+}
+
+// Criterion 3's start (docs/evidence/WALL_FUNCTIONS.md): a CRUCIBLE_STATE_DUMP of the same contour on another
+// grid, mapped column by column in eta = r / R_wall. p, T, u_z, u_r, the mass fractions, k and omega are linear
+// in z between the old columns and in eta between the old centroids (the first centroid's values inside it).
+// Between the last old centroid and the wall they run to the wall values: u = 0, T = T_w and k = 0, with p and
+// the mass fractions held; there omega is the larger of the last centroid's value and the engine's wall rule
+// 6 nu_w / (beta1 d^2) at the cell's own wall distance d. With equilibrium chemistry (`gas` given) the
+// interpolated composition is then equilibrated at the cell's T and p, elements kept: the hot core's radicals
+// held at the wall's 600 K would otherwise recombine in the first steps and double the pressure there.
+// The density follows from p and T.
+void restoreInterpolated(Flow& flow, const Definition& d, const std::string& path, int nzOld, int nrOld,
+                         double stretchingOld, Cantera::ThermoPhase* gas) {
+  Definition old = d;
+  old.nz = nzOld;
+  old.nr = nrOld;
+  old.radialStretching = stretchingOld;
+  const Mesh from(old);
+  const Mesh& to = flow.mesh();
+  const Medium& medium = flow.medium();
+  const std::size_t ns = medium.size(), nOld = from.cells.size(), nNew = to.cells.size();
+  std::vector<Conserved> state(nOld);
+  std::vector<double> partial(nOld * ns), turbulence(2 * nOld);
+  FILE* f = std::fopen(path.c_str(), "rb");
+  if (!f) throw std::runtime_error("cannot read " + path);
+  const bool ok = std::fread(state.data(), sizeof(Conserved), nOld, f) == nOld &&
+                  std::fread(partial.data(), sizeof(double), partial.size(), f) == partial.size() &&
+                  std::fread(turbulence.data(), sizeof(double), turbulence.size(), f) == turbulence.size() &&
+                  std::fgetc(f) == EOF;
+  std::fclose(f);
+  if (!ok) throw std::runtime_error(path + " does not match the stated grid");
+  // Old cell values: p, T, u_z, u_r, k, omega, then the mass fractions.
+  const std::size_t nv = 6 + ns;
+  std::vector<double> value(nOld * nv), eta(nOld);
+  for (std::size_t q = 0; q < nOld; ++q) {
+    const auto& u = state[q];
+    double* v = value.data() + q * nv;
+    double sum = 0;
+    for (std::size_t k = 0; k < ns; ++k) sum += partial[q * ns + k];
+    for (std::size_t k = 0; k < ns; ++k) v[6 + k] = partial[q * ns + k] / sum;
+    const double uz = u[1] / u[0], ur = u[2] / u[0], k = turbulence[2 * q] / u[0];
+    const double t = medium.temperature(u[3] / u[0] - (uz * uz + ur * ur) / 2 - k, v + 6, 1000.0);
+    v[0] = u[0] * medium.gasConstant(v + 6) * t;
+    v[1] = t;
+    v[2] = uz;
+    v[3] = ur;
+    v[4] = k;
+    v[5] = turbulence[2 * q + 1] / u[0];
+  }
+  // Cells are placed by the mesh's own coordinates: the column, and eta the ring's mid fraction of the
+  // local radius.
+  for (int i = 0; i < nzOld; ++i)
+    for (int j = 0; j < nrOld; ++j) eta[from.index(i, j)] = 0.5 * (from.fraction[j] + from.fraction[j + 1]);
+  // One old column at eta; returns how far into the wall zone eta lies (0 inside the last centroid).
+  auto column = [&](int i, double e, double* out) {
+    const std::size_t first = from.index(i, 0), last = from.index(i, nrOld - 1);
+    if (e >= eta[last]) {
+      const double s = std::min(1.0, (e - eta[last]) / (1 - eta[last]));
+      const double* v = value.data() + last * nv;
+      std::copy(v, v + nv, out);
+      out[1] = v[1] + s * (d.wallTemperature - v[1]);
+      out[2] = (1 - s) * v[2];
+      out[3] = (1 - s) * v[3];
+      out[4] = (1 - s) * v[4];
+      return s;
+    }
+    int j = 0;
+    while (j + 1 < nrOld && eta[from.index(i, j + 1)] <= e) ++j;
+    const std::size_t a = from.index(i, j), b = from.index(i, std::min(j + 1, nrOld - 1));
+    const double w = e <= eta[first] ? 0.0 : std::clamp((e - eta[a]) / (eta[b] - eta[a]), 0.0, 1.0);
+    for (std::size_t n = 0; n < nv; ++n) out[n] = (1 - w) * value[a * nv + n] + w * value[b * nv + n];
+    return 0.0;
+  };
+  std::vector<Primitive> cells(nNew);
+  std::vector<double> fractions(nNew * ns), kOmega(2 * nNew), left(nv), right(nv), diffusion(ns), work;
+  for (int i = 0; i < to.nz; ++i)
+    for (int j = 0; j < to.nr; ++j) {
+      const std::size_t q = to.index(i, j);
+      const double e = 0.5 * (to.fraction[j] + to.fraction[j + 1]), x = (i + 0.5) * to.dz / from.dz - 0.5;
+      const int i0 = std::clamp(static_cast<int>(std::floor(x)), 0, nzOld - 1), i1 = std::min(i0 + 1, nzOld - 1);
+      const double w = std::clamp(x - i0, 0.0, 1.0);
+      const double s = std::max(column(i0, e, left.data()), column(i1, e, right.data()));
+      for (std::size_t n = 0; n < nv; ++n) left[n] = (1 - w) * left[n] + w * right[n];
+      double* y = left.data() + 6;
+      const double p = left[0], t = left[1];
+      if (gas) {
+        gas->setState_TPY(t, p, y);
+        gas->equilibrate("TP");
+        gas->getMassFractions(y);
+      }
+      double omega = left[5];
+      if (s > 0) {
+        const double muW = medium.transport(d.wallTemperature, p, y, diffusion.data(), work).viscosity;
+        const double nuW = muW * medium.gasConstant(y) * d.wallTemperature / p, dist = flow.wallDistances()[q];
+        omega = std::max(omega, 6 * nuW / (0.075 * dist * dist));  // beta1 0.075, as core/transport.cpp
+      }
+      cells[q] = {p / (medium.gasConstant(y) * t), left[2], left[3], p};
+      std::copy(y, y + ns, fractions.begin() + q * ns);
+      kOmega[2 * q] = left[4];
+      kOmega[2 * q + 1] = omega;
+    }
+  flow.setInitialState(cells, fractions);
+  flow.setTurbulence(kOmega);
+}
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -144,6 +270,16 @@ int main(int argc, char** argv) {
   const double igniterEnergy = argc > 7 ? std::atof(argv[7]) : pasr ? 300 : 0.5;
   const double igniterDuration = argc > 8 ? std::atof(argv[8]) : pasr ? 1e-3 : 2e-4;
   const bool tabulated = mode == "eqt" || mode == "eqtt";
+  struct Start { std::string path; int nz{}, nr{}; double stretching{}; };
+  std::optional<Start> start;
+  if (const char* spec = std::getenv("CRUCIBLE_STATE_START")) {
+    const std::string text = spec;
+    const auto a = text.find(','), b = text.find(',', a + 1), c = text.find(',', b + 1);
+    if (a == std::string::npos || b == std::string::npos || c == std::string::npos)
+      throw std::invalid_argument("CRUCIBLE_STATE_START: <dump>,<nz>,<nr>,<radial stretching>");
+    start = Start{text.substr(0, a), std::stoi(text.substr(a + 1, b - a - 1)), std::stoi(text.substr(b + 1, c - b - 1)),
+                  std::stod(text.substr(c + 1))};
+  }
   const auto chemistry = mode == "eq" || tabulated ? thermo::Chemistry::LocalEquilibrium
                          : mode == "fr" || turbulent ? thermo::Chemistry::FiniteRate
                                                      : thermo::Chemistry::Frozen;
@@ -168,11 +304,11 @@ int main(int argc, char** argv) {
   for (std::size_t k = 0; k < h2.size(); ++k)
     s.composition[k] = (h2[k] + kMixtureRatio * o2[k]) / (1 + kMixtureRatio);
   s.opens = 0;
-  s.ramp = 5e-4;
+  s.ramp = start ? 0.0 : 5e-4;  // a restart has the valve fully open
   d.supplies = {s};
   // Igniter: from 0.2 ms in a 10 mm by 10 mm core 5 mm off the injector face; 0.5 J over 0.2 ms
   // unless given. Local equilibrium burns any premixed gas at once, so in "eq" mode it has no role.
-  d.igniter = {0.005, 0.015, 0.010, igniterEnergy, 2e-4, igniterDuration};
+  d.igniter = {0.005, 0.015, 0.010, start ? 0.0 : igniterEnergy, 2e-4, igniterDuration};
   if (turbulent) {  // as tests/step_cost.cpp: Spalart-Rumsey ambient, supply I 0.05 and ratio 10
     d.transport = thermo::transportFits("h2o2.yaml");
     d.wallTemperature = 600;
@@ -197,12 +333,25 @@ int main(int argc, char** argv) {
     d.turbulence.printedDerivative = mode == "printed";
     std::printf("wall functions: %s (kappa %.4f, B %.3f)\n", mode.c_str(), d.turbulence.wallKappa, d.turbulence.wallB);
   }
+  // CRUCIBLE_SST_CORRECTION = hp: the SST property corrections (Definition::Turbulence::propertyCorrections).
+  if (const char* correction = std::getenv("CRUCIBLE_SST_CORRECTION")) {
+    if (std::string(correction) != "hp") throw std::invalid_argument("CRUCIBLE_SST_CORRECTION: hp");
+    d.turbulence.propertyCorrections = true;
+    std::printf("SST property corrections: Hasan, Elias, Menter and Pecnik (2025), full form\n");
+  }
   if (const char* stretching = std::getenv("CRUCIBLE_RADIAL_STRETCHING")) {
     d.radialStretching = std::atof(stretching);
     std::printf("radial stretching %g\n", d.radialStretching);
   }
 
   Flow flow(d);
+  if (start) {
+    auto startSolution = Cantera::newSolution("h2o2.yaml", "", "none");
+    restoreInterpolated(flow, d, start->path, start->nz, start->nr, start->stretching,
+                        chemistry == thermo::Chemistry::LocalEquilibrium ? startSolution->thermo().get() : nullptr);
+    std::printf("start: %s (%dx%d, radial stretching %g) interpolated to %dx%d; supply fully open, no igniter\n",
+                start->path.c_str(), start->nz, start->nr, start->stretching, nz, nr);
+  }
   thermo::ReactingFlow reacting(flow, "h2o2.yaml", threads, 1e-6, 1e-12, chemistry);
   if (closure) reacting.setMixingClosure(1.0, {"H2", "O2", "H2O"});
   EquilibriumTable table;
@@ -228,7 +377,7 @@ int main(int argc, char** argv) {
               "chamber-end column %d at z %.4f m\n",
               nz, nr, mesh.dz * 1e3, throatStation, throatStation * mesh.dz, geo.throat, rMin, eps, endColumn,
               mesh.cells[mesh.index(endColumn, 0)].z);
-  std::printf("chemistry %s; igniter %.4g J over %.4g ms from 0.2 ms%s\n", mode.c_str(), igniterEnergy,
+  std::printf("chemistry %s; igniter %.4g J over %.4g ms from 0.2 ms%s\n", mode.c_str(), d.igniter.energy,
               igniterDuration * 1e3,
               pasr ? (closure ? "; viscous, SST, PaSR closure on" : "; viscous, SST, closure off (control)")
               : turbulent ? "; viscous, SST" : "");
@@ -285,9 +434,9 @@ int main(int argc, char** argv) {
     return v / total;
   };
 
-  auto writeField = [&](double t) {
+  auto writeField = [&](double t, const char* tag = "") {
     char name[512];
-    std::snprintf(name, sizeof name, "%s_field_%06.0f.csv", prefix.c_str(), t * 1e6);
+    std::snprintf(name, sizeof name, "%s_field_%06.0f%s.csv", prefix.c_str(), t * 1e6, tag);
     FILE* f = std::fopen(name, "w");
     if (turbulent) closureFields();
     std::fprintf(f, "i,j,z,r,T,p,mach,uz,ur,Y_H2O,Y_O2,Y_N2%s\n", turbulent ? ",k,omega,mu_t,tau_mix,s,kappa_eff" : "");
@@ -312,12 +461,13 @@ int main(int argc, char** argv) {
   FILE* history = std::fopen((prefix + "_history.csv").c_str(), "w");
   std::fprintf(history,
                "t,supply,inlet,outlet,p_injector,p_chamber_end,F_vac,isp_vac_supply,exit_mach_min,T_max,"
-               "igniter_energy,mass_budget,energy_budget,steps\n");
+               "igniter_energy,mass_budget,energy_budget,steps,wall_heat_flow,wall_axial_force,cstar\n");
+  auto historySolution = Cantera::newSolution("h2o2.yaml", "", "none");
   std::vector<double> snapshots = {2e-5, 5e-5, 1e-4, 2e-4, 3e-4, 4e-4, 5e-4, 7.5e-4, 1e-3, 1.5e-3, 2e-3, 3e-3, 4e-3, 6e-3, 8e-3};
   std::size_t nextSnapshot = 0;
   const auto clock0 = std::chrono::steady_clock::now();
   double nextSample = 0;
-  struct Row { double t, outlet, pInj, fVac; };
+  struct Row { double t, outlet, pInj, fVac, heat, force, cstar; };
   std::vector<Row> rows;
   // Criterion 4 (a) over the whole run and (b) at every sample.
   const double initialEnergy = flow.measurements().energy;
@@ -355,21 +505,76 @@ int main(int argc, char** argv) {
     }
     for (std::size_t q = 0; q < flow.state().size(); ++q) tMax = std::max(tMax, flow.temperature(q));
     const double fVac = m.deviceThrust + m.ambientAxialForce;
-    std::fprintf(history, "%.9e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.5f,%.2f,%.6e,%.3e,%.3e,%llu\n", m.time,
-                 m.supplyMassFlow, m.inletMassFlow, m.outletMassFlow, m.injectorPressure, pEnd / area, fVac,
+    double cstar = NAN, pStatic = 0;  // a restart's settling test reads c* at each 0.05 ms window's end
+    if (start && (rows.size() + 1) % 25 == 0)
+      cstar = columnStagnation(flow, *historySolution->thermo(), endColumn, pStatic) * at / m.outletMassFlow;
+    std::fprintf(history, "%.9e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.6e,%.5f,%.2f,%.6e,%.3e,%.3e,%llu,%.9e,%.9e,%.9e\n",
+                 m.time, m.supplyMassFlow, m.inletMassFlow, m.outletMassFlow, m.injectorPressure, pEnd / area, fVac,
                  m.supplyMassFlow > 0 ? fVac / (m.supplyMassFlow * kG0) : 0.0, exitMin, tMax, m.igniterEnergy,
-                 m.massBalanceError, m.energyBalanceError, static_cast<unsigned long long>(m.steps));
-    rows.push_back({m.time, m.outletMassFlow, m.injectorPressure, fVac});
+                 m.massBalanceError, m.energyBalanceError, static_cast<unsigned long long>(m.steps), m.wallHeatFlow,
+                 m.wallAxialForce, cstar);
+    rows.push_back({m.time, m.outletMassFlow, m.injectorPressure, fVac, m.wallHeatFlow, m.wallAxialForce, cstar});
   };
   writeField(0);
+  // Criterion 3's settling test for a restart (docs/evidence/WALL_FUNCTIONS.md, declared before the runs): 0.05 ms
+  // windows (25 samples); per window the means of the wall heat flow and wall axial force, and c*, vacuum Isp and
+  // vacuum thrust at its end. A quantity is settled when its last three window values contract, rho = (x3 - x2) /
+  // (x2 - x1) in [0, 0.9], with the geometric remainder |x3 - x2| rho / (1 - rho) at most a quarter of its tightest
+  // band: 0.005% for c*, Isp and thrust, 0.5% for the heat flow and force. Corrected 6 October 02:50, before the
+  // reference ran: a quantity whose last three window values span at most half of that allowance is also settled
+  // (window-to-window noise makes rho meaningless there). The run stops when all five are settled at two consecutive
+  // windows (02:51, the same restart: one window passed F_vac on a noisy rho).
+  struct Window { double cstar, isp, fVac, heat, force; };
+  std::vector<Window> windows;
+  bool settledStop = false;
+  int settledWindows = 0;
+  auto settlingWindow = [&]() {
+    Window w{rows.back().cstar, rows.back().fVac / (rows.back().outlet * kG0), rows.back().fVac, 0, 0};
+    for (std::size_t i = rows.size() - 25; i < rows.size(); ++i) { w.heat += rows[i].heat / 25; w.force += rows[i].force / 25; }
+    windows.push_back(w);
+    const char* names[] = {"c*", "Isp_vac", "F_vac", "wall heat", "wall force"};
+    const double bands[] = {5e-5, 5e-5, 5e-5, 5e-3, 5e-3};
+    auto value = [](const Window& v, int k) { return k == 0 ? v.cstar : k == 1 ? v.isp : k == 2 ? v.fVac : k == 3 ? v.heat : v.force; };
+    std::printf("window %zu to %.3f ms: c* %.3f m/s, Isp_vac %.4f s, F_vac %.3f N, wall heat %.6e W, wall force %.6e N", windows.size(),
+                rows.back().t * 1e3, w.cstar, w.isp, w.fVac, w.heat, w.force);
+    if (windows.size() >= 3) {
+      int count = 0;
+      std::printf("\n   ");
+      for (int k = 0; k < 5; ++k) {
+        double x1 = value(windows[windows.size() - 3], k), x2 = value(windows[windows.size() - 2], k), x3 = value(w, k);
+        double rho = x2 != x1 ? (x3 - x2) / (x2 - x1) : (x3 == x2 ? 0.0 : INFINITY);
+        bool contracts = rho >= 0 && rho <= 0.9;
+        double remainder = contracts ? std::abs(x3 - x2) * rho / (1 - rho) / std::abs(x3) : INFINITY;
+        double span = (std::max({x1, x2, x3}) - std::min({x1, x2, x3})) / std::abs(x3);
+        bool ok = (contracts && remainder <= bands[k]) || span <= 0.5 * bands[k];
+        count += ok;
+        std::printf(" %s rho %+.3f remainder %.2e span %.2e %s;", names[k], rho, remainder, span, ok ? "settled" : "not settled");
+      }
+      settledWindows = count == 5 ? settledWindows + 1 : 0;
+      if (settledWindows == 2) {
+        settledStop = true;
+        double n = 0, heat = 0, force = 0, fv = 0, isp = 0;
+        for (std::size_t i = rows.size() - 50; i < rows.size(); ++i, ++n) {
+          heat += rows[i].heat; force += rows[i].force; fv += rows[i].fVac; isp += rows[i].fVac / (rows[i].outlet * kG0);
+        }
+        std::printf("\nsettling test met at %.3f ms. Means over the last 0.1 ms: c* %.3f m/s (two window ends), Isp_vac %.4f s, "
+                    "F_vac %.3f N, wall heat flow %.6e W, wall axial force %.6e N",
+                    rows.back().t * 1e3, 0.5 * (windows[windows.size() - 2].cstar + w.cstar), isp / n, fv / n, heat / n, force / n);
+      }
+    }
+    std::printf("\n");
+    std::fflush(stdout);
+    std::fflush(history);
+  };
   auto march = [&](double end) {
-  while (flow.time() < end) {
+  while (flow.time() < end && !settledStop) {
     double target = std::min({end, nextSample, nextSnapshot < snapshots.size() ? snapshots[nextSnapshot] : end});
     if (target <= flow.time()) target = std::min(end, flow.time() + 2e-6);
     reacting.advanceTo(target);
     if (flow.time() >= nextSample) {
       sample();
       nextSample += 2e-6;
+      if (start && rows.size() % 25 == 0) settlingWindow();
       if (rows.size() % 250 == 0) {
         double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - clock0).count();
         std::printf("t %.3f ms  p_inj %.4f MPa  outlet %.4f kg/s  F_vac %.1f N  steps %ld  wall %.0f s\n",
@@ -412,7 +617,7 @@ int main(int argc, char** argv) {
   } catch (const std::exception& e) {
     std::fclose(history);
     std::printf("\nexception at %.6f ms after %ld steps: %s\n", flow.time() * 1e3, reacting.stats().steps, e.what());
-    writeField(flow.time());  // the last state the run reached, for the diagnosis
+    writeField(flow.time(), "_failed");  // the last state the run reached, for the diagnosis
     if (pasr) std::printf("criterion 4 (b): the run did not reach its end  FAIL\n");
     return 1;
   }
@@ -457,6 +662,8 @@ int main(int argc, char** argv) {
   std::printf("\nend %.3f ms after %ld steps (%ld replans), wall %.0f s\n", m.time * 1e3, reacting.stats().steps,
               reacting.stats().replans, wall);
   std::printf("budgets: mass %.2e  energy %.2e\n", m.massBalanceError, m.energyBalanceError);
+  if (d.turbulence.propertyCorrections)
+    std::printf("SST property corrections: integral of Phi_k booked %.6e J; S_n floored (F1-weighted) %.3e\n", m.correctionEnergy, m.correctionFloored);
   {
     const auto& st = reacting.stats();
     std::printf("reaction wall %.1f s (%.1f%% of the run), %.3f us per cell update\n", st.reactWall,
@@ -476,20 +683,8 @@ int main(int argc, char** argv) {
               drift([](const Row& r) { return r.fVac; }));
 
   // Chamber-end stagnation pressure (mass-flux averaged) and the comparison.
-  auto sol = Cantera::newSolution("h2o2.yaml", "", "none");
-  auto& gas = *sol->thermo();
-  double p0 = 0, flux = 0, pStatic = 0;
-  for (int j = 0; j < nr; ++j) {
-    auto q = mesh.index(endColumn, j);
-    auto w = flow.cellPrimitive(q);
-    auto y = flow.massFractions(q);
-    double g = w.rho * w.uz * mesh.axialArea(endColumn + 1, j);
-    p0 += g * stagnationPressure(gas, flow.temperature(q), w.p, y.data(), 0.5 * (w.uz * w.uz + w.ur * w.ur));
-    pStatic += g * w.p;
-    flux += g;
-  }
-  p0 /= flux;
-  pStatic /= flux;
+  double pStatic = 0;
+  const double p0 = columnStagnation(flow, *historySolution->thermo(), endColumn, pStatic);
   const double fVac = m.deviceThrust + m.ambientAxialForce, mdot = m.outletMassFlow;
   const double cstarSim = p0 * at / mdot, ispSim = fVac / mdot / kG0;
   std::printf("chamber end: static %.5f MPa, equilibrium stagnation p0 %.5f MPa; injector face %.5f MPa\n",

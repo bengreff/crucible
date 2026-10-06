@@ -1,0 +1,14 @@
+criterion 0(d): a turbulent N2 chamber, wall functions on the side wall and the plate, 200 steps
+  t 5.068662e-05 s after 200 steps; wall heat flow 1.152815e+01 W; prescribed rho k V 1.499603e-06 J; clipped 0.000e+00 J
+  budgets: mass 1.900e-16, energy -4.570e-17, axial momentum -1.596e-17
+  (d) state, partial densities, rho k and rho omega: 1 and 4 threads differ (1 = yes) 0.000e+00 (limit 0e+00)  PASS
+  (d) budgets, wall heat and turbulent ledgers identical (1 = differ) 0.000e+00 (limit 0e+00)  PASS
+  (d) mass budget                                                    1.900e-16 (limit 1e-11)  PASS
+  (d) energy budget                                                  4.570e-17 (limit 1e-11)  PASS
+  reported, the same run with the resolved-wall rule: wall heat flow 6.119913e+00 W, wall axial force 6.847087e-01 N (law 6.854569e-01 N), budgets mass -2.443e-16 energy -4.006e-16
+  corrections, resolved wall: 1 and 4 threads
+  resolved wall: state, rho k, rho omega and budgets, 1 and 4 threads differ (1 = yes) 0.000e+00 (limit 0e+00)  PASS
+  resolved wall: mass budget                                         2.443e-16 (limit 1e-11)  PASS
+  resolved wall: energy budget                                       4.006e-16 (limit 1e-11)  PASS
+  reported: integral of Phi_k booked, wall functions 5.608146e-12 J, resolved 4.906916e-10 J (total energy -2.117859e-01 J); S_n floored (F1-weighted) 0.000e+00, 0.000e+00
+0 failures

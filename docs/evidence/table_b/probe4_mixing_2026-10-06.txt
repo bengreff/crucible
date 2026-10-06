@@ -1,0 +1,42 @@
+# crucible_table_b_probe, section (4) only; sections (1) to (3) of this run reproduce probe_2026-10-06.txt line for line (CVODES and Cantera warnings on stderr interleave with stdout, kept raw). 6 October 2026, 03:01 CDT.
+(4) Burnt gas mixed into fresh gas at 300 K, then reacting at constant (e, rho)
+fresh: e -2.3833e+05 J/kg, rho 12.3168; burnt: e -2.2034e+06 J/kg, rho 1.3583
+m 0.03: T_mix 421.2 K, rho 9.9166, c_mix 0.02563, N_mix 0.097006 | truth: c_eq 0.83688, T_eq 4001.3 K, 420 samples | branch from reactants at 270.7 K: c_0 0.00000, N_0 0.097649, N_eq 0.097649, 85 samples
+        rule: phi_N(c_mix) inf, w 1.000, c_a -1.00000, c_N -1.00000 (c_N/c_eq -1.1949)
+        phi 0.5: truth t 5.950e+08 s, N moved -1.134e-01 of N_mix; T(branch) - T(truth) at this c n/a | equal c: off the branch | equal N: off the branch | rule: off the branch
+        phi 0.9: truth t 5.950e+08 s, N moved -1.828e-01 of N_mix; T(branch) - T(truth) at this c n/a | equal c: off the branch | equal N: off the branch | rule: off the branch
+m 0.10: T_mix 699.2 K, rho 6.8169, c_mix 0.08544, N_mix 0.095506 | truth: c_eq 0.83285, T_eq 3922.3 K, 349 samples | branch from reactants at 200.5 K: c_0 0.00000, N_0 0.097649, N_eq 0.097649, 85 samples
+        rule: phi_N(c_mix) inf, w 1.000, c_a -1.00000, c_N -1.00000 (c_N/c_eq -1.2007)
+        phi 0.5: truth t 1.703e-02 s, N moved -1.032e-01 of N_mix; T(branch) - T(truth) at this c n/a | equal c: off the branch | equal N: off the branch | rule: off the branch
+        phi 0.9: truth t 1.703e-02 s, N moved -1.670e-01 of N_mix; T(branch) - T(truth) at this c n/a | equal c: off the branch | equal N: off the branch | rule: off the branch
+m 0.20: T_mix 1080.0 K, rho 4.7126, c_mix 0.17088, N_mix 0.093363 | truth: c_eq 0.83099, T_eq 3839.2 K, 387 samples | branch from frozen eq at 200.0 K: c_0 0.48972, N_0 0.096810, N_eq 0.077099, 583 samples
+        rule: phi_N(c_mix) -1.0000, w -1.000, c_a 0.49154, c_N 0.54335 (c_N/c_eq 0.6539)
+        phi 0.5: truth t 2.684e-07 s, N moved -8.848e-02 of N_mix; T(branch) - T(truth) at this c -2238.85 K | equal c: off the branch | equal N: t 0.000e+00 s (ratio 0.000)
+        phi 0.9: truth t 2.762e-07 s, N moved -1.461e-01 of N_mix; T(branch) - T(truth) at this c -183.60 K | equal c: off the branch | equal N: t 4.627e-09 s (ratio 0.017)
+        snap equal N: dT -66.22 K, max|dY| 6.08e-01; truth at the same c: T(snap) - T(truth) -1722.59 K
+m 0.30: T_mix 1437.2 K, rho 3.6010, c_mix 0.25632, N_mix 0.091219 | truth: c_eq 0.83142, T_eq 3774.3 K, 447 samples | branch from frozen eq at 200.0 K: c_0 0.49791, N_0 0.096425, N_eq 0.077132, 585 samples
+        rule: phi_N(c_mix) -1.0000, w -1.000, c_a 0.49995, c_N 0.58604 (c_N/c_eq 0.7049)
+        phi 0.5: truth t 1.975e-08 s, N moved -7.216e-02 of N_mix; T(branch) - T(truth) at this c -1722.53 K | equal c: off the branch | equal N: t 0.000e+00 s (ratio 0.000)
+        phi 0.9: truth t 2.984e-08 s, N moved -1.264e-01 of N_mix; T(branch) - T(truth) at this c -124.71 K | equal c: off the branch | equal N: t 8.033e-09 s (ratio 0.269)
+        snap equal N: dT -35.34 K, max|dY| 5.09e-01; truth at the same c: T(snap) - T(truth) -1350.93 K
+m 0.50: T_mix 2087.7 K, rho 2.4467, c_mix 0.42720, N_mix 0.086933 | truth: c_eq 0.83569, T_eq 3672.3 K, 505 samples | branch from frozen eq at 200.0 K: c_0 0.51296, N_0 0.095637, N_eq 0.077004, 597 samples
+        rule: phi_N(c_mix) -1.0000, w -1.000, c_a 0.51477, c_N 0.70160 (c_N/c_eq 0.8395)
+        phi 0.5: truth t 1.030e-08 s, N moved -3.884e-02 of N_mix; T(branch) - T(truth) at this c -1070.31 K | equal c: off the branch | equal N: t 0.000e+00 s (ratio 0.000)
+        phi 0.9: truth t 2.777e-08 s, N moved -8.924e-02 of N_mix; T(branch) - T(truth) at this c -34.78 K | equal c: off the branch | equal N: t 1.851e-08 s (ratio 0.666)
+        snap equal N: dT +68.97 K, max|dY| 3.25e-01; truth at the same c: T(snap) - T(truth) -748.68 K
+m 0.70: T_mix 2675.9 K, rho 1.8528, c_mix 0.59808, N_mix 0.082647 | truth: c_eq 0.84230, T_eq 3590.1 K, 558 samples | branch from frozen eq at 200.0 K: c_0 0.52712, N_0 0.094838, N_eq 0.07674CanteraWarning: ChemEquil::equilibrate: Temperature (3518.565739221039 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3518.5657392333833 K) outside valid range of 300 K to 3500 K
+0, 590 samples
+        rule: phi_N(c_mix) 0.2343, w 1.000, c_a 0.52907, c_N 0.75815 (c_N/c_eq 0.9001)
+        phi 0.5: truth t 9.255e-09 s, N moved -1.646e-02 of N_mix; T(branch) - T(truth) at this c -727.92 K | equal c: t 5.411e-09 s (ratio 0.585) | equal N: t 0.000e+00 s (ratio 0.000) | rule: t 0.000e+00 s (ratio 0.000)
+        phi 0.9: truth t 4.131e-08 s, N moved -5.500e-02 of N_mix; T(branch) - T(truth) at this c -5.44 K | equal c: t 4.945e-08 s (ratio 1.197) | equal N: t 3.558e-08 s (ratio 0.861) | rule: t 3.558e-08 s (ratio 0.861)
+        snap equal c: dT -1469.18 K, max|dY| 1.67e-01; truth at the same c: T(snap) - T(truth) -1469.18 K
+        snap equal N: dT +27.19 K, max|dY| 2.00e-01; truth at the same c: T(snap) - T(truth) -331.48 K
+        snap rule: dT +27.19 K, max|dY| 2.00e-01; truth at the same c: T(snap) - T(truth) -331.48 K
+m 0.90: T_mix 3223.1 K, rho 1.4909, c_mix 0.76896, N_mix 0.078360 | truth: c_eq 0.85017, T_eq 3518.6 K, 564 samples | branch from frozen eq at 200.0 K: c_0 0.54088, N_0 0.094033, N_eq 0.076403, 572 samples
+        rule: phi_N(c_mix) 0.6728, w 1.000, c_a 0.54319, c_N 0.81738 (c_N/c_eq 0.9614)
+        phi 0.5: truth t 1.120e-08 s, N moved -4.319e-03 of N_mix; T(branch) - T(truth) at this c -136.19 K | equal c: t 3.146e-08 s (ratio 2.809) | equal N: t 0.000e+00 s (ratio 0.000) | rule: t 0.000e+00 s (ratio 0.000)
+        phi 0.9: truth t 6.523e-08 s, N moved -1.932e-02 of N_mix; T(branch) - T(truth) at this c -0.58 K | equal c: t 9.935e-08 s (ratio 1.523) | equal N: t 5.831e-08 s (ratio 0.894) | rule: t 5.831e-08 s (ratio 0.894)
+        snap equal c: dT -573.99 K, max|dY| 3.59e-02; truth at the same c: T(snap) - T(truth) -573.99 K
+        snap equal N: dT +1.92 K, max|dY| 6.82e-02; truth at the same c: T(snap) - T(truth) -79.07 K
+        snap rule: dT +1.92 K, max|dY| 6.82e-02; truth at the same c: T(snap) - T(truth) -79.07 K

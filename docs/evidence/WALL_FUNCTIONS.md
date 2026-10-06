@@ -1,6 +1,6 @@
 # Wall functions: compressible, heated (Nichols and Nelson)
 
-Status: criteria stated 5 October 2026, about 23:30, before any wall-function code (TECHNICAL_PLAN *Lightweight engine*, order of work item 3). Results are appended below the line; they do not change the criteria.
+Status: criteria stated 5 October 2026, about 23:30, before any wall-function code (TECHNICAL_PLAN *Lightweight engine*, order of work item 3). Results are appended below the line; they do not change the criteria. Criterion 2 was restated against the corrected SST on 6 October (Ben's decision); the current state is the last section, *Where this leaves the criteria*.
 
 ## What was read
 
@@ -127,6 +127,16 @@ Every run labels its wall treatment. The wall heat flux and friction become mode
       - (iii) Iteration error: their 2N 480 is rerun with tolerance 1e-8. The change is reported and must be under 0.05%; if not, every grid is rerun at the tighter tolerance.
     - The pass is unchanged: u_c+ and (T_c − T_w)/T_w within 0.5%.
     - *(iii) measured, 01:16 CDT.* Their 2N 480 at tolerance 1e-8 against 1e-7: u_c+ 39.78010 against 39.76012 (+0.050%), (T_c − T_w)/T_w 3.85251 against 3.84729 (+0.136%). That is over 0.05%, so every grid of theirs is rerun at 1e-8 (2N 240, 480, 960 and 1,920). Their 2N 480 at 1e-9 is reported as the check on 1e-8.
+    - *At 1e-8, and the next step stated before it ran (6 October, 01:37 CDT).* Their 2N 480 at 1e-9 against 1e-8: u_c+ +0.005%, (T_c − T_w)/T_w +0.014%, under 0.05%. But their u_c+ at 2N 240, 480, 960 and 1,920 is 40.27830, 39.78010, 39.54004 and 39.37400, and (T_c − T_w)/T_w is 3.92198, 3.85251, 3.81832 and 3.78849. Over 240, 480 and 960 the observed orders are 1.05 and 1.02 and the extrapolations are 39.3168 and 3.78521 (−0.067% and −0.21% from the tool's 39.3432 and 3.79320). Over 480, 960 and 1,920 the orders are 0.53 and 0.20, outside (ii)'s 0.7 to 1.3, so that triplet is not accepted and R2 is not yet judged. The likely cause is iteration error on the finer grids: their Picard loop needs 15,934, 167,351 and 503,540 iterations at 2N 240, 960 and 1,920, so the error left at a fixed tolerance grows with the grid, and the check at 2N 480 does not carry to 1,920. Next: their 2N 960 and 1,920 at 1e-9, and 1,920 at 1e-10 as the check on 1e-9 (under 0.05% as in (iii)); (ii) is then applied unchanged to 480, 960 and 1,920 at the tolerance that passes.
+    - *At 1e-9, and the next step stated before it ran (6 October, 02:12 CDT).* Their u_c+ at 2N 240, 480, 960 and 1,920 is 40.27866, 39.78209, 39.55125 and 39.43720, and (T_c − T_w)/T_w is 3.92207, 3.85303, 3.82125 and 3.80500 (19,306, 65,831, 220,314 and 714,746 iterations). The check at 1,920 with 1e-10 moves them by +0.016% and +0.043%, under 0.05%, so 1e-9 passes (iii).
+      - u_c+: orders 1.11 (240, 480, 960) and 1.02 (480, 960, 1,920); extrapolations 39.35072 and 39.32583, a move of −0.063%. Accepted under (ii). The tool's 39.34320 is +0.044% from it: **u_c+ passes**.
+      - (T_c − T_w)/T_w: orders 1.12 and 0.97; extrapolations 3.79417 and 3.78800, a move of −0.162%. That is over (ii)'s 0.1%, so T is **not yet accepted**. The tool's 3.79320 is +0.137% from the last extrapolation and −0.026% from the previous one, both inside the 0.5% band, but the rule is not met and T is not judged on that.
+      - The likely cause is again iteration error. The 0.043% left at 1,920 passes (iii), but it is a tenth of the 960-to-1,920 step in T (0.43%), enough to move the order. (iii)'s 0.05% bounds the value, not the extrapolation built from differences.
+      - Next, stated before it runs: their 2N 240, 480 and 960 at 1e-10 (1,920 at 1e-10 is done), and 1,920 at 1e-11 as the check on 1e-10 (under 0.05%). (ii) is applied unchanged to 480, 960 and 1,920 at 1e-10, with 240, 480 and 960 at 1e-10 as the previous triplet. The cap stays 2e6.
+    - *At 1e-10: R2 passes (6 October, 02:53 CDT).* Their u_c+ at 2N 240, 480, 960 and 1,920 is 40.27870, 39.78229, 39.55237 and 39.44352, and (T_c − T_w)/T_w is 3.92208, 3.85308, 3.82155 and 3.80666 (22,677, 79,144, 273,005 and 923,687 iterations). The check at 1,920 with 1e-11 moves them by +0.0016% and +0.0043%, under 0.05%, so 1e-10 passes (iii).
+      - u_c+: orders 1.11 and 1.08; extrapolations 39.35400 and 39.34564, a move of −0.021%. Accepted under (ii). The tool's 39.34319 is −0.006% from it.
+      - (T_c − T_w)/T_w: orders 1.13 and 1.08; extrapolations 3.79501 and 3.79334, a move of −0.044%. Accepted under (ii). The tool's 3.79320 is −0.004% from it.
+      - Both are inside the 0.5% band by a factor of about 100. The corrected SST in the tool is the authors' model on their own case. Record: `wall_functions/hp_r2_channel_2026-10-06.txt`.
 - **R3, constant properties.** Criterion 1's cold pipe with the corrections: the Richardson c_f within 0.5% of the uncorrected 0.00337113. The corrections vanish for constant properties. What is left is the pipe's small viscous heating and D^ic at a turbulent Mach number of about 0.02 (derived).
   - *What the first two grids showed, and R3 restated (6 October about 01:07 CDT, before the grid sequence ran).*
     - On 200 and 400 rings, the corrected cold pipe's c_f is 0.96% below the uncorrected one on the same grid. Without D^ic the gap is 0.16%. So the variable-property terms do vanish, apart from the pipe's small heating; D^ic does not.
@@ -146,13 +156,25 @@ Every run labels its wall treatment. The wall heat flux and friction become mode
 - **A priori first.** The ODE is given the corrected heated reference's (u, T, p) at y+ 1, 5, 30, 100, 300, 1,000 and 3,000. Pass from y+ 30 to 1,000: τ_w within 2.5% and q_w within 5%, half the bands of (b). Only then is the engine run.
 - **The fallback, stated now.** If the a priori check fails, the wall model becomes the corrected SST's own inner layer. That is the 1-D constant-stress, constant-heat-flux layer with the corrected k and ω equations, as in the paper's section 4.1 solver, tabulated the same way, with the a priori check repeated. Nothing else is tried without a new statement.
 - **The table, offline.** The wall model is tabulated on backhouse and the engine reads only the table. For N2 the inputs are Re_1 = ρ_w u_1 y_1/μ_w, T_1/T_w, T_w and u_1²/(c_p,w T_w); p drops out of an ideal gas. The outputs are y_1+ and B_q = q_w/(ρ_w c_p,w u_τ T_w). **Criterion 0 (e):** against direct solves at 2,000 random points inside the table's range, y_1+ and q_w within 0.5% at the 99th percentile and within 1% at most.
-- For C1 the layer is a mixture that recombines as it cools. The composition axes are a Table B design item. Criterion 3 runs once that is built.
+- For C1 the layer is a mixture that recombines as it cools. The composition axes are a Table B design item. Criterion 3 runs once that is built. *(02:58 CDT: the resolved reference needs no wall model and runs now, below; 3(a) and 3(b) wait for this table.)*
 
 **Criterion 3, the shorter reference.** The explicit 32-ring run to 8 ms is estimated at about 60 h (below). Instead:
 - **Start.** The resolved reference (64 columns, 32 rings stretched so the largest first-cell y+ is 1 or less, the corrected SST to the wall) starts from the settled 64x12 wall-function solution at 8 ms, interpolated. Each column is mapped by η = r / R_wall(z). Primitive values (ρ, u_z, u_r, T, the mass fractions, k and ω) are linear in η between the old centroids. Between the wall and the first old centroid the interpolation runs to the wall values: u = 0, T = T_w, k = 0, and ω from the wall rule.
 - **The settling test.** History is written every 2 µs and grouped into 0.05 ms windows. For each window: the means of the wall heat flow and the wall axial force, and c*, vacuum Isp and vacuum thrust at the window's end. A quantity is settled when its last three window values x1, x2 and x3 contract, with ratio ρ = (x3 − x2)/(x2 − x1) between 0 and 0.9. Its geometric remainder |x3 − x2| ρ/(1 − ρ) must also be at most a quarter of its tightest band in criterion 3. That is 0.005% for c*, Isp and thrust (a quarter of 3(a)'s 0.02%) and 0.5% for the wall heat flow and force (a quarter of 2%). Without contraction it is not settled. The run stops when all five are settled. Reported values are means over the last 0.1 ms (two windows), in place of the last 1 ms.
 - **Like with like.** The wall-function runs of 3(a) (on the reference's rings) and 3(b) (12 rings) use the corrected SST, the same start, the same test and the same averaging.
 - **Cost first.** The first 0.1 ms of the reference is timed on backhouse. The projection takes the settling time as 1 ms (guessed: about five chamber residence times of about 0.22 ms, derived). If the projection is over about 8 h, the columns are cut to 32 for the reference and for 3(a) and 3(b) alike. The cost of that in coverage: the axial resolution is halved; it is not the production 64-column grid, so 3(b) then measures the wall model on a grid that is not the production one; the comparison stays like with like. The timing can use the present engine (standard SSTs), since the correction changes the step's cost but not dt.
+- *The settling test, corrected before the reference runs (6 October 2026, 02:50 CDT).* The test is now coded in `crucible_chamber_study` for every restart. It was tried on the settled 32x12 wall-function run (the corrected SST, 8 ms), restarted on its own grid and run 0.4 ms (`wall_functions/settle_check_2026-10-06.txt`).
+  - Window to window, c* moves by about 1e-5 of itself (2,455.060 to 2,455.081 m/s) and Isp_vac by about 1e-5. That is noise against the 5e-5 allowance. At that level the ratio ρ takes any sign (−3.8 to +22.8), so the declared test never has all five settled together. It would not stop a settled run.
+  - The restart is not seamless on its own grid. The dump is taken after a flow step, and the restart re-equilibrates it, which moves Y_H2O by up to 2.7e-4 of itself. F_vac then rises by 0.15 N (9e-5) over 0.4 ms with ρ about 0.84 per window. The test correctly holds F as not settled (remainder 5.3e-5 to 5.5e-5 against 5e-5).
+  - **The correction.** A quantity is also settled when its last three window values span at most half of its allowance (2.5e-5 of itself for c*, Isp and thrust; 2.5e-3 for the wall heat flow and force). The tail this can hide is bounded. If the approach is geometric with ρ ≤ 0.9, the remainder is at most 2.1 times the allowance, about half the band (*derived*: span s = d₁ + d₂ with d₂ = ρd₁ gives remainder s ρ² / (1 − ρ²)). A slower tail than ρ = 0.9 per 0.05 ms (a time constant over 0.47 ms, twice the residence time) is not excluded by either clause, and is reported if the record shows one.
+  - *Checked on the same restart, and one more condition (02:51 CDT, before the reference runs).* With the span clause, the restart stopped at 0.25 ms. F_vac passed there on the contraction clause with ρ = +0.13, a ratio of noise, while it was still rising about 3e-5 of itself (its 8 ms value is about 1,629.98 N; the last 0.1 ms mean was 1,629.91 N). So a quantity must now be settled, by either clause, at **two consecutive windows**, and all five together. On this record that stops at 0.30 ms, with F_vac's remaining rise about 3e-5, under the 5e-5 allowance (`wall_functions/settle_check_2026-10-06.txt`).
+  - **A cap.** The reference stops at 1 ms (the projection's assumption) whether or not it has settled. If it has not, the last windows and each quantity's test are reported and criterion 3 is not judged on it.
+- **Cost, measured (6 October, 01:59 to 03:06 CDT; `wall_functions/c3_cost_64col_2026-10-06.txt`).** The 64x32 reference (standard SSTs, as allowed above), from the 64x12 law state, on 4 threads of backhouse while it was shared (load average 11.7 to 16.8 of 28):
+  - dt is about 5.6e-11 s, steady: 17,800 steps per µs of flow time (the estimate below was 1.2e-10 s).
+  - Wall time per µs grew as the machine's load grew: 46 s over the first 2 µs, 59 s from 2 to 20 µs, 88 s from 20 to 50 µs. The step count per µs did not change.
+  - 0.05 ms took 63 min. **It was stopped there, before 0.1 ms, because the outcome was already fixed:** even at the fastest rate seen, 0.1 ms takes at least 101 min, so the projection to 1 ms is at least 17 h (about 24 h at the latest rate), over the 8 h limit.
+  - **So the columns are cut to 32** for the reference and for 3(a) and 3(b), at the coverage cost stated above. The reference started at 03:06:46 CDT: 32x32, the corrected SST, from the settled 32x12 wall-function state (law, corrected SST, 8 ms), 8 threads (results do not depend on the thread count, criterion 0(d)). Its own first 0.1 ms is timed too and reported. *Expected* (not measured): half the cells and the correction's +12% give about 0.56 of the 64-column cost per µs, so about 9 to 14 h to the 1 ms cap at tonight's load. The settling test can stop it no earlier than 0.2 ms (four windows: three to test, settled at two consecutive). If the 0.1 ms projection to the cap is over about 8 h, it is still left to run, with no further cut: C1 is 167 mm long and its throat arcs span 15 mm (*derived* from the contour in `chamber_study.cpp`), so 16 columns of 10.4 mm would put about 1.5 cells on the throat arcs (3 at 32 columns, 6 at 64). The cap and the settling test stand as declared.
+
 
 **The measured check (Ben's item).** A measured hot-wall heat flux (a heated tube, or calorimetry in a rocket chamber) is being found. The search reports the inputs only. The case, its inputs, its quantity and its band are stated here before any measured value is read, as for the RL10 validation.
 
@@ -359,6 +381,47 @@ Outputs: `wall_functions/hp_r1_operator_2026-10-06.txt`, `hp_r3_cold_nodic_2026-
 - Against standard SST, the same check was −17% to −25%. The correction removes most of that gap. What is left is the mixing-length model's own buffer layer: on the corrected cold profile with A+ 14.5, its τ_w error at y+ 30 is −2.9% too.
 - So the stated fallback applies. The wall model becomes the corrected SST's own inner layer: the 1-D constant-stress, constant-heat-flux layer with the corrected k and ω equations, tabulated the same way, with the a priori check repeated. Nothing else is tried.
 
+**The fallback as it will be built, stated before code (6 October, 02:21 CDT).** `tools/sst_wall_layer.py`, the reference's own closure (`sst_pipe_1d.py`, planar, the corrections in full, D^ic) on a layer instead of a pipe:
+- **The layer.** Planar, from the wall (u = 0, T = T_w, k = 0, ω from the reference's wall rule on the layer's own first cell) to a top at y_top = c y₁. p + ⅔ρk uniform at p₁. No body force and no heating: the shear stress is τ_w at every face, and the total energy flux (conduction, turbulent transport, shear work and the corrected k diffusion, as in the reference's energy equation) is constant except for ∫Φ_k.
+- **The top.** The shear flux is τ_w and the total energy flux is prescribed; k and ω have zero flux. c is 10. Check: c = 20 changes τ_w and q_w by under 0.1% at every a priori point.
+- **The grid.** Geometric in y, with y₁ a face. The first cell is at y+ 0.05 or below. Check: doubling the cells changes τ_w and q_w by under 0.1%.
+- **The inversion.** Given (u₁, T₁, y₁, p₁, T_w), Newton on (ln τ_w, the top energy flux) until u and T at y₁ match to 1e-10. q_w is the wall conduction.
+- **The a priori check, as stated:** the corrected heated reference's (u, T, p) at y+ 1, 5, 30, 100, 300, 1,000 and 3,000. Pass from y+ 30 to 1,000: τ_w within 2.5% and q_w within 5%. The corrected cold reference is reported beside it.
+- **Known in advance.** The pipe is not a constant-stress layer: at y+ 1,000 (y/R 0.1 at Re_τ 10,000) its shear stress is 10% below τ_w, and its heat flux changes with the uniform heating. The equilibrium layer ignores that, as every equilibrium wall model does. If the check fails only at the top of the range, the error is this term, and that is reported, not tuned.
+- **Amendment (6 October, about 02:30 CDT, before any τ_w or q_w at these points).** At y+ 1 the first sweep stopped: the pseudo-time Newton did not converge on either case. That point's top, 10 y₁, is at y+ 10, inside the buffer layer, where k's flux toward the wall is not zero. With zero flux imposed there, the k equation decays toward laminar flow, and the iteration oscillates without settling (measured: relative updates near 1.3 for 30 steps, then collapse). So the top moves to c · max(y₁, y+ 30 at the starting τ_w). From y+ 30 up, every point is unchanged, so the pass range is untouched. y+ 1 and 5 were reported-only, and stay so. A point that still does not converge is reported as such, and the sweep goes on.
+
+**The fallback a priori: q_w passes everywhere, τ_w passes from y+ 30 to 300 and misses at y+ 1,000 by 0.29 points** (6 October, 02:32 CDT; `wall_functions/sst_wall_layer_apriori_2026-10-06.txt`). Errors, model minus reference. Every point converged, the inversion to 1e-10.
+
+| y+ | 1 | 5 | 30 | 100 | 300 | 1,000 | 3,000 |
+|---|---|---|---|---|---|---|---|
+| heated (T₁/T_w) | 1.08 | 1.38 | 2.29 | 2.99 | 3.56 | 4.18 | 4.78 |
+| τ_w, heated | −0.003% | −0.015% | −0.014% | +0.76% | +1.48% | **+2.79%** | +4.48% |
+| q_w, heated | −0.003% | −0.016% | −0.029% | +0.73% | +1.48% | +2.87% | +4.65% |
+| τ_w, cold | −0.005% | −0.004% | +0.14% | +0.38% | +0.84% | +1.93% | +3.41% |
+| q_w, cold | +0.005% | +0.04% | +0.29% | +0.66% | +1.36% | +2.96% | +5.32% |
+
+- Against the stated pass (y+ 30 to 1,000, τ_w within 2.5%, q_w within 5%): q_w passes at every point. τ_w passes at y+ 30, 100 and 300 and fails at y+ 1,000, +2.79% on the heated case. The cold case passes there (+1.93%).
+- Against the Kawai-Larsson ODE on the same points: −1.1% to +3.9% (A+ 14). The layer removes the buffer-layer error (y+ 30: −0.014% against −1.1%). Its error grows steadily with y+ on both cases, which is the signature stated in *Known in advance*.
+- **The layer's own checks.**
+  - Cells doubled: under 0.04% everywhere. Pass.
+  - c = 20 against c = 10, heated: +0.26% at y+ 30 and +0.12% at y+ 100, against the stated 0.1%. That fails. The other points are under 0.08%, and the cold case is under 0.05% everywhere. The top's zero-flux k and ω condition is felt at y₁ by about a quarter of a percent in the heated layer at y+ 30. That is a tenth of the τ_w band, and it is reported, not tuned.
+- **Diagnostic, stated before it ran (about 02:33 CDT).** Is the growth with y+ the pipe's non-constant stress and heat flux? Rerun at y+ 300, 1,000 and 3,000 with planar sources of half the pipe's force and heating in the layer. Those give the pipe's linear fall of stress, τ_w (1 − y/R), and to first order of its heat flux. If the error at y+ 1,000 falls below 1%, the growth is that term. This is an attribution only: the criterion's result above stands either way, and the engine's wall model stays the constant-stress layer.
+- **Diagnostic result (02:34 CDT): the growth is the pipe's fall of stress and heat flux.**
+
+  | y+ | 300 | 1,000 | 3,000 |
+  |---|---|---|---|
+  | τ_w, heated, with the pipe's gradients | +0.49% | **+0.85%** | +2.24% |
+  | q_w, heated | +0.50% | +0.89% | +2.35% |
+  | τ_w, cold | +0.34% | +0.71% | +2.06% |
+  | q_w, cold | +0.58% | +1.19% | +3.03% |
+
+  At y+ 1,000 the heated τ_w error falls from +2.79% to +0.85%, so about two points of it are the constant-stress assumption, which the pipe does not satisfy. In the chamber the wall layer has a pressure gradient, and the same assumption applies there. That is the known limit of every equilibrium wall model, and it is recorded, not corrected.
+- **Where this leaves the fallback.** Against the stated rule, the largest a priori pass is y+ 300 (τ_w +1.48%, q_w +1.48%). Next, in the order stated: tabulate the layer offline (criterion 0(e): 0.5% and 1% against the direct inversion), put it in the engine in place of Nichols and Nelson's law, and rerun criteria 1(b), 2 and 4 with it.
+- **The table, planned (02:58 CDT; built next session).**
+  - N2 first, for criteria 1(b), 2 and 4. Four axes: log Re_1, T_1/T_w, T_w and u_1²/(c_p,w T_w). The spacing on each is halved until criterion 0(e) passes.
+  - Cost. One inversion takes about 1.5 s in Python, and the start guess moves the result by about 1.3e-4, well inside 0(e). A 60,000-point table is then about 25 core-hours, about an hour on backhouse's free threads (derived).
+  - C1. Its layer is a mixture whose properties come from Cantera, and neither machine has Python Cantera. So the layer solver is ported to C++ on the engine's own property routines. Before it builds any table, it is checked against `tools/sst_wall_layer.py` at the a priori points (within 0.01%). The composition axes come from the Table B design.
+
 ### The measured check, pre-registered (6 October 2026, 01:20 CDT, before any measured value is read)
 
 The search (inputs only) found five candidates. Their measured values were not read.
@@ -385,6 +448,13 @@ The search (inputs only) found five candidates. Their measured values were not r
 
 An agent extracts these under the same rule as the RL10 inputs: no measured heat flux is reported.
 
+*A blindness incident (6 October, 02:54 CDT), recorded as it happened.* While checking whether the extraction agent was still running, I printed the last 1,500 characters of its raw working transcript. That text included three rows of an unlabelled table from page 33 of the TR (three columns of numbers; the page also notes flow separation at one location). I did not identify the columns. Nothing from it is used, and the agent's raw transcript is not read again; only its final report, which carries inputs alone, is used. If the comparison later points at page 33's table, this note stands beside the result.
+
+**The inputs, extracted (6 October, 03:09 CDT):** `docs/validation/BACK_MASSIER_GIER_INPUTS.md`, from the full TR on NTRS. I screened it by keyword for outcomes (heat flux, Stanton, Nusselt, heat-transfer coefficient, Btu) before reading it; none is there.
+- **The run:** test 298. It has the longest approach section (18 in). It is in the only group that reaches about 2,000 R. Within that group it has the highest pressure: p_t 125.8 psia (0.867 MPa), T_t0 2,007 R (1,115 K), ṁ 3.635 lb/s (1.649 kg/s). The TR says data stopped at about 125 psia at that temperature, because of the thermocouple insulation. So this case is at 0.87 MPa, not the 1.7 MPa stated above.
+- **Found:** the contour, as a 32-station area-ratio table; the measured wall temperature at 22 stations, one missing in the TR; the inlet θ, δ* and φ; component uncertainties.
+- **Not found:** a numeric throat radius of curvature (the table carries the shape); the fuel-air ratio (the TR treats the gas as air, from Keenan and Kaye); an uncertainty on p_t.
+
 **The quantity:** the wall heat flux along the nozzle at the TR's stations, from the nozzle inlet to the exit, and its integral over the nozzle wall.
 
 **The runs:**
@@ -396,6 +466,51 @@ An agent extracts these under the same rule as the RL10 inputs: no measured heat
 - the local heat flux within 20% at every station.
 
 The strongly accelerated stations near the throat (K = ν/u² du/dz above 2e-6 in the simulation) are judged like the rest. RANS without a transition model is known to be weakest there, and the RL10's throat is such a region, so excluding them would hide the error that matters. A failure is not tuned away: its size becomes the wall-heat error band in the RL10 loss ledger.
+
+### Criterion 1 at y+ 30, and 1(a) lost (6 October, about 01:40 CDT)
+
+- **1(b) at y+ 30:** c_f −1.86% against 0.00337113 (band 5%): pass. 1(b) now passes at all four y+ (30, 99, 289 and 956).
+- **1(a) was lost.** The tmux server on backhouse died between about 01:38 and 01:44 CDT, cause unknown, and both 1(a) runs (`crucible_wf_res`, `crucible_wf_law`) went with it. The last state of each is the 1 ms record above. 1(a) is rerun with the wall model that replaces the law (below), not with the law.
+
+### Criterion 3's start found three geometry faults in the engine (6 October, 01:25 to 02:05 CDT)
+
+The 64x32 start (stretching 5, a wall ring of about 0.5 µm on the converging wall) gave NaNs within its first steps; with stretching 3 it ran. Whole wall cells went NaN in the flux step. The causes, in the order found:
+
+- **The cell's z was the column's mid-plane, its r the volume centroid.** On a sloping column the axisymmetric centroid sits toward the wider end, so the (z, r) pair could lie outside a thin wall ring. Two things read that point. The wall distance came out up to 50 times the ring's height at 32 rings. And the side wall's gradient neighbour, placed relative to it, pointed inward (about 27 µm against a 0.5 µm ring), so the wall-normal derivative changed sign: anti-diffusion. **Fix:** z is now the true axial volume centroid, (i + ½) dz + dz (r₁ − r₀)(r₁ + r₀) / (4 (r₀² + r₀r₁ + r₁²)). The wall neighbour sits on the cell's radial line at the wall radius R(z_c), as the open faces have since 1e0fd9e. Both are unchanged where r₀ = r₁.
+- **The radial reconstruction's face radius.** Slopes were taken between centroids (at the volume moment of the ring fraction times the column's effective radius) but evaluated at each face's area-weighted radius. On a sloping column the two differ by about 0.014 mm, 30 times a 0.5 µm ring, so a thin wall ring had both faces on one side of its centroid and its slopes extrapolated outside it. That is why stretching 5 failed and 3 did not. **Fix:** the face sits on the same column radius as the centroids, f · 3(r₀ + r₁)(r₀² + r₁²) / (4(r₀² + r₀r₁ + r₁²)) (`Mesh::radialFaceRadius`). Unchanged where r₀ = r₁.
+- **The start's own interpolation** (in `chamber_study`, not the engine) normalised by the column-centre wall radius, so in the converging section about ten rings were put in the wall's stagnant zone. It now maps in the mesh's logical coordinates.
+
+**Test correction, stated before its run (01:42 CDT, criterion unchanged).** `transport_verification`'s manufactured composition was flat in r at the wall but still varied with z along it, so where the wall slopes it had a wall-normal gradient and a species flux through an impermeable wall. Its z-varying parts now carry (1 − s²)², so every gradient of the composition vanishes at the wall.
+
+**Effect on the operator test** (observed orders over the two finest grids, limit 1.8; `ctest_main_2026-10-05_thread_pool.txt` against `/tmp/geo/ctest_face.txt`):
+
+| | axial momentum | radial momentum | energy | species |
+|---|---|---|---|---|
+| Test 1, before | 1.799 (fail) | 1.223 (fail) | 1.929 | 1.928 |
+| Test 1, after | **1.801** | 1.218 (fail) | 1.943 | 1.911 |
+| 4b, before | 1.881 | 1.446 (fail) | 1.885 | 1.902 |
+| 4b, after | 1.882 | 1.444 (fail) | 1.881 | 1.900 |
+
+Axial momentum now passes. The radial-momentum failures are the known near-axis mechanism of `TRANSPORT_C2.md`, unchanged. A wall neighbour at the foot of the perpendicular was tried first. It dropped energy to 1.72 and species to 1.19 on the uncorrected field and was not kept.
+
+**Effect on C1** (eqtt 64x12, the law, 8 ms, against the record above): c* +0.003%, vacuum Isp +0.005%, wall heat flow −0.19%.
+
+### The corrections in the engine (6 October, about 01:45 to 02:20 CDT)
+
+**As built** (`core/transport.cpp`, `core/flow.cpp`, `core/walls.cpp`; `Definition::Turbulence::propertyCorrections`, off by default; `CRUCIBLE_SST_CORRECTION=hp` in `chamber_study` and `wall_function_study`), to the statement above:
+- Four more gradient fields per cell (ψ, ρk, √ρω, μω), with wall values ψ_w, 0, √ρ_w ω_w and μ_w ω_w at a resolved no-slip wall (ρ_w and μ_w at T_w for an isothermal wall).
+- `wallDistance` also returns the unit vector from the nearest wall point, for n·∇ψ.
+- Each face's k and ω diffusion is computed three ways (conventional, inner, outer) from the same face gradients. The cell takes F1 × inner + (1 − F1) × outer and subtracts the conventional. Φ_k goes into ρk and E alike and is booked in its own ledger (`Measurements::correctionEnergy`), which the energy budget includes.
+- D^ic multiplies μ_t and the production limiter's a₁ S term. Cells whose k and ω the wall function prescribes are left alone.
+- The run reports the F1-weighted fraction of cells where the S_n floor acts (`correctionFloored`).
+
+**Checks** (`wall_functions/hp_engine_corrections_2026-10-06.txt`; criterion 0(d)'s chamber):
+- 1 and 4 threads bit-identical over 200 steps, with the law and with the resolved wall. Budgets: mass 1.9e-16 and 2.4e-16, energy 4.6e-17 and 4.0e-16. ∫Φ_k booked: 5.6e-12 J with the law and 4.9e-10 J resolved, against a total energy of 0.21 J. The floor acts nowhere.
+- **Off is unchanged.** C1 eqtt 64x12 with the law, the new build with the corrections off against the build before them: the history and the field files at 0.502, 0.750 and 1.000 ms are byte-identical. Only the last history row's two budget columns differ. A run's last step ends on the literal end time, while the longer run's step there ends on the previous time plus 2 µs, about 1e-17 s away, and the budgets are differences of large sums. A run to 1.1 ms shows the same thing at 1.1 ms and nowhere before.
+- **Against the reference** (criterion 2(a)'s resolved half, launched 02:15 CDT on backhouse, `crucible_c2a_hp`): the 64-ring pipe with the corrections, from the corrected heated reference, to steady state; and a control with them off to 5 ms. Results below when they finish.
+  - *At 2 ms (02:56 CDT), reported, not judged.* With the corrections, the 64-ring engine's c_f is 0.00529 and St 0.002932. Without them it is 0.00677 and 0.003688 at 1 ms. The corrections lower c_f by 21.8% and St by 20.5%; in the 1-D reference they lower them by 22.1% and 21.1% (Richardson limits). So the correction does the same thing in the engine as in the tool. Neither run is steady yet. The corrected run's wall force is 5.5% short of the driving force, and u_b is rising about 0.2% per ms with a time constant of about 13 ms (from the decay of du_b/dt between 1.5 and 2 ms; the momentum estimate ρ_b R u_b / (4 τ_w) gives 14 ms, derived). Its stop test (u_b changing by under 1e-5 per ms) is then about 70 ms of flow, about 20 h on 4 of backhouse's 28 threads, inside its 80 ms cap.
+- **Cost.** 2 µs of the 64x32 C1 start on the Mac: 109 s without the corrections, 122 s with them (+12%).
+- **The S_n floor acted in that start.** Over its first 2 µs, the floor held in 4.7% of cells, F1-weighted. It acts nowhere in the 1-D references, the R2 channel, criterion 0(d)'s chamber or the settled 32x12 run with the law. The likely cause is the start itself: its near-wall profile is linear in η from the first old centroid to the wall values, so ℓψ can have a spurious maximum along n there. That is a guess. The reference run reports the fraction at its end; if it is still above 1% when the run settles, the fraction and where it acts are reported beside criterion 3.
 
 ### Where this leaves the criteria (6 October, 00:45)
 
@@ -410,3 +525,19 @@ The strongly accelerated stations near the throat (K = ν/u² du/dz above 2e-6 i
 | 4 | pass, +4.6% to +6.8% |
 
 The AMR wall strip is not set: it waits on the criterion 2 decision.
+
+### Where this leaves the criteria (6 October, 02:57 CDT)
+
+| Criterion | State |
+|---|---|
+| 0 (a) to (d) | pass |
+| 0 (e), the table | planned (above); built next session |
+| Corrected SST: R1, R2, R3 | pass (R2 against the authors' solver: −0.006% in u_c+, −0.004% in (T_c − T_w)/T_w) |
+| 1 (a) | lost with the backhouse tmux server (01:40); rerun with the tabulated wall model |
+| 1 (b) | pass with the law at y+ 30, 99, 289 and 956; rerun with the tabulated wall model |
+| 2, restated | the Kawai-Larsson ODE fails a priori; the fallback (the corrected SST's own layer) passes a priori to y+ 300 and fails τ_w at y+ 1,000 (+2.79%, the pipe's fall of stress) |
+| 2 (a) | resolved half running on backhouse (`crucible_c2a_hp`, about 20 h); wall-model half waits for the table |
+| 2 (b) | waits for the table |
+| 3 | settling test coded and checked; 64 columns measured at 63 min per 0.05 ms (projection 17 h or more), so cut to 32; the 32x32 reference running on backhouse since 03:06 CDT; 3(a) and 3(b) wait for the mixture table |
+| 4 | pass with the law (+4.6% to +6.8%); the corrections add 12% to a step; rerun with the table |
+| Measured check (JPL TR 32-415) | pre-registered; inputs extracted blind (test 298, 0.87 MPa, 1,115 K) |

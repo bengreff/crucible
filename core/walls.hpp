@@ -1,5 +1,6 @@
 #pragma once
 #include "core/flow.hpp"
+#include <array>
 #include <vector>
 
 namespace crucible {
@@ -8,7 +9,10 @@ namespace crucible {
 // distance to the wall segments: the side wall, the polyline through (i dz, radius[i]) when
 // sideWall, and ring j of the injector face (z = 0, from fraction[j] to fraction[j + 1] of
 // radius[0]) where plate[j]. Infinity where there is no wall at all.
-std::vector<double> wallDistance(const Mesh& mesh, bool sideWall, const std::vector<bool>& plate);
+// direction, if given, receives each centroid's unit vector away from its nearest wall point (the
+// gradient of the distance; zero where there is no wall).
+std::vector<double> wallDistance(const Mesh& mesh, bool sideWall, const std::vector<bool>& plate,
+                                 std::vector<std::array<double, 2>>* direction = nullptr);
 
 // Wall functions: Nichols and Nelson's compressible, heated law (R. H. Nichols, Turbulence Models
 // and Their Application to Complex Flows, rev. 4.01, ch. 10; docs/evidence/WALL_FUNCTIONS.md).

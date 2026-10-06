@@ -1,0 +1,89 @@
+R2: the authors' published solver (Hasan, Elias, Menter and Pecnik, JFM 1019 A8, 2025) against tools/sst_wall_layer.py's channel mode
+Case: Pecnik and Patel (2017) low-Mach channel, Re_tau 950, uniform heating 75 mu_w c_p T_w/(Pr_w h^2), mu ~ T^0.7, Pr ~ mu, Pr_t 1, inner corrections throughout, no Phi_CD.
+Rule (WALL_FUNCTIONS.md R2, restated 01:14 CDT): (ii) Richardson over the last three grids, observed order 0.7 to 1.3, extrapolation moves <0.1% from the previous triplet; (iii) iteration check <0.05%.
+
+== Changes to their solver (imports renamed by newer SciPy were fixed earlier; this diff is the cap and tolerance made settable) ==
+2c2,4
+< import sys
+---
+> import sys, os
+> ERR_TOL = float(os.environ.get("HP_ERR_TOL", "1e-7"))
+> NITER_MAX = int(float(os.environ.get("HP_NITER_MAX", "2e6")))
+423c425
+<     while(err > 1e-7 and niter<1e5):
+---
+>     while(err > ERR_TOL and niter<NITER_MAX):
+486c488
+<     print(f"2N {2*N:5d}  iterations {niter:6d}  Re_tau {row['Retau']}  extsou {row['Extsource']}  "
+---
+>     print(f"2N {2*N:5d}  tol {ERR_TOL:.0e}  iterations {niter:7d}  Re_tau {row['Retau']}  extsou {row['Extsource']}  "
+488c490
+<     np.savetxt(f'/tmp/hp_r2/their_profile_{2*N}.csv', np.column_stack([y, upl, T, mut, turbVars['k'], turbVars['om']]),
+---
+>     np.savetxt(f"/tmp/hp_r2/their_profile_{2*N}_tol{ERR_TOL:.0e}.csv", np.column_stack([y, upl, T, mut, turbVars['k'], turbVars['om']]),
+
+== Theirs, by tolerance ==
+-- theirs.txt
+2N   240  iterations  12562  Re_tau 950.0  extsou 75.0  u_c+ 40.27472169  T_c/T_w 4.92104668  (T_c-T_w)/T_w 3.92104668  y1+ 0.2425
+2N   480  iterations  39162  Re_tau 950.0  extsou 75.0  u_c+ 39.76011888  T_c/T_w 4.84729499  (T_c-T_w)/T_w 3.84729499  y1+ 0.1195
+2N   960  iterations 100000  Re_tau 950.0  extsou 75.0  u_c+ 39.32003666  T_c/T_w 4.76095251  (T_c-T_w)/T_w 3.76095251  y1+ 0.0593
+-- theirs_tol.txt
+2N   480  tol 1e-08  iterations   52496  Re_tau 950.0  extsou 75.0  u_c+ 39.78009539  T_c/T_w 4.85250575  (T_c-T_w)/T_w 3.85250575  y1+ 0.1195
+-- theirs_1e-8.txt
+2N   240  tol 1e-08  iterations   15934  Re_tau 950.0  extsou 75.0  u_c+ 40.27830357  T_c/T_w 4.92198085  (T_c-T_w)/T_w 3.92198085  y1+ 0.2425
+2N   960  tol 1e-08  iterations  167351  Re_tau 950.0  extsou 75.0  u_c+ 39.54003914  T_c/T_w 4.81832153  (T_c-T_w)/T_w 3.81832153  y1+ 0.0593
+2N  1920  tol 1e-08  iterations  503540  Re_tau 950.0  extsou 75.0  u_c+ 39.37399670  T_c/T_w 4.78848552  (T_c-T_w)/T_w 3.78848552  y1+ 0.0295
+-- theirs_1e-9.txt
+2N   480  tol 1e-09  iterations   65831  Re_tau 950.0  extsou 75.0  u_c+ 39.78209345  T_c/T_w 4.85302706  (T_c-T_w)/T_w 3.85302706  y1+ 0.1195
+-- theirs_tight.txt
+2N   960  tol 1e-09  iterations  220314  Re_tau 950.0  extsou 75.0  u_c+ 39.55125244  T_c/T_w 4.82125269  (T_c-T_w)/T_w 3.82125269  y1+ 0.0593
+2N  1920  tol 1e-09  iterations  714746  Re_tau 950.0  extsou 75.0  u_c+ 39.43720176  T_c/T_w 4.80500453  (T_c-T_w)/T_w 3.80500453  y1+ 0.0295
+2N   240  tol 1e-09  iterations   19306  Re_tau 950.0  extsou 75.0  u_c+ 40.27866184  T_c/T_w 4.92207429  (T_c-T_w)/T_w 3.92207429  y1+ 0.2425
+2N  1920  tol 1e-10  iterations  923687  Re_tau 950.0  extsou 75.0  u_c+ 39.44351747  T_c/T_w 4.80665655  (T_c-T_w)/T_w 3.80665655  y1+ 0.0295
+-- theirs_1e-10.txt
+2N   240  tol 1e-10  iterations   22677  Re_tau 950.0  extsou 75.0  u_c+ 40.27869767  T_c/T_w 4.92208363  (T_c-T_w)/T_w 3.92208363  y1+ 0.2425
+2N   480  tol 1e-10  iterations   79144  Re_tau 950.0  extsou 75.0  u_c+ 39.78229316  T_c/T_w 4.85307917  (T_c-T_w)/T_w 3.85307917  y1+ 0.1195
+2N   960  tol 1e-10  iterations  273005  Re_tau 950.0  extsou 75.0  u_c+ 39.55237302  T_c/T_w 4.82154566  (T_c-T_w)/T_w 3.82154566  y1+ 0.0593
+-- theirs_1e-11.txt
+2N  1920  tol 1e-11  iterations 1107859  Re_tau 950.0  extsou 75.0  u_c+ 39.44414298  T_c/T_w 4.80682018  (T_c-T_w)/T_w 3.80682018  y1+ 0.0295
+
+== The tool (channel mode), Richardson by triplet ==
+N   100  Newton steps  21  last update 4.9e-16  force balance +0.0e+00  energy balance -1.6e-14  y1+ 0.0628  Re_tau 950.0032  u_b 3.28490684 m/s  c_f 0.0078638069  T_axis 1460.230238 K  T_b 1341.120523 K  St 0.0029382577  int Phi_k dV -9.448e-08 of supply  S_n floored 0.0%  u_c+ 39.88844207  T_c/T_w 4.86765925
+N   200  Newton steps  23  last update 4.7e-16  force balance +0.0e+00  energy balance -3.4e-15  y1+ 0.0309  Re_tau 950.0032  u_b 3.26253711 m/s  c_f 0.0079109302  T_axis 1448.159219 K  T_b 1330.168671 K  St 0.0029669459  int Phi_k dV -9.527e-08 of supply  S_n floored 0.0%  u_c+ 39.59210131  T_c/T_w 4.82725318
+N   400  Newton steps  23  last update 5.6e-16  force balance +0.0e+00  energy balance +5.8e-14  y1+ 0.0153  Re_tau 950.0032  u_b 3.25255793 m/s  c_f 0.0079320761  T_axis 1442.768592 K  T_b 1325.280116 K  St 0.0029799179  int Phi_k dV -9.567e-08 of supply  S_n floored 0.0%  u_c+ 39.46031651  T_c/T_w 4.80924253
+N   800  Newton steps  23  last update 4.0e-16  force balance -1.1e-16  energy balance -1.4e-13  y1+ 0.0076  Re_tau 950.0032  u_b 3.24795207 m/s  c_f 0.0079418523  T_axis 1440.277044 K  T_b 1323.021521 K  St 0.0029859433  int Phi_k dV -9.587e-08 of supply  S_n floored 0.0%  u_c+ 39.39957436  T_c/T_w 4.80092695
+N  1600  Newton steps  31  last update 3.3e-13  force balance +0.0e+00  energy balance -9.5e-14  y1+ 0.0038  Re_tau 950.0032  u_b 3.24575319 m/s  c_f 0.0079465228  T_axis 1439.086205 K  T_b 1321.942572 K  St 0.0029888288  int Phi_k dV -9.597e-08 of supply  S_n floored 0.0%  u_c+ 39.37057956  T_c/T_w 4.79695488
+N  3200  Newton steps  26  last update 1.8e-13  force balance -1.1e-16  energy balance +3.9e-13  y1+ 0.0019  Re_tau 950.0032  u_b 3.24468478 m/s  c_f 0.0079487924  T_axis 1438.507220 K  T_b 1321.418095 K  St 0.0029902330  int Phi_k dV -9.602e-08 of supply  S_n floored 0.0%  u_c+ 39.35649396  T_c/T_w 4.79502428
+c_f: grids 100-200-400  observed order 1.156  Richardson 0.007949289088
+c_f: grids 200-400-800  observed order 1.113  Richardson 0.007950258273
+c_f: grids 400-800-1600  observed order 1.066  Richardson 0.007950795077
+c_f: grids 800-1600-3200  observed order 1.041  Richardson 0.007950937859
+u_b: grids 100-200-400  observed order 1.165  Richardson 3.24452085
+u_b: grids 200-400-800  observed order 1.115  Richardson 3.244004041
+u_b: grids 400-800-1600  observed order 1.067  Richardson 3.243744422
+u_b: grids 800-1600-3200  observed order 1.041  Richardson 3.243675041
+t_axis: grids 100-200-400  observed order 1.163  Richardson 1438.418718
+t_axis: grids 200-400-800  observed order 1.113  Richardson 1438.135739
+t_axis: grids 400-800-1600  observed order 1.065  Richardson 1437.995954
+t_axis: grids 800-1600-3200  observed order 1.040  Richardson 1437.959338
+t_b: grids 100-200-400  observed order 1.164  Richardson 1321.3387
+t_b: grids 200-400-800  observed order 1.114  Richardson 1321.081854
+t_b: grids 400-800-1600  observed order 1.066  Richardson 1320.955724
+t_b: grids 800-1600-3200  observed order 1.041  Richardson 1320.921992
+stanton: grids 100-200-400  observed order 1.145  Richardson 0.002990625107
+stanton: grids 200-400-800  observed order 1.106  Richardson 0.002991169668
+stanton: grids 400-800-1600  observed order 1.062  Richardson 0.002991480509
+stanton: grids 800-1600-3200  observed order 1.039  Richardson 0.002991563934
+u_c_plus: grids 100-200-400  observed order 1.169  Richardson 39.3547765
+u_c_plus: grids 200-400-800  observed order 1.117  Richardson 39.34763926
+u_c_plus: grids 400-800-1600  observed order 1.067  Richardson 39.34409864
+u_c_plus: grids 800-1600-3200  observed order 1.042  Richardson 39.34318647
+t_c: grids 100-200-400  observed order 1.166  Richardson 1438.427454
+t_c: grids 200-400-800  observed order 1.115  Richardson 1438.138366
+t_c: grids 400-800-1600  observed order 1.066  Richardson 1437.996751
+t_c: grids 800-1600-3200  observed order 1.041  Richardson 1437.959558
+
+== Verdict at 1e-10 (6 October 2026, 02:53 CDT) ==
+check 2N 1920 at 1e-11 against 1e-10: u_c+ +0.0016%, (T_c-T_w)/T_w +0.0043% (bound 0.05%)
+u_c+: orders 1.110 (240,480,960) and 1.079 (480,960,1920); extrapolations 39.354000 and 39.345640, move -0.0212%; tool 39.343190, -0.0062% from the last (band 0.5%)
+(T_c-T_w)/T_w: orders 1.130 (240,480,960) and 1.083 (480,960,1920); extrapolations 3.795009 and 3.793338, move -0.0440%; tool 3.793199, -0.0037% from the last (band 0.5%)

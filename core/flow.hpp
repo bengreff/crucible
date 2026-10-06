@@ -121,6 +121,13 @@ struct Definition {
         double ambientK{0}, ambientOmega{0};
         bool wallFunctions{false}, printedDerivative{false};
         double wallKappa{0.3697}, wallB{3.752};
+        // The variable-property and intrinsic-compressibility corrections of Hasan, Elias, Menter and
+        // Pecnik (J. Fluid Mech. 1019, A8, 2025), full form, as tools/sst_pipe_1d.py --correction hp
+        // (docs/evidence/WALL_FUNCTIONS.md, 6 October 2026): k and omega diffuse by F1 times the
+        // semi-local inner form plus (1 - F1) times the outer form, the cross-diffusion source is the
+        // corrected one, mu_t carries D^ic, and the corrected k diffusion's non-divergence part enters E
+        // (Measurements::correctionEnergy).
+        bool propertyCorrections{false};
     };
     Turbulence turbulence;
     [[nodiscard]] double span() const;  // axial length of the domain
@@ -170,6 +177,10 @@ struct Measurements {
     // Turbulence: rho k V added so far where a stage left rho k below zero [J] (Flow::step), and by
     // the wall functions' prescription of the first cells' k (at fixed total energy).
     double clippedTurbulentEnergy{}, prescribedTurbulentEnergy{};
+    // Turbulence::propertyCorrections: the energy the corrected k diffusion's non-divergence part has
+    // added so far [J] (in the energy balance), and the F1-weighted fraction of cells whose S_n
+    // denominator is at its floor psi / 10.
+    double correctionEnergy{}, correctionFloored{};
     std::uint64_t steps{}, rejectedSteps{};
 };
 struct FieldSnapshot {
@@ -271,6 +282,7 @@ private:
     // Exchange rates of one right-hand-side evaluation, combined with the RK weights.
     struct BoundaryRates {
         double mass{}, energy{}, inlet{}, outlet{}, inletMomentum{}, outletMomentum{}, wallAxial{}, bodyAxial{}, heat{}, wallHeat{};
+        double correction{};  // the integral of Phi_k dV (Turbulence::propertyCorrections)
         [[nodiscard]] double netMomentum() const { return inletMomentum-outletMomentum+wallAxial+bodyAxial; }
         [[nodiscard]] double grossMomentum() const;
         static BoundaryRates average(const BoundaryRates& a, const BoundaryRates& b);
@@ -370,8 +382,22 @@ private:
     // distance, and the wall-face omega of the cells next to a no-slip wall (wallCells_, each once). sources_ holds what
     // the source split freezes per half step: S^2 and S of the mean flow, the cross-diffusion
     // product grad k . grad omega, the molecular nu and the inverse wall distance.
-    struct SourceCoefficients { double strain2{}, strain{}, crossGradient{}, nu{}, inverseDistance{}; };
+    // With the property corrections: crossSource is the corrected cross-diffusion's gradient product
+    // grad(rho k) . grad(sqrt(rho) omega) / rho^(3/2) (crossGradient, the conventional one, stays in F1),
+    // and sound the speed of sound for D^ic's M_t.
+    struct SourceCoefficients { double strain2{}, strain{}, crossGradient{}, nu{}, inverseDistance{}, crossSource{}, sound{1}; };
     std::vector<double> eddy_, eddyConductivity_, eddyDiffusion_, wallDistance_, wallOmega_;
+    // Property corrections: the unit vector away from the nearest wall; per cell the fields psi =
+    // sqrt(rho) / mu, rho k, sqrt(rho) omega and mu omega (stride 4, gradient fields 3 + ns_ + nt_ on);
+    // rho_w and mu_w at the no-slip wall cells; S_n / mu, F1 and whether S_n is floored; the inner and
+    // outer k and omega fluxes per unit area of each face (stride 4, indexed like axialFlux_ and radialFlux_).
+    std::vector<std::array<double, 2>> wallDirection_;
+    std::vector<double> correctionFields_, wallDensity_, wallViscosity_, snOverMu_, blendF1_;
+    std::vector<char> snFloored_;
+    std::vector<double> axialCorrection_, radialCorrection_, correctionCell_;
+    double integratedCorrection_{};
+    [[nodiscard]] std::size_t gradientFields() const { return 3+ns_+nt_+(corrections_?4:0); }
+    bool corrections_{false};
     std::vector<std::size_t> wallCells_;
     std::vector<SourceCoefficients> sources_, sourcesStart_;
     // Wall functions. Each no-slip wall face (the side wall by column, then the plate rings): its

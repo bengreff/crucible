@@ -7,6 +7,11 @@
 //   and the budgets; the mass and energy budgets within 1e-11. Reported: the same run without wall
 //   functions, the wall heat flow and the rho k V the prescription added.
 //
+// corrections: the property corrections (Definition::Turbulence::propertyCorrections; Hasan, Elias, Menter
+//   and Pecnik 2025) in the same chamber, resolved wall and wall functions: 200 steps on 1 and on 4
+//   threads bit-identical, the mass and energy budgets within 1e-11 (the energy with the corrected k
+//   diffusion's non-divergence part booked). Reported: that energy and the floored fraction of S_n.
+//
 // apriori: the law on the reference profile, without a march (below).
 //
 // pipe: criteria 1 and 2. A fully developed N2 pipe (UniformDuct, 4 columns, axial body force, and for
@@ -16,6 +21,7 @@
 //   or to the end time.
 //   Usage: crucible_wall_function_study pipe <profile.csv> <nr> <stretching> <force N/m^3> <T_wall K>
 //          <heating W/m^3> <end ms> <threads> <wall: resolved|law|printed>
+//   CRUCIBLE_SST_CORRECTION = hp turns on the SST property corrections.
 //   Prints u_b, c_f = 2 tau_w / (rho_b u_b^2) with tau_w from the wall force, T_axis (the axis ring's
 //   mean), the mixing-cup temperature T_b (weighted by rho u, as the reference's), the Stanton number
 //   St = q_w / (rho_b cp_b u_b (T_b - T_w)) with q_w from the wall heat flow and cp_b at T_b, the
@@ -67,7 +73,7 @@ Nitrogen nitrogen() {
   return out;
 }
 
-int threads(const Nitrogen& n2) {
+int threads(const Nitrogen& n2, bool corrections = false) {
   std::printf("criterion 0(d): a turbulent N2 chamber, wall functions on the side wall and the plate, 200 steps\n");
   auto run = [&](int count, bool law) {
     Definition d;
@@ -80,6 +86,7 @@ int threads(const Nitrogen& n2) {
     d.wallTemperature = 400;
     d.turbulence.enabled = true; d.turbulence.ambientK = 1; d.turbulence.ambientOmega = 1e3;
     d.turbulence.wallFunctions = law;
+    d.turbulence.propertyCorrections = corrections;
     Supply s;
     s.innerRadius = 0; s.outerRadius = 3e-3; s.massFlow = 2e-3; s.totalTemperature = 300;
     s.composition = {1}; s.opens = 0; s.ramp = 2e-5;
@@ -111,6 +118,20 @@ int threads(const Nitrogen& n2) {
   std::printf("  reported, the same run with the resolved-wall rule: wall heat flow %.6e W, wall axial force %.6e N (law %.6e N), budgets mass %.3e energy %.3e\n",
               r.wallHeatFlow, r.wallAxialForce, a.wallAxialForce, r.massBalanceError, r.energyBalanceError);
   // The first cells' prescribed values satisfy k = omega mu_t / rho with the engine's eddy viscosity.
+  if (corrections) {
+    std::printf("  corrections, resolved wall: 1 and 4 threads\n");
+    auto r1 = run(1, false);
+    const auto m1 = r1.measurements(), m4 = r;
+    const bool sameResolved = std::memcmp(r1.state().data(), resolved.state().data(), r1.state().size() * sizeof(Conserved)) == 0 &&
+                              std::memcmp(r1.turbulence().data(), resolved.turbulence().data(), r1.turbulence().size() * sizeof(double)) == 0 &&
+                              r1.partialDensities() == resolved.partialDensities() && m1.energyBalanceError == m4.energyBalanceError &&
+                              m1.correctionEnergy == m4.correctionEnergy;
+    check(sameResolved, "resolved wall: state, rho k, rho omega and budgets, 1 and 4 threads differ (1 = yes)", sameResolved ? 0 : 1, 0);
+    check(std::abs(m4.massBalanceError) < 1e-11, "resolved wall: mass budget", std::abs(m4.massBalanceError), 1e-11);
+    check(std::abs(m4.energyBalanceError) < 1e-11, "resolved wall: energy budget", std::abs(m4.energyBalanceError), 1e-11);
+    std::printf("  reported: integral of Phi_k booked, wall functions %.6e J, resolved %.6e J (total energy %.6e J); S_n floored (F1-weighted) %.3e, %.3e\n",
+                a.correctionEnergy, m4.correctionEnergy, m4.energy, a.correctionFloored, m4.correctionFloored);
+  }
   std::printf("%d failures\n", failures);
   return failures == 0 ? 0 : 1;
 }
@@ -160,6 +181,7 @@ int pipe(const Nitrogen& n2, int argc, char** argv) {
   d.transport = n2.fits;
   d.turbulence.enabled = true; d.turbulence.ambientK = 0; d.turbulence.ambientOmega = 1;
   d.turbulence.wallFunctions = wall != "resolved"; d.turbulence.printedDerivative = wall == "printed";
+  if (const char* c = std::getenv("CRUCIBLE_SST_CORRECTION")) d.turbulence.propertyCorrections = std::string(c) == "hp";
   d.wallTemperature = tWall;
   // The reference's bulk density (its rings are the profile's points; the mass per length is the
   // integral of rho 2 pi r dr by the midpoint rule on its own rings).
@@ -300,6 +322,7 @@ int main(int argc, char** argv) {
     const auto n2 = nitrogen();
     const std::string mode = argc > 1 ? argv[1] : "threads";
     if (mode == "threads") return threads(n2);
+    if (mode == "corrections") return threads(n2, true);
     if (mode == "pipe") return pipe(n2, argc, argv);
     if (mode == "apriori") return apriori(n2, argc, argv);
     std::fprintf(stderr, "usage: %s threads | pipe ...\n", argv[0]);

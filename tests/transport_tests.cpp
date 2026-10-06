@@ -17,6 +17,13 @@
 //      forbids. The reference integrated that flux and the wall-row gradient fit assumed none, so
 //      the energy and species errors grew toward the wall (observed orders 0.50 and 0.28). The
 //      composition now varies as 1 - (1 - s^2)^2. Results of both are in docs/evidence/TRANSPORT_C2.md.
+//      Second test correction (6 October 2026, 01:42 CDT, before its run, criterion unchanged): that
+//      composition is flat in r at the wall but still varies with z along it (0.02 sin(2 pi z / L) in
+//      H2), so where the wall slopes (up to 0.2) it has a wall-normal gradient Y_z n_z and again a
+//      species flux through the wall. It went unseen while the wall's gradient neighbour sat on the
+//      cell's radial line (that imposes dY/dr = 0, which the field meets); with the neighbour at the
+//      foot of the perpendicular (dY/dn = 0, the operator's own condition) it shows. The z-varying
+//      parts now carry (1 - s^2)^2, so every gradient of the composition vanishes at the wall.
 //   3. Budgets with transport. A Chamber (closed plate, isothermal side wall and plate, ambient
 //      exit) started from the field of test 1: mass, energy (with the wall heat) and axial momentum
 //      (with the wall shear) budgets below 1e-12 after 200 steps.
@@ -58,14 +65,15 @@ struct Field {
   double ur(double z, double r) const { double s = r / radius(z); return ur0 * s * (1 - s * s) * std::cos(2 * pi * z / length); }
   double t(double z, double r) const { double s = r / radius(z); return tWall + dT * (1 - s * s) * (1 + 0.2 * std::cos(2 * pi * z / length)); }
   void y(double z, double r, std::size_t n, double* out) const {
-    // The composition varies as 1 - (1 - s^2)^2, flat at the wall in both directions: the wall is
-    // impermeable (no species flux), as the operator imposes.
-    double s2 = 1 - std::pow(1 - std::pow(r / radius(z), 2), 2), a = 2 * pi * z / length;
+    // The composition varies through w = (1 - s^2)^2, which is zero with zero slope at the wall, and
+    // is uniform along the wall: every gradient vanishes there, so the wall is impermeable (no species
+    // flux) at any slope, as the operator imposes.
+    double w = std::pow(1 - std::pow(r / radius(z), 2), 2), a = 2 * pi * z / length;
     std::fill(out, out + n, 0.0);
-    out[iH2] = 0.03 + 0.02 * s2 * std::sin(a);
-    out[iO2] = 0.2 + 0.05 * s2 * std::cos(a);
-    out[iH2O] = 0.1 + 0.05 * (1 - s2);
-    out[iOH] = 0.005 * (1 + s2 * std::sin(a));
+    out[iH2] = 0.03 + 0.02 * w * std::sin(a);
+    out[iO2] = 0.2 + 0.05 * w * std::cos(a);
+    out[iH2O] = 0.1 + 0.05 * w;
+    out[iOH] = 0.005 * (1 + w * std::sin(a));
     out[iN2] = 1 - out[iH2] - out[iO2] - out[iH2O] - out[iOH];
   }
 };

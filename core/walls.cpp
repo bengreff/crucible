@@ -5,7 +5,8 @@
 #include <stdexcept>
 
 namespace crucible {
-std::vector<double> wallDistance(const Mesh& m, bool sideWall, const std::vector<bool>& plate) {
+std::vector<double> wallDistance(const Mesh& m, bool sideWall, const std::vector<bool>& plate,
+                                 std::vector<std::array<double,2>>* direction) {
     if(!plate.empty() && plate.size()!=static_cast<std::size_t>(m.nr))
         throw std::invalid_argument("Plate wall flags must be empty or one per ring.");
     struct Segment { double z0, r0, z1, r1; };
@@ -14,13 +15,15 @@ std::vector<double> wallDistance(const Mesh& m, bool sideWall, const std::vector
     for(std::size_t j=0;j<plate.size();++j)
         if(plate[j]) walls.push_back({0,m.fraction[j]*m.radius[0],0,m.fraction[j+1]*m.radius[0]});
     std::vector<double> out(m.cells.size(),std::numeric_limits<double>::infinity());
+    if(direction) direction->assign(m.cells.size(),{0.0,0.0});
     for(std::size_t q=0;q<m.cells.size();++q) {
         const double z=m.cells[q].z,r=m.cells[q].r;
         for(const auto& s:walls) {
             // Foot of the perpendicular, clamped to the segment.
             double ez=s.z1-s.z0,er=s.r1-s.r0;
             double t=std::clamp(((z-s.z0)*ez+(r-s.r0)*er)/(ez*ez+er*er),0.0,1.0);
-            out[q]=std::min(out[q],std::hypot(z-s.z0-t*ez,r-s.r0-t*er));
+            const double dz=z-s.z0-t*ez,dr=r-s.r0-t*er,d=std::hypot(dz,dr);
+            if(d<out[q]) { out[q]=d;if(direction) (*direction)[q]={dz/d,dr/d}; }
         }
     }
     return out;
