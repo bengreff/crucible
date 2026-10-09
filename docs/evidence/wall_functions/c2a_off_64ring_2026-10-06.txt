@@ -1,0 +1,12 @@
+pipe: resolved, nr 64, stretching 3.5, force 19800 N/m^3, wall 600 K, heating 1.95e+09 W/m^3, 4 threads; reference reference_hp_heated_profile_6400.csv (bulk density 16.846549173)
+  t    0.5 ms  u_b 32.17542770  c_f 0.00674190  T_axis 3165.93910  T_b 2786.90052  St 3.677506e-03  force balance -1.88e-01  du_b/ms 1.00e+00  steps 1236653  wall 456 s
+  t    1.0 ms  u_b 32.06579807  c_f 0.00676776  T_axis 3164.88464  T_b 2778.19547  St 3.688084e-03  force balance -1.84e-01  du_b/ms 1.00e+00  steps 2474341  wall 875 s
+  t    1.5 ms  u_b 31.95948290  c_f 0.00677520  T_axis 3163.79692  T_b 2769.18851  St 3.691162e-03  force balance -1.78e-01  du_b/ms 6.71e-03  steps 3711726  wall 1301 s
+  t    2.0 ms  u_b 31.85705346  c_f 0.00678095  T_axis 3161.23447  T_b 2760.14227  St 3.694549e-03  force balance -1.71e-01  du_b/ms 6.51e-03  steps 4948779  wall 1772 s
+  t    2.5 ms  u_b 31.75836179  c_f 0.00678727  T_axis 3156.32579  T_b 2751.18020  St 3.699020e-03  force balance -1.65e-01  du_b/ms 6.29e-03  steps 6185519  wall 2152 s
+  t    3.0 ms  u_b 31.66316976  c_f 0.00679439  T_axis 3149.03182  T_b 2742.38219  St 3.704404e-03  force balance -1.59e-01  du_b/ms 6.09e-03  steps 7421968  wall 2466 s
+  t    3.5 ms  u_b 31.57125809  c_f 0.00680205  T_axis 3139.82985  T_b 2733.81363  St 3.710335e-03  force balance -1.54e-01  du_b/ms 5.89e-03  steps 8658146  wall 2749 s
+  t    4.0 ms  u_b 31.48245894  c_f 0.00680960  T_axis 3129.39899  T_b 2725.55481  St 3.716180e-03  force balance -1.49e-01  du_b/ms 5.71e-03  steps 9894068  wall 3010 s
+  t    4.5 ms  u_b 31.39673510  c_f 0.00681529  T_axis 3118.45582  T_b 2717.68221  St 3.720683e-03  force balance -1.43e-01  du_b/ms 5.53e-03  steps 11129736  wall 3299 s
+  t    5.0 ms  u_b 31.31414227  c_f 0.00681927  T_axis 3107.62800  T_b 2710.22062  St 3.723952e-03  force balance -1.38e-01  du_b/ms 5.35e-03  steps 12365147  wall 3590 s
+result: resolved nr 64 stretching 3.5: NOT steady at 5.0 ms; u_b 31.31414227 m/s, c_f 0.00681927, T_axis 3107.628000 K, T_axis - T_wall 2507.628000 K, T_b 2710.220618 K, St 3.72395230e-03; first-cell y+ 1.077 to 1.077; budgets mass 3.32e-12 momentum 4.93e-16 energy -7.27e-12; prescribed rho k V 0.000e+00 J; 12365147 steps, 3590 s

@@ -1,0 +1,2 @@
+N    64  Newton steps  19  last update 5.9e-16  force balance -1.1e-16  energy balance -8.9e-16  y1+ 1.1053  Re_tau 10488.3856  u_b 33.29516306 m/s  c_f 0.0053010507  T_axis 3224.920725 K  T_b 2849.707631 K  St 0.0029315409  int Phi_k dV -1.234e-06 of supply  S_n floored 0.0%
+N   128  Newton steps  21  last update 4.1e-16  force balance +2.2e-16  energy balance +1.8e-15  y1+ 0.5358  Re_tau 10452.9829  u_b 32.96290404 m/s  c_f 0.0054084562  T_axis 3206.302957 K  T_b 2831.003705 K  St 0.0029869535  int Phi_k dV -1.293e-06 of supply  S_n floored 0.0%
