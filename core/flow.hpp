@@ -272,6 +272,10 @@ public:
     // Largest stable step for the current state (CFL bound, with the explicit diffusion bound when
     // the medium has transport).
     double stableDt();
+    // The cell that set the last stableDt() (the lowest index among equal steps, so independent of the
+    // thread count) and its convective and diffusive rates per unit volume: the step is cfl / (sum).
+    struct StepLimit { std::size_t cell = 0; double convective = 0, diffusive = 0; };
+    [[nodiscard]] const StepLimit& stepLimit() const { return stepLimit_; }
     // The molecular-transport part of the right-hand side alone for the current state, per unit
     // volume (verification of the operator).
     void transportDerivative(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative);
@@ -332,6 +336,8 @@ private:
     std::vector<TransportScratch> transportScratch_;
     std::vector<char> workerOk_;
     std::vector<double> workerDt_;
+    std::vector<StepLimit> workerLimit_;
+    StepLimit stepLimit_;
     // Per cell: inside the igniter; rho k V added by the last stage's clip (Flow::step).
     std::vector<char> igniterCell_;
     std::vector<double> clippedCell_;

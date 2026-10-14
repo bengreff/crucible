@@ -24,6 +24,10 @@
 //    exit, checked).
 // NASA CEA (RocketCEA, tools/cea_point.py) at the same p0, O/F, area ratio and 300 K reactant gases
 // is printed beside it as the reference column (added 13 October 2026; "unavailable" without .venv-cea).
+// CRUCIBLE_CHAMBER = rl10dev (added 13 October 2026) runs the RL10A-3-3A development chamber in place of C1
+// (rl10dev below: TM-107318's contour by PCHIP, P1's flow and O/F, pre-vaporized gases at 300 K, development only).
+// Its comparison takes Cd and lambda as the protocol's tier 0 does (Cd at R/r_t 0.5, lambda the mean of its values at
+// the PCHIP exit wall angle and at the throat-to-exit cone).
 //
 // Usage: crucible_chamber_study <eq|eqt|eqtt|fr|frozen|frt|frp> <nz> <nr> <end time s> <threads> <output prefix>
 //        [igniter energy J] [igniter duration s]
@@ -73,6 +77,7 @@
 #include "adapters/reaction.hpp"
 #include "adapters/thermo.hpp"
 #include "cantera/core.h"
+#include "core/contour.hpp"
 
 using namespace crucible;
 
@@ -119,6 +124,81 @@ Geometry geometry() {
   g.cylinderEnd = zc - z0;
   g.throat = -z0;
   return g;
+}
+
+// The chamber a run simulates: its geometry, supply, hot-gas wall temperature, and the throat radius of curvature
+// (R / r_t, Kliegel-Levine) and divergence factor lambda of the ideal-rocket comparison.
+struct Chamber {
+  std::string name;
+  Geometry geo;  // cylinderEnd bounds the p0 column from above
+  double chamberRadius{}, massFlow{}, mixtureRatio{}, wallTemperature{}, curvature{}, divergence{};
+  bool development = false;
+};
+
+Chamber c1() {
+  return {"C1", geometry(), kRc, kMassFlow, kMixtureRatio, 600, kArc / kRt, (1 + std::cos(kTheta)) / 2, false};
+}
+
+// The RL10A-3-3A development chamber (docs/validation/RL10A33A_PROTOCOL.md, sections 2 and 6), pre-vaporized H2
+// and O2 at 300 K: development only, never the reported case. The wall is r = r_t sqrt(A / A_t) through TM-107318
+// Table E1's 16 nodes, the throat (0, r_t), a face node at the chamber radius r_t 5.13 / 2.47 and the exit node
+// (Figure E1's 46.0 in, r_t sqrt 61), by PCHIP (core/contour). The injector face is the one nearest Figure E1's
+// -13.1 in that puts a mesh station on the throat; it must fall in the protocol's -13.4 to -12.8 in bracket. r_t is
+// CRUCIBLE_RL10_THROAT_RADIUS in metres, default 0.062738 (the radius reading, protocol section 1). The p0 column is
+// the last one upstream of -10.00 in. Combustion O/F 5.055 and the chamber flow 16.7126 kg/s are P1's (section 2);
+// the wall is at the bracket's central 567 K. The comparison's Cd is at R/r_t 0.5 when the PCHIP throat is sharper
+// (the series' edge, as tier 0).
+Chamber rl10dev(int nz) {
+  constexpr double inch = 0.0254, exitStation = 46.0, nominalFace = -13.1;
+  double rt = 0.062738;
+  if (const char* v = std::getenv("CRUCIBLE_RL10_THROAT_RADIUS")) rt = std::atof(v);
+  std::vector<std::array<double, 2>> nodes;
+  const std::string path = std::string(CRUCIBLE_SOURCE_DIR) + "/docs/validation/rl10a33a/tm107318_table_E1_si.csv";
+  FILE* f = std::fopen(path.c_str(), "r");
+  if (!f) throw std::runtime_error("cannot read " + path);
+  char line[512];
+  bool header = true;
+  while (std::fgets(line, sizeof line, f)) {
+    if (line[0] == '#') continue;
+    if (header) { header = false; continue; }
+    double zIn, zM, ratio;
+    if (std::sscanf(line, "%lf,%lf,%lf", &zIn, &zM, &ratio) == 3) nodes.push_back({zM, rt * std::sqrt(ratio)});
+  }
+  std::fclose(f);
+  if (nodes.size() != 16) throw std::runtime_error("Table E1: expected 16 nodes in " + path);
+  const int k = static_cast<int>(std::lround(nz * -nominalFace / (exitStation - nominalFace)));
+  const double face = -exitStation * k / (nz - k);  // inches
+  if (face > -12.8 || face < -13.4)
+    throw std::invalid_argument("rl10dev: the throat station puts the face at " + std::to_string(face) +
+                                " in, outside -13.4 to -12.8 in; choose another nz");
+  const double rc = rt * 5.13 / 2.47;
+  nodes.push_back({0.0, rt});
+  nodes.push_back({face * inch, rc});
+  nodes.push_back({exitStation * inch, rt * std::sqrt(61.0)});
+  std::sort(nodes.begin(), nodes.end());
+  const Pchip wall(nodes);
+  std::size_t throatNode = 0;
+  while (nodes[throatNode][0] != 0) ++throatNode;
+  Chamber c;
+  c.name = "RL10A-3-3A development";
+  for (const auto& p : wall.sample(200)) c.geo.contour.push_back({p[0] - face * inch, p[1]});
+  c.geo.throat = -face * inch;
+  c.geo.cylinderEnd = (-10.00 - face) * inch;
+  c.chamberRadius = rc;
+  c.massFlow = 16.7126;
+  c.mixtureRatio = 5.055;
+  c.wallTemperature = 567;
+  const double curvature = 0.5 * (1 / wall.secondLeft(throatNode) + 1 / wall.secondRight(throatNode)) / rt;
+  const double exitAngle = std::atan(wall.slopes().back());
+  const double cone = std::atan((rt * std::sqrt(61.0) - rt) / (exitStation * inch));
+  c.curvature = std::max(curvature, 0.5);
+  c.divergence = (2 + std::cos(exitAngle) + std::cos(cone)) / 4;
+  c.development = true;
+  std::printf("chamber: %s (pre-vaporized H2/O2 at 300 K; development only, never the reported case): r_t %.6f m, "
+              "chamber radius %.6f m, injector face at %.4f in (throat station %d of %d), exit at %.2f in, "
+              "PCHIP R/r_t %.4f, exit wall angle %.3f deg, cone %.3f deg\n", c.name.c_str(), rt, rc, face, k, nz,
+              exitStation, curvature, exitAngle * 180 / kPi, cone * 180 / kPi);
+  return c;
 }
 
 // The NASA CEA reference column (tools/cea_point.py, RocketCEA's build of the NASA Glenn CEA2 Fortran),
@@ -333,7 +413,16 @@ int main(int argc, char** argv) {
   const std::string mechanism = mechanismEnv ? mechanismEnv : "h2o2.yaml";
   std::printf("mechanism: %s\n", mechanism.c_str());
   thermo::ReactionSource source(mechanism);
-  const auto geo = geometry();
+  // CRUCIBLE_CHAMBER = rl10dev (added 13 October 2026): the RL10A-3-3A development chamber; unset, C1.
+  Chamber chamber;
+  if (const char* which = std::getenv("CRUCIBLE_CHAMBER")) {
+    if (std::string(which) != "rl10dev") throw std::invalid_argument("CRUCIBLE_CHAMBER: rl10dev");
+    if (start) throw std::invalid_argument("rl10dev: CRUCIBLE_STATE_START is not supported (the face moves with nz)");
+    chamber = rl10dev(nz);
+  } else {
+    chamber = c1();
+  }
+  const auto& geo = chamber.geo;
 
   Definition d;
   d.experiment = Case::Chamber;
@@ -345,22 +434,24 @@ int main(int argc, char** argv) {
   d.backPressure = kAmbientP;
   d.ambientTemperature = kAmbientT;
   Supply s;
-  s.outerRadius = kRc;
-  s.massFlow = kMassFlow;
+  s.outerRadius = chamber.chamberRadius;
+  s.massFlow = chamber.massFlow;
   s.totalTemperature = 300;
   auto h2 = source.massFractions("H2:1"), o2 = source.massFractions("O2:1");
   s.composition.resize(h2.size());
   for (std::size_t k = 0; k < h2.size(); ++k)
-    s.composition[k] = (h2[k] + kMixtureRatio * o2[k]) / (1 + kMixtureRatio);
+    s.composition[k] = (h2[k] + chamber.mixtureRatio * o2[k]) / (1 + chamber.mixtureRatio);
   s.opens = 0;
   s.ramp = start ? 0.0 : 5e-4;  // a restart has the valve fully open
   d.supplies = {s};
-  // Igniter: from 0.2 ms in a 10 mm by 10 mm core 5 mm off the injector face; 0.5 J over 0.2 ms
-  // unless given. Local equilibrium burns any premixed gas at once, so in "eq" mode it has no role.
-  d.igniter = {0.005, 0.015, 0.010, start ? 0.0 : igniterEnergy, 2e-4, igniterDuration};
+  // Igniter: from 0.2 ms in a 10 mm by 10 mm core 5 mm off the injector face (in C1; scaled with the chamber
+  // radius otherwise); 0.5 J over 0.2 ms unless given. Local equilibrium burns any premixed gas at once, so in
+  // "eq" mode it has no role.
+  const double scale = chamber.chamberRadius / kRc;
+  d.igniter = {0.005 * scale, 0.015 * scale, 0.010 * scale, start ? 0.0 : igniterEnergy, 2e-4, igniterDuration};
   if (turbulent) {  // as tests/step_cost.cpp: Spalart-Rumsey ambient, supply I 0.05 and ratio 10
     d.transport = thermo::transportFits(mechanism);
-    d.wallTemperature = 600;
+    d.wallTemperature = chamber.wallTemperature;
     d.turbulence.enabled = true;
     d.supplies[0].turbulenceIntensity = 0.05;
     d.supplies[0].viscosityRatio = 10;
@@ -566,8 +657,34 @@ int main(int argc, char** argv) {
   // Criterion 4 (a) over the whole run and (b) at every sample.
   const double initialEnergy = flow.measurements().energy;
   double worstMass = 0, worstEnergyResidual = 0, negativeAt = -1, lightOff = -1, segregatedAtLightOff = 0;
+  // The cell that set the step at each sample (Flow::stepLimit, added 13 October 2026 for the implicit-time decision
+  // rule): wall row, axis row or between; upstream of, within one column of, or downstream of the throat station; and
+  // whether its diffusive rate exceeded its convective (|u| + a) one. Counted from the first sample after 1 ms.
+  long limitSamples = 0, limitWall = 0, limitAxis = 0, limitChamber = 0, limitThroat = 0, limitNozzle = 0,
+       limitDiffusive = 0;
+  double limitDtSum = 0;
+  auto limitText = [&]() {
+    const auto& l = flow.stepLimit();
+    const int i = static_cast<int>(l.cell / nr), j = static_cast<int>(l.cell % nr);
+    char text[160];
+    std::snprintf(text, sizeof text, "step %.3e s set by cell (%d, %d), convective %.3e and diffusive %.3e per s",
+                  flow.definition().cfl / (l.convective + l.diffusive), i, j, l.convective, l.diffusive);
+    return std::string(text);
+  };
   auto sample = [&]() {
     auto m = flow.measurements();
+    if (m.time > 1e-3) {
+      const auto& l = flow.stepLimit();
+      const int i = static_cast<int>(l.cell / nr), j = static_cast<int>(l.cell % nr);
+      ++limitSamples;
+      limitWall += j == nr - 1;
+      limitAxis += j == 0;
+      limitChamber += i < throatStation - 1;
+      limitThroat += i >= throatStation - 1 && i <= throatStation;
+      limitNozzle += i > throatStation;
+      limitDiffusive += l.diffusive > l.convective;
+      limitDtSum += flow.definition().cfl / (l.convective + l.diffusive);
+    }
     if (turbulent) {
       worstMass = std::max(worstMass, std::abs(m.massBalanceError));
       worstEnergyResidual = std::max(worstEnergyResidual, std::abs(m.energyBalanceError * initialEnergy));
@@ -672,9 +789,9 @@ int main(int argc, char** argv) {
       if (start && rows.size() % 25 == 0) settlingWindow();
       if (rows.size() % 250 == 0) {
         double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - clock0).count();
-        std::printf("t %.3f ms  p_inj %.4f MPa  outlet %.4f kg/s  F_vac %.1f N  steps %ld  wall %.0f s\n",
+        std::printf("t %.3f ms  p_inj %.4f MPa  outlet %.4f kg/s  F_vac %.1f N  steps %ld  wall %.0f s  %s\n",
                     flow.time() * 1e3, rows.back().pInj / 1e6, rows.back().outlet, rows.back().fVac,
-                    reacting.stats().steps, wall);
+                    reacting.stats().steps, wall, limitText().c_str());
         std::fflush(stdout);
         std::fflush(history);
       }
@@ -759,6 +876,17 @@ int main(int argc, char** argv) {
   std::printf("\nend %.3f ms after %ld steps (%ld replans), wall %.0f s\n", m.time * 1e3, reacting.stats().steps,
               reacting.stats().replans, wall);
   std::printf("budgets: mass %.2e  energy %.2e\n", m.massBalanceError, m.energyBalanceError);
+  std::printf("cost: %.3f us of wall time per cell update on %d threads, %.1f s per simulated ms over the run\n",
+              1e6 * wall / (static_cast<double>(reacting.stats().steps) * flow.state().size()), threads,
+              wall / (m.time * 1e3));
+  if (limitSamples > 0) {
+    const double n = static_cast<double>(limitSamples);
+    std::printf("step limit after 1 ms (%ld samples): mean step %.3e s; set in the wall row %.1f%%, the axis row %.1f%%, "
+                "upstream of the throat %.1f%%, at it (its two columns) %.1f%%, downstream %.1f%%; diffusive rate above "
+                "convective %.1f%%; last: %s\n", limitSamples, limitDtSum / n, 100 * limitWall / n, 100 * limitAxis / n,
+                100 * limitChamber / n, 100 * limitThroat / n, 100 * limitNozzle / n, 100 * limitDiffusive / n,
+                limitText().c_str());
+  }
   if (d.turbulence.propertyCorrections)
     std::printf("SST property corrections: integral of Phi_k booked %.6e J; S_n floored (F1-weighted) %.3e\n", m.correctionEnergy, m.correctionFloored);
   {
@@ -784,6 +912,9 @@ int main(int argc, char** argv) {
   const double p0 = columnStagnation(flow, *historySolution->thermo(), endColumn, pStatic);
   const double fVac = m.deviceThrust + m.ambientAxialForce, mdot = m.outletMassFlow;
   const double cstarSim = p0 * at / mdot, ispSim = fVac / mdot / kG0;
+  if (chamber.development)
+    std::printf("%s: every quantity below is a development quantity (pre-vaporized propellants at 300 K), never the "
+                "reported case\n", chamber.name.c_str());
   std::printf("chamber end: static %.5f MPa, equilibrium stagnation p0 %.5f MPa; injector face %.5f MPa\n",
               pStatic / 1e6, p0 / 1e6, m.injectorPressure / 1e6);
   std::printf("simulated: mdot out %.6f kg/s (supply %.6f), c* %.2f m/s, vacuum thrust %.2f N, vacuum Isp %.2f s\n",
@@ -791,10 +922,10 @@ int main(int argc, char** argv) {
   try {
     thermo::Mixture mix(mechanism);
     thermo::Reactant fuel{"H2:1", 300.0, std::nullopt}, ox{"O2:1", 300.0, std::nullopt};
-    auto shifting = mix.idealRocket(fuel, ox, kMixtureRatio, p0, eps, thermo::Expansion::Equilibrium);
-    auto frozen = mix.idealRocket(fuel, ox, kMixtureRatio, p0, eps, thermo::Expansion::FrozenAtChamber);
-    const double cd = dischargeCoefficient(kArc / kRt, shifting.gammaChamber);
-    const double lambda = (1 + std::cos(kTheta)) / 2;
+    auto shifting = mix.idealRocket(fuel, ox, chamber.mixtureRatio, p0, eps, thermo::Expansion::Equilibrium);
+    auto frozen = mix.idealRocket(fuel, ox, chamber.mixtureRatio, p0, eps, thermo::Expansion::FrozenAtChamber);
+    const double cd = dischargeCoefficient(chamber.curvature, shifting.gammaChamber);
+    const double lambda = chamber.divergence;
     auto corrected = [&](const thermo::RocketPoint& r) {
       double pressurePart = r.pExit * eps * r.cstar / p0;
       return (lambda * (r.ispVac * kG0 - pressurePart) + pressurePart) / kG0;
@@ -804,7 +935,7 @@ int main(int argc, char** argv) {
                 mechanism.c_str(), shifting.tc, shifting.cstar, shifting.ispVac, frozen.ispVac, shifting.gammaChamber);
     CeaPoint cea;
     std::string ceaLine;
-    if (ceaPoint("fuel H2 H 2 wt%=100. t(k)=300", "oxid O2 O 2 wt%=100. t(k)=300", kMixtureRatio, p0, eps, cea, ceaLine)) {
+    if (ceaPoint("fuel H2 H 2 wt%=100. t(k)=300", "oxid O2 O 2 wt%=100. t(k)=300", chamber.mixtureRatio, p0, eps, cea, ceaLine)) {
       std::printf("NASA CEA at p0 (RocketCEA %s, gases at 300 K): Tc %.1f K, c* %.2f m/s, Isp_vac shifting %.2f s, "
                   "frozen %.2f s, frozen from the throat %.2f s\n",
                   cea.version.c_str(), cea.tc, cea.cstar, cea.ispShifting, cea.ispFrozen, cea.ispFrozenThroat);
@@ -813,7 +944,7 @@ int main(int argc, char** argv) {
     } else {
       std::printf("NASA CEA at p0: unavailable (%s)\n", ceaLine.c_str());
     }
-    std::printf("corrections: Cd %.5f (R = %.1f), lambda %.5f\n", cd, kArc / kRt, lambda);
+    std::printf("corrections: Cd %.5f (R = %.*f), lambda %.5f\n", cd, chamber.development ? 4 : 1, chamber.curvature, lambda);
     std::printf("predicted 2-D: c* %.2f m/s, Isp_vac shifting %.2f s, frozen %.2f s, F_vac %.2f N\n",
                 shifting.cstar / cd, corrected(shifting), corrected(frozen), corrected(shifting) * kG0 * mdot);
     std::printf("simulated/predicted - 1: c* %+.4f%%, Isp_vac (shifting) %+.4f%%\n",

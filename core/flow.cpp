@@ -395,7 +395,7 @@ void Flow::setThreads(int threads) {
     const auto n=static_cast<std::size_t>(pool_->threads());
     faceFractions_.assign(2*n,std::vector<double>(nw_));
     transportScratch_.assign(n,TransportScratch{{},std::vector<double>(ns_),std::vector<double>(ns_),std::vector<double>(ns_),{}});
-    workerOk_.assign(n,1);workerDt_.assign(n,0.0);
+    workerOk_.assign(n,1);workerDt_.assign(n,0.0);workerLimit_.assign(n,{});
 }
 template<class F> bool Flow::allCells(F f) {
     std::fill(workerOk_.begin(),workerOk_.end(),char{1});
@@ -720,6 +720,7 @@ double Flow::stableDt() {
     std::fill(workerDt_.begin(),workerDt_.end(),std::numeric_limits<double>::infinity());
     pool_->blocks(mesh_.cells.size(),kCells,[&](std::size_t begin,std::size_t end,int worker) {
       double dt=std::numeric_limits<double>::infinity();
+      StepLimit limit;
       for(std::size_t q=begin;q<end;++q) {
         const int i=static_cast<int>(q/mesh_.nr),j=static_cast<int>(q%mesh_.nr);
         const auto& w=primitives_[q];
@@ -731,6 +732,7 @@ double Flow::stableDt() {
             rate+=std::abs(w.uz*ar[0]+w.ur*ar[1])+a*std::hypot(ar[0],ar[1]);
             sumArea2+=sq(ar[0])+sq(ar[1]);
         }
+        const double convective=rate;
         if(transport) {
             const double* y=fractions_.data()+q*nw_;
             double nu=std::max(4.0/3*viscosity_[q],conductivity_[q]/medium_.cv(temperature_[q],y))/w.rho;
@@ -742,11 +744,18 @@ double Flow::stableDt() {
             }
             rate+=2*nu*sumArea2/volume;
         }
-        dt=std::min(dt,definition_.cfl*volume/rate);
+        const double cell=definition_.cfl*volume/rate;
+        if(cell<dt) { dt=cell;limit={q,convective/volume,(rate-convective)/volume}; }
       }
-      workerDt_[worker]=std::min(workerDt_[worker],dt);
+      if(dt<workerDt_[worker] || (dt==workerDt_[worker] && limit.cell<workerLimit_[worker].cell)) {
+          workerDt_[worker]=dt;workerLimit_[worker]=limit;
+      }
     });
-    return *std::min_element(workerDt_.begin(),workerDt_.end());
+    std::size_t best=0;
+    for(std::size_t w=1;w<workerDt_.size();++w)
+        if(workerDt_[w]<workerDt_[best] || (workerDt_[w]==workerDt_[best] && workerLimit_[w].cell<workerLimit_[best].cell)) best=w;
+    stepLimit_=workerLimit_[best];
+    return workerDt_[best];
 }
 // Radial reconstruction. Cell averages are r-weighted, so they are point values at the volume
 // centroid r_c, not at the cell midpoint; near the axis the two differ by O(dr), which made the
