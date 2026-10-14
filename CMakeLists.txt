@@ -11,6 +11,7 @@ option(CRUCIBLE_BUILD_APP "Build the native desktop application" ON)
 option(CRUCIBLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
 include(CTest)
 find_package(Threads REQUIRED)
+find_package(Eigen3 NO_MODULE)
 add_library(crucible_core core/equilibrium_table.cpp core/flow.cpp core/medium.cpp core/pool.cpp core/session.cpp core/transport.cpp
   core/spray.cpp core/walls.cpp)
 target_include_directories(crucible_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -57,6 +58,14 @@ endif()
 # Parked architecture spike (docs/parked/MHD_SPIKE.md): throwaway MHD probe on the RZ layout.
 add_executable(crucible_mhd_spike spike/mhd_rz.cpp)
 target_link_libraries(crucible_mhd_spike PRIVATE crucible_core)
+# C++ port of tools/sst_wall_layer.py (the corrected-SST planar inner-layer wall model): standalone, no
+# Cantera and no engine dependency, so it is unconditional here (not inside CRUCIBLE_WITH_CANTERA or
+# BUILD_TESTING). Eigen is used for the layer's sparse Newton solve only; the target is skipped without Eigen.
+if(TARGET Eigen3::Eigen)
+  add_executable(crucible_wall_layer tools/wall_layer.cpp)
+  target_compile_definitions(crucible_wall_layer PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  target_link_libraries(crucible_wall_layer PRIVATE Eigen3::Eigen)
+endif()
 # Real-gas thermochemistry adapter (Cantera, built from source; TECHNICAL_PLAN adapters/).
 option(CRUCIBLE_WITH_CANTERA "Build the Cantera thermochemistry adapter" ON)
 set(CANTERA_ROOT "$ENV{HOME}/src/cantera" CACHE PATH "Cantera source tree with a scons build")
