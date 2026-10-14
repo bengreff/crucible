@@ -1,8 +1,9 @@
 // Verification of the liquid oxygen spray (core/spray.hpp) on the criteria of docs/evidence/SPRAY.md,
 // stated before the code: S0 (properties), S1 (the drop model's algebra and integrator), S3 (budgets
-// with parcels), S4 (threads) and S5 (breakup). S2's reference is tools/drop_film_1d.py.
-// With the argument "cost" it measures S6 instead: the S3 run with and without the spray.
-// Usage: crucible_spray_tests [cost [threads]]
+// with parcels), S4 (threads) and S5 (breakup). S2's reference is tools/drop_film_1d.cpp.
+// With the argument "cost" it measures S6 instead: the S3 run with and without the spray; with "lafon",
+// the model's side of S2(c) (outer step dt, default 2 us).
+// Usage: crucible_spray_tests [cost [threads] | lafon [dt]]
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -628,11 +629,65 @@ void cost(thermo::ReactionSource& source, int threads) {
 }
 }  // namespace
 
+// S2(c), the model's side: Lafon et al.'s (2008) drop, 100 um at 90 K in quiescent H2 at 1,000 K and
+// 10 atm, one-way, to vaporisation. The lifetime, and -d(d^2)/dt fitted by least squares over the
+// samples with (d/d0)^2 from 0.6 down to 0.1 (after heat-up), as stated in SPRAY.md before their
+// figures were read.
+void lafon(thermo::ReactionSource& source, double dt) {
+  Flow flow(chamber(source, 4, 2, 0.01, 0.005, "H2:1", 101325 * 10, 1000));
+  const auto liquid = liquidFor(flow.medium());
+  Spray::Settings settings;
+  settings.twoWay = false;
+  settings.breakup.on = false;
+  Spray spray(flow, liquid, settings);
+  Parcel p;
+  p.z = 0.005;
+  p.r = 0.001;
+  p.d = 100e-6;
+  p.count = 1;
+  p.t = 90;
+  spray.add(p);
+  const double d0 = p.d;
+  double t = 0, sT = 0, sY = 0, sTT = 0, sTY = 0, peak = 1, prev = 1, tPrev = 0;
+  int samples = 0;
+  std::vector<std::array<double, 2>> history;  // t, T
+  std::printf("  t [ms]  (d/d0)^2  T [K]\n");
+  while (!spray.parcels().empty()) {
+    const auto& q = spray.parcels()[0];
+    const double s = q.d * q.d / (d0 * d0);
+    peak = std::max(peak, s);
+    history.push_back({t, q.t});
+    if (s <= 0.6 && s >= 0.1) { sT += t; sY += s; sTT += t * t; sTY += t * s; ++samples; }
+    if (static_cast<long>(std::lround(t / dt)) % std::lround(5e-4 / dt) == 0) std::printf("  %6.2f  %.6f  %.4f\n", t * 1e3, s, q.t);
+    prev = s;
+    tPrev = t;
+    spray.advance(dt);
+    t += dt;
+  }
+  // The end within one step: d^2 extrapolated linearly from the last sample to d_min.
+  const double dMin2 = settings.minDiameter * settings.minDiameter / (d0 * d0);
+  const double slope = (samples * sTY - sT * sY) / (samples * sTT - sT * sT);  // of (d/d0)^2 per s
+  const double life = tPrev + (prev - dMin2) / -slope;
+  // Heat-up: the time T first reaches 99% of its rise to the final (wet-bulb) temperature.
+  const double tFinal = history.back()[1];
+  double t99 = 0;
+  for (const auto& h : history)
+    if (h[1] >= 90 + 0.99 * (tFinal - 90)) { t99 = h[0]; break; }
+  std::printf("  lifetime %.4f ms (last step %.4f to %.4f ms); -d(d^2)/dt %.5f mm^2/s over (d/d0)^2 0.6 to 0.1 (%d samples);"
+              " peak (d/d0)^2 %.5f; T reaches 99%% of its rise to %.4f K at %.4f ms (T_sat %.4f K)\n",
+              life * 1e3, tPrev * 1e3, t * 1e3, -slope * d0 * d0 * 1e6, samples, peak, tFinal, t99 * 1e3,
+              liquid.saturationTemperature(101325 * 10));
+}
+
 int main(int argc, char** argv) {
   try {
     thermo::ReactionSource source("h2o2.yaml");
     if (argc > 1 && std::string(argv[1]) == "cost") {
       cost(source, argc > 2 ? std::atoi(argv[2]) : 1);
+      return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "lafon") {
+      lafon(source, argc > 2 ? std::atof(argv[2]) : 2e-6);
       return 0;
     }
     {
