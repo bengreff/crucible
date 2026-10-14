@@ -34,6 +34,11 @@ transcribed; outcome rows are listed by label only, with no value.
 | Nozzle contour, divergent side | shown in Figure E1 (printed p.141, PDF p.147) as a smooth curve; visually consistent with a bell/contoured nozzle, not a straight cone, but the report does not print a numeric label classifying it as "bell" | qualitative (my visual read of the figure) | — | Figure E1, printed p.141 (PDF p.147) |
 | Hot-gas property node axial stations and area ratios (14-16 nodes) | — | in, dimensionless | — | See Table E1 CSVs, section 7 below |
 
+Size reading (added 13 October 2026, 22:10 CDT): `RL10A33A_PROTOCOL.md` section 1 resolves Table 2.5.1's
+2.47 in and 5.13 in as radii, on the source's own geometry (Figure E1's radius axis, the bulkhead radius and the
+hot-gas surface area). The derived exit radius above (9.65 in) is the diameter reading's; under the radius reading
+it is 2.47 x sqrt(61.0) = 19.29 in (0.4900 m). The contraction ratio is the same under both.
+
 Notes on the plate-radius derivation: Appendix E.3 (printed pp.143-144,
 PDF pp.149-150) gives the oxidizer-swirler "length of plate" as 1.947 in in
 the course of describing the LOX post geometry; I read this as the radius of
