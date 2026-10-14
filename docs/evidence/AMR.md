@@ -1,6 +1,6 @@
 # Adaptive resolution (TECHNICAL_PLAN *Lightweight engine*, order of work item 5)
 
-Status (13 October 2026, about 22:45 CDT): design and criteria, stated before any AMR code. Nothing here is verified yet.
+Status (13 October 2026, committed at 22:34 CDT by author time; this line said "about 22:45" until 22:36): design and criteria, stated before any AMR code. Nothing here is verified yet.
 
 The plan chose block-structured AMR in the logical (i, j) index space of the body-fitted mapping: refinement ratio 2 in space and time, time-accurate subcycling, conservative averaging with refluxing (Berger and Colella, J. Comput. Phys. 82, 1989), and geometry taken from the finest level. It stated four criteria. This record turns that choice into a data layout, a step, tags and numbers, and adds three criteria of its own (the geometry refactor's identity, cost and determinism, and the RL10 measurement the decision rule needs).
 
