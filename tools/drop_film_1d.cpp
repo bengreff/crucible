@@ -1,6 +1,7 @@
 // S2's reference (docs/evidence/SPRAY.md): the steady, spherically symmetric evaporation of a liquid
 // oxygen drop at its wet bulb in stagnant gas, resolved in r with variable properties, against the
-// drop model's rates (Spray::rates at Re = 0, with the 1/3 rule).
+// drop model's rates (Spray::rates at Re = 0, with its film integrals at several point counts; 0 points is
+// the 1/3 rule). Both use transport fitted down to 60 K (thermo::transportFits).
 //
 // The film is solved with Cantera alone (h2o2.yaml, ideal gas, mixture-averaged diffusion with a
 // correction velocity, mixture conductivity); the surface condition (Raoult with NIST's vapour pressure)
@@ -20,6 +21,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
@@ -58,22 +60,28 @@ struct Film {
     transport->getBinaryDiffCoeffs(n, d.data());
     gas->getEnthalpy_RT(hrt.data());
     const double hO2 = hrt[o2] * Cantera::GasConstant * t / gas->molecularWeight(o2);
-    // Mixture-averaged D_km = (1 - Y_k) / sum_{j != k} X_j / D_kj, with 1 - Y_O2 summed from the others.
+    // Mixture-averaged D_km = (1 - Y_k) / sum_{j != k} X_j / D_kj over the species present (the carriers
+    // and O2), with 1 - Y_k summed from the others and their X floored at 1e-20 as Cantera floors them,
+    // which gives the pure-gas limits (far away, and pure O2 at a boiling surface).
+    auto xf = [&](std::size_t k) { return std::max(x[k], 1e-20); };
     auto yOf = [&](std::size_t k) { return x[k] * gas->molecularWeight(k) / w; };
-    double yOthers = 0, sumO2 = 0;
+    double restO2 = 0, sumO2 = 0;
     for (auto c : carriers) {
-      yOthers += yOf(c);
-      sumO2 += x[c] / d[n * c + o2];
+      restO2 += xf(c) * gas->molecularWeight(c) / w;
+      sumO2 += xf(c) / d[n * c + o2];
     }
-    const double cO2 = gas->molecularWeight(o2) / w * yOthers / sumO2;
+    const double cO2 = gas->molecularWeight(o2) / w * restO2 / sumO2;
     double a = 0;
     std::vector<double> cc(carriers.size());
     for (std::size_t i = 0; i < carriers.size(); ++i) {
       const auto c = carriers[i];
-      double sum = 0;
-      for (std::size_t j = 0; j < n; ++j)
-        if (j != c && x[j] > 0) sum += x[j] / d[n * j + c];
-      cc[i] = gas->molecularWeight(c) / w * (1 - yOf(c)) / sum;
+      double rest = xf(o2) * gas->molecularWeight(o2) / w, sum = xf(o2) / d[n * o2 + c];
+      for (auto j : carriers)
+        if (j != c) {
+          rest += xf(j) * gas->molecularWeight(j) / w;
+          sum += xf(j) / d[n * j + c];
+        }
+      cc[i] = gas->molecularWeight(c) / w * rest / sum;
       a += yOf(c) * (1 - cO2 / cc[i]);
     }
     out[0] = -q * (hO2 - hSurface) / lambda;
@@ -104,20 +112,57 @@ struct Solution {
   bool boiling{};
 };
 
-// q for a given T_s (T(1) = T_s), by bisection then secant on ln q.
-double solveQ(Film& film, const std::vector<double>& far, double ts, double hSurface, int steps) {
-  auto miss = [&](double lq) {
-    const auto s = film.shoot(far, std::exp(lq), hSurface, steps);
-    return s.empty() ? -1e3 : s[0] - ts;
-  };
-  double lo = std::log(1e-12), hi = std::log(1e-2);
-  while (miss(hi) > 0) hi += 2;
-  while (miss(lo) < 0) lo -= 2;
-  for (int it = 0; it < 200 && hi - lo > 1e-13; ++it) {
-    const double mid = 0.5 * (lo + hi);
-    (miss(mid) > 0 ? lo : hi) = mid;
+// A root of f in the bracket [a, b] (f(a), f(b) of opposite signs) by the Illinois method, to |b - a| <= tol.
+template <class F>
+double illinois(F&& f, double a, double fa, double b, double fb, double tol) {
+  for (int it = 0; it < 200 && std::abs(b - a) > tol; ++it) {
+    const double c = b - fb * (b - a) / (fb - fa), fc = f(c);
+    if (fc == 0) return c;
+    if ((fc > 0) != (fb > 0)) {
+      a = b;
+      fa = fb;
+    } else {
+      fa /= 2;
+    }
+    b = c;
+    fb = fc;
   }
-  return std::exp(0.5 * (lo + hi));
+  return std::abs(fa) < std::abs(fb) ? a : b;
+}
+
+// q for a given T_s (T(1) = T_s), on ln q. T(1) falls as q rises; a q that drives the film below 20 K
+// fails the shot, so the bracket's upper end is moved back until its shot succeeds.
+double solveQ(Film& film, const std::vector<double>& far, double ts, double hSurface, int steps) {
+  auto miss = [&](double lq, bool& valid) {
+    const auto s = film.shoot(far, std::exp(lq), hSurface, steps);
+    valid = !s.empty();
+    return valid ? s[0] - ts : -1.0;
+  };
+  bool valid = true;
+  double lo = std::log(1e-9), flo = miss(lo, valid);
+  for (int it = 0; flo < 0; ++it) {
+    if (it == 40) throw std::runtime_error("drop_film_1d: no q leaves the film above T_s");
+    flo = miss(lo -= 2, valid);
+  }
+  double hi = lo + 1, fhi = miss(hi, valid);
+  for (int it = 0; fhi > 0; ++it) {
+    if (it == 80) throw std::runtime_error("drop_film_1d: no q brings the film below T_s");
+    lo = hi;
+    flo = fhi;
+    fhi = miss(hi += 1, valid);
+  }
+  for (int it = 0; !valid; ++it) {  // between a good positive miss and a failed shot: halve toward the good end
+    if (it == 200)
+      throw std::runtime_error("drop_film_1d: q bracket did not close at T_s " + std::to_string(ts) + ", ln q " +
+                               std::to_string(lo) + " (miss " + std::to_string(flo) + ")");
+    const double mid = 0.5 * (lo + hi);
+    const double fm = miss(mid, valid);
+    if (!valid) { hi = mid; continue; }
+    if (fm > 0) { lo = mid; flo = fm; valid = false; continue; }
+    hi = mid;
+    fhi = fm;
+  }
+  return std::exp(illinois([&](double lq) { bool v = true; const double m = miss(lq, v); return v ? m : -1.0; }, lo, flo, hi, fhi, 1e-13));
 }
 
 Solution solve(Film& film, const LiquidOxygen& liquid, const std::vector<double>& far, int steps) {
@@ -140,10 +185,14 @@ Solution solve(Film& film, const LiquidOxygen& liquid, const std::vector<double>
     return std::log(others) - (room > 0 ? std::log(room) : -1e300);
   };
   Solution out;
-  // Bisection in ln(T_sat - T_s) from 60 K below saturation to 1e-13 K below.
-  double lo = std::log(1e-13), hi = std::log(tSat - liquid.minTemperature() - 1);
+  // On u = ln(T_sat - T_s), from 1e-13 K below saturation down by decades to the first sign change (the
+  // film's transport fits are not asked about gas far colder than the wet bulb), at worst 1 K above the
+  // table's foot.
   double q = 0, others = 0;
-  if (g(tSat - std::exp(lo), q, others) < 0) {
+  double lo = std::log(1e-13);
+  const double foot = std::log(tSat - liquid.minTemperature() - 1);
+  double glo = g(tSat - std::exp(lo), q, others);
+  if (glo < 0) {
     // The root lies closer to saturation than a double resolves: the boiling limit.
     out.boiling = true;
     out.ts = tSat;
@@ -152,11 +201,16 @@ Solution solve(Film& film, const LiquidOxygen& liquid, const std::vector<double>
     for (std::size_t i = 1; i < s.size(); ++i) out.surfaceOthers += std::exp(s[i]);
     return out;
   }
-  for (int it = 0; it < 60; ++it) {
-    const double mid = 0.5 * (lo + hi);
-    (g(tSat - std::exp(mid), q, others) > 0 ? lo : hi) = mid;
+  double hi = lo, ghi = glo;
+  while (ghi > 0) {
+    if (hi >= foot) throw std::runtime_error("drop_film_1d: no wet bulb above the table's foot");
+    lo = hi;
+    glo = ghi;
+    hi = std::min(hi + std::log(10.0), foot);
+    ghi = g(tSat - std::exp(hi), q, others);
   }
-  out.ts = tSat - std::exp(0.5 * (lo + hi));
+  const double u = illinois([&](double v) { return g(tSat - std::exp(v), q, others); }, lo, glo, hi, ghi, 1e-10);
+  out.ts = tSat - std::exp(u);
   g(out.ts, out.q, out.surfaceOthers);
   return out;
 }
@@ -196,8 +250,17 @@ ModelResult model(const Spray& spray, const LiquidOxygen& liquid, const Spray::G
 
 int main(int argc, char** argv) {
   const int steps = argc > 1 ? std::atoi(argv[1]) : 2000;
+  std::setvbuf(stdout, nullptr, _IOLBF, 0);
   thermo::ReactionSource source("h2o2.yaml");
-  auto solution = Cantera::newSolution("h2o2.yaml", "", "mixture-averaged");
+  // Cantera's phase with every species' range extended down to the fit floor, so its transport fits
+  // are the engine's (thermo::transportFits with the same floor).
+  constexpr double fitFloor = 60;
+  auto root = Cantera::AnyMap::fromYamlFile("h2o2.yaml");
+  for (auto& species : root["species"].asVector<Cantera::AnyMap>()) {
+    auto& ranges = species["thermo"]["temperature-ranges"].asVector<double>();
+    ranges.front() = std::min(ranges.front(), fitFloor);
+  }
+  auto solution = Cantera::newSolution(root["phases"].asVector<Cantera::AnyMap>().front(), root, "mixture-averaged");
   Film film;
   film.gas = solution->thermo();
   film.transport = solution->transport();
@@ -216,23 +279,30 @@ int main(int argc, char** argv) {
   def.composition = source.massFractions("H2:1");
   def.backPressure = 1e6;
   def.ambientTemperature = 300;
-  def.transport = thermo::transportFits("h2o2.yaml");
+  def.transport = thermo::transportFits("h2o2.yaml", fitFloor);
   Flow flow(def);
   const auto& medium = flow.medium();
   std::vector<double> yO2(medium.size(), 0.0);
   yO2[film.o2] = 1;
   const auto liquid = LiquidOxygen::load(kSaturation, medium.enthalpy(298.15, yO2.data()));
-  Spray::Settings settings;
-  settings.twoWay = false;
-  Spray spray(flow, liquid, settings);
+  // The engine's default film quadrature is judged; 0 (the 1/3 rule alone, as A-S) and finer ones are shown.
+  const int pointsShown[] = {0, 2, 3, 4, 8, 16};
+  std::vector<std::unique_ptr<Spray>> sprays;
+  for (int points : pointsShown) {
+    Spray::Settings settings;
+    settings.twoWay = false;
+    settings.filmPoints = points;
+    sprays.push_back(std::make_unique<Spray>(flow, liquid, settings));
+  }
+  const int judged = Spray::Settings{}.filmPoints;
   std::vector<double> work(4 * medium.size() + 8);
 
   struct Case { const char* name; double p, t, yH2O; };
   const Case cases[] = {{"H2, 300 K, 1 MPa", 1e6, 300, 0},      {"H2, 300 K, 3 MPa", 3e6, 300, 0},
                         {"H2, 1,000 K, 1 MPa", 1e6, 1000, 0},   {"H2, 1,000 K, 3 MPa", 3e6, 1000, 0},
                         {"H2/H2O 0.4/0.6, 1,500 K, 1 MPa", 1e6, 1500, 0.6}, {"H2/H2O 0.4/0.6, 1,500 K, 3 MPa", 3e6, 1500, 0.6}};
-  std::printf("S2. Wet-bulb drops in stagnant gas: resolved film (Cantera, %d and %d RK4 steps in a / r) against the model\n",
-              steps, 2 * steps);
+  std::printf("S2. Wet-bulb drops in stagnant gas: resolved film (Cantera, %d and %d RK4 steps in a / r) against the model "
+              "(judged at its default, %d film points)\n", steps, 2 * steps, judged);
   int failures = 0;
   for (const auto& c : cases) {
     std::vector<double> y(film.n, 0.0);
@@ -252,7 +322,16 @@ int main(int argc, char** argv) {
     const auto ref = solve(film, liquid, far, steps);
     const auto fine = solve(film, liquid, far, 2 * steps);
     const Spray::Gas gas{c.t, c.p, c.p / (medium.gasConstant(y.data()) * c.t), 0, 0, y.data()};
-    const auto mine = model(spray, liquid, gas, work);
+    ModelResult mine;
+    std::string shown;
+    for (std::size_t i = 0; i < sprays.size(); ++i) {
+      const auto r = model(*sprays[i], liquid, gas, work);
+      char line[200];
+      std::snprintf(line, sizeof line, "\n      %2d points: T_wb %.6f K%s, mdot/d %.6e kg/(m s) (%+.2f%%)", pointsShown[i],
+                    r.ts, r.boiling ? " (boiling)" : "", r.massPerD, 100 * (r.massPerD / (2 * kPi * fine.q) - 1));
+      shown += line;
+      if (pointsShown[i] == judged) mine = r;
+    }
     const double refPerD = 2 * kPi * fine.q;  // mdot / d = 2 pi mdot / (4 pi a)
     const double dm = mine.massPerD / refPerD - 1, dt = mine.ts - fine.ts;
     const bool ok = std::abs(dm) <= 0.10 && std::abs(dt) <= 2;
@@ -262,7 +341,7 @@ int main(int argc, char** argv) {
                 "steps doubled: T_wb %+.2e K, mdot/d %+.2e\n",
                 fine.ts, fine.boiling ? " (saturation: the root is within rounding of it)" : "", refPerD, fine.surfaceOthers,
                 fine.ts - ref.ts, fine.q / ref.q - 1);
-    std::printf("    model:     T_wb %.6f K%s, mdot/d %.6e kg/(m s)\n", mine.ts, mine.boiling ? " (boiling)" : "", mine.massPerD);
+    std::printf("    model:%s\n", shown.c_str());
     std::printf("    mdot/d %+.2f%% (band 10%%), T_wb %+.3f K (band 2 K)  %s\n", 100 * dm, dt, ok ? "PASS" : "FAIL");
   }
   std::printf("%s: %d failure(s)\n", failures ? "FAIL" : "PASS", failures);

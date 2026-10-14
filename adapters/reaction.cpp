@@ -59,8 +59,21 @@ Medium ReactionSource::medium() const {
   return Medium(species);
 }
 
-TransportFits transportFits(const std::string& mechanism) {
-  auto solution = Cantera::newSolution(mechanism, "", "mixture-averaged");
+TransportFits transportFits(const std::string& mechanism, double minTemperature) {
+  std::shared_ptr<Cantera::Solution> solution;
+  if (minTemperature > 0) {
+    // Cantera fits over the phase's temperature range, from the highest of its species' lower limits.
+    // Each species' NASA-7 range is extended down to minTemperature (its low polynomial extrapolated, as
+    // Medium evaluates it), so the kinetic theory behind the fits is sampled there too.
+    auto root = Cantera::AnyMap::fromYamlFile(mechanism);
+    for (auto& species : root["species"].asVector<Cantera::AnyMap>()) {
+      auto& ranges = species["thermo"]["temperature-ranges"].asVector<double>();
+      ranges.front() = std::min(ranges.front(), minTemperature);
+    }
+    solution = Cantera::newSolution(root["phases"].asVector<Cantera::AnyMap>().front(), root, "mixture-averaged");
+  } else {
+    solution = Cantera::newSolution(mechanism, "", "mixture-averaged");
+  }
   auto& transport = *solution->transport();
   if (transport.CKMode()) throw std::runtime_error("CHEMKIN-mode transport fits are not supported");
   const std::size_t n = solution->thermo()->nSpecies();

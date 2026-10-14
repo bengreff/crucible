@@ -57,7 +57,7 @@ Definition chamber(thermo::ReactionSource& source, int nz, int nr, double length
   d.composition = source.massFractions(fill);
   d.backPressure = p;
   d.ambientTemperature = t;
-  d.transport = thermo::transportFits("h2o2.yaml");
+  d.transport = thermo::transportFits("h2o2.yaml", 60);  // fits valid down to cold O2 (SPRAY.md, Results: S2)
   return d;
 }
 
@@ -146,13 +146,14 @@ Expected abramzonSirignano(const Medium& m, const LiquidOxygen& liquid, double d
   const auto ns = m.size();
   const auto o2 = oxygenIndex(m);
   const double ts = boiling ? liquid.saturationTemperature(gas.p) : tDrop;
-  double ys = 1;
+  double ys = 1, wOther = 0;
   if (!boiling) {
     const double x = liquid.at(tDrop).pressure / gas.p;
     double num = 0, den = 0;
     for (std::size_t k = 0; k < ns; ++k)
       if (k != o2) { num += gas.y[k]; den += gas.y[k] / m.species()[k].molarMass; }
-    const double wOther = num / den, wO2 = m.species()[o2].molarMass;
+    wOther = num / den;
+    const double wO2 = m.species()[o2].molarMass;
     ys = x * wO2 / (x * wO2 + (1 - x) * wOther);
   }
   std::vector<double> surface(ns), film(ns), diffusion(ns), work;
@@ -164,7 +165,8 @@ Expected abramzonSirignano(const Medium& m, const LiquidOxygen& liquid, double d
   const auto tp = m.transport(tr, gas.p, film.data(), diffusion.data(), work);
   const auto fp = m.properties(tr, film.data()), vp = m.properties(tr, pure.data());
   const double cpg = fp.cv + fp.r, cpf = vp.cv + vp.r;
-  const double rhoD = gas.p / (fp.r * tr) * diffusion[o2];
+  // Fick's law on Y_O2: the Blanc's-law D, W / W_c times Medium's D_km (SPRAY.md, Results: S2).
+  const double rhoD = gas.p / (fp.r * tr) * diffusion[o2] * (wOther > 0 ? Medium::universalGasConstant / (fp.r * wOther) : 1);
   Expected e;
   e.viscosity = tp.viscosity;
   e.reynolds = gas.rho * slip * d / tp.viscosity;
@@ -203,13 +205,14 @@ Expected abramzonSirignano(const Medium& m, const LiquidOxygen& liquid, double d
 
 // (a) One 100 um drop at its wet bulb in `fill` at rest at 1 MPa and tGas, one-way: d^2 against the
 // d^2 law at 1,000 times, and its end against (d0^2 - d_min^2) / K.
-void dSquared(thermo::ReactionSource& source, const char* fill, double tGas) {
+void dSquared(thermo::ReactionSource& source, const char* fill, double tGas, int filmPoints = Spray::Settings{}.filmPoints) {
   Flow flow(chamber(source, 4, 2, 0.01, 0.005, fill, 1e6, tGas));
   const auto& medium = flow.medium();
   const auto liquid = liquidFor(medium);
   Spray::Settings settings;
   settings.twoWay = false;
   settings.breakup.on = false;
+  settings.filmPoints = filmPoints;
   Spray probe(flow, liquid, settings);
   Parcel p;
   p.z = 0.005;
@@ -249,8 +252,8 @@ void dSquared(thermo::ReactionSource& source, const char* fill, double tGas) {
   const double rho = liquid.at(wetBulb).density, d0 = p.d, dMin = settings.minDiameter;
   const double k = 4 * r0.mass / (rho * kPi * d0);  // -d(d^2)/dt
   const double life = (d0 * d0 - dMin * dMin) / k;
-  std::printf("  %s at %.0f K: wet bulb %.9f K (T_sat %.9f K, %s), B_M %.4e, K %.6e m^2/s, time to d_min %.6e s\n", fill, tGas,
-              wetBulb, tSat, r0.boiling ? "boiling" : "evaporating", r0.spalding, k, life);
+  std::printf("  %s at %.0f K, %d film points: wet bulb %.9f K (T_sat %.9f K, %s), B_M %.4e, K %.6e m^2/s, time to d_min %.6e s\n", fill, tGas,
+              filmPoints, wetBulb, tSat, r0.boiling ? "boiling" : "evaporating", r0.spalding, k, life);
   const int n = 1000;
   const double end = life * (1 - 1e-10), dt = end / n;
   double t = 0, worst = 0;
@@ -280,7 +283,9 @@ void dropModel(thermo::ReactionSource& source) {
   const auto& medium = flow.medium();
   const auto ns = medium.size();
   const auto liquid = liquidFor(medium);
-  Spray spray(flow, liquid, {});
+  Spray::Settings forms;
+  forms.filmPoints = 0;  // the 1/3 rule's conductances, as the paper (the film integrals are S2's)
+  Spray spray(flow, liquid, forms);
   std::vector<double> work(4 * ns + 8);
 
   // (b) The A-S forms: Re 0 to 400, B_M 1e-6 to 20, in O2/H2 at 1 MPa, 300 and 1,000 K; and boiling.

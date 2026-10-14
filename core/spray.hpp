@@ -82,6 +82,9 @@ class Spray {
     Breakup breakup;
     double restitution{1};      // normal coefficient of restitution at walls (1: specular)
     double minDiameter{1e-7};   // below it a parcel's liquid becomes vapour at once [m]
+    // Gauss points per piece of the film integrals that give the conductances (SPRAY.md, Results: S2);
+    // 0: the 1/3 rule's properties alone, as Abramzon and Sirignano.
+    int filmPoints{3};
     bool implicitCoupling{true};
     // false: one-way, the drop model alone in a fixed gas (tests): the exchange is booked in the ledger
     // but not given to the gas, and the seen gas takes no implicit loads.
@@ -177,9 +180,15 @@ class Spray {
   std::vector<double> amounts_;   // Flow::exchange input
   std::vector<double> unit_;      // pure O2 mass fractions
   std::vector<std::vector<double>> work_;  // per worker scratch
+  std::vector<double> gaussNode_, gaussWeight_;  // Gauss-Legendre on [0, 1], settings_.filmPoints of them
+  std::vector<double> gaussIntegral_;             // their integration matrix (filmConductances)
   [[nodiscard]] int locate(double z, double r) const;
   [[nodiscard]] double wallRadius(double z, double* slope) const;
   [[nodiscard]] Gas seen(int cell) const;
+  [[nodiscard]] double carrierMass(const double* y) const;
+  // The stagnant film's lambda and rho D_O2 (in rates()).
+  [[nodiscard]] std::array<double, 2> filmConductances(const Gas& gas, double ts, double aM, double aT, double cpf,
+                                                       double* y, double* diffusion, double* shape) const;
   [[nodiscard]] double blobDiameter(int injector) const;
   void gatherGas();
   void applyLoads(double dt);

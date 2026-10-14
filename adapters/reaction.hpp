@@ -54,8 +54,12 @@ class ReactionSource {
 
 // Cantera's mixture-averaged transport fits for the mechanism's species, for the core's own
 // evaluation (Medium::transport, no Cantera calls in the flow step). Throws if the mechanism has
-// no transport data or uses the CHEMKIN fit form.
-TransportFits transportFits(const std::string& mechanism);
+// no transport data or uses the CHEMKIN fit form. Cantera fits from the highest of the species' lower
+// thermo limits (300 K for h2o2.yaml); below that the polynomials are extrapolations and fail (H2's
+// conductivity turns negative below about 97 K). minTemperature > 0 fits from there instead, for flows
+// with gas that cold (liquid oxygen; docs/evidence/SPRAY.md). The kinetic theory's collision integrals
+// are tabulated from T* = kT/epsilon = 0.1 (60 K for H2O).
+TransportFits transportFits(const std::string& mechanism, double minTemperature = 0);
 
 // The PaSR closure's inputs for one cell (TECHNICAL_PLAN step 7, "PaSR"), from the flow
 // (Flow::mixingInputs) and frozen over a reaction substep: the mixing time tau_mix [s] and the

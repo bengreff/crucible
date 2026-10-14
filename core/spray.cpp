@@ -10,6 +10,7 @@
 namespace crucible {
 namespace {
 constexpr double pi = std::numbers::pi;
+constexpr int filmPasses = 3;  // of the film integrals against B_T: within 0.1% of converged in S2 (rates())
 constexpr double tableTop = 5.01e6;  // Pa: the last subcritical row of the NIST table, rounded down
 double sq(double x) { return x * x; }
 // splitmix64 (Steele, Lea and Flood 2014): the stream's next 64 bits, and a number uniform in (0, 1).
@@ -115,6 +116,39 @@ Spray::Spray(Flow& flow, LiquidOxygen liquid, Settings settings)
   if (o2 == species.end()) throw std::invalid_argument("The spray needs O2 in the medium.");
   oxygen_ = static_cast<std::size_t>(o2 - species.begin());
   if (!medium.hasTransport()) throw std::invalid_argument("The spray's film model needs the medium's transport.");
+  if (settings_.filmPoints < 0 || settings_.filmPoints > 32) throw std::invalid_argument("Spray: filmPoints in 0 to 32.");
+  // Gauss-Legendre nodes by Newton's method on P_n, mapped to [0, 1].
+  const int points = settings_.filmPoints;
+  for (int i = 0; i < points; ++i) {
+    double x = std::cos(pi * (i + 0.75) / (points + 0.5)), dp = 1;
+    for (int it = 0; it < 100; ++it) {
+      double p0 = 1, p1 = x;
+      for (int k = 2; k <= points; ++k) {
+        const double p2 = ((2 * k - 1) * x * p1 - (k - 1) * p0) / k;
+        p0 = p1;
+        p1 = p2;
+      }
+      if (points == 1) p0 = 1;
+      dp = points * (x * p1 - p0) / (x * x - 1);
+      const double dx = p1 / dp;
+      x -= dx;
+      if (std::abs(dx) <= 1e-16) break;
+    }
+    gaussNode_.push_back(0.5 * (1 - x));
+    gaussWeight_.push_back(1 / ((1 - x * x) * dp * dp));
+  }
+  // gaussIntegral_[i n + j] = int_0^{x_i} l_j, l_j the Lagrange basis on the nodes (exact by the same rule).
+  const auto n = gaussNode_.size();
+  gaussIntegral_.assign(n * n, 0.0);
+  for (std::size_t i = 0; i < n; ++i)
+    for (std::size_t j = 0; j < n; ++j)
+      for (std::size_t m = 0; m < n; ++m) {
+        const double x = gaussNode_[i] * gaussNode_[m];
+        double l = 1;
+        for (std::size_t q = 0; q < n; ++q)
+          if (q != j) l *= (x - gaussNode_[q]) / (gaussNode_[j] - gaussNode_[q]);
+        gaussIntegral_[i * n + j] += gaussNode_[i] * gaussWeight_[m] * l;
+      }
   for (const auto& j : settings_.injectors) {
     if (!(j.rOuter > j.rInner) || !(j.rInner >= 0) || !(j.massFlow >= 0) || !(j.parcelRate > 0) || !(j.z >= 0))
       throw std::invalid_argument("Spray injector: needs rOuter > rInner >= 0, massFlow >= 0, parcelRate > 0, z >= 0.");
@@ -223,6 +257,80 @@ void Spray::gatherGas() {
   });
 }
 
+// The molar mass of the gas's non-O2 part [kg/kmol], 0 if it has none.
+double Spray::carrierMass(const double* y) const {
+  const auto& species = flow_.medium().species();
+  double mass = 0, moles = 0;
+  for (std::size_t k = 0; k < species.size(); ++k)
+    if (k != oxygen_) {
+      mass += y[k];
+      moles += y[k] / species[k].molarMass;
+    }
+  return moles > 0 ? mass / moles : 0;
+}
+
+// The stagnant film (Re = 0) between the surface and the free stream, with variable properties. With
+// eta = -ln(1 - Y_O2), O2 the only species with a net flux and Fick's law on its Y with the Blanc's-law
+// D, mdot / (4 pi a) = int rho D d eta and ln(1 + B_T) = int phi d eta along the film's (T, Y) path, where
+// phi = c_pF rho D / lambda, and theta = T - T_s + L_eff / c_pF falls as e^(-int phi d eta). With
+// constant properties these are A-S's rho D ln(1 + B_M) and phi ln(1 + B_M). So the film's rho D is the
+// mean of rho D over eta, and its lambda is c_pF times that over the mean of phi. On s = eta / aM in
+// [0, 1], aM = ln(1 + B_M), Y is exact by construction, 1 - Y_O2 = (1 - Y_inf) e^(-aM s), and T follows
+// T - T_s = (T_inf - T_s) expm1(aT (1 - F(s))) / expm1(aT), aT = ln(1 + B_T), with F = int_0^s phi / int_0^1 phi
+// (s for constant phi). shape[] holds F at the nodes on entry and this pass's F on return, so passes
+// converge on the path's own shape. The other species keep the free stream's proportions. Gauss-Legendre
+// in s, on [0, 8 / aM] and [8 / aM, 1] when aM > 8 (the carrier gas then lies in a layer near the free
+// stream). Boiling (aM infinite): a pure O2 film, where the exact form is lambda = 1 / int dxi / lambda
+// over xi = a / r, with T on the constant-phi shape. SPRAY.md, Results: S2.
+std::array<double, 2> Spray::filmConductances(const Gas& gas, double ts, double aM, double aT, double cpf, double* y,
+                                              double* diffusion, double* shape) const {
+  const auto& medium = flow_.medium();
+  const auto ns = medium.size(), n = gaussNode_.size();
+  const double yInf = gas.y[oxygen_];
+  const bool pure = !std::isfinite(aM) || !(yInf < 1);
+  const double wOther = carrierMass(gas.y);
+  thread_local std::vector<double> scratch, phi;
+  phi.resize(2 * n);
+  double sumRhoD = 0, sumPhi = 0, resistance = 0;
+  auto piece = [&](double x0, double x1, std::size_t first) {
+    for (std::size_t i = 0; i < n; ++i) {
+      const double s = x0 + (x1 - x0) * gaussNode_[i], w = (x1 - x0) * gaussWeight_[i];
+      const double carrier = pure ? 0 : (1 - yInf) * std::exp(-aM * s);  // 1 - Y_O2
+      for (std::size_t k = 0; k < ns; ++k)
+        y[k] = k == oxygen_ ? 1 - carrier : (pure ? 0 : carrier * gas.y[k] / (1 - yInf));
+      const double f = pure ? s : shape[first + i];
+      const double t = std::abs(aT) > 1e-12 ? ts + (gas.t - ts) * std::expm1(aT * (1 - f)) / std::expm1(aT)
+                                            : ts + (gas.t - ts) * (1 - f);
+      const auto transport = medium.transport(t, gas.p, y, diffusion, scratch);
+      const double r = medium.gasConstant(y);
+      const double rhoD = gas.p / (r * t) * diffusion[oxygen_] * (wOther > 0 ? Medium::universalGasConstant / (r * wOther) : 1);
+      phi[first + i] = cpf * rhoD / transport.conductivity;
+      sumRhoD += w * rhoD;
+      sumPhi += w * phi[first + i];
+      resistance += w / transport.conductivity;
+    }
+  };
+  const double split = !pure && aM > 8 ? 8 / aM : 1;
+  piece(0, split, 0);
+  if (split < 1) piece(split, 1, n);
+  if (pure) return {1 / resistance, sumRhoD};
+  // F at the nodes from this pass's phi: the interpolant's integral within each piece, plus the first
+  // piece's whole integral for the second.
+  double before = 0;
+  for (std::size_t p = 0, first = 0; p < (split < 1 ? 2u : 1u); ++p, first += n) {
+    const double width = p == 0 ? split : 1 - split;
+    double whole = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+      double integral = 0;
+      for (std::size_t j = 0; j < n; ++j) integral += gaussIntegral_[i * n + j] * phi[first + j];
+      shape[first + i] = (before + width * integral) / sumPhi;
+      whole += gaussWeight_[i] * phi[first + i];
+    }
+    before += width * whole;
+  }
+  return {cpf * sumRhoD / sumPhi, sumRhoD};
+}
+
 Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<double>& work) const {
   const auto& medium = flow_.medium();
   const auto ns = medium.size();
@@ -237,13 +345,11 @@ Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<doub
   double* diffusion = yr + ns;
   const double yInf = gas.y[oxygen_];
   double ySurface = 1, slope = 0;  // slope: dY_s/dT
+  const double wOther = carrierMass(gas.y);
   if (!out.boiling) {
     const double xs = liquid.pressure / gas.p;
-    double moles = 0, mass = 0;  // of the non-oxygen part of the free stream, per unit mass
-    for (std::size_t k = 0; k < ns; ++k)
-      if (k != oxygen_) { mass += gas.y[k]; moles += gas.y[k] / medium.species()[k].molarMass; }
-    if (mass > 1e-12) {
-      const double wOther = mass / moles, wO2 = medium.species()[oxygen_].molarMass;
+    if (wOther > 0) {
+      const double wO2 = medium.species()[oxygen_].molarMass;
       const double mix = xs * wO2 + (1 - xs) * wOther;
       ySurface = xs * wO2 / mix;
       slope = wO2 * wOther / sq(mix) * xs * liquid_.vapourPressureSlope(parcel.t);
@@ -267,18 +373,29 @@ Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<doub
   const auto vapour = medium.properties(tr, unit_.data());
   const double cpg = film.cv + film.r, cpf = vapour.cv + vapour.r;
   const double rhoFilm = gas.p / (film.r * tr);
-  const double rhoD = rhoFilm * diffusion[oxygen_];
-  const double mu = transport.viscosity, lambda = transport.conductivity;
+  // The 1/3 rule's properties set the convective groups and the drag; the film integrals replace its
+  // conductances lambda and rho D (filmConductances) unless filmPoints is 0.
+  // A-S's rho D belongs to Fick's law on Y_O2. Medium's D_km belongs to gradients of X_k; for O2 against
+  // carriers in fixed proportions (molar mass W_c) the two differ by W / W_c (the Blanc's-law binary D).
+  double rhoD = rhoFilm * diffusion[oxygen_] * (wOther > 0 ? Medium::universalGasConstant / (film.r * wOther) : 1);
+  const double mu = transport.viscosity;
+  double lambda = transport.conductivity;
   const double slip = std::sqrt(sq(gas.uz - parcel.uz) + sq(gas.ur - parcel.ur) + sq(parcel.ut));
   out.reynolds = gas.rho * slip * parcel.d / mu;
-  const double pr = cpg * mu / lambda, sc = mu / rhoD, lewis = lambda / (rhoD * cpg);
+  const double pr = cpg * mu / lambda, sc = mu / rhoD;
   const double f = out.reynolds > 1 ? std::pow(out.reynolds, 0.077) : 1.0;
   const double sh0 = 1 + std::cbrt(1 + out.reynolds * sc) * f;
   const double nu0 = 1 + std::cbrt(1 + out.reynolds * pr) * f;
+  const bool integrated = !gaussNode_.empty();
   double bt = 0;
   if (out.boiling) {
     // Held at saturation: all the heat that arrives evaporates liquid.
     bt = gas.t > ts ? cpf * (gas.t - ts) / liquid_.at(ts).latent : 0;
+    if (integrated) {
+      const auto c = filmConductances(gas, ts, std::numeric_limits<double>::infinity(), std::log1p(bt), cpf, yr, diffusion, nullptr);
+      lambda = c[0];
+      rhoD = c[1];
+    }
     out.nusselt = 2 + (nu0 - 2) / filmCorrection(bt);
     out.sherwood = out.nusselt;
     out.mass = pi * parcel.d * lambda / cpf * out.nusselt * std::log1p(bt);
@@ -287,39 +404,62 @@ Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<doub
     const double bm = std::max(0.0, (ySurface - yInf) / (1 - ySurface));
     out.spalding = bm;
     out.sherwood = 2 + (sh0 - 2) / filmCorrection(bm);
-    // B_T = (1 + B_M)^phi - 1 with phi = (c_pF / c_pg)(Sh* / Nu*(B_T)) / Le: secant steps on the residual
-    // from A-S's own fixed-point start (a fixed-point step whenever the secant leaves B > 0), and
-    // bisection on the residual when that does not settle within 30 iterations.
+    // B_T = (1 + B_M)^phi - 1 with phi = c_pF rho D Sh* / (lambda Nu*(B_T)): secant steps on the residual
+    // from a fixed-point step off `start` (A-S's own start is B_M; a fixed-point step whenever the secant
+    // leaves B > 0), and bisection on the residual when that does not settle within 30 iterations.
     const double lnBm = std::log1p(bm);
-    auto residual = [&](double b) {
-      const double phi = cpf / cpg * out.sherwood / (2 + (nu0 - 2) / filmCorrection(b)) / lewis;
-      return std::expm1(phi * lnBm) - b;
-    };
-    bt = bm;
-    double rt = residual(bt);
-    bool settled = rt == 0;
-    double bPrev = bt, rPrev = rt;
-    if (!settled) bt += rt;
-    for (int it = 0; it < 30 && !settled; ++it) {
-      rt = residual(bt);
-      if (rt == 0) break;
-      double next = bt - rt * (bt - bPrev) / (rt - rPrev);
-      if (!(next > 0) || !std::isfinite(next)) next = bt + rt;
-      bPrev = bt;
-      rPrev = rt;
-      settled = std::abs(next - bt) <= 1e-14 * next;
-      bt = next;
-    }
-    if (!settled) {
-      double lo = 0, hi = std::max(1.0, 2 * bt);
-      while (residual(hi) > 0) hi *= 2;
-      for (int it = 0; it < 2000; ++it) {
-        const double mid = 0.5 * (lo + hi);
-        if (mid <= lo || mid >= hi) break;
-        (residual(mid) > 0 ? lo : hi) = mid;
+    auto solve = [&](double start) {
+      auto residual = [&](double b) {
+        const double phi = cpf * rhoD * out.sherwood / (lambda * (2 + (nu0 - 2) / filmCorrection(b)));
+        return std::expm1(phi * lnBm) - b;
+      };
+      double b = start;
+      double rt = residual(b);
+      bool settled = rt == 0;
+      double bPrev = b, rPrev = rt;
+      if (!settled) b += rt;
+      for (int it = 0; it < 30 && !settled; ++it) {
+        rt = residual(b);
+        if (rt == 0) break;
+        double next = b - rt * (b - bPrev) / (rt - rPrev);
+        if (!(next > 0) || !std::isfinite(next)) next = b + rt;
+        bPrev = b;
+        rPrev = rt;
+        settled = std::abs(next - b) <= 1e-14 * next;
+        b = next;
       }
-      bt = std::abs(residual(lo)) < std::abs(residual(hi)) ? lo : hi;
-      if (!std::isfinite(bt)) throw std::runtime_error("Spray: the heat-transfer number did not converge.");
+      if (!settled) {
+        double lo = 0, hi = std::max(1.0, 2 * b);
+        while (residual(hi) > 0) hi *= 2;
+        for (int it = 0; it < 2000; ++it) {
+          const double mid = 0.5 * (lo + hi);
+          if (mid <= lo || mid >= hi) break;
+          (residual(mid) > 0 ? lo : hi) = mid;
+        }
+        b = std::abs(residual(lo)) < std::abs(residual(hi)) ? lo : hi;
+        if (!std::isfinite(b)) throw std::runtime_error("Spray: the heat-transfer number did not converge.");
+      }
+      return b;
+    };
+    bt = solve(bm);
+    if (integrated) {
+      // The film's path takes B_T and its shape from the last pass, from the constant-phi shape. A fixed
+      // number of passes keeps the rates a smooth function of the drop and the gas.
+      const double aM = std::log((1 - yInf) / (1 - ySurface));  // ln(1 + B_M) before the clamp
+      const double split = aM > 8 ? 8 / aM : 1;
+      const auto n = gaussNode_.size();
+      thread_local std::vector<double> shape;
+      shape.resize(2 * n);
+      for (std::size_t i = 0; i < n; ++i) {
+        shape[i] = split * gaussNode_[i];
+        shape[n + i] = split + (1 - split) * gaussNode_[i];
+      }
+      for (int pass = 0; pass < filmPasses; ++pass) {
+        const auto c = filmConductances(gas, ts, aM, std::log1p(bt), cpf, yr, diffusion, shape.data());
+        lambda = c[0];
+        rhoD = c[1];
+        bt = solve(bt);
+      }
     }
     out.nusselt = 2 + (nu0 - 2) / filmCorrection(bt);
     out.mass = pi * parcel.d * rhoD * out.sherwood * std::log1p(bm);
