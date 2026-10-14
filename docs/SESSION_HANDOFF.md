@@ -1,25 +1,26 @@
 # Session handoff
 
-13 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
+14 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Stopped at (13 October)
+## Stopped at (14 October, about 00:10 CDT)
 
-- **Step 5, liquid LOX: the spray is in the engine** (`core/spray.*`, design and results in `docs/evidence/SPRAY.md`; commits 9809e26, 45b08b2, 15d6777). Lagrangian parcels on the NIST liquid, Abramzon-Sirignano drops, KH-RT, walls, exact exchange through `Flow::exchange`, inside ReactingFlow's step.
-  - S0, S1, S3, S4, S5 pass; S0(b) fails as stated (1,245 J/kg at 75 K, NASA-7's extrapolation; the 298.15 K anchor is kept, reasons in SPRAY.md).
-  - **S2 (single drop against a resolved film, `crucible_drop_film_1d`)**: the paper's 1/3 rule fails as stated (ṁ/d +24% to +78%). After that result, film integrals replace its conductances (`Spray::filmConductances`, 3 Gauss points, 3 passes): all six cases pass, pure H2 within 0.2% and 0.04 K, H2/H2O −6.6% to −6.8% and +0.7 K.
-  - Two bugs found: A-S's ρD must be the Blanc's-law mass-fraction D (W̄/W_c times Medium's D_km); and **Cantera's default transport fits fail below 300 K** (H2 conductivity negative under 97 K, O2 conductivity +137% at 90 K). `thermo::transportFits(mechanism, 60)` fixes it for liquid-oxygen flows; the default is unchanged. **inquiry2 should know this for the medium rework: any gas below 300 K in the engine sees the bad fits.**
-  - S6: the spray is 3.7 times the gas step on the 96-cell S3 run (6.5 μs per parcel sub-step) after a lean film transport call (`Spray::filmTransport`, held to Medium's by S1(c)) and a secant fix (an exact zero residual fell to bisection).
-  - **Turbulent dispersion** (887c692): Gosman-Ioannides on SST's k and ω, the eddy length set so tracers diffuse at the gas's ν_t/Sc_t. S8 passes (spreading from the axis within 0.2 and 1.1 standard errors of the exact expectation; budgets and threads with SST).
-  - **S2(c) model side committed before Lafon's figures are read** (fe86952): lifetime 7.007 ms, −d(d²)/dt 1.602 mm²/s. A Sonnet agent was digitising their figures at the 13 October park; if its report is lost, rerun it (prompt: the S2(c) case only, figure tables, no other values).
-  - Declared limit: the boiling hold does not release a drop that reaches saturation in a carrier gas (flash in the nozzle); flashes are counted.
-- **Backhouse runs collected** (277383e): 2(a)'s resolved half fails as stated (u_b +3.55%, St −6.22% against the Richardson limits) but matches the tool on its own 64 rings (+0.27%, −0.51%), the shared first-order wall grid error; the 32x32 criterion 3 reference hit its 1 ms cap unsettled (3 not judged on it). Nothing of ours is running on backhouse.
+- **Step 5, liquid LOX: the spray is in the engine** (`core/spray.*`, design and results in `docs/evidence/SPRAY.md`). Lagrangian parcels on the NIST liquid, Abramzon-Sirignano drops with film integrals, KH-RT, walls, Gosman-Ioannides dispersion (S8 passes), exact exchange through `Flow::exchange` inside ReactingFlow's step. S0, S1, S3, S4, S5, S8 pass; S0(b) fails as stated (NASA-7's extrapolation, kept). S6: 3.7 times the gas step on the 96-cell S3 run; `Spray::wallTime()` (7897b1d) now measures it on the S7 runs (`spray_wall_s` in the history).
+  - **S2(c) judged (1c5f577): fails as stated** against Lafon et al. (2008) at 10 atm: d² slope +30.4%, lifetime −17.5%. Read against S2 (the miss is physics both our model and the S2 film lack: real-fluid film, finite liquid conductivity, H2 dissolution); nothing changed. Digitised tables in `docs/evidence/spray/lafon_2008_digitised.md`.
+  - **Cantera's default transport fits fail below 300 K**; `thermo::transportFits(mechanism, 60)` fixes it. **inquiry2 should know this for the medium rework.**
+- **S7, Mascotte A-10, pre-registered (8a5b8d0)** in `docs/validation/MASCOTTE_A10_PREDICTION.md`, driver `tests/mascotte_a10.cpp` (`crucible_mascotte_a10`), table `build/table_mascotte.bin` (check in `docs/evidence/mascotte/table_build_check.txt`). Blind: no measured value of the case has been read. §3 (Burick's bracket) and §6 (predicted values) are still to fill, each committed before the step after it.
+  - **Running** (started 14 October about 00:03 CDT):
+    - Mac, slot.py: `blob` 239×70 to 25 ms, CFL 0.8, log `/tmp/masc/blob.log`, outputs `/tmp/masc/blob_*`.
+    - Backhouse, tmux `crucible_s7_blobfine`: `blob` 478×70 (the grid check), tree `/home/greff/crucible_s7` (a git-archive export of main plus the timer; not `/home/greff/crucible`), log `runs/blob_fine.log`. About 120 ms per step on 6 threads under other users' load: about 13 h.
+    - The Mac's 1 ms CFL 0.8 stability test (`/tmp/masc/cfl08.log`): §7 records its result.
+  - **A Sonnet agent was digitising Burick (1972) Fig. 38** into `docs/evidence/spray/burick_fig38.md`. If its report is lost, rerun it. Then apply §3's rule (MMD to SMD with `SMD = X/Γ(1−1/q)`), commit §3, launch `rr:<SMD_um>:<q>:13.7` low and high at 239×70 on the Mac.
+  - The Mac is loaded by another project's jobs outside slot.py (load about 30 on 10 cores), so the Mac runs are slower than the 2 to 2.5 h projection.
+- **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
 ## Exact next steps (in order)
 
-1. **S2(c)**: judge the model's committed numbers against the digitised figures (lifetime and d² slope, within 15%).
-2. **S7, Mascotte A-10**: pre-register the prediction in its own record before any measured value is read (inputs screened, no outcomes, in `docs/validation/`); run on backhouse. Burick's Fig. 38 for the drop-size bracket. Measure S6's ratio on its setup first (film tables if the spray costs more than the gas there).
-3. Carried from 6 October: 2(a)'s restatement (the grid error), criterion 3's reference (unsettled at 1 ms), the `turbulence_pipe_verification` rerun, criterion 0(e) (the offline wall-model table), the Table B builder, then the Back, Massier and Gier comparison (blind: never open the TR's results pages).
+1. **S7**: fill §3 from Burick, commit, run low and high. When all four runs finish: §6 (the band per §5), committed before any measured value is digitised. Then an agent digitises [N]'s CARS profiles and [R]'s OH image, and the judging goes into SPRAY.md S7. Copy the run CSVs into `docs/evidence/mascotte/`.
+2. Carried from 6 October: criterion 3's reference (unsettled at 1 ms), the `turbulence_pipe_verification` rerun, criterion 0(e) (the offline wall-model table), the Table B builder, then the Back, Massier and Gier comparison (blind: never open the TR's results pages).
 
 ## For Ben
 
@@ -66,6 +67,7 @@ TECHNICAL_PLAN *Lightweight engine*, order of work:
 - `/home/greff/crucible_c4`: the tree committed as 03d56e3 (the criterion 4 runs; outputs `/home/greff/c4runs/`, done).
 - `/home/greff/crucible_wf`: the wall-function study binaries (`wfs_hp_bin` has the corrected SST), Table A (`table_a.bin`), the law states, and the c2a runs.
 - `/home/greff/crucible_c3`: the criterion 3 binaries (`study_bin`, `study_c3r`) and runs.
+- `/home/greff/crucible_s7`: the S7 tree (main at 8a5b8d0 plus the spray timer 7897b1d; built with `-DCRUCIBLE_BUILD_APP=OFF`), the Mascotte table copied from the Mac (md5 identical), runs in `runs/`. Copy files in with `rsync -az -e ssh --rsync-path="wsl rsync" <files> backhouse:/home/greff/crucible_s7/<dir>/`.
 - Not ours, do not touch: gate_wg, ltaste2, battery2, flyapp-lib, lsug3, flyapp-m9r, s12spec_* (other users' jobs).
 - Never write to `/home/greff/inquiry-project` (the old Rust project).
 
