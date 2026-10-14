@@ -1,0 +1,109 @@
+RL10A-3-3A tier 0: RocketCEA 1.2.3 (NASA Glenn CEA2); SciPy PCHIP
+
+=== P1, Table 6.1.1: O/F 5.055, mdot 16.7126 kg/s (engine inlet 16.7471), eps 61.0
+cards: "fuel H2 H 2 wt%=100. t(k)=199.667" / "oxid LOXP O 2 wt%=100. h,kj/mol=-12.3713 t(k)=101.167"
+wall: r_t 2.47 in, r_c 5.13 in, face -13.1 in, exit 46.0 in; throat R/r_t 0.1366 (PCHIP); exit wall angle 10.054 deg (lambda 0.99232), cone 20.086 deg (lambda 0.96959); lambda central 0.98095
+
+Central and one-at-a-time deviations
+  p_c [MPa]                                  3.30087
+  c* [m/s]                                   2442.28
+  Cd                                         0.979374
+  gamma_c                                    1.14728
+  c*_CEA [m/s]                               2391.91
+  Tc [K]                                     3301.56
+  Isp_vac 1-D CEA shifting [s]               470.195
+  Isp_vac shifting, chamber flow [s]         461.557
+  Isp_vac shifting, engine-inlet flow [s]    460.606
+  F_vac shifting [kN]                        75.6467
+  Isp_vac 1-D CEA frozen [s]                 449.496
+  Isp_vac frozen, chamber flow [s]           441.206
+  Isp_vac frozen, engine-inlet flow [s]      440.297
+  F_vac frozen [kN]                          72.3112
+  lambda at the exit wall angle              p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow +5.156, Isp_vac shifting, engine-inlet flow +5.145, F_vac shifting +0.845, Isp_vac frozen, chamber flow +4.948, Isp_vac frozen, engine-inlet flow +4.938, F_vac frozen +0.811
+  lambda at the cone half-angle              p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow -5.156, Isp_vac shifting, engine-inlet flow -5.145, F_vac shifting -0.845, Isp_vac frozen, chamber flow -4.948, Isp_vac frozen, engine-inlet flow -4.938, F_vac frozen -0.811
+  exit station 45.29 in                      p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow -1.326, Isp_vac shifting, engine-inlet flow -1.323, F_vac shifting -0.2174, Isp_vac frozen, chamber flow -1.273, Isp_vac frozen, engine-inlet flow -1.27, F_vac frozen -0.2086
+  exit station 46.40 in                      p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow +0.5287, Isp_vac shifting, engine-inlet flow +0.5276, F_vac shifting +0.08666, Isp_vac frozen, chamber flow +0.5075, Isp_vac frozen, engine-inlet flow +0.5065, F_vac frozen +0.08318
+  Cd at the PCHIP R/r_t 0.1366               p_c +0.08882, c* +65.71, Cd -0.02549, Isp_vac shifting, chamber flow +0.01875, Isp_vac shifting, engine-inlet flow +0.01871, F_vac shifting +0.003072, Isp_vac frozen, chamber flow +0.1584, Isp_vac frozen, engine-inlet flow +0.1581, F_vac frozen +0.02596
+  sharp throat (Cd at R/r_t 0.5)             p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow +0, Isp_vac shifting, engine-inlet flow +0, F_vac shifting +0, Isp_vac frozen, chamber flow +0, Isp_vac frozen, engine-inlet flow +0, F_vac frozen +0
+  injector face -13.4 in                     p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow +0, Isp_vac shifting, engine-inlet flow +0, F_vac shifting +0, Isp_vac frozen, chamber flow +0, Isp_vac frozen, engine-inlet flow +0, F_vac frozen +0
+  injector face -12.8 in                     p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow +0, Isp_vac shifting, engine-inlet flow +0, F_vac shifting +0, Isp_vac frozen, chamber flow +0, Isp_vac frozen, engine-inlet flow +0, F_vac frozen +0
+  fuel plenum T -0.1 R                       p_c -1.061e-05, c* -0.007847, Cd -5.322e-09, Isp_vac shifting, chamber flow -0.001974, Isp_vac shifting, engine-inlet flow -0.00197, F_vac shifting -0.0003235, Isp_vac frozen, chamber flow -0.001267, Isp_vac frozen, engine-inlet flow -0.001264, F_vac frozen -0.0002076
+  fuel plenum T +0.1 R                       p_c +1.042e-05, c* +0.007707, Cd +5.227e-09, Isp_vac shifting, chamber flow +0.001939, Isp_vac shifting, engine-inlet flow +0.001935, F_vac shifting +0.0003178, Isp_vac frozen, chamber flow +0.001244, Isp_vac frozen, engine-inlet flow +0.001242, F_vac frozen +0.0002039
+  oxidizer plenum T -0.1 R                   p_c -6.814e-06, c* -0.005042, Cd -3.419e-09, Isp_vac shifting, chamber flow -0.001268, Isp_vac shifting, engine-inlet flow -0.001266, F_vac shifting -0.0002079, Isp_vac frozen, chamber flow -0.000814, Isp_vac frozen, engine-inlet flow -0.0008123, F_vac frozen -0.0001334
+  oxidizer plenum T +0.1 R                   p_c +6.814e-06, c* +0.005042, Cd +3.419e-09, Isp_vac shifting, chamber flow +0.001268, Isp_vac shifting, engine-inlet flow +0.001266, F_vac shifting +0.0002079, Isp_vac frozen, chamber flow +0.000814, Isp_vac frozen, engine-inlet flow +0.0008123, F_vac frozen +0.0001334
+
+Judged band (central, minus and plus the sums of the one-at-a-time deviations on each side; quadrature beside, not judged)
+  p_c [MPa]                                  3.30087  band [3.30086, 3.38971]  (-1.74e-05 / +0.0888; quadrature 0.0888)
+  c* [m/s]                                   2442.28  band [2442.27, 2508.01]  (-0.0129 / +65.7; quadrature 65.7)
+  Cd                                         0.979374  band [0.953886, 0.979374]  (-0.0255 / +8.65e-09; quadrature 0.0255)
+  Isp_vac shifting, chamber flow [s]         461.557  band [455.072, 467.263]  (-6.48 / +5.71; quadrature 7.43)
+  Isp_vac shifting, engine-inlet flow [s]    460.606  band [454.134, 466.3]  (-6.47 / +5.69; quadrature 7.41)
+  F_vac shifting [kN]                        75.6467  band [74.5838, 76.5819]  (-1.06 / +0.935; quadrature 1.22)
+  Isp_vac frozen, chamber flow [s]           441.206  band [434.982, 446.822]  (-6.22 / +5.62; quadrature 7.13)
+  Isp_vac frozen, engine-inlet flow [s]      440.297  band [434.086, 445.902]  (-6.21 / +5.6; quadrature 7.12)
+  F_vac frozen [kN]                          72.3112  band [71.2912, 73.2317]  (-1.02 / +0.921; quadrature 1.17)
+
+For the record, unjudged: the diameter reading (r_t 1.235 in, r_c 2.565 in), Cd at R/r_t 0.5, lambda central at its own wall
+  p_c [MPa]                                  13.3125
+  c* [m/s]                                   2462.45
+  Cd                                         0.979272
+  Isp_vac shifting, chamber flow [s]         468.735
+  Isp_vac shifting, engine-inlet flow [s]    467.77
+  F_vac shifting [kN]                        76.8232
+  Isp_vac frozen, chamber flow [s]           454.927
+  Isp_vac frozen, engine-inlet flow [s]      453.99
+  F_vac frozen [kN]                          74.5601
+
+=== P2, Table 2.5.1 (all burnt): O/F 5.26, mdot 16.9462 kg/s (engine inlet 16.9462), eps 61.0
+cards: "fuel H2 H 2 wt%=100. t(k)=199.667" / "oxid LOXP O 2 wt%=100. h,kj/mol=-12.3713 t(k)=101.167"
+wall: r_t 2.47 in, r_c 5.13 in, face -13.1 in, exit 46.0 in; throat R/r_t 0.1366 (PCHIP); exit wall angle 10.054 deg (lambda 0.99232), cone 20.086 deg (lambda 0.96959); lambda central 0.98095
+
+Central and one-at-a-time deviations
+  p_c [MPa]                                  3.32444
+  c* [m/s]                                   2425.82
+  Cd                                         0.979405
+  gamma_c                                    1.14377
+  c*_CEA [m/s]                               2375.86
+  Tc [K]                                     3341.36
+  Isp_vac 1-D CEA shifting [s]               469.488
+  Isp_vac shifting, chamber flow [s]         460.873
+  Isp_vac shifting, engine-inlet flow [s]    460.873
+  F_vac shifting [kN]                        76.5904
+  Isp_vac 1-D CEA frozen [s]                 446.807
+  Isp_vac frozen, chamber flow [s]           438.569
+  Isp_vac frozen, engine-inlet flow [s]      438.569
+  F_vac frozen [kN]                          72.8838
+  lambda at the exit wall angle              p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow +5.142, Isp_vac shifting, engine-inlet flow +5.142, F_vac shifting +0.8545, Isp_vac frozen, chamber flow +4.917, Isp_vac frozen, engine-inlet flow +4.917, F_vac frozen +0.8171
+  lambda at the cone half-angle              p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow -5.142, Isp_vac shifting, engine-inlet flow -5.142, F_vac shifting -0.8545, Isp_vac frozen, chamber flow -4.917, Isp_vac frozen, engine-inlet flow -4.917, F_vac frozen -0.8171
+  exit station 45.29 in                      p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow -1.323, Isp_vac shifting, engine-inlet flow -1.323, F_vac shifting -0.2198, Isp_vac frozen, chamber flow -1.265, Isp_vac frozen, engine-inlet flow -1.265, F_vac frozen -0.2102
+  exit station 46.40 in                      p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow +0.5274, Isp_vac shifting, engine-inlet flow +0.5274, F_vac shifting +0.08764, Isp_vac frozen, chamber flow +0.5043, Isp_vac frozen, engine-inlet flow +0.5043, F_vac frozen +0.0838
+  Cd at the PCHIP R/r_t 0.1366               p_c +0.08936, c* +65.2, Cd -0.02545, Isp_vac shifting, chamber flow +0.02198, Isp_vac shifting, engine-inlet flow +0.02198, F_vac shifting +0.003654, Isp_vac frozen, chamber flow +0.1668, Isp_vac frozen, engine-inlet flow +0.1668, F_vac frozen +0.02773
+  sharp throat (Cd at R/r_t 0.5)             p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow +0, Isp_vac shifting, engine-inlet flow +0, F_vac shifting +0, Isp_vac frozen, chamber flow +0, Isp_vac frozen, engine-inlet flow +0, F_vac frozen +0
+  injector face -13.4 in                     p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow +0, Isp_vac shifting, engine-inlet flow +0, F_vac shifting +0, Isp_vac frozen, chamber flow +0, Isp_vac frozen, engine-inlet flow +0, F_vac frozen +0
+  injector face -12.8 in                     p_c +0, c* +0, Cd +0, Isp_vac shifting, chamber flow +0, Isp_vac shifting, engine-inlet flow +0, F_vac shifting +0, Isp_vac frozen, chamber flow +0, Isp_vac frozen, engine-inlet flow +0, F_vac frozen +0
+  fuel plenum T -0.1 R                       p_c -1.004e-05, c* -0.007325, Cd -4.237e-09, Isp_vac shifting, chamber flow -0.001872, Isp_vac shifting, engine-inlet flow -0.001872, F_vac shifting -0.0003111, Isp_vac frozen, chamber flow -0.001174, Isp_vac frozen, engine-inlet flow -0.001174, F_vac frozen -0.0001951
+  fuel plenum T +0.1 R                       p_c +9.86e-06, c* +0.007195, Cd +4.161e-09, Isp_vac shifting, chamber flow +0.001839, Isp_vac shifting, engine-inlet flow +0.001839, F_vac shifting +0.0003056, Isp_vac frozen, chamber flow +0.001153, Isp_vac frozen, engine-inlet flow +0.001153, F_vac frozen +0.0001916
+  oxidizer plenum T -0.1 R                   p_c -6.712e-06, c* -0.004898, Cd -2.833e-09, Isp_vac shifting, chamber flow -0.001252, Isp_vac shifting, engine-inlet flow -0.001252, F_vac shifting -0.000208, Isp_vac frozen, chamber flow -0.0007848, Isp_vac frozen, engine-inlet flow -0.0007848, F_vac frozen -0.0001304
+  oxidizer plenum T +0.1 R                   p_c +6.712e-06, c* +0.004897, Cd +2.833e-09, Isp_vac shifting, chamber flow +0.001252, Isp_vac shifting, engine-inlet flow +0.001252, F_vac shifting +0.000208, Isp_vac frozen, chamber flow +0.0007848, Isp_vac frozen, engine-inlet flow +0.0007848, F_vac frozen +0.0001304
+
+Judged band (central, minus and plus the sums of the one-at-a-time deviations on each side; quadrature beside, not judged)
+  p_c [MPa]                                  3.32444  band [3.32443, 3.41382]  (-1.68e-05 / +0.0894; quadrature 0.0894)
+  c* [m/s]                                   2425.82  band [2425.8, 2491.03]  (-0.0122 / +65.2; quadrature 65.2)
+  Cd                                         0.979405  band [0.953959, 0.979405]  (-0.0254 / +6.99e-09; quadrature 0.0254)
+  Isp_vac shifting, chamber flow [s]         460.873  band [454.405, 466.568]  (-6.47 / +5.69; quadrature 7.41)
+  Isp_vac shifting, engine-inlet flow [s]    460.873  band [454.405, 466.568]  (-6.47 / +5.69; quadrature 7.41)
+  F_vac shifting [kN]                        76.5904  band [75.5156, 77.5368]  (-1.07 / +0.946; quadrature 1.23)
+  Isp_vac frozen, chamber flow [s]           438.569  band [432.385, 444.159]  (-6.18 / +5.59; quadrature 7.09)
+  Isp_vac frozen, engine-inlet flow [s]      438.569  band [432.385, 444.159]  (-6.18 / +5.59; quadrature 7.09)
+  F_vac frozen [kN]                          72.8838  band [71.8562, 73.8127]  (-1.03 / +0.929; quadrature 1.18)
+
+For the record, unjudged: the diameter reading (r_t 1.235 in, r_c 2.565 in), Cd at R/r_t 0.5, lambda central at its own wall
+  p_c [MPa]                                  13.4206
+  c* [m/s]                                   2448.22
+  Cd                                         0.979308
+  Isp_vac shifting, chamber flow [s]         468.189
+  Isp_vac shifting, engine-inlet flow [s]    468.189
+  F_vac shifting [kN]                        77.8062
+  Isp_vac frozen, chamber flow [s]           452.76
+  Isp_vac frozen, engine-inlet flow [s]      452.76
+  F_vac frozen [kN]                          75.2421

@@ -1,7 +1,7 @@
 """RL10A-3-3A tier 0 (docs/validation/RL10A33A_PROTOCOL.md, section 3 as amended 13 October 2026): the ideal
 rocket with NASA CEA (RocketCEA), and the one-at-a-time brackets of section 4 that reach it.
 
-No measured performance is read or used. Inputs: Table E1 (tm107318_table_E1.csv), P1's flows and O/F (section 2),
+No measured performance is read or used. Inputs: Table E1 (tm107318_table_E1.csv), P1's and P2's flows and O/F (section 2),
 the plenum temperatures (tm107318_inputs_addendum.md), the radius reading of section 1's size question, Figure E1's
 injector-face and exit stations.
 
@@ -30,7 +30,10 @@ from scipy.interpolate import PchipInterpolator
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 IN, G0, PSIA, RANKINE = 0.0254, 9.80665, 6894.757293168, 5.0 / 9.0
-MDOT, MDOT_INLET, OF, EPS = 16.7126, 2.7946 + 13.9525, 5.055, 61.0
+EPS = 61.0
+# Section 2's operating points: (name, chamber flow kg/s, engine-inlet flow kg/s, combustion O/F).
+P1 = ('P1, Table 6.1.1', 16.7126, 2.7946 + 13.9525, 5.055)
+P2 = ('P2, Table 2.5.1 (all burnt)', 16.9462, 16.9462, 5.26)
 T_FUEL_R, T_OX_R = 359.4, 182.1  # Table 6.1.1, Fuel and Oxid. Injector Plenum (addendum part A)
 
 
@@ -43,7 +46,7 @@ def table_e1():
 def o2_liquid_enthalpy(t):
     """Saturated-liquid h (kJ/kg) from the NIST table, linear in T between rows."""
     rows = [line.split('\t') for line in open(os.path.join(ROOT, 'tools', 'o2_saturation_nist.tsv'))
-            if not line.startswith('#')]
+            if not line.startswith('#')][1:]  # after the column header; column 6 is "Enthalpy (l, kJ/kg)"
     ts = [float(r[0]) for r in rows]
     hs = [float(r[5]) for r in rows]
     return float(np.interp(t, ts, hs))
@@ -54,7 +57,7 @@ def cards(t_fuel_r=T_FUEL_R, t_ox_r=T_OX_R):
     carries its enthalpy at the plenum temperature: CEA's value plus the NIST saturated-liquid difference."""
     t_ox = t_ox_r * RANKINE
     h_ox = -12.979 + 0.0319988 * (o2_liquid_enthalpy(t_ox) - o2_liquid_enthalpy(90.17))
-    return (f'fuel GH2P H 2 wt%=100. t(k)={t_fuel_r * RANKINE:.3f}',
+    return (f'fuel H2 H 2 wt%=100. t(k)={t_fuel_r * RANKINE:.3f}',
             f'oxid LOXP O 2 wt%=100. h,kj/mol={h_ox:.4f} t(k)={t_ox:.3f}')
 
 
@@ -99,8 +102,9 @@ def cea(fuel, ox):
     return _objects[key]
 
 
-def predict(rt_in, curvature, lam, fuel, ox):
+def predict(op, rt_in, curvature, lam, fuel, ox):
     """The tier-0 quantities at one set of inputs."""
+    _, MDOT, MDOT_INLET, OF = op
     c = cea(fuel, ox)
     at = math.pi * (rt_in * IN) ** 2
     pc, cd = 3e6, 1.0
@@ -109,6 +113,8 @@ def predict(rt_in, curvature, lam, fuel, ox):
         gamma = c.get_Chamber_MolWt_gamma(Pc=psia, MR=OF, eps=EPS)[1]
         cd = kliegel_levine(curvature, gamma)
         cstar = c.get_Cstar(Pc=psia, MR=OF) * 0.3048
+        if not (gamma > 1 and cstar > 0):  # CEA returns zeros when it rejects the dataset
+            raise RuntimeError(f'CEA failed for "{fuel}" / "{ox}": gamma {gamma}, c* {cstar}')
         new = MDOT * cstar / (cd * at)
         if abs(new / pc - 1) < 1e-12:
             pc = new
@@ -129,26 +135,26 @@ def predict(rt_in, curvature, lam, fuel, ox):
     return out
 
 
-def case(rt, rc, face, exit_, fuel, ox, curvature=None, lam=None):
+def case(op, rt, rc, face, exit_, fuel, ox, curvature=None, lam=None):
     p = wall(rt, rc, face, exit_)
     r = throat_curvature(p, rt)
     hi, lo, _, _ = lambdas(p, rt, exit_)
-    return predict(rt, r if curvature is None else curvature, 0.5 * (hi + lo) if lam is None else lam, fuel, ox)
+    return predict(op, rt, r if curvature is None else curvature, 0.5 * (hi + lo) if lam is None else lam, fuel, ox)
 
 
-def main():
+def report(op):
     rt, rc, face, exit_ = 2.47, 5.13, -13.1, 46.0  # the radius reading; Figure E1's stations
     fuel, ox = cards()
     p = wall(rt, rc, face, exit_)
     r_central = throat_curvature(p, rt)
     hi, lo, exit_angle, cone = lambdas(p, rt, exit_)
-    print(f'RL10A-3-3A tier 0: RocketCEA {importlib.metadata.version("rocketcea")} (NASA Glenn CEA2); SciPy PCHIP')
-    print(f'cards: "{fuel}" / "{ox}"; O/F {OF}, mdot {MDOT} kg/s (engine inlet {MDOT_INLET:.4f}), eps {EPS}')
+    print(f'\n=== {op[0]}: O/F {op[3]}, mdot {op[1]} kg/s (engine inlet {op[2]:.4f}), eps {EPS}')
+    print(f'cards: "{fuel}" / "{ox}"')
     print(f'wall: r_t {rt} in, r_c {rc} in, face {face} in, exit {exit_} in; throat R/r_t {r_central:.4f} (PCHIP); '
           f'exit wall angle {math.degrees(exit_angle):.3f} deg (lambda {hi:.5f}), cone {math.degrees(cone):.3f} deg '
           f'(lambda {lo:.5f}); lambda central {0.5 * (hi + lo):.5f}')
     # Central Cd: Kliegel-Levine at the series' edge R/r_t = 0.5, the PCHIP throat being sharper (section 4).
-    central = case(rt, rc, face, exit_, fuel, ox, curvature=0.5)
+    central = case(op, rt, rc, face, exit_, fuel, ox, curvature=0.5)
     variations = [
         ('lambda at the exit wall angle', dict(curvature=0.5, lam=hi)),
         ('lambda at the cone half-angle', dict(curvature=0.5, lam=lo)),
@@ -170,7 +176,7 @@ def main():
         for key in ('face', 'exit_'):
             if key in v:
                 args[key] = v.pop(key)
-        results.append((label, case(args['rt'], rc, args['face'], args['exit_'], f, o, **v)))
+        results.append((label, case(op, args['rt'], rc, args['face'], args['exit_'], f, o, **v)))
     keys = [k for k in central if not k.startswith(('gamma', 'Tc', 'c*_CEA', 'Isp_vac 1-D'))]
     print('\nCentral and one-at-a-time deviations')
     for k in central:
@@ -186,11 +192,17 @@ def main():
         quad = math.sqrt(sum(d * d for d in devs))
         print(f'  {k:42s} {central[k]:.6g}  band [{central[k] - lo_sum:.6g}, {central[k] + hi_sum:.6g}]  '
               f'(-{lo_sum:.3g} / +{hi_sum:.3g}; quadrature {quad:.3g})')
-    record = case(1.235, 2.565, face, exit_, fuel, ox, curvature=0.5)
+    record = case(op, 1.235, 2.565, face, exit_, fuel, ox, curvature=0.5)
     print('\nFor the record, unjudged: the diameter reading (r_t 1.235 in, r_c 2.565 in), Cd at R/r_t 0.5, lambda '
           'central at its own wall')
     for k in keys:
         print(f'  {k:42s} {record[k]:.6g}')
+
+
+def main():
+    print(f'RL10A-3-3A tier 0: RocketCEA {importlib.metadata.version("rocketcea")} (NASA Glenn CEA2); SciPy PCHIP')
+    for op in (P1, P2):
+        report(op)
 
 
 if __name__ == '__main__':
