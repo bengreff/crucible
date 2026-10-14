@@ -1,0 +1,19 @@
+# c2_hot_cells 5e-4 (14 October 2026, CRUCIBLE_EQ_TABLE = Table A); Cantera's 33,428 fallback warnings removed
+t 0.3401 ms: level 1 filled cell (22, 7) at z 0.0586 r 0.0133: T 3500.5 K
+t 0.3402 ms: level 1 filled cell (22, 7) at z 0.0586 r 0.0133: T 3500.6 K
+t 0.3403 ms: level 1 filled cell (22, 7) at z 0.0586 r 0.0133: T 3500.6 K
+t 0.3404 ms: level 1 filled cell (22, 7) at z 0.0586 r 0.0133: T 3500.7 K
+t 0.3406 ms: level 1 filled cell (22, 6) at z 0.0586 r 0.0115: T 3500.5 K
+t 0.3406 ms: level 1 filled cell (22, 7) at z 0.0586 r 0.0133: T 3500.7 K
+t 0.3407 ms: level 1 filled cell (22, 6) at z 0.0586 r 0.0115: T 3500.6 K
+t 0.3407 ms: level 1 filled cell (22, 7) at z 0.0586 r 0.0133: T 3500.8 K
+t 0.3408 ms: level 1 filled cell (22, 6) at z 0.0586 r 0.0115: T 3500.6 K
+t 0.3408 ms: level 1 filled cell (22, 7) at z 0.0586 r 0.0133: T 3500.8 K
+t 0.3409 ms: level 0 owned cell (11, 3) at z 0.0598 r 0.0120: T 3500.5 K
+t 0.3409 ms: level 1 filled cell (22, 6) at z 0.0586 r 0.0115: T 3500.7 K
+level 0 owned    largest T 3523.9 K, cell-steps above 3500 K 3371
+level 0 covered  largest T 3377.0 K, cell-steps above 3500 K 0
+level 0 filled   largest T 0.0 K, cell-steps above 3500 K 0
+level 1 owned    largest T 3390.0 K, cell-steps above 3500 K 0
+level 1 covered  largest T 0.0 K, cell-steps above 3500 K 0
+level 1 filled   largest T 3529.3 K, cell-steps above 3500 K 16888

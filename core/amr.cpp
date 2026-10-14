@@ -21,8 +21,8 @@ Amr::Amr(const Definition& base,int finer) {
         levels_.push_back(std::move(v));
     }
     const Flow& b=level(0);
-    if(b.medium_.hasTransport() || b.nt_)
-        throw std::invalid_argument("AMR step B1 is inviscid: transport and turbulence are not yet refluxed.");
+    if(b.nt_ && (base.turbulence.wallFunctions || base.turbulence.propertyCorrections))
+        throw std::invalid_argument("AMR does not yet carry the wall functions' prescription or the SST property corrections across levels.");
     for(int l=0;l<=finer;++l) {
         Flow& f=level(l);
         f.recordFaces_=true;
@@ -30,22 +30,40 @@ Amr::Amr(const Definition& base,int finer) {
         if(l==0) continue;
         levels_[static_cast<std::size_t>(l)].fineSum.assign(f.faceIntegral_.size(),0.0);
         f.active_.assign(f.mesh_.cells.size(),0);
-        // A fine injector ring takes its base parent ring's supply, so the supply areas are the base's;
-        // a fine cell over a base igniter cell takes the base's power density.
+        // A fine injector ring takes its base parent ring's supply, so the supply areas are the base's.
         if(base.experiment==Case::Chamber) {
             std::fill(f.supplyArea_.begin(),f.supplyArea_.end(),0.0);
             for(int j=0;j<f.mesh_.nr;++j) {
                 const int s=f.faceSupply_[static_cast<std::size_t>(j)]=b.faceSupply_[static_cast<std::size_t>(j>>l)];
                 if(s>=0) f.supplyArea_[static_cast<std::size_t>(s)]+=f.mesh_.axialArea(0,j);
             }
-            if(base.igniter.energy>0) {
-                f.igniterCells_.clear();
-                for(int i=0;i<f.mesh_.nz;++i) for(int j=0;j<f.mesh_.nr;++j) {
-                    const auto q=f.mesh_.index(i,j);
-                    f.igniterCell_[q]=b.igniterCell_[b.mesh_.index(i>>l,j>>l)];
-                    if(f.igniterCell_[q]) f.igniterCells_.push_back(q);
-                }
-                f.igniterVolume_=b.igniterVolume_;
+        }
+    }
+    // The igniter's region is the finest level's cells by centroid, as a single level on that mesh
+    // chooses them; a coarser cell's igniter volume is the sum of its children's, so the owned cells'
+    // shares of the power (power times the cell's igniter volume over the total) sum to the whole.
+    if(base.experiment==Case::Chamber && base.igniter.energy>0) {
+        const auto& g=base.igniter;
+        Flow& top=level(finer);
+        const Mesh& tm=top.mesh_;
+        top.igniterCells_.clear();top.igniterVolume_=0;
+        for(std::size_t q=0;q<tm.cells.size();++q) {
+            const Cell& c=tm.cells[q];
+            const bool in=c.z>=g.zMin && c.z<=g.zMax && c.r<=g.rMax;
+            top.igniterCell_[q]=in?1:0;top.igniterCellVolume_[q]=in?c.volume:0.0;
+            if(in) { top.igniterCells_.push_back(q);top.igniterVolume_+=c.volume; }
+        }
+        if(top.igniterCells_.empty()) throw std::invalid_argument("The igniter region contains no centroid of the finest level.");
+        for(int l=finer-1;l>=0;--l) {
+            Flow& c=level(l);const Flow& f=level(l+1);
+            const Mesh& cm=c.mesh_;const Mesh& fm=f.mesh_;
+            c.igniterCells_.clear();c.igniterVolume_=top.igniterVolume_;
+            for(int I=0;I<cm.nz;++I) for(int J=0;J<cm.nr;++J) {
+                const auto p=cm.index(I,J);
+                double v=0;
+                for(auto q:{fm.index(2*I,2*J),fm.index(2*I,2*J+1),fm.index(2*I+1,2*J),fm.index(2*I+1,2*J+1)}) v+=f.igniterCellVolume_[q];
+                c.igniterCell_[p]=v>0?1:0;c.igniterCellVolume_[p]=v;
+                if(v>0) c.igniterCells_.push_back(p);
             }
         }
     }
@@ -69,7 +87,8 @@ bool Amr::covered(int l,std::size_t q) const {
     return f.isActive(f.mesh_.index(2*i,2*j));
 }
 // Whole parent cells, and proper nesting: every cell within the ghost width of an active cell of
-// level l (clipped to the domain) lies over an active cell of level l - 1.
+// level l (clipped to the domain) lies over an active cell of level l - 1. Then each level's owned
+// cells (active and not covered), where it books its boundary exchange and sources.
 void Amr::check() {
     top_=0;
     for(int l=1;l<levels();++l) {
@@ -88,6 +107,11 @@ void Amr::check() {
                         throw std::invalid_argument("Level "+std::to_string(l)+" is not properly nested in level "+std::to_string(l-1)+".");
         }
         if(any) top_=l;
+    }
+    for(int l=0;l<levels();++l) {
+        Flow& f=level(l);
+        f.owned_.assign(f.mesh_.cells.size(),0);
+        for(std::size_t q=0;q<f.owned_.size();++q) f.owned_[q]=f.isActive(q) && !covered(l,q)?1:0;
     }
     checked_=true;
 }
@@ -246,19 +270,23 @@ bool Amr::reflux(int l) {
     return true;
 }
 // One step of level l from t over dt, half the substep (0 or 1) of level l - 1's step it is, then
-// level l + 1's two substeps, the average down onto level l and the reflux.
+// level l + 1's two substeps, the average down onto level l and the reflux. With turbulence the SST
+// source coefficients are taken at the step's start, filled cells included (and again after a redone
+// base step), by stableDt as Flow::step takes them.
 bool Amr::advance(int l,double t,double dt,int half) {
     Level& v=levels_[static_cast<std::size_t>(l)];
     Flow& f=*v.flow;
     if(l>0) fill(l,f.state_,f.species_,f.turbulence_,0.5*half);
     v.oldState=f.state_;v.oldSpecies=f.species_;v.oldTurbulence=f.turbulence_;
     f.time_=t;
+    if(f.nt_) f.stableDt();
     f.beginStep();
     Flow::Attempt attempt;
     if(!f.firstStage(dt,attempt)) return false;
     if(l>0) fill(l,f.stage_,f.speciesStage_,f.turbulenceStage_,0.5*(half+1));
     if(!f.secondStage(dt,attempt)) return false;
     f.accept(dt,t+dt,attempt);
+    if(afterStep_) afterStep_(l,dt);
     if(l>0) for(std::size_t k=0;k<v.fineSum.size();++k) v.fineSum[k]+=f.faceIntegral_[k];
     if(l<top_) {
         auto& sum=levels_[static_cast<std::size_t>(l+1)].fineSum;
@@ -287,9 +315,31 @@ void Amr::restore() {
         f.clippedTurbulentEnergy_=s.clipped;f.prescribedTurbulentEnergy_=s.prescribed;f.steps_=s.steps;
     }
 }
+Amr::Budget Amr::content() const {
+    const Flow& b=level(0);const Mesh& m=b.mesh_;
+    Budget c;
+    for(std::size_t q=0;q<m.cells.size();++q) {
+        const double v=m.cells[q].volume;
+        c.mass+=b.state_[q][0]*v;c.energy+=b.state_[q][3]*v;c.momentum+=b.state_[q][1]*v;
+    }
+    return c;
+}
+Amr::Budget Amr::budget() const {
+    Budget c=content();
+    c.massResidual=c.mass-initial_.mass;c.energyResidual=c.energy-initial_.energy;c.momentumResidual=c.momentum-initial_.momentum;
+    for(const auto& v:levels_) {
+        const Flow& f=*v.flow;
+        c.massResidual-=f.integratedMassFlux_+f.exchangedMass_;
+        c.energyResidual-=f.integratedEnergyFlux_+f.integratedCorrection_+f.exchangedEnergy_;
+        c.momentumResidual-=f.integratedMomentumSource_+f.exchangedMomentum_;
+        c.momentumGross+=f.integratedMomentumGross_;c.igniterEnergy+=f.integratedHeat_;
+    }
+    return c;
+}
 double Amr::step(double maxDt) {
     if(!(maxDt>0)) throw std::invalid_argument("Step interval must be positive.");
     if(!checked_) check();
+    if(!started_) { initial_=content();started_=true; }
     for(auto& v:levels_)
         if(!v.flow->bodyForce_.empty() || !v.flow->heating_.empty()) throw std::invalid_argument("AMR step B1 takes no body force or heating.");
     double dt=maxDt;

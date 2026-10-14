@@ -1,0 +1,36 @@
+# crucible_amr_budget 8e-3 4 (14 October 2026, 4 threads, load 19 to 20); Cantera's 47,882 fallback warnings and their 'Cantera' header lines removed, all before 1 ms
+AMR criterion 2 on B1: C1 eqtt (resolved walls), base 32 x 6 plus one level, to 8 ms, 4 threads
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+throat station 16, chamber-end column 8; level 1: 256 of 768 cells active; igniter centroids: 20 fine, 4 base
+  AMR t 0.5000 ms, 4053 base steps (0 redone), 171 s: mass 4.57e-16, energy 1.08e-15, momentum -5.63e-17; igniter 0.499999999999993 J
+  AMR t 1.0000 ms, 8429 base steps (0 redone), 217 s: mass -1.28e-15, energy 1.13e-15, momentum -4.09e-16; igniter 0.499999999999993 J
+  AMR t 1.5001 ms, 12707 base steps (0 redone), 263 s: mass -6.29e-15, energy -9.18e-16, momentum -1.65e-16; igniter 0.499999999999993 J
+  AMR t 2.0000 ms, 16956 base steps (0 redone), 309 s: mass -1.33e-14, energy -4.02e-15, momentum -2.64e-17; igniter 0.499999999999993 J
+  AMR t 2.5000 ms, 21197 base steps (0 redone), 356 s: mass -1.79e-14, energy -1.58e-15, momentum -3.09e-16; igniter 0.499999999999993 J
+  AMR t 3.0000 ms, 25436 base steps (0 redone), 417 s: mass -1.16e-14, energy -5.35e-16, momentum -6.09e-16; igniter 0.499999999999993 J
+  AMR t 3.5001 ms, 29674 base steps (0 redone), 475 s: mass -1.52e-14, energy -2.94e-15, momentum -5.52e-16; igniter 0.499999999999993 J
+  AMR t 4.0001 ms, 33912 base steps (0 redone), 521 s: mass -1.21e-14, energy -2.50e-15, momentum -1.71e-16; igniter 0.499999999999993 J
+  AMR t 4.5000 ms, 38149 base steps (0 redone), 562 s: mass -9.95e-15, energy -5.94e-15, momentum -1.30e-15; igniter 0.499999999999993 J
+  AMR t 5.0001 ms, 42387 base steps (0 redone), 604 s: mass -9.35e-15, energy -7.01e-15, momentum 1.55e-15; igniter 0.499999999999993 J
+  AMR t 5.5001 ms, 46625 base steps (0 redone), 646 s: mass -9.95e-15, energy -6.74e-15, momentum 1.62e-15; igniter 0.499999999999993 J
+  AMR t 6.0000 ms, 50862 base steps (0 redone), 686 s: mass -3.32e-15, energy -5.61e-15, momentum 2.27e-15; igniter 0.499999999999993 J
+  AMR t 6.5001 ms, 55100 base steps (0 redone), 728 s: mass 3.32e-15, energy -3.50e-15, momentum 3.01e-15; igniter 0.499999999999993 J
+  AMR t 7.0001 ms, 59338 base steps (0 redone), 769 s: mass 1.36e-14, energy 1.47e-15, momentum 1.49e-15; igniter 0.499999999999993 J
+  AMR t 7.5000 ms, 63575 base steps (0 redone), 813 s: mass 1.18e-14, energy -6.68e-16, momentum 1.25e-16; igniter 0.499999999999993 J
+  AMR t 8.0000 ms, 67813 base steps (0 redone), 854 s: mass 1.33e-14, energy -2.67e-15, momentum -9.34e-16; igniter 0.499999999999993 J
+  level 0: table cells 13015273, clamped 51683, outside (direct) 4823
+  level 1: table cells 104111908, clamped 418637, outside (direct) 48860
+contents: AMR mass 2.814362153e-06 to 1.797367064e-04 kg, energy -2.450409221e-01 to -4.257256218e+02 J; single level mass 2.814362153e-06 to 1.801701162e-04 kg, energy -2.450409221e-01 to -4.237801127e+02 J
+at 8.0000 ms (largest mass 1.797367e-04 kg and |energy| 4.257256e+02 J over the AMR run's base steps; 1.801701e-04 and 4.237801e+02 alone)
+  composite mass budget error / largest mass                                 1.327e-14 (limit 1e-12)  PASS
+    the same against 10 x the single-level run's                             1.327e-14 (limit 6.02e-15)  FAIL
+  composite energy budget error / largest |energy|                           2.670e-15 (limit 1e-12)  PASS
+    the same against 10 x the single-level run's                             2.670e-15 (limit 4.02e-14)  PASS
+  composite axial momentum balance error / gross exchange                    9.337e-16 (limit 1e-12)  PASS
+    the same against 10 x the single-level run's                             9.337e-16 (limit 1.14e-16)  FAIL
+  composite igniter energy, |E - 0.5 J| in J                                 7.105e-15 (limit 1e-14)  PASS
+      printed, not judged: single level mass 6.018e-16, energy 4.024e-15, momentum 1.138e-17, igniter |E - 0.5 J| 5.551e-16 J
+      printed, not judged: largest over the run, AMR mass 1.960e-14, energy 9.480e-15, momentum 3.479e-15; single level 1.511e-14, 1.107e-14, 1.622e-15
+      printed, not judged: AMR c* 2474.44 m/s, vacuum thrust 1677.93 N, mdot out 0.400053 kg/s, 67813 base steps, 854.1 s of wall
+      printed, not judged: single level c* 2477.43 m/s, vacuum thrust 1681.83 N, mdot out 0.400000 kg/s, 67624 steps, 47.4 s of wall
+FAILED (2 failures)

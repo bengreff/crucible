@@ -1,6 +1,6 @@
 # Adaptive resolution (TECHNICAL_PLAN *Lightweight engine*, order of work item 5)
 
-Status (14 October 2026, 00:30 CDT): step A implemented, results below. 0(a), 0(b) and 0(c) are met; 0(d) is not met as written, with the decision recorded. Step B is under way in two parts (*Deviations*). B1 is implemented and judged (*Step B1: results*): 1(a) and 1(b) are met. 3(a)'s reflection is met and its order is not met as written: 1.59 and 1.53, the base scheme's own order on that pulse. 3(b) is met except its pressure peak, which is not met as written: a wave shed by the shock's crossing, whose peak is fixed by the scheme. Criterion 2's setup is recorded before its code (*Step B1: how criterion 2 is run*); it comes next, then B2 and 3(c). Steps C to E are not started. The design and criteria were committed at 22:34 CDT by author time, before any AMR code; this line said "about 22:45" until 22:36.
+Status (14 October 2026, 01:10 CDT): step A implemented, results below. 0(a), 0(b) and 0(c) are met; 0(d) is not met as written, with the decision recorded. Step B is under way in two parts (*Deviations*). B1 is implemented and judged (*Step B1: results*): 1(a) and 1(b) are met. 3(a)'s reflection is met and its order is not met as written: 1.59 and 1.53, the base scheme's own order on that pulse. 3(b) is met except its pressure peak, which is not met as written: a wave shed by the shock's crossing, whose peak is fixed by the scheme. Criterion 2 is run on B1 with the pattern fixed (*Step B1: criterion 2 results*). The mass, energy and momentum budget errors are 1.3e-14, 2.7e-15 and 9.3e-16, met against 1e-12. The comparisons with ten times the single level's are not met as written for mass and momentum: two rounding walks compared at one instant, alike over the run. The igniter is 1.4e-14 relative, not met as written against 1e-14. B2 and 3(c) come next. Steps C to E are not started. The design and criteria were committed at 22:34 CDT by author time, before any AMR code; this line said "about 22:45" until 22:36.
 
 The plan chose block-structured AMR in the logical (i, j) index space of the body-fitted mapping: refinement ratio 2 in space and time, time-accurate subcycling, conservative averaging with refluxing (Berger and Colella, J. Comput. Phys. 82, 1989), and geometry taken from the finest level. It stated four criteria. This record turns that choice into a data layout, a step, tags and numbers, and adds three criteria of its own (the geometry refactor's identity, cost and determinism, and the RL10 measurement the decision rule needs).
 
@@ -74,7 +74,7 @@ advance(l, t, dt):
 ## Boundaries and sources on fine levels
 
 - **Supplies.** A fine injector ring takes the supply of its base parent ring. The supply area summed over fine rings equals the base one (the faces nest), so the scheduled mass flow is delivered exactly on every level.
-- **Igniter.** The power density is fixed on the base: P over the base igniter cells' volume. Every fine cell over a base igniter cell takes that density. The energy delivered by the composite is then exactly P times the time, whatever is refined.
+- **Igniter.** The power density is fixed on the base: P over the base igniter cells' volume. Every fine cell over a base igniter cell takes that density. The energy delivered by the composite is then exactly P times the time, whatever is refined. (Superseded on 14 October by *Step B1: how criterion 2 is run*, (c): the region is the finest level's cells by centroid, a coarser cell's igniter volume is the sum of its children's, and each owned cell takes P times its igniter volume over the total.)
 - **Body force and heating** are inherited from the base parent in the same way.
 - **Walls and wall functions.** Each level builds its wall faces from its own geometry and solves the law at its own first cells; the wall distance comes from the finest wall polyline on every level. Wall forces and heat flow are tallied on the finest level covering each wall face (*Measurements*).
 - **Axis and outlet.** Unchanged on every level: face boundary conditions, not ghost cells.
@@ -282,6 +282,79 @@ The driver is `core/amr.*`. `Flow` gains a constructor from a given mesh, a step
   - the axial momentum balance error below 1e-12 of the largest gross momentum exchange, likewise;
   - the composite igniter energy (the levels' owned deliveries summed) within 1e-14 of 0.5 J.
 - **Printed beside, not judged:** the single-level values, c* and vacuum thrust at 8 ms on both runs, and the wall time.
+
+## Step B1: criterion 2 results (14 October 2026)
+
+The driver is `tests/amr_budget.cpp` (`crucible_amr_budget 8e-3 4`). It is not a ctest because it needs `CRUCIBLE_EQ_TABLE`. It ran on the shared Mac on 4 threads under a load of about 19 to 20. Its log, with Cantera's 47,882 fallback warnings removed, is `amrb/criterion2_b1.log`.
+
+**Before the run: nothing else moved.**
+- **Single-level bits.** The C1 chamber, `eqtt` 64 x 12 to 1 ms on 4 threads, gives a `cmp`-identical history and state to the build before criterion 2's edits (0(a)'s check, repeated).
+- **B1's tests.** Every printed value is unchanged from *Step B1: results*, including the 5 recorded failures (`amrb/subcycling_recheck_after_c2.log`).
+- **ctest** (`ctest_2026-10-14_amr_c2_after.txt`): 9 of 12 pass, the same as after B1 (`ctest_2026-10-14_amr_b1_after.txt`), and every judged line is identical. The three failures are:
+  - `amr_verification`: 0(d), as recorded;
+  - `transport_verification`: 1.218 and 1.444, as recorded;
+  - `spray_verification`: its (b), the medium's enthalpy against NIST, 1.245e3 J/kg against 1e3. That is the spray worker's lane, failing the same way before these edits.
+
+**The run.** It reached 8 ms in 67,813 base steps (none redone) and 854 s of wall. The single-level 32 x 6 run took 67,624 steps and 47 s.
+
+| Judged at 8 ms | AMR | Bound | Single level | Verdict |
+|---|---|---|---|---|
+| Mass budget error / largest mass | 1.33e-14 | 1e-12 | 6.0e-16 | met |
+| the same, against 10 x the single level's | 1.33e-14 | 6.0e-15 | | not met as written |
+| Energy budget error / largest \|energy\| | 2.67e-15 | 1e-12 | 4.0e-15 | met |
+| the same, against 10 x the single level's | 2.67e-15 | 4.0e-14 | | met |
+| Axial momentum balance error / gross exchange | 9.3e-16 | 1e-12 | 1.1e-17 | met |
+| the same, against 10 x the single level's | 9.3e-16 | 1.1e-16 | | not met as written |
+| Igniter energy, \|E / 0.5 J - 1\| | 1.42e-14 (7.1e-15 J) | 1e-14 | 1.1e-15 (5.6e-16 J) | not met as written |
+
+- **The comparisons with the single level compare two rounding walks at one instant.**
+  - **The AMR's errors change sign.** Its mass error at each half millisecond runs from 4.6e-16 down to -1.8e-14 and back up to +1.4e-14. A defect in the registers would drift one way, and its size would be a face's flux over a step: a tenth of the 0.4 kg/s through one face for one 1.2e-7 s step is 3e-5 of the gas's mass. The errors seen are nine orders of magnitude below that.
+  - **The largest errors over the run are alike** (printed, not judged):
+
+    | | AMR | Single level | Ratio |
+    |---|---|---|---|
+    | Mass | 1.96e-14 | 1.51e-14 | 1.3 |
+    | Energy | 9.5e-15 | 1.1e-14 | 0.86 |
+    | Momentum | 3.5e-15 | 1.6e-15 | 2.1 |
+
+  - **Why the instant fails.** At 8 ms the single level's walk happens to sit near zero for mass (6.0e-16) and momentum (1.1e-17), so ten times its value at that moment is a bound on luck, not on the interface.
+  - **The bound as written stays not met**, as in 3(a) and 3(b). For step C, where criterion 2 is judged as stated, a reading is recorded before that run: the largest error over the run against ten times the single level's largest over the run. It is not applied here.
+- **The igniter is 1.4e-14 relative: not met as written.**
+  - **The setup misread the bound.** The setup above says "within 1e-14 of 0.5 J" and the test judged 1e-14 J. Criterion 2 says "exact to 1e-14 relative", which is 5e-15 J. The test now judges the relative form; the logged run printed the absolute one, PASS at 7.1e-15 J.
+  - **What the error is.** Each level adds dt times its owned power to a running sum at every stage. Over the 0.2 ms window that is about 3,400 additions on the base and 6,800 on level 1. An error of 7.1e-15 J is consistent with that rounding; it was not traced further.
+  - **For step C.** A compensated sum in the delivered-energy measurement is planned before step C's run. It does not touch the state.
+- **The AMR and single-level contents differ because the wall strip is resolved at 64 x 12.**
+  - At 8 ms the energy content is -425.73 J on the AMR and -423.78 J alone.
+  - At 50 µs (`amrb/c2_uniform_content_50us.log`, from `amrb/c2_uniform_content.cpp`):
+    - every run starts at -0.2450 J;
+    - the AMR is at -0.3750 J, uniform 64 x 12 at -0.3792 J and uniform 32 x 6 at -0.3069 J;
+    - uniform 64 x 12 loses 7.43 kW to the 600 K wall and uniform 32 x 6 loses 3.77 kW.
+  - **Reading.** The resolved-wall heat flow at these wall distances doubles when the wall cell halves, so it is not mesh converged. The AMR's wall strip is the fine mesh's, and its content follows the fine wall.
+  - **Why the budgets are untouched.** Each run is judged against its own exchanges.
+  - **The two uniform runs start 2e-4 apart in mass** (`c2_uniform_content_1ms.log`). The AMR's base is the 64 x 12 mesh coarsened, which follows the contour more closely than a directly built 32 x 6; the single-level run beside the AMR uses that same coarsened mesh.
+- **Observation: light-off passes Table A's 3500 K top on the AMR, not on either uniform mesh.** From a scratch scan to 0.5 ms (`amrb/c2_hot_cells.cpp`, log `c2_hot_cells_0.5ms.log`):
+
+  | Cells | Peak T | Cell-steps above 3500 K |
+  |---|---|---|
+  | Owned base cells, in the convergent section (base column 11, between the chamber's end at column 8 and the throat at 16), ring 3, near z 0.060 m, r 0.012 m | 3523.9 K | 3,371 |
+  | Filled level-1 cells (not active) | 3529.3 K | 16,888 |
+  | Owned level-1 cells | 3390.0 K | none |
+  | Covered base cells | 3377.0 K | none |
+
+  - **When.** It starts at 0.340 ms.
+  - **Fallback.** These states take Table A's counted direct-Cantera fallback: 4,823 lookups on level 0 and 48,860 on level 1 over the run. B1 reacts every cell of a level, filled ones included. All of the warnings come before 1 ms.
+  - **The uniform runs.** 32 x 6 and 64 x 12 to 1 ms print no fallback at all.
+  - **Reading, not checked.** Here rows 0 and 1 and the wall row are fine and rings 2 to 4 coarse, so the flame crosses from fine rows into coarse ones during light-off. The filled cells are a limited linear reconstruction from those coarse cells, which can overshoot a coarse cell's temperature.
+  - **Where it is judged.** It is a difference in the solution, not in the budget, and it belongs to criterion 4 (the AMR against uniform 64 x 12), where light-off time is judged.
+- **Printed beside, not judged:**
+
+  | | c* | Vacuum thrust | Outlet mdot |
+  |---|---|---|---|
+  | AMR | 2474.44 m/s | 1677.93 N | 0.400053 kg/s |
+  | Single level | 2477.43 m/s | 1681.83 N | 0.400000 kg/s |
+
+  - **Speed.** The AMR's wall time is 18 times the single level's. B1 runs every level's kernels over all 768 level-1 cells, 256 of them active, twice per base step: 9 times the single level's cell updates.
+  - **Cost.** That is B2's business, and the cost is 5(a)'s, judged after B2.
 
 ## Deviations from the plan's text
 

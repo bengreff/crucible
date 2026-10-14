@@ -377,9 +377,10 @@ private:
     std::vector<double> workerDt_;
     std::vector<StepLimit> workerLimit_;
     StepLimit stepLimit_;
-    // Per cell: inside the igniter; rho k V added by the last stage's clip (Flow::step).
+    // Per cell: inside the igniter, and its volume inside it (its own volume on a single level); rho k V
+    // added by the last stage's clip (Flow::step).
     std::vector<char> igniterCell_;
-    std::vector<double> clippedCell_;
+    std::vector<double> igniterCellVolume_, clippedCell_;
     double time_{}, dt_{}, totalPressure_{}, initialMass_{}, initialEnergy_{};
     double integratedMassFlux_{}, integratedEnergyFlux_{}, initialMomentum_{};
     double integratedMomentumSource_{}, integratedMomentumGross_{}, integratedHeat_{}, clippedTurbulentEnergy_{};
@@ -411,9 +412,13 @@ private:
     // through the stages unchanged and left out of the stable step and the admissibility checks.
     std::vector<unsigned char> active_;
     [[nodiscard]] bool isActive(std::size_t q) const { return active_.empty() || active_[q]; }
+    // AMR: per cell whether this level books the boundary exchange beside it and its sources (igniter,
+    // heating, body force) in the budgets (empty: all): active and not covered by the level above.
+    std::vector<unsigned char> owned_;
+    [[nodiscard]] bool isOwned(std::size_t q) const { return owned_.empty() || owned_[q]; }
     // AMR: with recordFaces_, each attempt sums at every face the flux that moved the cells,
-    // dt (F(u^n) + F(u^(1))) / 2 times the area, per face in stride 4 + nw_ (bulk, then the transported
-    // mass fractions, k and omega), the axial faces first and then the radial ones.
+    // dt (F(u^n) + F(u^(1))) / 2 times the area, convective and viscous, per face in stride 4 + nw_ (bulk,
+    // then the transported mass fractions, k and omega), the axial faces first and then the radial ones.
     bool recordFaces_{false};
     std::vector<double> faceIntegral_;
     void recordFaceIntegrals(double weight);

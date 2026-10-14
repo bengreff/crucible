@@ -608,12 +608,12 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
         }
       }
     });
-    if(corrections_) for(double phi:correctionCell_) rates.correction+=phi;
+    if(corrections_) for(std::size_t q=0;q<correctionCell_.size();++q) if(isOwned(q)) rates.correction+=correctionCell_[q];
     // Boundary rates in the order of the serial face loops: the end faces at i = 0, then at i = nz,
-    // then the side wall by column.
+    // then the side wall by column; under AMR only beside owned cells.
     for(int i:{0,m.nz}) for(int j=0;j<m.nr;++j) {
         const auto kind=endKind(i,j);
-        if(kind==Neighbour::Supply) continue;
+        if(kind==Neighbour::Supply || !isOwned(m.index(i==0?0:m.nz-1,j))) continue;
         const auto f=static_cast<std::size_t>(i)*m.nr+j;
         const double sign=i==0?1:-1,area=axialArea_[f];const auto& flux=axialViscous_[f];
         rates.energy+=sign*area*flux[3];
@@ -622,6 +622,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
         else rates.outletMomentum+=area*flux[1];
     }
     for(int i=0;i<m.nz;++i) {
+        if(!isOwned(m.index(i,m.nr-1))) continue;
         const auto f=static_cast<std::size_t>(i)*(m.nr+1)+m.nr;
         const double area=radialArea_[f];const auto& flux=radialViscous_[f];
         rates.wallAxial-=area*flux[1];rates.energy-=area*flux[3];rates.wallHeat-=area*flux[3];

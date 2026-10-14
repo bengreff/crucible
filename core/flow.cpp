@@ -386,7 +386,7 @@ Flow::Flow(Definition d,Mesh mesh):definition_(d),mesh_(std::move(mesh)),medium_
     for(int i=0;i<d.nz;++i) for(int j=1;j<=d.nr;++j) {
         auto ar=mesh_.radialAreaVector(i,j);radialArea_[static_cast<std::size_t>(i)*(d.nr+1)+j]=std::hypot(ar[0],ar[1]);
     }
-    igniterCell_.assign(count,0);clippedCell_.assign(count,0.0);
+    igniterCell_.assign(count,0);igniterCellVolume_.assign(count,0.0);clippedCell_.assign(count,0.0);
     setThreads(1);
     // Initial fill: the reservoir composition, prepared with its frozen properties at the total temperature.
     const double* y0=inletComposition_.data();
@@ -432,7 +432,9 @@ Flow::Flow(Definition d,Mesh mesh):definition_(d),mesh_(std::move(mesh)),medium_
         if(g.energy>0) {
             for(std::size_t q=0;q<count;++q) {
                 const auto& c=mesh_.cells[q];
-                if(c.z>=g.zMin && c.z<=g.zMax && c.r<=g.rMax) { igniterCells_.push_back(q);igniterCell_[q]=1;igniterVolume_+=c.volume; }
+                if(c.z>=g.zMin && c.z<=g.zMax && c.r<=g.rMax) {
+                    igniterCells_.push_back(q);igniterCell_[q]=1;igniterCellVolume_[q]=c.volume;igniterVolume_+=c.volume;
+                }
             }
             if(igniterCells_.empty()) throw std::invalid_argument("The igniter region contains no cell centroid.");
         }
@@ -999,7 +1001,7 @@ void Flow::gather(std::size_t q,std::vector<Conserved>& derivative,std::vector<d
     const bool injector=i==0 && definition_.experiment==Case::Chamber;
     const int supply=injector?faceSupply_[j]:-1;
     Conserved u{};
-    if(igniterPower_>0 && igniterCell_[q]) u[3]+=igniterPower_*m.cells[q].volume/igniterVolume_;
+    if(igniterPower_>0 && igniterCell_[q]) u[3]+=igniterPower_*igniterCellVolume_[q]/igniterVolume_;
     for(int k=0;k<4;++k) u[k]+=axialArea_[a0]*axialFlux_[a0][k];
     for(int k=0;k<4;++k) u[k]-=axialArea_[a1]*axialFlux_[a1][k];
     if(j>0) for(int k=0;k<4;++k) u[k]+=radialArea_[r0]*radialFlux_[r0][k];
@@ -1060,29 +1062,40 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
     // Boundary exchange rates: the igniter (constant power over the step, set by step()), the inlet
     // and outlet faces, the side wall, and the volumetric forces (e.g. a Lorentz force), whose axial
     // integral is rates.bodyAxial, reacting on the equipment (coils) in deviceThrust, and whose work
-    // is an external energy exchange.
+    // is an external energy exchange. Under AMR only the owned cells' (isOwned) are booked, the
+    // igniter as its owned cells' share of the power.
     BoundaryRates rates{};
-    rates.energy+=igniterPower_;rates.heat+=igniterPower_;
+    if(owned_.empty()) { rates.energy+=igniterPower_;rates.heat+=igniterPower_; }
+    else if(igniterPower_>0) {
+        double share=0;
+        for(auto q:igniterCells_) if(owned_[q]) share+=igniterCellVolume_[q];
+        const double power=igniterPower_*share/igniterVolume_;
+        rates.energy+=power;rates.heat+=power;
+    }
     for(int j=0;j<m.nr;++j) {
+        if(!isOwned(m.index(0,j))) continue;
         const auto& flux=axialFlux_[j];const double area=axialArea_[j];
         if(d.experiment==Case::Chamber && faceSupply_[j]<0) { rates.wallAxial+=area*flux[1];continue; }
         rates.mass+=area*flux[0];rates.energy+=area*flux[3];rates.inlet+=area*flux[0];rates.inletMomentum+=area*flux[1];
     }
     for(int j=0;j<m.nr;++j) {
+        if(!isOwned(m.index(m.nz-1,j))) continue;
         const auto f=static_cast<std::size_t>(m.nz)*m.nr+j;
         const auto& flux=axialFlux_[f];const double area=axialArea_[f];
         rates.mass-=area*flux[0];rates.energy-=area*flux[3];rates.outlet+=area*flux[0];rates.outletMomentum+=area*flux[1];
     }
     for(int i=0;i<m.nz;++i) {
+        if(!isOwned(m.index(i,m.nr-1))) continue;
         const auto f=static_cast<std::size_t>(i)*(m.nr+1)+m.nr;
         rates.wallAxial-=radialArea_[f]*radialFlux_[f][1];
     }
     if(!bodyForce_.empty()) for(std::size_t q=0;q<state.size();++q) {
+        if(!isOwned(q)) continue;
         const auto& f=bodyForce_[q];double v=m.cells[q].volume;
         double work=(f[0]*primitives_[q].uz+f[1]*primitives_[q].ur)*v;
         rates.bodyAxial+=f[0]*v;rates.energy+=work;
     }
-    if(!heating_.empty()) for(std::size_t q=0;q<state.size();++q) rates.energy+=heating_[q]*m.cells[q].volume;
+    if(!heating_.empty()) for(std::size_t q=0;q<state.size();++q) if(isOwned(q)) rates.energy+=heating_[q]*m.cells[q].volume;
     if(transport) {
         transportFluxes(derivative,speciesDerivative,turbulenceDerivative,rates);
         pool_->blocks(state.size(),kCells,[&](std::size_t begin,std::size_t end,int) { for(std::size_t q=begin;q<end;++q) finish(q); });
@@ -1220,10 +1233,12 @@ void Flow::accept(double dt,double newTime,const Attempt& attempt) {
     integratedMomentumSource_+=dt*lastRates_.netMomentum();
     integratedMomentumGross_+=dt*lastRates_.grossMomentum();
 }
-// The convective face fluxes only (B1 of AMR.md's step B is inviscid). At a supply face the
-// transported entries are not those gather uses; no coarse-fine face lies on a boundary.
+// The convective face fluxes, and with transport the viscous ones (stored alone by transportFluxes in
+// the same orientation; they carry no mass, and their transported entries are per unit area). At a
+// supply or boundary face the entries are not those the cells use; no coarse-fine face lies on a boundary.
 void Flow::recordFaceIntegrals(double weight) {
     const std::size_t stride=4+nw_,na=axialFlux_.size();
+    const bool viscous=medium_.hasTransport();
     pool_->blocks(na+radialFlux_.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
         for(std::size_t f=begin;f<end;++f) {
             const bool axial=f<na;const std::size_t e=axial?f:f-na;
@@ -1231,8 +1246,16 @@ void Flow::recordFaceIntegrals(double weight) {
             const auto& flux=axial?axialFlux_[e]:radialFlux_[e];
             const double* moved=(axial?axialTransported_:radialTransported_).data()+e*nw_;
             double* g=faceIntegral_.data()+f*stride;
-            for(int k=0;k<4;++k) g[k]+=weight*(area*flux[k]);
-            for(std::size_t k=0;k<nw_;++k) g[4+k]+=weight*moved[k];
+            if(!viscous) {
+                for(int k=0;k<4;++k) g[k]+=weight*(area*flux[k]);
+                for(std::size_t k=0;k<nw_;++k) g[4+k]+=weight*moved[k];
+                continue;
+            }
+            const auto& v=axial?axialViscous_[e]:radialViscous_[e];
+            const double* t=(axial?axialViscousTransported_:radialViscousTransported_).data()+e*nw_;
+            g[0]+=weight*(area*flux[0]);
+            for(int k=1;k<4;++k) g[k]+=weight*(area*flux[k]+area*v[k]);
+            for(std::size_t k=0;k<nw_;++k) g[4+k]+=weight*(moved[k]+area*t[k]);
         }
     });
 }

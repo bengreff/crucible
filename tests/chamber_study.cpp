@@ -3,7 +3,7 @@
 // valve ramps the supply open, the igniter fires, and the run marches in physical time until the
 // chamber has settled. Mechanism: h2o2.yaml by default (verification use only, not a rocket-pressure model).
 //
-// Geometry (built here as a contour table): throat radius 10 mm, chamber radius 25 mm, circular
+// Geometry (a contour table, tests/c1_geometry.hpp): throat radius 10 mm, chamber radius 25 mm, circular
 // throat arcs of radius 20 mm on both sides (R = r_c / r_t = 2), 30 degree convergent cone,
 // 20 mm cylinder-to-cone blend, 15 degree conical exit to area ratio 10. The cylinder length puts
 // the throat at mid-length, so an even nz places a mesh station exactly on the throat.
@@ -78,53 +78,14 @@
 #include "adapters/thermo.hpp"
 #include "cantera/core.h"
 #include "core/contour.hpp"
+#include "tests/c1_geometry.hpp"
 
 using namespace crucible;
 
 namespace {
 constexpr double kPi = std::numbers::pi, kG0 = 9.80665;
-constexpr double kRt = 0.010, kRc = 0.025, kArc = 0.020, kBlend = 0.020;
-const double kAlpha = 30 * kPi / 180, kTheta = 15 * kPi / 180, kEps = 10;
 constexpr double kMixtureRatio = 5, kMassFlow = 0.4, kAmbientP = 1000, kAmbientT = 300;
-
-struct Geometry {
-  std::vector<std::array<double, 2>> contour;
-  double cylinderEnd = 0;  // z where the cylinder meets the blend arc
-  double throat = 0;
-};
-
-// Contour with the throat at z = 0, then shifted so the injector face is z = 0.
-Geometry geometry() {
-  const double re = kRt * std::sqrt(kEps);
-  const double z1 = -kArc * std::sin(kAlpha), r1 = kRt + kArc * (1 - std::cos(kAlpha));
-  const double rb = kRc - kBlend * (1 - std::cos(kAlpha)), zb = z1 - (rb - r1) / std::tan(kAlpha);
-  const double zc = zb - kBlend * std::sin(kAlpha);
-  const double z2 = kArc * std::sin(kTheta), r2 = kRt + kArc * (1 - std::cos(kTheta));
-  const double ze = z2 + (re - r2) / std::tan(kTheta);
-  const double z0 = -ze;  // throat at mid-length
-  std::vector<std::array<double, 2>> c;
-  auto add = [&](double z, double r) {
-    if (c.empty() || z > c.back()[0] + 1e-12) c.push_back({z, r});
-  };
-  const int n = 400;
-  add(z0, kRc);
-  add(zc, kRc);
-  for (int k = 1; k <= n; ++k) {  // blend arc, centre (zc, kRc - kBlend)
-    double a = kAlpha * k / n;
-    add(zc + kBlend * std::sin(a), kRc - kBlend + kBlend * std::cos(a));
-  }
-  add(z1, r1);  // convergent cone (straight)
-  for (int k = 1; k <= 2 * n; ++k) {  // throat arc, centre (0, kRt + kArc)
-    double a = -kAlpha + (kAlpha + kTheta) * k / (2 * n);
-    add(kArc * std::sin(a), kRt + kArc - kArc * std::cos(a));
-  }
-  add(ze, re);  // conical exit
-  Geometry g;
-  for (auto& p : c) g.contour.push_back({p[0] - z0, p[1]});
-  g.cylinderEnd = zc - z0;
-  g.throat = -z0;
-  return g;
-}
+using namespace crucible::c1_geometry;
 
 // The chamber a run simulates: its geometry, supply, hot-gas wall temperature, and the throat radius of curvature
 // (R / r_t, Kliegel-Levine) and divergence factor lambda of the ideal-rocket comparison.

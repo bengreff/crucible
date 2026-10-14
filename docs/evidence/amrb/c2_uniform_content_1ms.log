@@ -1,0 +1,2 @@
+32 x 6 at 1 ms: mass 2.813774390e-06 to 1.483229679e-04 kg, energy -2.449897468e-01 to -3.012612672e+02 J, wall heat flow -1.8636e+04 W, inlet 4.0000e-01 kg/s, steps 8251
+64 x 12 at 1 ms: mass 2.814362153e-06 to 1.470554327e-04 kg, energy -2.450409221e-01 to -3.037869386e+02 J, wall heat flow -3.5104e+04 W, inlet 4.0000e-01 kg/s, steps 16850

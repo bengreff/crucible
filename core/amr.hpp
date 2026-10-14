@@ -2,6 +2,7 @@
 #include "core/flow.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -13,7 +14,8 @@ namespace crucible {
 // finest mesh is built from the definition and every coarser one by Mesh::coarsened, so a coarse cell
 // is the exact union of its children.
 // Step B1 (AMR.md, Deviations): every level's kernels run over the whole level and every cell that a
-// level does not update is filled from the level below before each stage; inviscid only.
+// level does not update is filled from the level below before each stage. The registers carry the
+// convective and viscous fluxes; the wall functions and the SST property corrections are refused.
 class Amr {
 public:
     // base: the level-0 definition; finer: the number of levels above it (1 to 3).
@@ -42,6 +44,18 @@ public:
     [[nodiscard]] double time() const { return time_; }
     [[nodiscard]] std::uint64_t steps() const { return steps_; }
     [[nodiscard]] std::uint64_t rejectedSteps() const { return rejected_; }
+    // Called after each step of a level (its index and dt), before the levels above it step: e.g. a
+    // reaction step, which must keep each cell's mass and energy.
+    void setAfterStep(std::function<void(int, double)> afterStep) { afterStep_=std::move(afterStep); }
+    // The composite budget (AMR.md, criterion 2 (b)): the base's content, which holds the composite
+    // after average-down and reflux, less its content at the first step and every level's exchanges
+    // booked at its owned cells since (boundary faces, igniter, corrections, spray). The residuals are
+    // absolute; momentumGross and igniterEnergy are the levels' sums.
+    struct Budget {
+        double mass{}, energy{}, momentum{};
+        double massResidual{}, energyResidual{}, momentumResidual{}, momentumGross{}, igniterEnergy{};
+    };
+    [[nodiscard]] Budget budget() const;
 
 private:
     // A level's state saved for a redone base step.
@@ -64,7 +78,8 @@ private:
     };
     std::vector<Level> levels_;
     int ghost_{2}, top_{0};
-    bool checked_{false};
+    bool checked_{false}, started_{false};
+    std::function<void(int, double)> afterStep_;
     double time_{};
     std::uint64_t steps_{}, rejected_{};
     void check();
@@ -76,6 +91,8 @@ private:
     bool reflux(int l);
     void save();
     void restore();
+    Budget initial_{};
+    [[nodiscard]] Budget content() const;
 };
 
 }  // namespace crucible
