@@ -150,7 +150,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 14 October, 01:10 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 14 October, 02:15 CDT)
 
 - **RL10A-3-3A tier 0 prediction committed** (`docs/validation/RL10A33A_PREDICTION.md`). No measured performance has been read; none may be until tier 1 is committed.
 - **AMR step A done** (`docs/evidence/AMR.md`, *Results*): the explicit-geometry `Mesh` with `Mesh::coarsened`. 0(a), 0(b) and 0(c) pass; 0(d) fails as written (closure 1.9e-14 to 8.1e-14 at levels 1 to 3, from the direct formulas). Also the wall functions' y+ (`Flow::wallYPlus()`) and `chamber_study`'s end-of-run fix.
@@ -166,10 +166,21 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
   - **Observed:** light-off passes Table A's 3500 K top on the AMR (coarse cells in the convergent section, up to 3524 K, at 0.34 ms), not on uniform 32 x 6 or 64 x 12. The counted Cantera fallback handles it; criterion 4 judges the solution.
 - **RL10 development chamber** (`docs/evidence/RL10_DEV.md`, development only, pre-vaporized). Settled thrust in 3.3 min (uniform rings) and 5.9 min (stretched) on 4 threads; the stretched mesh binds in the throat's wall row. The implicit-time rule provisionally says no implicit step on this mesh. With AMR the target y+ decides it (300: about 1.7 h projected; 956: under 35 min), to be measured in AMR step D.
 - **Table A for any pair: design and criteria** (`docs/evidence/TABLE_A_PAIRS.md`, nothing built). Diffusion moves elements up to 0.056 off the two-stream line in CH4/O2 flames, so the design is an exact element-potential solve seeded from a Bilger-f table, on `gri30_highT.yaml`.
-- **For the spray worker:** inquiry2 has no pending or planned edits in `core/medium.*`, so a lean λ and D entry point there will not conflict. AMR step B2 will edit `core/flow.*` and `core/transport.cpp`. The sub-300 K transport-fit finding is noted for any medium work.
-- **`main` not fast-forwarded.** The worktree branch `worktree-inquiry2` is rebased onto `main` (3726e79) and builds. `main` is checked out in the main checkout, and the worktree guard refuses commands aimed there. Fast-forward from the main checkout: `git merge --ff-only worktree-inquiry2`.
+- **AMR step B2 code committed, checks running** (`docs/evidence/AMR.md`, *Step B2: setup* and *what was built*; commit 7d28c17).
+  - **What it is:** restricted loops over N_k, the listed faces, react over N_1, and the temperature-guess reset (in B1 too). `Amr::setRestricted(false)` selects B1.
+  - **Smoke only so far:** 3(b) on 1 thread is cmp-identical between B2 and B1 with the reset, and B1's printed values are unchanged.
+  - **The five checks are queued on backhouse:**
+    - tmux `inquiry2_b2` (ours), script `/home/greff/crucible_b2/b2_checks.sh`;
+    - trees `/home/greff/crucible_b2pre` (9fdab9b, the reference) and `/home/greff/crucible_b2` (B2);
+    - each job waits for a 1-minute load under 24 (worker rule 16); it was 44 to 47 at 02:05;
+    - progress is in `b2out/queue.log`, the comparisons go to `b2out/summary.txt`, and `b2out/done` marks the end;
+    - about 1.5 h of running once the load allows.
+  - **After the checks:** record *Step B2: results* and judge 3(c). The results are the cmp verdicts; check 2 against the recorded B1 values and against the 9fdab9b tree's own runs on backhouse; and the wall times, with the load.
+  - **Process note:** one cmake build and two 4 s 3(b) smoke runs ran on the Mac outside slot.py on 14 October (worker rule 3).
+- **For the spray worker:** inquiry2 has no pending or planned edits in `core/medium.*`, so a lean λ and D entry point there will not conflict. AMR step B2 edits `core/flow.*`, `core/transport.cpp`, `core/amr.*` and `adapters/reacting_flow.cpp` (react's cell list). The sub-300 K transport-fit finding is noted for any medium work.
+- **`main` not fast-forwarded.** `worktree-inquiry2` is 18 commits ahead of `main` (e18c710) and contains it. `main` is checked out in the main checkout, and the worktree guard refuses commands aimed there. Fast-forward from the main checkout: `git merge --ff-only worktree-inquiry2`.
 - **Next for inquiry2:**
-  - AMR step B2: the restricted interval loops, checked bit for bit against B1, then 3(c);
+  - B2's results and 3(c), then a compensated sum for the igniter's delivered energy before step C;
   - then Table A pairs step A, and the engine-spec schema for the blind-prediction database.
 
 ## Exact next steps (in order)
@@ -224,6 +235,7 @@ TECHNICAL_PLAN *Lightweight engine*, order of work:
 - `/home/greff/crucible_wf`: the wall-function study binaries (`wfs_hp_bin` has the corrected SST), Table A (`table_a.bin`), the law states, and the c2a runs.
 - `/home/greff/crucible_c3`: the criterion 3 binaries (`study_bin`, `study_c3r`) and runs.
 - `/home/greff/crucible_s7`: the S7 tree (main at 8a5b8d0 plus the spray timer 7897b1d; built with `-DCRUCIBLE_BUILD_APP=OFF`), the Mascotte table copied from the Mac (md5 identical), runs in `runs/`. Copy files in with `rsync -az -e ssh --rsync-path="wsl rsync" <files> backhouse:/home/greff/crucible_s7/<dir>/`.
+- `/home/greff/crucible_b2pre` and `/home/greff/crucible_b2`: inquiry2's AMR step B2 checks (9fdab9b and the B2 code; tmux `inquiry2_b2`, outputs `crucible_b2/b2out/`). Files go in by `scp` to the Windows home (`/mnt/c/Users/ben/` in WSL), because the worktree guard refuses rsync's `--rsync-path`.
 - Not ours, do not touch: gate_wg, ltaste2, battery2, flyapp-lib, lsug3, flyapp-m9r, s12spec_* (other users' jobs).
 - Never write to `/home/greff/inquiry-project` (the old Rust project).
 
