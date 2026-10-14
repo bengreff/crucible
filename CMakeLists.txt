@@ -109,6 +109,10 @@ if(CRUCIBLE_WITH_CANTERA)
     target_link_libraries(crucible_spray_tests PRIVATE crucible_thermo)
     target_compile_definitions(crucible_spray_tests PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME spray_verification COMMAND crucible_spray_tests)
+    # S7, Mascotte A-10 (docs/validation/MASCOTTE_A10_PREDICTION.md); a run driver, not a test.
+    add_executable(crucible_mascotte_a10 tests/mascotte_a10.cpp)
+    target_link_libraries(crucible_mascotte_a10 PRIVATE crucible_thermo)
+    target_compile_definitions(crucible_mascotte_a10 PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     # S2's resolved-film reference (docs/evidence/SPRAY.md); sees Cantera directly.
     add_executable(crucible_drop_film_1d tools/drop_film_1d.cpp)
     target_include_directories(crucible_drop_film_1d PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
