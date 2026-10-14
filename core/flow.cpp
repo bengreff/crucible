@@ -368,8 +368,10 @@ double chokedMassFlow(const Definition& d) {
     return pi*sq(d.throatRadius)*d.totalPressure/std::sqrt(d.totalTemperature)*
         std::sqrt(g/d.gas.specificR)*std::pow(2/(g+1),(g+1)/(2*(g-1)));
 }
-Flow::Flow(Definition d):definition_(d),mesh_(d),medium_(d.medium()),ns_(medium_.size()),nt_(d.turbulence.enabled?2:0),
+Flow::Flow(Definition d):Flow(d,Mesh(d)) {}
+Flow::Flow(Definition d,Mesh mesh):definition_(d),mesh_(std::move(mesh)),medium_(d.medium()),ns_(medium_.size()),nt_(d.turbulence.enabled?2:0),
     nw_(ns_+nt_),inletComposition_(d.massFractions()),totalPressure_(d.totalPressure),corrections_(nt_ && d.turbulence.propertyCorrections) {
+    if(mesh_.nz!=d.nz || mesh_.nr!=d.nr) throw std::invalid_argument("The mesh does not have the definition's nz x nr cells.");
     auto count=mesh_.cells.size();
     state_.resize(count); stage_.resize(count); next_.resize(count); rhs_.resize(count);
     slopesZ_.resize(count); primitives_.resize(count); radialLow_.resize(count); radialHigh_.resize(count); pressureSource_.resize(count);
@@ -800,7 +802,7 @@ double Flow::stableDt() {
             rate+=2*nu*sumArea2/volume;
         }
         const double cell=definition_.cfl*volume/rate;
-        if(cell<dt) { dt=cell;limit={q,convective/volume,(rate-convective)/volume}; }
+        if(cell<dt && isActive(q)) { dt=cell;limit={q,convective/volume,(rate-convective)/volume}; }
       }
       if(dt<workerDt_[worker] || (dt==workerDt_[worker] && limit.cell<workerLimit_[worker].cell)) {
           workerDt_[worker]=dt;workerLimit_[worker]=limit;
@@ -1124,87 +1126,126 @@ bool Flow::prescribeWallTurbulence(const std::vector<Conserved>& state,const std
 // reduction cures. After each stage rho k is therefore set to max(rho k, 0); E is not touched (k is
 // part of it), so the energy budget stays exact. The rho k V added is summed over stages in
 // clippedTurbulentEnergy, so a clip that matters shows up in the measurements.
+void Flow::beginStep() {
+    if(nt_) { turbulenceStart_=turbulence_;sourcesStart_=sources_; }
+}
+// Each cell's clip is kept, and the stage's are summed in cell order; likewise the wall functions'
+// prescription, in the order of wallCells_.
+void Flow::clipTurbulence(std::vector<double>& turbulence,std::size_t q) {
+    if(!nt_) return;
+    clippedCell_[q]=0;
+    if(turbulence[q*nt_]<0) { clippedCell_[q]=turbulence[q*nt_]*mesh_.cells[q].volume;turbulence[q*nt_]=0; }
+}
+void Flow::sumClipped(Attempt& attempt) const {
+    if(nt_) for(double c:clippedCell_) attempt.clipped-=c;
+}
+bool Flow::prescribe(std::vector<Conserved>& state,std::vector<double>& species,std::vector<double>& turbulence,Attempt& attempt) {
+    if(!(nt_ && definition_.turbulence.wallFunctions)) return true;
+    const bool admitted=prescribeWallTurbulence(state,species,turbulence);
+    for(std::size_t q:wallCells_) attempt.prescribed+=prescribedChange_[q];
+    return admitted;
+}
+bool Flow::firstStage(double dt,Attempt& attempt) {
+    attempt=Attempt{};
+    // Mean igniter power over [t, t + dt]; steps end on its switching times, so this is exact.
+    const auto& ig=definition_.igniter;
+    igniterPower_=0;
+    if(ig.energy>0) {
+        double overlap=std::min(time_+dt,ig.start+ig.duration)-std::max(time_,ig.start);
+        if(overlap>0) igniterPower_=ig.energy/ig.duration*overlap/dt;
+    }
+    if(recordFaces_) std::fill(faceIntegral_.begin(),faceIntegral_.end(),0.0);
+    if(nt_) {
+        turbulence_=turbulenceStart_;
+        turbulenceSource(state_,turbulence_,sourcesStart_,0.5*dt);
+        if(!allCells([&](std::size_t q) { return !isActive(q) || admissible(state_[q],species_.data()+q*ns_,turbulence_.data()+q*nt_); }))
+            return false;
+    }
+    attempt.first=rhs(state_,species_,turbulence_,rhs_,speciesRhs_,turbulenceRhs_,time_);
+    if(recordFaces_) recordFaceIntegrals(0.5*dt);
+    const bool ok=allCells([&](std::size_t q) {
+        if(!isActive(q)) {
+            stage_[q]=state_[q];
+            std::copy_n(species_.begin()+static_cast<std::ptrdiff_t>(q*ns_),ns_,speciesStage_.begin()+static_cast<std::ptrdiff_t>(q*ns_));
+            std::copy_n(turbulence_.begin()+static_cast<std::ptrdiff_t>(q*nt_),nt_,turbulenceStage_.begin()+static_cast<std::ptrdiff_t>(q*nt_));
+            if(nt_) clippedCell_[q]=0;
+            return true;
+        }
+        for(int k=0;k<4;++k) stage_[q][k]=state_[q][k]+dt*rhs_[q][k];
+        for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesStage_[k]=species_[k]+dt*speciesRhs_[k];
+        for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceStage_[k]=turbulence_[k]+dt*turbulenceRhs_[k];
+        clipTurbulence(turbulenceStage_,q);
+        return admissible(stage_[q],speciesStage_.data()+q*ns_,turbulenceStage_.data()+q*nt_);
+    });
+    sumClipped(attempt);
+    return ok;
+}
+bool Flow::secondStage(double dt,Attempt& attempt) {
+    if(!prescribe(stage_,speciesStage_,turbulenceStage_,attempt)) return false;
+    attempt.second=rhs(stage_,speciesStage_,turbulenceStage_,rhs_,speciesRhs_,turbulenceRhs_,time_+dt);
+    if(recordFaces_) recordFaceIntegrals(0.5*dt);
+    const bool ok=allCells([&](std::size_t q) {
+        if(!isActive(q)) {
+            next_[q]=stage_[q];
+            std::copy_n(speciesStage_.begin()+static_cast<std::ptrdiff_t>(q*ns_),ns_,speciesNext_.begin()+static_cast<std::ptrdiff_t>(q*ns_));
+            std::copy_n(turbulenceStage_.begin()+static_cast<std::ptrdiff_t>(q*nt_),nt_,turbulenceNext_.begin()+static_cast<std::ptrdiff_t>(q*nt_));
+            if(nt_) clippedCell_[q]=0;
+            return true;
+        }
+        for(int k=0;k<4;++k) next_[q][k]=0.5*(state_[q][k]+stage_[q][k]+dt*rhs_[q][k]);
+        for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesNext_[k]=0.5*(species_[k]+speciesStage_[k]+dt*speciesRhs_[k]);
+        for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceNext_[k]=0.5*(turbulence_[k]+turbulenceStage_[k]+dt*turbulenceRhs_[k]);
+        clipTurbulence(turbulenceNext_,q);
+        return admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
+    });
+    sumClipped(attempt);
+    if(!(ok && prescribe(next_,speciesNext_,turbulenceNext_,attempt))) return false;
+    if(nt_) {
+        refresh(next_,speciesNext_,turbulenceNext_);
+        transportProperties();transportGradients();eddyViscosity(true);
+        turbulenceSource(next_,turbulenceNext_,sources_,0.5*dt);
+        return allCells([&](std::size_t q) { return !isActive(q) || admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_); });
+    }
+    return true;
+}
+void Flow::accept(double dt,double newTime,const Attempt& attempt) {
+    state_.swap(next_);species_.swap(speciesNext_);turbulence_.swap(turbulenceNext_);
+    time_=newTime;dt_=dt;++steps_;
+    lastRates_=BoundaryRates::average(attempt.first,attempt.second);
+    integratedHeat_+=dt*lastRates_.heat;
+    clippedTurbulentEnergy_+=attempt.clipped;prescribedTurbulentEnergy_+=attempt.prescribed;
+    integratedMassFlux_+=dt*lastRates_.mass;
+    integratedEnergyFlux_+=dt*lastRates_.energy;
+    integratedCorrection_+=dt*lastRates_.correction;
+    integratedMomentumSource_+=dt*lastRates_.netMomentum();
+    integratedMomentumGross_+=dt*lastRates_.grossMomentum();
+}
+// The convective face fluxes only (B1 of AMR.md's step B is inviscid). At a supply face the
+// transported entries are not those gather uses; no coarse-fine face lies on a boundary.
+void Flow::recordFaceIntegrals(double weight) {
+    const std::size_t stride=4+nw_,na=axialFlux_.size();
+    pool_->blocks(na+radialFlux_.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
+        for(std::size_t f=begin;f<end;++f) {
+            const bool axial=f<na;const std::size_t e=axial?f:f-na;
+            const double area=axial?axialArea_[e]:radialArea_[e];
+            const auto& flux=axial?axialFlux_[e]:radialFlux_[e];
+            const double* moved=(axial?axialTransported_:radialTransported_).data()+e*nw_;
+            double* g=faceIntegral_.data()+f*stride;
+            for(int k=0;k<4;++k) g[k]+=weight*(area*flux[k]);
+            for(std::size_t k=0;k<nw_;++k) g[4+k]+=weight*moved[k];
+        }
+    });
+}
 double Flow::step(double maxDt) {
     if(!(maxDt>0)) throw std::invalid_argument("Step interval must be positive.");
     double dt=std::min(stableDt(),maxDt);
     const double event=nextEvent(time_);
     bool landing=false;
     if(event-time_<=dt) { dt=event-time_;landing=true; }
-    const auto& ig=definition_.igniter;
-    if(nt_) { turbulenceStart_=turbulence_;sourcesStart_=sources_; }
+    beginStep();
     for(int attempt=0;attempt<14;++attempt) {
-        // Each cell's clip is kept, and the stage's are summed in cell order; likewise the wall
-        // functions' prescription, in the order of wallCells_.
-        double clipped=0,prescribed=0;
-        auto clip=[&](std::vector<double>& turbulence,std::size_t q) {
-            if(!nt_) return;
-            clippedCell_[q]=0;
-            if(turbulence[q*nt_]<0) { clippedCell_[q]=turbulence[q*nt_]*mesh_.cells[q].volume;turbulence[q*nt_]=0; }
-        };
-        auto sumClipped=[&] { if(nt_) for(double c:clippedCell_) clipped-=c; };
-        const bool law=nt_ && definition_.turbulence.wallFunctions;
-        auto prescribe=[&](std::vector<Conserved>& s,std::vector<double>& y,std::vector<double>& t) {
-            if(!law) return true;
-            const bool admitted=prescribeWallTurbulence(s,y,t);
-            for(std::size_t q:wallCells_) prescribed+=prescribedChange_[q];
-            return admitted;
-        };
-        // Mean igniter power over [t, t + dt]; steps end on its switching times, so this is exact.
-        igniterPower_=0;
-        if(ig.energy>0) {
-            double overlap=std::min(time_+dt,ig.start+ig.duration)-std::max(time_,ig.start);
-            if(overlap>0) igniterPower_=ig.energy/ig.duration*overlap/dt;
-        }
-        bool ok=true;
-        if(nt_) {
-            turbulence_=turbulenceStart_;
-            turbulenceSource(state_,turbulence_,sourcesStart_,0.5*dt);
-            ok=allCells([&](std::size_t q) { return admissible(state_[q],species_.data()+q*ns_,turbulence_.data()+q*nt_); });
-        }
-        BoundaryRates first{},second{};
-        if(ok) {
-            first=rhs(state_,species_,turbulence_,rhs_,speciesRhs_,turbulenceRhs_,time_);
-            ok=allCells([&](std::size_t q) {
-                for(int k=0;k<4;++k) stage_[q][k]=state_[q][k]+dt*rhs_[q][k];
-                for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesStage_[k]=species_[k]+dt*speciesRhs_[k];
-                for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceStage_[k]=turbulence_[k]+dt*turbulenceRhs_[k];
-                clip(turbulenceStage_,q);
-                return admissible(stage_[q],speciesStage_.data()+q*ns_,turbulenceStage_.data()+q*nt_);
-            });
-            sumClipped();
-            ok=ok && prescribe(stage_,speciesStage_,turbulenceStage_);
-        }
-        if(ok) {
-            second=rhs(stage_,speciesStage_,turbulenceStage_,rhs_,speciesRhs_,turbulenceRhs_,time_+dt);
-            ok=allCells([&](std::size_t q) {
-                for(int k=0;k<4;++k) next_[q][k]=0.5*(state_[q][k]+stage_[q][k]+dt*rhs_[q][k]);
-                for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesNext_[k]=0.5*(species_[k]+speciesStage_[k]+dt*speciesRhs_[k]);
-                for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceNext_[k]=0.5*(turbulence_[k]+turbulenceStage_[k]+dt*turbulenceRhs_[k]);
-                clip(turbulenceNext_,q);
-                return admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
-            });
-            sumClipped();
-            ok=ok && prescribe(next_,speciesNext_,turbulenceNext_);
-        }
-        if(ok && nt_) {
-            refresh(next_,speciesNext_,turbulenceNext_);
-            transportProperties();transportGradients();eddyViscosity(true);
-            turbulenceSource(next_,turbulenceNext_,sources_,0.5*dt);
-            ok=allCells([&](std::size_t q) { return admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_); });
-        }
-        if(ok) {
-            state_.swap(next_);species_.swap(speciesNext_);turbulence_.swap(turbulenceNext_);
-            time_=landing?event:time_+dt;dt_=dt;++steps_;
-            lastRates_=BoundaryRates::average(first,second);
-            integratedHeat_+=dt*lastRates_.heat;
-            clippedTurbulentEnergy_+=clipped;prescribedTurbulentEnergy_+=prescribed;
-            integratedMassFlux_+=dt*lastRates_.mass;
-            integratedEnergyFlux_+=dt*lastRates_.energy;
-            integratedCorrection_+=dt*lastRates_.correction;
-            integratedMomentumSource_+=dt*lastRates_.netMomentum();
-            integratedMomentumGross_+=dt*lastRates_.grossMomentum();
-            return dt;
-        }
+        Attempt a;
+        if(firstStage(dt,a) && secondStage(dt,a)) { accept(dt,landing?event:time_+dt,a);return dt; }
         ++rejectedSteps_;dt*=0.5;landing=false;
     }
     if(nt_) turbulence_=turbulenceStart_;

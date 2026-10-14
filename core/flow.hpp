@@ -244,6 +244,9 @@ double chokedMassFlow(const Definition& definition);
 class Flow {
 public:
     explicit Flow(Definition definition);
+    // A flow on a given mesh with definition's nz x nr cells: a level of the AMR hierarchy
+    // (core/amr.hpp), the finest built directly and the others by Mesh::coarsened.
+    Flow(Definition definition, Mesh mesh);
     // Threads for the loops of the step (1 by default). The result is the same bit for bit on any
     // number: every cell and face is computed alone, and the sums over them keep the serial order.
     void setThreads(int threads);
@@ -325,6 +328,7 @@ public:
     // (composition yInside, mass fractions); g = 0 is a closed valve.
     [[nodiscard]] SupplyFace supplyFace(const Supply& supply, double g, const Primitive& inside, const double* yInside) const;
 private:
+    friend class Amr;
     // Exchange rates of one right-hand-side evaluation, combined with the RK weights.
     struct BoundaryRates {
         double mass{}, energy{}, inlet{}, outlet{}, inletMomentum{}, outletMomentum{}, wallAxial{}, bodyAxial{}, heat{}, wallHeat{};
@@ -388,6 +392,31 @@ private:
     double igniterVolume_{}, igniterPower_{};
     std::uint64_t steps_{}, rejectedSteps_{};
     BoundaryRates lastRates_{};
+    // The step in pieces, so the AMR driver can fill a level's non-active cells between the stages:
+    // beginStep saves rho k, rho omega and the frozen source coefficients; firstStage (igniter power,
+    // the first half source, u^(1)) and secondStage (the wall functions' prescription of u^(1), u^(n+1),
+    // the second half source) return false on a non-admissible state; accept swaps in u^(n+1) and books
+    // the budgets. step() is these in this order, with the same arithmetic.
+    struct Attempt { double clipped{}, prescribed{}; BoundaryRates first{}, second{}; };
+    void beginStep();
+    bool firstStage(double dt, Attempt& attempt);
+    bool secondStage(double dt, Attempt& attempt);
+    void accept(double dt, double newTime, const Attempt& attempt);
+    // A stage's clip of negative rho k in cell q (kept per cell), the stage's clips summed in cell
+    // order, and the wall functions' prescription of a stage with its rho k V summed (false if not admissible).
+    void clipTurbulence(std::vector<double>& turbulence, std::size_t q);
+    void sumClipped(Attempt& attempt) const;
+    bool prescribe(std::vector<Conserved>& state, std::vector<double>& species, std::vector<double>& turbulence, Attempt& attempt);
+    // AMR: per cell whether this level updates it (empty: all). A cell that is not active is carried
+    // through the stages unchanged and left out of the stable step and the admissibility checks.
+    std::vector<unsigned char> active_;
+    [[nodiscard]] bool isActive(std::size_t q) const { return active_.empty() || active_[q]; }
+    // AMR: with recordFaces_, each attempt sums at every face the flux that moved the cells,
+    // dt (F(u^n) + F(u^(1))) / 2 times the area, per face in stride 4 + nw_ (bulk, then the transported
+    // mass fractions, k and omega), the axial faces first and then the radial ones.
+    bool recordFaces_{false};
+    std::vector<double> faceIntegral_;
+    void recordFaceIntegrals(double weight);
     void resetAccounting();
     // Column i's limited axial slopes and radial face states.
     void axialSlopes(int i);

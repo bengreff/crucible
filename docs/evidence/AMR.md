@@ -1,6 +1,6 @@
 # Adaptive resolution (TECHNICAL_PLAN *Lightweight engine*, order of work item 5)
 
-Status (13 October 2026, 23:59 CDT): step A implemented, results below. 0(a), 0(b) and 0(c) are met; 0(d) is not met as written, with the decision recorded. Step B is under way in two parts (*Deviations*), with the readings of criteria 1 and 3 recorded before their tests (*Step B1*); steps C to E are not started. The design and criteria were committed at 22:34 CDT by author time, before any AMR code; this line said "about 22:45" until 22:36.
+Status (14 October 2026, 00:25 CDT): step A implemented, results below. 0(a), 0(b) and 0(c) are met; 0(d) is not met as written, with the decision recorded. Step B is under way in two parts (*Deviations*). B1 is implemented and judged (*Step B1: results*): 1(a) and 1(b) are met. 3(a)'s reflection is met and its order is not met as written: 1.59 and 1.53, the base scheme's own order on that pulse. 3(b) is met except its pressure peak, which is not met as written: a wave shed by the shock's crossing, whose peak is fixed by the scheme. B2, criterion 2 and 3(c) are next; steps C to E are not started. The design and criteria were committed at 22:34 CDT by author time, before any AMR code; this line said "about 22:45" until 22:36.
 
 The plan chose block-structured AMR in the logical (i, j) index space of the body-fitted mapping: refinement ratio 2 in space and time, time-accurate subcycling, conservative averaging with refluxing (Berger and Colella, J. Comput. Phys. 82, 1989), and geometry taken from the finest level. It stated four criteria. This record turns that choice into a data layout, a step, tags and numbers, and adds three criteria of its own (the geometry refactor's identity, cost and determinism, and the RL10 measurement the decision rule needs).
 
@@ -207,6 +207,58 @@ I wrote these readings before the tests, so they cannot follow the results. The 
   - **The L1 error** is the density's against the exact solution at the cell centres, on the composite (the finest level covering each place). The order is judged on both pairs.
   - **The shock's place** is where the density crosses the middle of its two exact states, interpolated between centres.
   - **Reading.** "Behind it, upstream of the interface" is read as the coarse cells between the coarse-fine interface and 5 base cells behind the shock. They hold the post-shock gas the crossing could disturb. The contact lies inside this stretch, where the pressure is continuous. The other reading (the fine cells from the rarefaction's tail to the interface) is printed beside, not judged.
+
+## Step B1: results (14 October 2026)
+
+The driver is `core/amr.*`. `Flow` gains a constructor from a given mesh, a step split into its two stages (the driver fills between them), per-cell activity, and per-face flux integrals for the registers. Before the driver existed, the split step was checked on the C1 chamber, `eqtt` 64 x 12 to 1 ms: byte-identical history and dumps. The tests ran on the shared Mac on 4 threads under a load of 10 to 19; logs are in `docs/evidence/amrb/`.
+
+- **1(a): met.** After 1,000 base steps (t = 3.73e-4 s, none redone, 88 s of wall), with the throat at base column 32 (R 0.0652 to 0.0627 m):
+
+  | Level | Mesh | Active cells | Largest \|u\| / a0 (limit 1e-10) | Largest \|p / p0 - 1\| (limit 1e-12) |
+  |---|---|---|---|---|
+  | 0 | 150 x 16 | 2,400 (all) | 2.6e-14 | 2.2e-15 |
+  | 1 | 300 x 32 | 3,360 | 8.2e-14 | 8.4e-15 |
+  | 2 | 600 x 64 | 10,944 | 2.0e-13 | 2.2e-14 |
+
+  - **Printed beside.** The 150 x 16 mesh alone, 1,000 steps: 1.8e-14 and 2.6e-15. The 600 x 64 mesh alone, 1,000 steps: 1.3e-13 and 1.7e-14. Each level sits at its own mesh's single-level values; the interfaces add nothing measurable.
+  - **0(d)'s consequence.** The closure rounding predicted about 1e-12 a after 1,000 steps at level 3; at level 2 it gives 2.0e-13, five hundred times inside the bound. The cancellation-free forms are not needed and are not applied.
+- **1(b): met.** Over the judged span z in (0.0603, 0.5675) m, after 400 base steps (t = 1.34e-4 s, none redone, 59 s of wall), on levels 0, 1 and 2:
+  - largest |u - u0| / a0: 5.9e-16, 6.3e-16 and 5.1e-16 (limit 1e-10);
+  - largest |p / p0 - 1|: 3.3e-16, 4.4e-16 and 3.3e-16 (limit 1e-12).
+  Over all active cells the values are the same, so nothing grew at the ends either.
+- **3(a): the reflection is met; the order is not met as written.**
+
+  | Base columns | Base steps | Difference from its uniform 2N run (of the density amplitude) | Uniform N against uniform 2N, no AMR | Ratio | Reflection (of the pressure amplitude) |
+  |---|---|---|---|---|---|
+  | 192 | 1,500 | 4.951e-3 | 9.070e-3 | 0.546 | 3.54e-3 |
+  | 384 | 2,700 | 1.644e-3 | 2.923e-3 | 0.562 | 1.15e-3 |
+  | 768 | 4,500 | 5.694e-4 | 1.035e-3 | 0.550 | 3.39e-4 |
+
+  - **Reflection.** 3.4e-4 of the pulse on 768 columns (limit 1e-3), falling by 0.32 and 0.29 per doubling: met.
+  - **Order.** Observed 1.59 (192 to 384) and 1.53 (384 to 768), against 1.8: not met. (The log prints the limit 1.8 rounded, as "2e+00"; the format is fixed after this run.)
+  - **The base scheme's own order on this pulse.** The control (`pulse_control.cpp`, no AMR) runs uniform N against uniform 2N with 3(a)'s pulse, time and norm. It gives orders 1.63 and 1.50, the same as the AMR's. The AMR's difference is a constant 0.55 of the uniform mesh's at all three resolutions: the share of the coarse level's own truncation error the pulse carries after two thirds of its path on the base. The interface adds no measurable loss of order.
+  - **Why the scheme is below 2 here.** The minmod limiter clips the slope at the pulse's peak, so the scheme is first order at the extremum. On uniform N the peak has fallen to 0.829, 0.924 and 0.967 of the amplitude: 17%, 7.6% and 3.3% lost, order 1.2 at the peak.
+  - **The reading was wrong, not the driver.** The reading said "of order h^2 if the coarse-fine interface is second order". That assumed the base scheme second order in L1 on this pulse, which the limiter denies. Comparing the AMR's difference with the uniform runs' own difference is what isolates the interface, and that ratio is flat. A later amendment could judge that ratio; it is not applied here.
+- **3(b): met except the pressure check, which is not met as written.**
+
+  | Base columns | L1, composite | L1, uniform N | L1, uniform 2N | Its place between them (0 fine, 1 coarse) | Shock, base cells from exact | Pressure, judged (limit 1e-3) |
+  |---|---|---|---|---|---|---|
+  | 64 | 8.355e-3 | 1.1456e-2 | 6.397e-3 | 0.387 | 0.36 | 5.5e-3 |
+  | 128 | 4.717e-3 | 6.398e-3 | 3.566e-3 | 0.41 | 0.40 | 3.7e-3 |
+  | 256 | 2.613e-3 | 3.566e-3 | 2.042e-3 | 0.37 | 0.41 | 1.4e-3 |
+
+  - **Orders.** Observed 0.825 (64 to 128) and 0.852 (128 to 256), against 0.8: met.
+  - **The thirds** are whole base cells: level 1 covers base columns lround(N/3) to lround(2N/3) - 1, so the right interface sits at 0.672, 0.664 and 0.668.
+  - **The pressure departure is a wave the shock emits as it leaves the fine level.** In the scratch profiles (`sod_profile.cpp`, in the evidence folder):
+    - **Shape.** A dip of 5.5e-3, 6.5e-3 and 6.4e-3 of the jump (64, 128 and 256 columns), centred just left of the interface, inside the fine level at the two finer meshes. Uniform 2N departs from uniform N there by under 1.5e-4.
+    - **Source.** It is already there at t = 0.15, after the shock crosses (t = 0.095) and before the contact arrives (t = 0.18): 3.9e-3 of the jump on 64 columns and 6.0e-3 on 256, at 0.654 on 256 columns. That is where a left-going wave from the crossing would be at u - a = -0.34 in the gas between contact and shock.
+    - **Scaling.** Its peak does not fall with resolution; its width does. Integrated from 0.55 to 5 base cells behind the shock, |p - p_N| / jump is 6.9e-4, 4.9e-4 and 2.1e-4 in length, falling about as h. The judged values fall only because the dip moves into the fine level as it narrows, so the judged stretch catches less of its tail.
+    - **Not a conservation defect.** Mass and energy balance errors of the composite at t = 0.25 are 4.1e-15 and 5.1e-15 on 64 columns (uniform 64: 4.1e-15 and 4.1e-15).
+    - **Reading.** A captured shock is a few cells wide. When it passes from cells of h/2 into cells of h, its profile widens and the conserved excess within it is shed as waves. Their strength in length scales as h and their width as h, so their peak is fixed by the scheme and does not converge. This is a property of a shock crossing any jump in cell size, not of the registers. Bounding the peak at 1e-3 of the jump asks for more than any resolution gives; a bound on the integrated departure, or on the peak relative to the uniform coarse run's own shock error, would test the interface. That is a reading for a later amendment, not applied here.
+  - **Printed beside, not judged.** From the rarefaction's tail to the interface: 4.4e-2, 2.5e-2 and 1.4e-2. That is mostly the fine level resolving the rarefaction's tail better than uniform N, not reflection.
+- **Housekeeping.**
+  - The RL10 development wall moved from `tests/amr_tests.cpp` to `tests/rl10_wall.hpp`, for both tests. `amr_verification` gives the same values after the move: 0(c) within 7.5e-16, and 0(d) at 8.1e-14, 3.9e-14, 1.9e-14 and 8.3e-15.
+  - ctest `amr_subcycling_verification` therefore reports 5 failures as recorded: 3(a)'s two orders and 3(b)'s three pressure peaks. The failures stay as written rather than being moved to a later amendment's bounds.
 
 ## Deviations from the plan's text
 
