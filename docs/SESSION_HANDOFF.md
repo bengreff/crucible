@@ -2,7 +2,7 @@
 
 14 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Stopped at (14 October, about 00:35 CDT)
+## Stopped at (14 October, about 01:00 CDT)
 
 - **Step 5, liquid LOX: the spray is in the engine** (`core/spray.*`, design and results in `docs/evidence/SPRAY.md`). Lagrangian parcels on the NIST liquid, Abramzon-Sirignano drops with film integrals, KH-RT, walls, Gosman-Ioannides dispersion (S8 passes), exact exchange through `Flow::exchange` inside ReactingFlow's step. S0, S1, S3, S4, S5, S8 pass; S0(b) fails as stated (NASA-7's extrapolation, kept). S6: 3.7 times the gas step on the 96-cell S3 run; `Spray::wallTime()` (7897b1d) now measures it on the S7 runs (`spray_wall_s` in the history).
   - **S2(c) judged (1c5f577): fails as stated** against Lafon et al. (2008) at 10 atm: d² slope +30.4%, lifetime −17.5%. Read against S2 (the miss is physics both our model and the S2 film lack: real-fluid film, finite liquid conductivity, H2 dissolution); nothing changed. Digitised tables in `docs/evidence/spray/lafon_2008_digitised.md`.
@@ -15,6 +15,8 @@
     - Backhouse, tmux `crucible_s7_high` (`rr:574:3.207:13.7`, 239×70) and `crucible_s7_blobfine` (478×70), tree `/home/greff/crucible_s7` (main at 61e8517's spray code; not `/home/greff/crucible`), logs `runs/{high,blob_fine}.log`. The grid check takes about 13 h.
     - Each run: settled if the halves differ ≤ 50 K at r ≤ 20 mm, otherwise extend by 10 ms (§2). Then `tools/mascotte_band.py <low> <high> <blob> <blob_fine> band.csv` gives §6.
   - The Mac and backhouse both carry other users' jobs, so times are loose.
+  - **Pace at 00:50 CDT (measured):** Mac blob about 530 s per ms, low about 660 s per ms (both done near 04:30 to 05:30 CDT). Backhouse is at load 45 on 28 threads (other users): high about 2,100 s per ms (about 15 h), blob-fine about 3,650 s per ms (about 25 h). **Plan:** when the Mac runs finish, start a second blob-fine (and high, if backhouse's is still short of 15 ms) on the Mac through slot.py with the same arguments; use whichever copy finishes first and stop the other. Same code and inputs, so either copy is the run.
+  - **S6, early (measured):** the RR low run's parcels level at about 6,500 to 7,800 from 1.2 ms (no runaway after the KH fix); the spray took 24% of its wall time to 1.9 ms (about 35% of the latest 0.2 ms); the blob run 8%. Below the gas, so S6's film-table trigger has not fired; the settled share goes in S7's record.
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
