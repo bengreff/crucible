@@ -21,6 +21,11 @@ std::uint64_t next(std::uint64_t& state) {
   return z ^ (z >> 31);
 }
 double uniform(std::uint64_t& state) { return (static_cast<double>(next(state) >> 11) + 0.5) * 0x1.0p-53; }
+// Two independent standard normals (Box-Muller).
+std::array<double, 2> normals(std::uint64_t& state) {
+  const double radius = std::sqrt(-2 * std::log(uniform(state))), angle = 2 * pi * uniform(state);
+  return {radius * std::cos(angle), radius * std::sin(angle)};
+}
 // ln(1 + b) / b, 1 at b = 0.
 double logRatio(double b) { return b > 1e-8 ? std::log1p(b) / b : 1 - b / 2; }
 // Abramzon and Sirignano's film correction F(B) = (1 + B)^0.7 ln(1 + B) / B.
@@ -172,6 +177,7 @@ Spray::Spray(Flow& flow, LiquidOxygen liquid, Settings settings)
   cellLoad_.assign(cells * 5, 0);
   amounts_.assign(cells * (ns + 3), 0);
   occupied_.assign(cells, 0);
+  if (!flow_.turbulence().empty()) cellTurbulence_.assign(cells * 2, 0);
   cellSize_.resize(cells);
   for (int i = 0; i < mesh.nz; ++i)
     for (int jr = 0; jr < mesh.nr; ++jr) {
@@ -258,6 +264,10 @@ void Spray::gatherGas() {
       g[3] = u[1] / u[0];
       g[4] = u[2] / u[0];
       g[5] = medium.cv(t, y);
+      if (nt) {
+        cellTurbulence_[q * 2] = k;
+        cellTurbulence_[q * 2 + 1] = turbulence[q * nt + 1] / u[0];
+      }
       if (g[1] > tableTop) throw std::runtime_error("Spray: a parcel's cell is above oxygen's critical pressure.");
     }
   });
@@ -413,7 +423,7 @@ Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<doub
   double rhoD = rhoFilm * diffusion[oxygen_] * (wOther > 0 ? Medium::universalGasConstant / (film.r * wOther) : 1);
   const double mu = transport.viscosity;
   double lambda = transport.conductivity;
-  const double slip = std::sqrt(sq(gas.uz - parcel.uz) + sq(gas.ur - parcel.ur) + sq(parcel.ut));
+  const double slip = std::sqrt(sq(gas.uz - parcel.uz) + sq(gas.ur - parcel.ur) + sq(gas.ut - parcel.ut));
   out.reynolds = gas.rho * slip * parcel.d / mu;
   const double pr = cpg * mu / lambda, sc = mu / rhoD;
   const double f = out.reynolds > 1 ? std::pow(out.reynolds, 0.077) : 1.0;
@@ -543,6 +553,21 @@ Spray::Gas Spray::seen(int cell) const {
   const double* g = cellGas_.data() + static_cast<std::size_t>(cell) * (6 + flow_.medium().size());
   return {g[0], g[1], g[2], g[3], g[4], g + 6};
 }
+Spray::Gas Spray::seenBy(const Parcel& parcel) const {
+  Gas gas = seen(parcel.cell);
+  gas.uz += parcel.eddyZ;
+  gas.ur += parcel.eddyR;
+  gas.ut = parcel.eddyT;
+  return gas;
+}
+
+// Eddy lifetime l_e / sqrt(2k/3) = 3 / (Sc_t omega) and crossing time -tau ln(1 - l_e / (tau slip)), the
+// shorter (SPRAY.md, Turbulent dispersion).
+double Spray::interaction(double k, double omega, double tau, double slip, double schmidt) {
+  const double length = 3 / schmidt * std::sqrt(2 * k / 3) / omega, lifetime = 3 / (schmidt * omega);
+  const double reach = tau * slip;
+  return length >= reach ? lifetime : std::min(lifetime, -tau * std::log1p(-length / reach));
+}
 double Spray::blobDiameter(int injector) const {
   const auto& j = settings_.injectors[static_cast<std::size_t>(injector)];
   return 2 * (j.rOuter - j.rInner);
@@ -556,7 +581,7 @@ void Spray::applyLoads(double dt) {
   flow_.pool().blocks(parcels_.size(), 64, [&](std::size_t begin, std::size_t end, int worker) {
     for (std::size_t i = begin; i < end; ++i) {
       const auto& p = parcels_[i];
-      const auto r = rates(p, seen(p.cell), work_[static_cast<std::size_t>(worker)]);
+      const auto r = rates(p, seenBy(p), work_[static_cast<std::size_t>(worker)]);
       slots_[i].drag = p.count * p.dropMass(liquid_.at(p.t).density) / r.tau;
       slots_[i].conductance = p.count * r.conductance;
       slots_[i].surface = r.surface;
@@ -567,8 +592,8 @@ void Spray::applyLoads(double dt) {
     const auto& p = parcels_[i];
     double* l = cellLoad_.data() + static_cast<std::size_t>(p.cell) * 5;
     l[0] += slots_[i].drag;
-    l[1] += slots_[i].drag * p.uz;
-    l[2] += slots_[i].drag * p.ur;
+    l[1] += slots_[i].drag * (p.uz - p.eddyZ);  // the gas feels the drag toward its velocity plus the eddy's
+    l[2] += slots_[i].drag * (p.ur - p.eddyR);
     l[3] += slots_[i].conductance;
     l[4] += slots_[i].conductance * slots_[i].surface;
   }
@@ -614,12 +639,26 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
   };
   // The parcel's own state across the sub-steps: mass and enthalpy per drop.
   double m = p.dropMass(liquid_.at(p.t).density), h = liquid_.enthalpy(p.t);
+  const bool disperse = settings_.dispersion && !cellTurbulence_.empty();
+  const double schmidt = flow_.definition().turbulence.schmidt;
   double remaining = dt;
   while (remaining > 0) {
     if (!occupied_[static_cast<std::size_t>(p.cell)])
       throw std::runtime_error("Spray: a parcel crossed more than one cell in a step.");
-    const Gas gas = seen(p.cell);
     const int cell = p.cell;
+    // A new eddy where the last interaction ended: u' from the cell's k, its time set below.
+    bool newEddy = false;
+    if (disperse && p.eddyTime <= 0) {
+      const double k = cellTurbulence_[static_cast<std::size_t>(cell) * 2];
+      const double sigma = k > 0 ? std::sqrt(2 * k / 3) : 0;
+      const auto a = normals(p.random), b = normals(p.random);
+      p.eddyZ = sigma * a[0];
+      p.eddyR = sigma * a[1];
+      p.eddyT = sigma * b[0];
+      newEddy = k > 0 && cellTurbulence_[static_cast<std::size_t>(cell) * 2 + 1] > 0;
+      if (!newEddy) p.eddyZ = p.eddyR = p.eddyT = 0;
+    }
+    const Gas gas = seenBy(p);
     ++slot.substeps;
     // Start-of-sub-step totals (shed mass travels with the drop at its temperature and velocity).
     const double ke0 = 0.5 * (sq(p.uz) + sq(p.ur) + sq(p.ut));
@@ -650,12 +689,18 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
     // Stage 1 and the sub-step's length.
     const auto r1 = rates(p, gas, work);
     if (r1.clamped) ++slot.clamped;
+    if (newEddy) {
+      const double slip = std::sqrt(sq(gas.uz - p.uz) + sq(gas.ur - p.ur) + sq(gas.ut - p.ut));
+      const auto c = static_cast<std::size_t>(cell) * 2;
+      p.eddyTime = interaction(cellTurbulence_[c], cellTurbulence_[c + 1], r1.tau, slip, schmidt);
+    }
     const auto l1 = liquid_.at(p.t);
     double step = std::min(remaining, 0.25 * r1.tau);
     if (r1.mass > 0) step = std::min(step, 0.25 * m / r1.mass);
     if (!r1.boiling && r1.stiffness > 0) step = std::min(step, 0.25 * m * l1.cp / r1.stiffness);
     const double speed = std::sqrt(sq(p.uz) + sq(p.ur) + sq(p.ut));
     if (speed > 0) step = std::min(step, 0.5 * cellSize_[static_cast<std::size_t>(cell)] / speed);
+    if (p.eddyTime > 0) step = std::min(step, p.eddyTime);  // the sub-step ends with the interaction
     if (step >= remaining) step = remaining;
     remaining = step == remaining ? 0 : remaining - step;
     // Mass and enthalpy: Heun on s = m^(2/3) and h.
@@ -693,10 +738,12 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
       }
     }
     // Velocity: exact relaxation toward the seen gas over the step at stage 1's drag; position exact.
-    // Frame: x radial in the parcel's start plane, y azimuthal, z axial; the gas has (u_r, 0, u_z).
+    // Frame: x radial in the parcel's start plane, y azimuthal, z axial; the seen gas has (u_r, u_t, u_z),
+    // u_t the eddy's alone.
     const double decay = std::exp(-step / r1.tau), lag = -std::expm1(-step / r1.tau) * r1.tau;
-    const double vx = gas.ur + (p.ur - gas.ur) * decay, vy = p.ut * decay, vz = gas.uz + (p.uz - gas.uz) * decay;
-    const double x = p.r + gas.ur * step + (p.ur - gas.ur) * lag, y = p.ut * lag;
+    const double vx = gas.ur + (p.ur - gas.ur) * decay, vy = gas.ut + (p.ut - gas.ut) * decay;
+    const double vz = gas.uz + (p.uz - gas.uz) * decay;
+    const double x = p.r + gas.ur * step + (p.ur - gas.ur) * lag, y = gas.ut * step + (p.ut - gas.ut) * lag;
     double z = p.z + gas.uz * step + (p.uz - gas.uz) * lag;
     p.distance += std::sqrt(sq(x - p.r) + sq(y) + sq(z - p.z));
     if (m1 < minMass) {  // vaporised within the sub-step
@@ -715,10 +762,15 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
     p.d = std::cbrt(6 * m / (pi * liquid_.at(p.t).density));
     // Back to the meridional plane through the new position.
     double rr = std::hypot(x, y), ur = vx, ut = vy, uz = vz;
+    if (p.eddyTime > 0) p.eddyTime = step >= p.eddyTime ? 0 : p.eddyTime - step;
+    if (p.eddyTime <= 0) p.eddyZ = p.eddyR = p.eddyT = 0;
     if (rr > 0) {
       const double c = x / rr, sn = y / rr;
       ur = c * vx + sn * vy;
       ut = -sn * vx + c * vy;
+      const double er = p.eddyR;  // the eddy's velocity is fixed in space: it turns with the frame
+      p.eddyR = c * er + sn * p.eddyT;
+      p.eddyT = -sn * er + c * p.eddyT;
     }
     // Walls and the outlet. Injector plate:
     const double mass = p.count * (m + p.shed);
@@ -769,7 +821,7 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
     }
     // Breakup, at the sub-step's end state inside the domain; it keeps every total of the liquid.
     if (breakup.on) {
-      const double u = std::sqrt(sq(gas.uz - p.uz) + sq(gas.ur - p.ur) + sq(p.ut));
+      const double u = std::sqrt(sq(gas.uz - p.uz) + sq(gas.ur - p.ur) + sq(gas.ut - p.ut));
       if (u > 0) {
         const auto l = liquid_.at(p.t);
         const double a = p.d / 2;

@@ -1,6 +1,6 @@
 // Verification of the liquid oxygen spray (core/spray.hpp) on the criteria of docs/evidence/SPRAY.md,
 // stated before the code: S0 (properties), S1 (the drop model's algebra and integrator), S3 (budgets
-// with parcels), S4 (threads) and S5 (breakup). S2's reference is tools/drop_film_1d.cpp.
+// with parcels), S4 (threads), S5 (breakup) and S8 (turbulent dispersion). S2's reference is tools/drop_film_1d.cpp.
 // With the argument "cost" it measures S6 instead: the S3 run with and without the spray; with "lafon",
 // the model's side of S2(c) (outer step dt, default 2 us).
 // Usage: crucible_spray_tests [cost [threads] | lafon [dt]]
@@ -29,6 +29,7 @@ const std::string kSaturation = CRUCIBLE_SOURCE_DIR "/tools/o2_saturation_nist.t
 const std::string kLowPressure = CRUCIBLE_SOURCE_DIR "/tools/o2_lowp_nist.tsv";
 
 int failures = 0;
+double sq(double x) { return x * x; }
 void check(bool ok, const char* what, double value, double limit) {
   std::printf("  %-78s %.3e (limit %.0e)  %s\n", what, value, limit, ok ? "PASS" : "FAIL");
   if (!ok) ++failures;
@@ -509,7 +510,9 @@ struct Run {
   long steps{};
 };
 
-Run chamberRun(thermo::ReactionSource& source, int threads, bool withSpray, double endTime) {
+// turbulent: SST with S8(c)'s inflow (intensity 0.05, viscosity ratio 10) and the Spalart-Rumsey ambient
+// of tests/chamber_study.cpp, and the spray's dispersion.
+Run chamberRun(thermo::ReactionSource& source, int threads, bool withSpray, double endTime, bool turbulent = false) {
   constexpr double radius = 0.01;
   Definition def = chamber(source, 16, 6, 0.016, radius, "H2:1", 1e6, 300);
   Supply supply;
@@ -518,6 +521,18 @@ Run chamberRun(thermo::ReactionSource& source, int threads, bool withSpray, doub
   supply.massFlow = 3e-3;
   supply.totalTemperature = 300;
   supply.composition = source.massFractions("H2:1");
+  if (turbulent) {
+    supply.turbulenceIntensity = 0.05;
+    supply.viscosityRatio = 10;
+    def.turbulence.enabled = true;
+    const Medium medium = def.medium();
+    std::vector<double> diffusion(def.species.size()), work;
+    const double a0 = medium.soundSpeed(300, def.composition.data());
+    const double rho0 = 1e6 / (medium.gasConstant(def.composition.data()) * 300);
+    const double mu0 = medium.transport(300, 1e6, def.composition.data(), diffusion.data(), work).viscosity;
+    def.turbulence.ambientK = 9e-9 * a0 * a0;
+    def.turbulence.ambientOmega = 1e-6 * rho0 * a0 * a0 / mu0;
+  }
   def.supplies = {supply};
   Flow flow(def);
   thermo::ReactingFlow reacting(flow, "h2o2.yaml", threads, 1e-6, 1e-12, thermo::Chemistry::Frozen);
@@ -564,17 +579,18 @@ bool identical(const Run& a, const Run& b) {
   if (!sameBits(a.partial.data(), b.partial.data(), a.partial.size() * sizeof(double))) return false;
   for (std::size_t i = 0; i < a.parcels.size(); ++i) {
     const Parcel &p = a.parcels[i], &q = b.parcels[i];
-    const std::array<double, 11> x{p.z, p.r, p.uz, p.ur, p.ut, p.d, p.t, p.count, p.shed, p.rtTime, p.distance};
-    const std::array<double, 11> y{q.z, q.r, q.uz, q.ur, q.ut, q.d, q.t, q.count, q.shed, q.rtTime, q.distance};
+    const std::array<double, 15> x{p.z, p.r, p.uz, p.ur, p.ut, p.d, p.t, p.count, p.shed, p.rtTime, p.distance,
+                                   p.eddyZ, p.eddyR, p.eddyT, p.eddyTime};
+    const std::array<double, 15> y{q.z, q.r, q.uz, q.ur, q.ut, q.d, q.t, q.count, q.shed, q.rtTime, q.distance,
+                                   q.eddyZ, q.eddyR, q.eddyT, q.eddyTime};
     if (!sameBits(x.data(), y.data(), sizeof x) || p.random != q.random || p.cell != q.cell || p.injector != q.injector)
       return false;
   }
   return true;
 }
 
-void budgets(thermo::ReactionSource& source) {
-  std::printf("S3. Budgets with parcels (16 by 6 cold chamber to 0.5 ms)\n");
-  const Run run = chamberRun(source, 1, true, 0.5e-3);
+// S3's checks on a run; a and b label the gas-and-liquid and the whole-system checks.
+void closes(const Run& run, const char* a, const char* b) {
   const auto& g = run.end;
   const auto& l = run.ledger;
   std::printf("  %ld steps in %.1f s; %ld parcels injected, %ld children, %zu held at the end; %ld wall hits, %ld flashes, "
@@ -583,14 +599,17 @@ void budgets(thermo::ReactionSource& source) {
               l.clampedCondensation, l.substeps);
   std::printf("  liquid injected %.6e kg, evaporated %.6e kg, out %.6e kg, held %.6e kg; wall impulse %.4e N s, wall loss %.4e J\n",
               l.injectedMass, l.exchangedMass, l.outflowMass, run.liquidMass, l.wallImpulse, l.wallLoss);
-  const bool happened = l.parcelsInjected > 0 && l.exchangedMass > 0 && l.wallHits > 0 && l.outflowMass > 0;
-  check(happened, "injection, evaporation, wall rebounds and parcels leaving all occurred", happened ? 0 : 1, 0.5);
-  check(std::abs(g.massBalanceError) < 1e-11, "(a) gas mass balance with the exchange", std::abs(g.massBalanceError), 1e-11);
-  check(std::abs(g.energyBalanceError) < 1e-11, "(a) gas energy balance with the exchange", std::abs(g.energyBalanceError), 1e-11);
-  check(std::abs(g.momentumBalanceError) < 1e-11, "(a) gas axial momentum balance with the exchange", std::abs(g.momentumBalanceError), 1e-11);
-  check(std::abs(run.liquidErrors[0]) < 1e-11, "(a) liquid mass ledger", std::abs(run.liquidErrors[0]), 1e-11);
-  check(std::abs(run.liquidErrors[1]) < 1e-11, "(a) liquid energy ledger", std::abs(run.liquidErrors[1]), 1e-11);
-  check(std::abs(run.liquidErrors[2]) < 1e-11, "(a) liquid axial momentum ledger", std::abs(run.liquidErrors[2]), 1e-11);
+  auto within = [&](double value, const char* label, const char* what) {
+    char line[96];
+    std::snprintf(line, sizeof line, "%s %s", label, what);
+    check(std::abs(value) < 1e-11, line, std::abs(value), 1e-11);
+  };
+  within(g.massBalanceError, a, "gas mass balance with the exchange");
+  within(g.energyBalanceError, a, "gas energy balance with the exchange");
+  within(g.momentumBalanceError, a, "gas axial momentum balance with the exchange");
+  within(run.liquidErrors[0], a, "liquid mass ledger");
+  within(run.liquidErrors[1], a, "liquid energy ledger");
+  within(run.liquidErrors[2], a, "liquid axial momentum ledger");
   // (b) Gas and liquid together, no exchange terms: (gas + liquid now) - (gas at the start + the gas's
   // boundary flux + injected - out [+ wall impulse, - wall loss]). The gas's boundary terms are its
   // balance residual's: flux = now - start - exchanged(gas) - error * scale, so the whole residual is
@@ -604,9 +623,18 @@ void budgets(thermo::ReactionSource& source) {
                     (l.injectedMomentum - g.exchangedMomentum - l.outflowMomentum + l.wallImpulse);
   const double sm = m0 + l.injectedMass, se = e0 + std::abs(l.injectedEnergy) + std::abs(l.outflowEnergy) + l.wallLoss;
   const double sp = g.momentumBalanceScale + std::abs(l.injectedMomentum) + std::abs(l.outflowMomentum) + std::abs(l.wallImpulse);
-  check(std::abs(wm) / sm < 1e-11, "(b) whole system mass", std::abs(wm) / sm, 1e-11);
-  check(std::abs(we) / se < 1e-11, "(b) whole system energy", std::abs(we) / se, 1e-11);
-  check(std::abs(wp) / sp < 1e-11, "(b) whole system axial momentum", std::abs(wp) / sp, 1e-11);
+  within(wm / sm, b, "whole system mass");
+  within(we / se, b, "whole system energy");
+  within(wp / sp, b, "whole system axial momentum");
+}
+
+void budgets(thermo::ReactionSource& source) {
+  std::printf("S3. Budgets with parcels (16 by 6 cold chamber to 0.5 ms)\n");
+  const Run run = chamberRun(source, 1, true, 0.5e-3);
+  const auto& l = run.ledger;
+  const bool happened = l.parcelsInjected > 0 && l.exchangedMass > 0 && l.wallHits > 0 && l.outflowMass > 0;
+  closes(run, "(a)", "(b)");
+  check(happened, "injection, evaporation, wall rebounds and parcels leaving all occurred", happened ? 0 : 1, 0.5);
 
   std::printf("S4. Threads\n");
   for (int threads : {4, 6}) {
@@ -616,6 +644,103 @@ void budgets(thermo::ReactionSource& source) {
     const bool same = identical(run, other);
     check(same, what, same ? 0 : 1, 0.5);
   }
+}
+
+// ---------------------------------------------------------------------------------------------------
+// S8
+
+void dispersion(thermo::ReactionSource& source) {
+  std::printf("S8. Turbulent dispersion\n");
+  // (b) The interaction time against Gosman and Ioannides' forms with the eddy length of SPRAY.md.
+  const double sc = 0.7;
+  double worstI = 0;
+  int crossing = 0, lifetimes = 0;
+  for (double k : {1e-6, 1e-2, 1.0, 1e2, 1e4})
+    for (double omega : {1.0, 1e2, 1e4, 1e6})
+      for (double tau : {1e-7, 1e-5, 1e-3, 1e-1})
+        for (double slip : {0.0, 1e-3, 0.1, 10.0, 1e3}) {
+          const double sigma = std::sqrt(2 * k / 3), length = 3 / sc * std::sqrt(2.0 / 3) * std::sqrt(k) / omega;
+          const double life = length / sigma;
+          const double cross = tau * slip > length ? -tau * std::log1p(-length / (tau * slip)) : 1e300;
+          (cross < life ? crossing : lifetimes) += 1;
+          worstI = std::max(worstI, relative(Spray::interaction(k, omega, tau, slip, sc), std::min(life, cross)));
+        }
+  std::printf("  %d cases bound by the crossing time, %d by the eddy lifetime\n", crossing, lifetimes);
+  check(worstI < 1e-14 && crossing > 0 && lifetimes > 0, "(b) interaction time against the formulas (both branches)", worstI, 1e-14);
+
+  // (a) Spreading from a point on the axis in frozen, uniform turbulence, one-way, no mass or heat passing.
+  const double k = 1e-7, omega = 100, tauE = 3 / (sc * omega);
+  const int n = 10000, eddies = 10;
+  Definition def = chamber(source, 4, 2, 0.004, 0.002, "O2:1", 101325, 85);
+  def.turbulence.enabled = true;
+  def.turbulence.schmidt = sc;
+  def.turbulence.ambientK = k;
+  def.turbulence.ambientOmega = omega;
+  Flow flow(def);
+  const auto liquid = liquidFor(flow.medium());
+  Spray::Settings settings;
+  settings.twoWay = false;
+  settings.breakup.on = false;
+  Parcel p;
+  p.z = 0.0015;
+  p.r = 0;
+  p.d = 10e-6;
+  p.count = 1;
+  p.t = 85;
+  std::vector<double> work(4 * flow.medium().size() + 8);
+  double tauP = 0;
+  for (int pass = 0; pass < 3; ++pass) {  // tau_p = tau_e / 20 at zero slip (tau_p goes as d^2 there)
+    Spray probe(flow, liquid, settings);
+    probe.add(p);
+    const auto cg = cellGas(flow, static_cast<std::size_t>(probe.parcels()[0].cell));
+    tauP = probe.rates(probe.parcels()[0], cg.gas, work).tau;
+    if (pass < 2) p.d *= std::sqrt(tauE / 20 / tauP);
+  }
+  Spray spray(flow, liquid, settings);
+  for (int i = 0; i < n; ++i) spray.add(p);
+  const int steps = 8 * eddies;
+  for (int i = 0; i < steps; ++i) spray.advance(tauE / 8);
+  double sz = 0, sz2 = 0, sr2 = 0, reMax = 0;
+  for (const auto& q : spray.parcels()) {
+    sz += q.z - p.z;
+    sz2 += sq(q.z - p.z);
+    sr2 += sq(q.r);
+  }
+  const auto& led = spray.ledger();
+  const double mz = sz / n, mz2 = sz2 / n, mr2 = sr2 / n;
+  const double sigma2 = 2 * k / 3, qd = std::exp(-tauE / tauP), N = eddies;
+  const double expect = sigma2 * (N * tauE * tauE - 2 * tauP * tauE * (1 - std::pow(qd, N)) +
+                                  tauP * tauP * (1 - qd) * (1 - std::pow(qd, 2 * N)) / (1 + qd));
+  {
+    Parcel fast = p;
+    fast.uz = 3 * std::sqrt(sigma2);
+    const auto cg = cellGas(flow, static_cast<std::size_t>(spray.parcels()[0].cell));
+    reMax = spray.rates(fast, cg.gas, work).reynolds;
+  }
+  std::printf("  d %.3f um, tau_p %.4e s, tau_e %.4e s (ratio %.2f), Re at 3 sigma slip %.2e; %zu parcels left, %ld sub-steps, "
+              "%ld clamped, %ld vaporised\n",
+              p.d * 1e6, tauP, tauE, tauE / tauP, reMax, spray.parcels().size(), led.substeps, led.clampedCondensation,
+              led.vaporised);
+  std::printf("  <dz> %.4e m (3 se %.4e); <dz^2> %.6e m^2 against %.6e (%+.3f%%); <r^2> %.6e against %.6e (%+.3f%%)\n", mz,
+              3 * std::sqrt(mz2 / n), mz2, expect, 100 * (mz2 / expect - 1), mr2, 2 * expect, 100 * (mr2 / (2 * expect) - 1));
+  const bool all = spray.parcels().size() == static_cast<std::size_t>(n) && led.exchangedMass == 0;
+  check(all, "(a) every parcel kept, no mass passed", all ? 0 : 1, 0.5);
+  check(std::abs(mz) < 3 * std::sqrt(mz2 / n), "(a) <dz> against 0, in standard errors", std::abs(mz) / std::sqrt(mz2 / n), 3);
+  check(std::abs(mz2 / expect - 1) < 3 * std::sqrt(2.0 / n), "(a) <dz^2> against the held-velocity expectation, in s.e.",
+        std::abs(mz2 / expect - 1) / std::sqrt(2.0 / n), 3);
+  check(std::abs(mr2 / (2 * expect) - 1) < 3 / std::sqrt(n), "(a) <r^2> against twice it, in standard errors",
+        std::abs(mr2 / (2 * expect) - 1) * std::sqrt(n), 3);
+
+  // (c) S3's chamber with SST and dispersion: budgets and threads.
+  const Run run = chamberRun(source, 1, true, 0.2e-3, true);
+  long eddying = 0;
+  for (const auto& q : run.parcels) eddying += q.eddyTime > 0;
+  std::printf("  (c) %ld of the parcels held are inside an eddy at the end\n", eddying);
+  check(eddying > 0, "(c) dispersion acted (parcels inside an eddy)", eddying > 0 ? 0 : 1, 0.5);
+  closes(run, "(c)", "(c)");
+  const Run other = chamberRun(source, 4, true, 0.2e-3, true);
+  const bool same = identical(run, other);
+  check(same, "(c) final gas state and parcel list on 4 threads against 1, bit for bit", same ? 0 : 1, 0.5);
 }
 
 void cost(thermo::ReactionSource& source, int threads) {
@@ -697,6 +822,7 @@ int main(int argc, char** argv) {
     dropModel(source);
     breakup(source);
     budgets(source);
+    dispersion(source);
   } catch (const std::exception& e) {
     std::printf("error: %s\n", e.what());
     return 2;

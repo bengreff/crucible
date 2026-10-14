@@ -49,6 +49,9 @@ struct Parcel {
   double shed{};         // KH: mass shed per drop and not yet released as a child parcel [kg]
   double rtTime{};       // RT: time its waves have grown at the present diameter [s]
   double distance{};     // path length travelled since injection [m]
+  // Turbulent dispersion: the eddy's velocity fluctuation (axial, radial, azimuthal in the parcel's
+  // meridional plane) and the time left of its interaction [s]; 0 when it has none.
+  double eddyZ{}, eddyR{}, eddyT{}, eddyTime{};
   std::uint64_t random{};  // the parcel's own random stream (splitmix64 state)
   int cell{-1};
   int injector{-1};      // its injector (sets the RT breakup length), -1 for a parcel placed by add()
@@ -85,6 +88,8 @@ class Spray {
     // Gauss points per piece of the film integrals that give the conductances (SPRAY.md, Results: S2);
     // 0: the 1/3 rule's properties alone, as Abramzon and Sirignano.
     int filmPoints{3};
+    // Turbulent dispersion (SPRAY.md, Turbulent dispersion), when the flow carries SST's k and omega.
+    bool dispersion{true};
     bool implicitCoupling{true};
     // false: one-way, the drop model alone in a fixed gas (tests): the exchange is booked in the ledger
     // but not given to the gas, and the seen gas takes no implicit loads.
@@ -128,6 +133,7 @@ class Spray {
   struct Gas {
     double t{}, p{}, rho{}, uz{}, ur{};
     const double* y{};  // mass fractions (medium order)
+    double ut{};        // azimuthal velocity (an eddy's; the mean gas has none)
   };
   struct Rates {
     double mass{};      // evaporation rate per drop [kg/s] (>= 0)
@@ -146,6 +152,10 @@ class Spray {
   // floors their mole fractions at 1e-20). S1(c) holds it to Medium::transport.
   struct FilmTransport { double conductivity{}, diffusion{}, r{}; };
   [[nodiscard]] FilmTransport filmTransport(double t, double p, const double* y) const;
+  // Gosman and Ioannides' interaction time with an eddy of the gas's k and omega, for a parcel of
+  // momentum relaxation time tau at slip speed `slip` against the gas plus the eddy, with the eddy
+  // length that gives tracers the gas's nu_t / Sc_t (SPRAY.md, Turbulent dispersion).
+  [[nodiscard]] static double interaction(double k, double omega, double tau, double slip, double schmidt);
   // g(Re, B) in C_D = (24 / Re) g (SPRAY.md, Literature).
   [[nodiscard]] static double dragFactor(double reynolds, double transfer);
   // KH-RT for a drop of diameter d at slip speed u: the KH wavelength and growth rate, and the RT
@@ -180,6 +190,7 @@ class Spray {
   // the velocity are the point-implicit values once the loads are in), the implicit-coupling sums
   // (sum K, sum K v_z, sum K v_r, sum H, sum H T_s), whether a parcel is in it, and its smaller extent.
   std::vector<double> cellGas_, cellLoad_;
+  std::vector<double> cellTurbulence_;  // per occupied cell with SST: k and omega
   std::vector<char> occupied_;
   std::vector<double> cellSize_;
   std::vector<double> amounts_;   // Flow::exchange input
@@ -192,6 +203,7 @@ class Spray {
   [[nodiscard]] int locate(double z, double r) const;
   [[nodiscard]] double wallRadius(double z, double* slope) const;
   [[nodiscard]] Gas seen(int cell) const;
+  [[nodiscard]] Gas seenBy(const Parcel& parcel) const;  // the cell's, plus the parcel's eddy
   [[nodiscard]] double carrierMass(const double* y) const;
   // The stagnant film's lambda and rho D_O2 (in rates()).
   [[nodiscard]] std::array<double, 2> filmConductances(const Gas& gas, double ts, double aM, double aT, double cpf,
