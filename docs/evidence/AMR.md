@@ -356,6 +356,56 @@ The driver is `tests/amr_budget.cpp` (`crucible_amr_budget 8e-3 4`). It is not a
   - **Speed.** The AMR's wall time is 18 times the single level's. B1 runs every level's kernels over all 768 level-1 cells, 256 of them active, twice per base step: 9 times the single level's cell updates.
   - **Cost.** That is B2's business, and the cost is 5(a)'s, judged after B2.
 
+## Step B2: setup (recorded 14 October, before any of its code)
+
+B2 replaces B1's whole-level loops with loops over lists of cells and faces. It is checked bit for bit against B1 on the active cells, then 3(c). The regions are written in terms of N_k: the cells of a level within Chebyshev distance k (in its own index space) of an active cell, so N_0 is the active set A. The ghost width g is the depth that is filled.
+
+- **The ghost width is 3 with SST, not 2.** *Levels, active regions and ghost cells* chose width 2 "from the widest stencil". That reading took the flux stencils only and missed the Strang-split SST source, which B1 applies to every cell before the stage.
+  - An active cell beside the interface reads ghosts at distance 1 and 2 (the ghost's MUSCL slope, and its least-squares gradient for the viscous face). Those ghosts must therefore carry the first half-source, as they do in B1.
+  - The half-source at a distance-2 ghost uses that ghost's gradients (strain, cross-diffusion), which read its face neighbours at distance 3.
+  - So g = 3 when the level has turbulence, and g = 2 for inviscid and laminar flow. The driver refuses turbulence with g < 3. Proper nesting is checked with g.
+- **Each filled cell's temperature guess becomes its parent's.**
+  - `Flow::refresh` solves for T by Newton from the cell's last temperature, and stops at |T_next - T| <= 1e-13 T. The answer therefore depends on the guess at the last bits, and so on the cell's whole history of refreshes. This holds for the perfect gas too: one Newton step from any guess returns e / cv only to rounding.
+  - In B1 every cell is refreshed in every refresh. In B2 a ghost at distance 3 is refreshed at the step's start but not in the stages. Its guess history then differs from B1's, and through the gradients and the half-source the active cells would differ in the last bits. No restriction of the loops can be bit-identical to B1 without this change.
+  - The fill now sets each child's guess to the parent's temperature. A filled cell's temperature then depends only on its fill, in either mode. The active cells' histories are identical anyway, because every refresh covers A.
+  - **B1 changes with it at rounding level.** So B1 stays selectable (`Amr::setRestricted(false)`), and B1's checks are re-run as B1 with the reset (below).
+- **The regions, per kernel.** Each set follows from what the next kernel reads (MUSCL slopes and profiles, and the one-sided boundary slopes, reach distance 2 at most from a face of A; the gradients read face neighbours; the face fluxes read both cells' slopes, gradients and properties):
+  - **The fill** covers the parents P_l of the cells in N_g \ A (all four children of each, since the limiter and the admissibility fallback act on the four together). Level l - 1's time-interpolated values are formed over P_l and its face neighbours.
+  - **stableDt** (at the base step, and with turbulence again after the fill):
+    - with turbulence: refresh and properties over N_g, gradients and eddy viscosity with the source coefficients over N_{g-1};
+    - without: refresh and properties over A;
+    - the step over A, as in B1.
+  - **firstStage:**
+    - the half-source over N_{g-1};
+    - update, clip and admissibility over A;
+    - the copy that keeps a non-active cell's state over N_g \ A.
+  - **rhs:**
+    - refresh over N_2;
+    - axial slopes and radial profiles over N_1, column by column on its j-intervals;
+    - the convective faces with an active cell on either side;
+    - gather and finish over A;
+    - boundary rates as B1 (owned cells only).
+  - **transportFluxes:**
+    - properties over N_2 (with the wall-face omega of the wall cells among them);
+    - field values over N_2, gradients over N_1;
+    - eddy viscosity over N_1;
+    - the viscous faces with an active cell on either side;
+    - the per-cell sum over A.
+  - **secondStage:**
+    - the update over A, the copy over N_g \ A;
+    - with turbulence: refresh and properties over N_2, gradients and eddy viscosity over N_1, and the half-source over N_1.
+  - **Why N_1, not A, for the end of the step.** Level l's ghosts next to its active cells (N_1) are face neighbours of the parents that level l + 1's fill reads, and that fill reads their state at the end of level l's step. So the second half-source, and the afterStep hook (`ReactingFlow::react`, which gains the cell list), run over N_1.
+  - **The face registers** are zeroed, recorded and summed into fineSum only on the listed faces. Every coarse-fine face, and every face between a covered and an uncovered cell, has an active cell on a side.
+- **Off cells** (outside N_g) are never read or written by the kernels. When the regions are set, their stage and next arrays are set to their state, so the swap at accept leaves them unchanged.
+- **A single level is untouched.** With no active pattern the lists are empty and every loop runs over the whole level, as now.
+
+**The checks, in order.**
+1. **Single-level bits.** The C1 chamber, `eqtt` 64 x 12 to 1 ms on 4 threads, is `cmp`-identical to the build before B2. ctest gives the same judged lines as after criterion 2.
+2. **B1 with the reset.** B1 re-runs 1(a), 1(b), 3(a), 3(b) and criterion 2's case to 8 ms. The printed values are compared with *Step B1: results* and *Step B1: criterion 2 results*; differences at rounding level are expected and recorded.
+3. **B2 against B1, bit for bit.** The same five runs in both modes, each writing every level's active-cell state (conserved, partial densities, k and omega), the base step count and the composite budget. The two files must be `cmp`-identical.
+4. **3(c).** B2 with width 3 against width 2 on 3(a) and 3(b): `cmp`-identical files.
+5. **Printed, not judged:** width 4 against 3 on criterion 2's case to 1 ms, and B2's wall times beside B1's.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.
