@@ -1,0 +1,12 @@
+samples 88086, busy 80717 (92%)
+  23654   29.3% of busy  spray
+  13038   16.2% of busy  viscous and diffusive fluxes
+  11499   14.2% of busy  transport properties (mu, lambda, D_k)
+   9399   11.6% of busy  inviscid fluxes (HLLC, reconstruction)
+   8264   10.2% of busy  gradients
+   7369                  thread waiting
+   6078    7.5% of busy  state refresh (T from e, sound speed)
+   4173    5.2% of busy  SST (eddy viscosity, sources)
+   2743    3.4% of busy  chemistry: Table A lookup
+   1401    1.7% of busy  time-step limit (stableDt loop)
+    468    0.6% of busy  other

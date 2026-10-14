@@ -1,0 +1,13 @@
+samples 91380, busy 35483 (39%)
+  55897                  thread waiting
+  19655   55.4% of busy  chemistry: Cantera equilibrium (table fallback)
+   5907   16.6% of busy  spray
+   2130    6.0% of busy  transport properties (mu, lambda, D_k)
+   2088    5.9% of busy  viscous and diffusive fluxes
+   1541    4.3% of busy  inviscid fluxes (HLLC, reconstruction)
+   1456    4.1% of busy  gradients
+   1117    3.1% of busy  state refresh (T from e, sound speed)
+    918    2.6% of busy  SST (eddy viscosity, sources)
+    381    1.1% of busy  chemistry: Table A lookup
+    195    0.5% of busy  time-step limit (stableDt loop)
+     95    0.3% of busy  other
