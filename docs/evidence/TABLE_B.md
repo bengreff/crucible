@@ -149,6 +149,20 @@ What the design above leaves to the builder, settled here before the builder is 
 - **The thermo range.** A node whose branch passes above the mechanism's highest thermo temperature is built anyway, since the NASA fits extrapolate smoothly. It is flagged outside, so the runtime sends it to CVODES (as *Outside the table* states).
 - **Output.** Per node: c_0, c_eq, c_cp, the flags (frozen, degenerate, zero span, outside), the gates' numbers and the end-state |ΔT| against `equilibrateUV`. Per point: the H/O species' Y and λ. The file layout is `core/manifold_table.hpp`. A small table (f_H 5, Z_N 2, η 6, ln ρ 5) exercises every gate first. The full axes are then built on backhouse.
 
+## The runtime, stated before its code (14 October 2026, about 01:20 CDT)
+
+- **Why the corners cannot be read at the cell's c** (*derived*). Lean of stoichiometric, c_cp = 9 Y_H (all the hydrogen as water), so it rises with f_H. In cold burnt gas, c_eq is close to c_cp. A cell at its own c_eq, between f_H nodes f_1 < f < f_2, then has c above c_cp(f_1): the leaner corner's whole curve ends below the cell's c. The rich side is the mirror image. So *Y is interpolated linearly in c at each corner* would extrapolate at the nozzle exit and in the cooled wall layer, which are the places the table is for.
+- **The rule instead.** Every node stores its points at the same fractions: s = (c − c_0)/(c_eq − c_0) on the lower branch (s from 0 to 1), and s = 1 + (c − c_eq)/(c_cp − c_eq) on the upper branch (s from 1 to 2). The 16 corners are blended point by point at these common s with the multilinear weights of (f_H, Z_N, η, ln ρ). That gives the cell one curve of 40 points. Y, λ and c_eq on it are linear in s between points. The cell's s is where the blended curve's c equals the cell's c. The blended c is monotone in s, since each corner's is and the weights are positive, so the inversion is a segment search. The design's properties hold: the curve returns Y_H2O = c (or the chosen c) exactly, and the elements bilinearly. The query's η uses its own complete-combustion products, as in Table A's check.
+- **When the table handles a cell** (the 03:10 rule, made concrete).
+  - The table handles a cell when: every corner exists and none is flagged outside; e, ρ and the elements are inside the axes; AR ≤ 1e-12; the cell's c lies on the blended curve; and the snap moves no Y by more than ΔY_max.
+  - A frozen corner places its lower-branch fractions on [c_0, c_reach]. If any corner is frozen and the cell's s, or a sub-step, would pass 1 on the lower branch, the cell goes to CVODES ("frozen reach").
+  - Degenerate corners (f_H = 0 or 1) enter the blend with their equilibrium at every s. A cell whose every weighted corner is degenerate (pure O2 or pure H2) is set to the blend, i.e. equilibrium. This is counted, and its share of cells and the largest T reached are reported in criterion 5.
+- **The step.** Sub-steps never cross a point of the blended curve. Each is the stated exponential update toward the blended c_eq, with λ at the midpoint by predictor-corrector.
+  - Under PaSR, λ is multiplied by κ_eff = 1 − s_mix (1 − κ), as the engine's closure multiplies dz/dt. κ comes from the same chemical time τ_c = max_i Y_i/|dY_i/dt| over the same species. Here dY_i/dt = (dY_i/dc) λ (c_eq − c), with the slope taken along the blended curve's segment.
+  - The composition is then the curve's at the new c, with e and ρ kept, and T comes from the core's exact inversion.
+- **The snap** is the 02:59 handover, on the blended curve. φ_N, c_a and c_N come from N = Σ Y_k/W_k of the blended points.
+- **Counted per call:** table, and CVODES by cause (outside the axes, outside flag, AR, off the curve, ΔY above ΔY_max, frozen reach), plus the cells set by degenerate corners alone. This is criterion 5's breakdown.
+
 ## Criteria
 
 Stated before code, 6 October 2026, about 02:34 CDT.
