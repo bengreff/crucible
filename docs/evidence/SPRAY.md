@@ -70,6 +70,25 @@ Labels: *derived* is my own reasoning, *guessed* a number not yet measured, *cit
 - **Threads.** Parcels move in parallel on the flow's pool; each writes only its own record. Records are summed into cells, children appended and dead parcels removed in parcel order, serially. Each parcel draws from its own random stream (splitmix64), seeded from its injector's stream at release. The result is the same bit for bit on any number of threads.
 - **Mesh.** The cell is found from z (uniform dz), the wall radius linear between stations, and a binary search on the ring fractions. This is the one place the spray knows the mesh layout; AMR (inquiry2) will replace it.
 
+## Turbulent dispersion (stated 13 October, before its code)
+
+With SST on, a parcel sees the cell's mean velocity plus a fluctuation u′, after Gosman and Ioannides (1983), the eddy-interaction model.
+- **The eddy.** u′'s three components (axial, radial, azimuthal) are independent Gaussians of variance 2k/3, drawn from the parcel's own stream (Box-Muller). The parcel keeps the same u′ for the interaction time t_i, as it crosses cells. It then draws again in the cell it is in. The sub-step ends at the interaction's end. k and ω are the cell's own, ρk/ρ and ρω/ρ. Where k ≤ 0, u′ = 0 and t_i = 0, so it draws again at the next sub-step.
+- **Interaction time.** t_i = min(τ_e, t_c), both drawn at the eddy's start.
+  - The eddy lifetime is τ_e = l_e/√(2k/3).
+  - The crossing time is t_c = −τ_p ln(1 − l_e/(τ_p |u + u′ − v|)), and is infinite when l_e ≥ τ_p |u + u′ − v|.
+- **The eddy length (the one choice made here).** l_e = (3/Sc_t)·√(2/3)·√k/ω, where Sc_t is the gas's turbulent Schmidt number (0.7).
+  - *Derived:* the velocity is held constant for τ_e at variance 2k/3 per component. So a tracer's long-time diffusivity is (2k/3)·τ_e/2 = k/(Sc_t ω), which is the gas's own ν_t/Sc_t (SST's k/ω away from its limiter). A drop small enough to follow the gas therefore spreads as fast as the vapour it becomes.
+  - Gosman and Ioannides' own length is C_μ^{3/4} k^{3/2}/ε = C_μ^{−1/4}√k/ω, about 1.83√k/ω. That gives tracers a diffusivity 0.52 times the gas's (a Schmidt number of 1.34). This choice uses 3.50√k/ω.
+  - In Lagrangian integral-time terms (T_L = τ_e/2 for a held velocity), this is T_L = 0.19 k/ε. Gosman and Ioannides' is 0.10 k/ε, and the values used in the literature run from 0.15 to 0.3 k/ε (Fluent's discrete random walk 0.15, *recalled*).
+  - This sets a model constant from the gas model's own constant, not from any measurement.
+- **Coupling.** The drag relaxes the parcel toward the seen velocity plus u′. The azimuthal part relaxes toward u′_θ, and its momentum goes where the azimuthal momentum already goes (the ledger). The point-implicit loads take the parcel's velocity minus its u′, so the backward-Euler seen state stays the end state under the drag the gas actually feels. The exchange stays minus the parcel's change, so the budgets stay exact. Children inherit the parent's eddy and its remaining time (same place, same eddy).
+- **Declared limits.**
+  - Isotropic u′ (SST carries no anisotropy).
+  - In non-uniform k the model drifts tracers toward low turbulence (the well-known violation of the well-mixed condition), with no drift correction.
+  - No correlation between the drag and the evaporation fluctuations beyond the slip's.
+  - With SST off there is no dispersion.
+
 ## Walls, axis and outlet
 
 - **Injector plate (z = 0).** Mirror, with the restitution.
@@ -105,6 +124,10 @@ Labels: *derived* is my own reasoning, *guessed* a number not yet measured, *cit
   - (a) The KH and RT wavelength and growth-rate fits against the published formulas written out independently in the test, within 1e-12.
   - (b) A blob in a uniform fast gas stream, one-way: total drop mass conserved through every child to 1e-13 relative; each child's diameter equals 2 B0 Λ at its creation.
 - **S6. Cost** (measured, not a pass/fail): the spray's share of the step on the S3 run, and parcels times sub-steps per second. If the spray costs more than the gas step, the film properties are tabulated (not built until needed).
+- **S8. Turbulent dispersion** (stated 13 October, before code).
+  - (a) Spreading. Drops in a frozen, uniform gas at rest, one-way, with uniform k and ω. The gas is pure O2 at 1 atm and 85 K, with the drops at 85 K, so no mass or heat passes (the clamped branch). The drops are sized so that τ_p = τ_e/20 at zero slip, which keeps the crossing time from ever binding, and the slip Reynolds number is below about 0.01. 10,000 of them start at one point on the axis. After N = 10 eddy lifetimes, compare ⟨Δz²⟩ and ⟨r²⟩ against the exact expectation for linear drag and a held velocity, σ²[N τ_e² − 2τ_p τ_e(1 − q^N) + τ_p²(1 − q)(1 − q^{2N})/(1 + q)] with q = e^{−τ_e/τ_p} and σ² = 2k/3 (twice that for r²). Each must fall within 3 standard errors of the sample: √(2/n) relative for Δz², 1/√n for r². ⟨Δz⟩ must be within 3 standard errors of zero. *Derived* expectation. The band is statistical only.
+  - (b) The interaction time against the formulas above written out independently in the test, both branches, within 1e-14 relative.
+  - (c) S3's chamber with SST on (inflow intensity 5%, viscosity ratio 10) and dispersion, to 0.2 ms: the budgets of S3(a) and (b) within 1e-11, and S4's bit-for-bit identity on 1 and 4 threads.
 - **S7. Mascotte A-10.** Validation, pre-registered in its own record before any measured value is read: the case's modelling choices (equivalent round chamber, igniter, wall condition, the bracket's correlations), the predicted quantities and their bands. Requires turbulent dispersion first.
 
 ## Results (13 October 2026)
