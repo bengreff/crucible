@@ -177,6 +177,9 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
     - about 1.5 h of running once the load allows.
   - **After the checks:** record *Step B2: results* and judge 3(c). The results are the cmp verdicts; check 2 against the recorded B1 values and against the 9fdab9b tree's own runs on backhouse; and the wall times, with the load.
   - **Process note:** one cmake build and two 4 s 3(b) smoke runs ran on the Mac outside slot.py on 14 October (worker rule 3).
+- **The igniter's compensated sum is committed but not yet run** (`docs/evidence/AMR.md`, *Before step C*; setup bcd944f, code 9294985).
+  - Its three checks are queued behind B2's: tmux `inquiry2_ig`, script `/home/greff/crucible_b2/b2_ig.sh`. It waits for `b2out/done`, then builds `/home/greff/crucible_b2ig`; `crucible_b2ig/igout/done` marks the end, and `igout/summary.txt` holds the comparisons.
+  - If B2's checks force a fix in `core/flow.*` or `core/amr.*`, rebuild `ig.tar` from the fixed files before this queue starts.
 - **For the spray worker:** inquiry2 has no pending or planned edits in `core/medium.*`, so a lean λ and D entry point there will not conflict. AMR step B2 edits `core/flow.*`, `core/transport.cpp`, `core/amr.*` and `adapters/reacting_flow.cpp` (react's cell list). The sub-300 K transport-fit finding is noted for any medium work.
 - **`main` not fast-forwarded.** `worktree-inquiry2` is 18 commits ahead of `main` (e18c710) and contains it. `main` is checked out in the main checkout, and the worktree guard refuses commands aimed there. Fast-forward from the main checkout: `git merge --ff-only worktree-inquiry2`.
 - **Next for inquiry2:**
@@ -235,7 +238,7 @@ TECHNICAL_PLAN *Lightweight engine*, order of work:
 - `/home/greff/crucible_wf`: the wall-function study binaries (`wfs_hp_bin` has the corrected SST), Table A (`table_a.bin`), the law states, and the c2a runs.
 - `/home/greff/crucible_c3`: the criterion 3 binaries (`study_bin`, `study_c3r`) and runs.
 - `/home/greff/crucible_s7`: the S7 tree (main at 8a5b8d0 plus the spray timer 7897b1d; built with `-DCRUCIBLE_BUILD_APP=OFF`), the Mascotte table copied from the Mac (md5 identical), runs in `runs/`. Copy files in with `rsync -az -e ssh --rsync-path="wsl rsync" <files> backhouse:/home/greff/crucible_s7/<dir>/`.
-- `/home/greff/crucible_b2pre` and `/home/greff/crucible_b2`: inquiry2's AMR step B2 checks (9fdab9b and the B2 code; tmux `inquiry2_b2`, outputs `crucible_b2/b2out/`). Files go in by `scp` to the Windows home (`/mnt/c/Users/ben/` in WSL), because the worktree guard refuses rsync's `--rsync-path`.
+- `/home/greff/crucible_b2pre`, `/home/greff/crucible_b2` and (once its queue starts) `/home/greff/crucible_b2ig`: inquiry2's AMR step B2 and igniter checks (9fdab9b, 7d28c17 and 9294985; tmux `inquiry2_b2` and `inquiry2_ig`, outputs `b2out/` and `igout/`). Files go in by `scp` to the Windows home (`/mnt/c/Users/ben/` in WSL), because the worktree guard refuses rsync's `--rsync-path`.
 - Not ours, do not touch: gate_wg, ltaste2, battery2, flyapp-lib, lsug3, flyapp-m9r, s12spec_* (other users' jobs).
 - Never write to `/home/greff/inquiry-project` (the old Rust project).
 
