@@ -2,7 +2,14 @@
 
 14 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Stopped at (14 October, about 01:00 CDT)
+## Stopped at (14 October, about 01:40 CDT)
+
+- **Cost note for the Director (b89f3fa, `docs/evidence/COST.md`; waiting on the Director's decision, nothing implemented).** The S7 step is the acoustic CFL across the 0.4 mm radial cells (measured by grid scaling), 17,500 to 22,000 steps per ms, 7 to 30 times below the convective limit (derived). Profile of blob: spray 29%, transport 40% of busy. Proposed: adaptive resolution with level subcycling plus spray subcycling (about 5 to 8 times, derived from guessed regions); dual time does not pay at this Mach number. Profiles and `parse_sample.py` in `docs/evidence/cost/`.
+- **S7 low runs above the flame temperature (found by the cost profile; cause open).** T_max 3,634 K at 2.4 ms against 3,392 K for H2/O2 at 1 MPa (Cantera, measured); pressure 1.00 MPa, budgets closed to 1e-14. Cells above Table A's 3,500 K call Cantera at about 75 ms each (12,627 calls by 2.6 ms), so low's pace swings from about 38 to 220 ms per step. Blob peaks at 3,396 K. Differential diffusion is a possible physical cause (inferred). Explain it before low's result goes into §6.
+- **Wall layer ported to C++ (c7472b9, `crucible_wall_layer`)**, by a Sonnet agent. It reproduces the recorded Python a priori output on all 14 values to every printed digit (checked here), at 0.2 to 0.3 s per inversion. Eigen is optional in CMake: backhouse has none, so criterion 0(e)'s table is built on the Mac or with Eigen's headers copied into the tree there.
+- **Table B: the builder and the runtime stated before code** (240bec1, e16ae9a, in `TABLE_B.md`). A Sonnet agent (aa381dda8aa9ee1e4) is writing the builder. Its uncommitted files: `core/manifold_table.{hpp,cpp}`, `tools/build_manifold_table.cpp`, changes in `adapters/reaction.{hpp,cpp}`, and the CMakeLists lines adding `core/manifold_table.cpp` to `crucible_core` and the `crucible_build_manifold_table` target. Review against `TABLE_B.md` before committing; if the agent is gone, review the files as they stand.
+- **The pipe test rerun is running** (Mac, slot.py, `/tmp/pipe/pipe.log`): nr 16 done, nr 32 at 4 ms with u_b steady.
+- **Backhouse:** the Director capped the BLAS threads of the fly jobs that loaded it (worker rule 16, about 01:05 CDT). Re-estimate the high and blob-fine pace at about 02:10 CDT, before starting any Mac copies.
 
 - **Step 5, liquid LOX: the spray is in the engine** (`core/spray.*`, design and results in `docs/evidence/SPRAY.md`). Lagrangian parcels on the NIST liquid, Abramzon-Sirignano drops with film integrals, KH-RT, walls, Gosman-Ioannides dispersion (S8 passes), exact exchange through `Flow::exchange` inside ReactingFlow's step. S0, S1, S3, S4, S5, S8 pass; S0(b) fails as stated (NASA-7's extrapolation, kept). S6: 3.7 times the gas step on the 96-cell S3 run; `Spray::wallTime()` (7897b1d) now measures it on the S7 runs (`spray_wall_s` in the history).
   - **S2(c) judged (1c5f577): fails as stated** against Lafon et al. (2008) at 10 atm: d² slope +30.4%, lifetime −17.5%. Read against S2 (the miss is physics both our model and the S2 film lack: real-fluid film, finite liquid conductivity, H2 dissolution); nothing changed. Digitised tables in `docs/evidence/spray/lafon_2008_digitised.md`.
@@ -22,6 +29,7 @@
 
 ## Exact next steps (in order)
 
+0. **At about 02:10 CDT:** re-estimate backhouse's high and blob-fine pace (`runs/{high,blob_fine}.log` in `/home/greff/crucible_s7`), then decide the Mac copies. **Low's over-temperature:** find where and when the cells pass 3,392 K and which terms put them there. **The cost levers:** wait for the Director's decision on `COST.md`.
 1. **S7**: when all four runs finish (check each for settling; the S6 spray share is in `spray_wall_s`): §6 (the band per §5), committed before any measured value is digitised. Then an agent digitises [N]'s CARS profiles and [R]'s OH image, and the judging goes into SPRAY.md S7. Copy the run CSVs into `docs/evidence/mascotte/`.
 2. Carried from 6 October: criterion 3's reference (unsettled at 1 ms), the `turbulence_pipe_verification` rerun, criterion 0(e) (the offline wall-model table), the Table B builder, then the Back, Massier and Gier comparison (blind: never open the TR's results pages).
 
