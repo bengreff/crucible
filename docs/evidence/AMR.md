@@ -418,6 +418,23 @@ The code follows the setup's regions (`Flow::setRegions`, the lists `within_`, `
 - **The reaction counters count the cells a level steps.** Table cells, clamped and fallbacks cover N_1 in B2 and the whole level in B1, so B2 prints smaller counts. The clipped-energy sum is the same in both modes, because a non-active cell's entry is zeroed by the copy. The dumps hold no counters.
 - **The step's first `stableDt` reads stale ghosts.** With turbulence, `Amr::step` forms the step size after refreshing N_g and forming the eddy viscosity over N_{g-1}. These use the ghosts as the last step left them, and outside N_1 they differ between the modes, because B1's second half-source and `react` also covered them. The step size is taken over A, whose gradients read N_1 only, so it is the same in both modes. The ghosts are filled and recomputed before any stage reads them.
 
+## Before step C: the igniter's compensated sum (recorded 14 October, before its code)
+
+Criterion 2 on B1 found the delivered igniter energy 1.4e-14 relative from 0.5 J, against 1e-14 (*Step B1: criterion 2 results*). The compensated sum planned there:
+- **What changes.** Each level's delivered energy (`Flow::integratedHeat_`) is a running sum of dt times the step's mean igniter power. It becomes a Neumaier compensated sum.
+  - The compensation is saved and restored with the other integrals when the driver redoes a step.
+  - The diagnostics and the composite budget read the sum plus its compensation.
+  - Nothing else moves; the state does not read the sum.
+- **Why this should be enough.**
+  - A step's energy is E / D times its overlap with the firing window, to a few roundings of that one term. Over N terms of about E / N each, those roundings come to about 1e-16 E / sqrt(N).
+  - The overlaps telescope. Each is the difference of two adjacent step times, which is exact (Sterbenz's lemma), so their exact sum is the window.
+  - What remains is the running sum's own rounding, about sqrt(N) half-ulps: about 6e-15 relative for 3,400 additions, the size seen.
+  - Compensated, that falls to about one rounding of the result. What is left beside it is each level's owned share of the igniter volume over the total, a few 1e-16.
+- **The checks.**
+  1. Criterion 2's case to 0.5 ms (the igniter fires from 0.2 to 0.4 ms), on B2. Judged: |E / 0.5 J - 1| at most 1e-14 on the AMR. Printed: the single level's value.
+  2. The state does not move. That run's dump is `cmp`-identical to the build before over everything except its last 8 bytes, the budget's igniter entry.
+  3. Single-level bits: the C1 chamber, `eqtt` 64 x 12 to 1 ms, has a `cmp`-identical state dump. The history prints the igniter energy to 7 digits; any change there is listed.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.
