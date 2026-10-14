@@ -116,6 +116,13 @@ Spray::Spray(Flow& flow, LiquidOxygen liquid, Settings settings)
   if (o2 == species.end()) throw std::invalid_argument("The spray needs O2 in the medium.");
   oxygen_ = static_cast<std::size_t>(o2 - species.begin());
   if (!medium.hasTransport()) throw std::invalid_argument("The spray's film model needs the medium's transport.");
+  const auto& fits = flow_.definition().transport;
+  const auto ns = species.size();
+  conductivityFit_ = fits.conductivity;
+  for (std::size_t k = 0; k < ns; ++k) {  // pairs k <= j in row order: (k, j) at k ns - k (k - 1) / 2 + j - k
+    const auto lo = std::min(k, oxygen_), hi = std::max(k, oxygen_);
+    oxygenDiffusionFit_.push_back(fits.diffusion[lo * ns - lo * (lo - 1) / 2 + hi - lo]);
+  }
   if (settings_.filmPoints < 0 || settings_.filmPoints > 32) throw std::invalid_argument("Spray: filmPoints in 0 to 32.");
   // Gauss-Legendre nodes by Newton's method on P_n, mapped to [0, 1].
   const int points = settings_.filmPoints;
@@ -160,7 +167,6 @@ Spray::Spray(Flow& flow, LiquidOxygen liquid, Settings settings)
   if (!(settings_.restitution >= 0 && settings_.restitution <= 1)) throw std::invalid_argument("Restitution outside [0, 1].");
   const auto& mesh = flow_.mesh();
   const auto cells = mesh.cells.size();
-  const auto ns = medium.size();
   cellGas_.assign(cells * (6 + ns), 0);
   for (std::size_t q = 0; q < cells; ++q) cellGas_[q * (6 + ns)] = 300;  // temperature guess
   cellLoad_.assign(cells * 5, 0);
@@ -257,6 +263,35 @@ void Spray::gatherGas() {
   });
 }
 
+Spray::FilmTransport Spray::filmTransport(double t, double p, const double* y) const {
+  const auto& species = flow_.medium().species();
+  const auto n = species.size();
+  const double logt = std::log(t), sqrtT = std::sqrt(t);
+  auto poly = [&](const std::array<double, 5>& c) {
+    return c[0] + logt * (c[1] + logt * (c[2] + logt * (c[3] + logt * c[4])));
+  };
+  double moles = 0;
+  for (std::size_t k = 0; k < n; ++k) moles += y[k] / species[k].molarMass;
+  const double meanMass = 1 / moles;
+  double series = 0, parallel = 0, sum = 0, others = 0;
+  for (std::size_t k = 0; k < n; ++k) {
+    if (!(y[k] > 0)) continue;
+    const double x = std::max(1e-20, y[k] / species[k].molarMass * meanMass);
+    const double lambda = sqrtT * poly(conductivityFit_[k]);
+    series += x * lambda;
+    parallel += x / lambda;
+    if (k != oxygen_) {
+      sum += x / (t * sqrtT * poly(oxygenDiffusionFit_[k]));
+      others += y[k];
+    }
+  }
+  FilmTransport out;
+  out.conductivity = 0.5 * (series + 1 / parallel);
+  out.diffusion = n == 1 ? t * sqrtT * poly(oxygenDiffusionFit_[oxygen_]) / p : sum > 0 ? others / (p * sum) : 0;
+  out.r = Medium::universalGasConstant * moles;
+  return out;
+}
+
 // The molar mass of the gas's non-O2 part [kg/kmol], 0 if it has none.
 double Spray::carrierMass(const double* y) const {
   const auto& species = flow_.medium().species();
@@ -283,13 +318,12 @@ double Spray::carrierMass(const double* y) const {
 // stream). Boiling (aM infinite): a pure O2 film, where the exact form is lambda = 1 / int dxi / lambda
 // over xi = a / r, with T on the constant-phi shape. SPRAY.md, Results: S2.
 std::array<double, 2> Spray::filmConductances(const Gas& gas, double ts, double aM, double aT, double cpf, double* y,
-                                              double* diffusion, double* shape) const {
-  const auto& medium = flow_.medium();
-  const auto ns = medium.size(), n = gaussNode_.size();
+                                              double* shape) const {
+  const auto ns = flow_.medium().size(), n = gaussNode_.size();
   const double yInf = gas.y[oxygen_];
   const bool pure = !std::isfinite(aM) || !(yInf < 1);
   const double wOther = carrierMass(gas.y);
-  thread_local std::vector<double> scratch, phi;
+  thread_local std::vector<double> phi;
   phi.resize(2 * n);
   double sumRhoD = 0, sumPhi = 0, resistance = 0;
   auto piece = [&](double x0, double x1, std::size_t first) {
@@ -301,13 +335,12 @@ std::array<double, 2> Spray::filmConductances(const Gas& gas, double ts, double 
       const double f = pure ? s : shape[first + i];
       const double t = std::abs(aT) > 1e-12 ? ts + (gas.t - ts) * std::expm1(aT * (1 - f)) / std::expm1(aT)
                                             : ts + (gas.t - ts) * (1 - f);
-      const auto transport = medium.transport(t, gas.p, y, diffusion, scratch);
-      const double r = medium.gasConstant(y);
-      const double rhoD = gas.p / (r * t) * diffusion[oxygen_] * (wOther > 0 ? Medium::universalGasConstant / (r * wOther) : 1);
-      phi[first + i] = cpf * rhoD / transport.conductivity;
+      const auto film = filmTransport(t, gas.p, y);
+      const double rhoD = gas.p / (film.r * t) * film.diffusion * (wOther > 0 ? Medium::universalGasConstant / (film.r * wOther) : 1);
+      phi[first + i] = cpf * rhoD / film.conductivity;
       sumRhoD += w * rhoD;
       sumPhi += w * phi[first + i];
-      resistance += w / transport.conductivity;
+      resistance += w / film.conductivity;
     }
   };
   const double split = !pure && aM > 8 ? 8 / aM : 1;
@@ -392,7 +425,7 @@ Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<doub
     // Held at saturation: all the heat that arrives evaporates liquid.
     bt = gas.t > ts ? cpf * (gas.t - ts) / liquid_.at(ts).latent : 0;
     if (integrated) {
-      const auto c = filmConductances(gas, ts, std::numeric_limits<double>::infinity(), std::log1p(bt), cpf, yr, diffusion, nullptr);
+      const auto c = filmConductances(gas, ts, std::numeric_limits<double>::infinity(), std::log1p(bt), cpf, yr, nullptr);
       lambda = c[0];
       rhoD = c[1];
     }
@@ -420,12 +453,15 @@ Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<doub
       if (!settled) b += rt;
       for (int it = 0; it < 30 && !settled; ++it) {
         rt = residual(b);
-        if (rt == 0) break;
+        if (rt == 0) {
+          settled = true;
+          break;
+        }
         double next = b - rt * (b - bPrev) / (rt - rPrev);
         if (!(next > 0) || !std::isfinite(next)) next = b + rt;
         bPrev = b;
         rPrev = rt;
-        settled = std::abs(next - b) <= 1e-14 * next;
+        settled = std::abs(next - b) <= 1e-11 * next;  // the step after it lands at rounding (superlinear)
         b = next;
       }
       if (!settled) {
@@ -455,7 +491,7 @@ Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<doub
         shape[n + i] = split + (1 - split) * gaussNode_[i];
       }
       for (int pass = 0; pass < filmPasses; ++pass) {
-        const auto c = filmConductances(gas, ts, aM, std::log1p(bt), cpf, yr, diffusion, shape.data());
+        const auto c = filmConductances(gas, ts, aM, std::log1p(bt), cpf, yr, shape.data());
         lambda = c[0];
         rhoD = c[1];
         bt = solve(bt);

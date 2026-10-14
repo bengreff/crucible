@@ -141,6 +141,11 @@ class Spray {
   };
   // work: at least 4 ns + 8 doubles.
   [[nodiscard]] Rates rates(const Parcel& parcel, const Gas& gas, std::vector<double>& work) const;
+  // Medium::transport's conductivity and O2's mixture diffusion coefficient alone, by the same formulas
+  // (all the film integrals need), with the mixture gas constant; absent species are skipped (Medium
+  // floors their mole fractions at 1e-20). S1(c) holds it to Medium::transport.
+  struct FilmTransport { double conductivity{}, diffusion{}, r{}; };
+  [[nodiscard]] FilmTransport filmTransport(double t, double p, const double* y) const;
   // g(Re, B) in C_D = (24 / Re) g (SPRAY.md, Literature).
   [[nodiscard]] static double dragFactor(double reynolds, double transfer);
   // KH-RT for a drop of diameter d at slip speed u: the KH wavelength and growth rate, and the RT
@@ -182,13 +187,15 @@ class Spray {
   std::vector<std::vector<double>> work_;  // per worker scratch
   std::vector<double> gaussNode_, gaussWeight_;  // Gauss-Legendre on [0, 1], settings_.filmPoints of them
   std::vector<double> gaussIntegral_;             // their integration matrix (filmConductances)
+  // filmTransport's fits: each species' conductivity, and the binary D of O2 with each species.
+  std::vector<std::array<double, 5>> conductivityFit_, oxygenDiffusionFit_;
   [[nodiscard]] int locate(double z, double r) const;
   [[nodiscard]] double wallRadius(double z, double* slope) const;
   [[nodiscard]] Gas seen(int cell) const;
   [[nodiscard]] double carrierMass(const double* y) const;
   // The stagnant film's lambda and rho D_O2 (in rates()).
   [[nodiscard]] std::array<double, 2> filmConductances(const Gas& gas, double ts, double aM, double aT, double cpf,
-                                                       double* y, double* diffusion, double* shape) const;
+                                                       double* y, double* shape) const;
   [[nodiscard]] double blobDiameter(int injector) const;
   void gatherGas();
   void applyLoads(double dt);

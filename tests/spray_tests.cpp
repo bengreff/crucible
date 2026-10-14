@@ -353,6 +353,35 @@ void dropModel(thermo::ReactionSource& source) {
         worstBoil = std::max(worstBoil, relative(a, b));
     }
   check(worstBoil < 1e-12, "(b) boiling at saturation: Nu*, B_T, mdot, Q against the paper's forms", worstBoil, 1e-12);
+
+  // (c) The film's lean transport against Medium::transport: 10,000 states, T 60 to 3,500 K, p 0.1 to
+  // 5 MPa, O2 with random amounts of the other species (each absent with probability 1/2), and pure O2.
+  {
+    std::uint64_t state = 7;
+    auto uniform = [&] {  // splitmix64 on [0, 1)
+      std::uint64_t z = (state += 0x9e3779b97f4a7c15ULL);
+      z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+      z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+      return static_cast<double>((z ^ (z >> 31)) >> 11) * 0x1.0p-53;
+    };
+    std::vector<double> y(ns), diffusion(ns), scratch;
+    double worstT = 0;
+    for (int i = 0; i < 10000; ++i) {
+      double total = 0;
+      for (std::size_t k = 0; k < ns; ++k) {
+        y[k] = k == o2 ? uniform() : (i % 100 == 0 || uniform() < 0.5 ? 0 : uniform());
+        total += y[k];
+      }
+      if (!(total > 0)) y[o2] = total = 1;
+      for (auto& v : y) v /= total;
+      const double t = 60 * std::pow(3500.0 / 60, uniform()), p = 1e5 * std::pow(50.0, uniform());
+      const auto full = medium.transport(t, p, y.data(), diffusion.data(), scratch);
+      const auto lean = spray.filmTransport(t, p, y.data());
+      worstT = std::max({worstT, relative(lean.conductivity, full.conductivity), relative(lean.r, medium.gasConstant(y.data())),
+                         diffusion[o2] == 0 ? std::abs(lean.diffusion) : relative(lean.diffusion, diffusion[o2])});
+    }
+    check(worstT < 1e-13, "(c) the film's lean transport against Medium::transport (lambda, D_O2, R)", worstT, 1e-13);
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------
