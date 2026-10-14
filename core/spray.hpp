@@ -119,6 +119,7 @@ class Spray {
   [[nodiscard]] double nextEvent(double time) const;
   [[nodiscard]] const std::vector<Parcel>& parcels() const { return parcels_; }
   [[nodiscard]] const Ledger& ledger() const { return ledger_; }
+  [[nodiscard]] double wallTime() const { return wall_; }  // wall time spent in advance() [s]
   [[nodiscard]] const LiquidOxygen& liquid() const { return liquid_; }
   // Liquid held now (parcels plus mass the injectors have delivered but not yet released).
   [[nodiscard]] double liquidMass() const;
@@ -191,6 +192,7 @@ class Spray {
   // (sum K, sum K v_z, sum K v_r, sum H, sum H T_s), whether a parcel is in it, and its smaller extent.
   std::vector<double> cellGas_, cellLoad_;
   std::vector<double> cellTurbulence_;  // per occupied cell with SST: k and omega
+  double wall_{};
   std::vector<char> occupied_;
   std::vector<double> cellSize_;
   std::vector<double> amounts_;   // Flow::exchange input

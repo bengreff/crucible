@@ -188,7 +188,7 @@ int main(int argc, char** argv) {
     std::fprintf(history,
                  "t,steps,dt,wall_s,inlet,outlet,p_injector,T_max,parcels,liquid_mass,evaporated,liquid_out,"
                  "mass_budget,energy_budget,liquid_mass_err,liquid_energy_err,table_cells,table_clamped,"
-                 "table_fallbacks,audit_T\n");
+                 "table_fallbacks,audit_T,spray_wall_s\n");
     Averages all, first, second;
     const double middle = 0.5 * (averageFrom + endTime);
     const auto t0 = std::chrono::steady_clock::now();
@@ -210,16 +210,16 @@ int main(int argc, char** argv) {
         const auto& st = reacting.stats();
         const auto err = spray.balanceErrors();
         const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-        std::fprintf(history, "%.6e,%ld,%.4e,%.2f,%.6e,%.6e,%.6e,%.2f,%zu,%.6e,%.6e,%.6e,%.3e,%.3e,%.3e,%.3e,%ld,%ld,%ld,%.3g\n",
+        std::fprintf(history, "%.6e,%ld,%.4e,%.2f,%.6e,%.6e,%.6e,%.2f,%zu,%.6e,%.6e,%.6e,%.3e,%.3e,%.3e,%.3e,%ld,%ld,%ld,%.3g,%.2f\n",
                      now, steps, m.dt, wall, m.inletMassFlow, m.outletMassFlow, m.injectorPressure, tMax,
                      spray.parcels().size(), spray.liquidMass(), spray.ledger().exchangedMass,
                      spray.ledger().outflowMass, m.massBalanceError, m.energyBalanceError, err[0], err[1],
-                     st.tableCells, st.tableClamped, st.tableFallbacks, st.auditTemperature);
+                     st.tableCells, st.tableClamped, st.tableFallbacks, st.auditTemperature, spray.wallTime());
         std::fflush(history);
         std::printf("t %.3f ms, %ld steps, dt %.3g s, wall %.0f s, outlet %.4g kg/s, T_max %.0f K, %zu parcels, "
-                    "liquid %.4g g, fallbacks %ld\n",
+                    "liquid %.4g g, spray %.0f s, fallbacks %ld\n",
                     now * 1e3, steps, m.dt, wall, m.outletMassFlow, tMax, spray.parcels().size(),
-                    spray.liquidMass() * 1e3, st.tableFallbacks);
+                    spray.liquidMass() * 1e3, spray.wallTime(), st.tableFallbacks);
         std::fflush(stdout);
         nextPrint += kPrint;
       }

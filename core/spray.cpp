@@ -1,5 +1,6 @@
 #include "core/spray.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <fstream>
 #include <limits>
@@ -940,6 +941,11 @@ void Spray::release(double t0, double t1) {
 
 void Spray::advance(double dt) {
   if (!(dt > 0)) return;
+  struct Timer {
+    double& total;
+    std::chrono::steady_clock::time_point start{std::chrono::steady_clock::now()};
+    ~Timer() { total += std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count(); }
+  } timer{wall_};
   const double t1 = flow_.time(), t0 = t1 - dt;
   const auto ns = flow_.medium().size();
   const double impulse = ledger_.wallImpulse;
