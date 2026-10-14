@@ -9,16 +9,17 @@
   - **S2 (single drop against a resolved film, `crucible_drop_film_1d`)**: the paper's 1/3 rule fails as stated (ṁ/d +24% to +78%). After that result, film integrals replace its conductances (`Spray::filmConductances`, 3 Gauss points, 3 passes): all six cases pass, pure H2 within 0.2% and 0.04 K, H2/H2O −6.6% to −6.8% and +0.7 K.
   - Two bugs found: A-S's ρD must be the Blanc's-law mass-fraction D (W̄/W_c times Medium's D_km); and **Cantera's default transport fits fail below 300 K** (H2 conductivity negative under 97 K, O2 conductivity +137% at 90 K). `thermo::transportFits(mechanism, 60)` fixes it for liquid-oxygen flows; the default is unchanged. **inquiry2 should know this for the medium rework: any gas below 300 K in the engine sees the bad fits.**
   - S6: the spray is 3.7 times the gas step on the 96-cell S3 run (6.5 μs per parcel sub-step) after a lean film transport call (`Spray::filmTransport`, held to Medium's by S1(c)) and a secant fix (an exact zero residual fell to bisection).
+  - **Turbulent dispersion** (887c692): Gosman-Ioannides on SST's k and ω, the eddy length set so tracers diffuse at the gas's ν_t/Sc_t. S8 passes (spreading from the axis within 0.2 and 1.1 standard errors of the exact expectation; budgets and threads with SST).
+  - **S2(c) model side committed before Lafon's figures are read** (fe86952): lifetime 7.007 ms, −d(d²)/dt 1.602 mm²/s. A Sonnet agent was digitising their figures at the 13 October park; if its report is lost, rerun it (prompt: the S2(c) case only, figure tables, no other values).
   - Declared limit: the boiling hold does not release a drop that reaches saturation in a carrier gas (flash in the nozzle); flashes are counted.
 - **Backhouse runs collected** (277383e): 2(a)'s resolved half fails as stated (u_b +3.55%, St −6.22% against the Richardson limits) but matches the tool on its own 64 rings (+0.27%, −0.51%), the shared first-order wall grid error; the 32x32 criterion 3 reference hit its 1 ms cap unsettled (3 not judged on it). Nothing of ours is running on backhouse.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
 ## Exact next steps (in order)
 
-1. **Turbulent dispersion** (Gosman-Ioannides with SST k and ω) and its tracer check, stated in SPRAY.md before code. Required before S7.
-2. **S2(c)**: Lafon et al. (2008) figures, digitised by a Sonnet agent (lifetime and d² slope, within 15%); the statement is already committed.
-3. **S7, Mascotte A-10**: pre-register the prediction in its own record before any measured value is read (inputs screened, no outcomes, in `docs/validation/`); run on backhouse. Burick's Fig. 38 for the drop-size bracket. Measure S6's ratio on its setup first (film tables if the spray costs more than the gas there).
-4. Carried from 6 October: 2(a)'s restatement (the grid error), criterion 3's reference (unsettled at 1 ms), the `turbulence_pipe_verification` rerun, criterion 0(e) (the offline wall-model table), the Table B builder, then the Back, Massier and Gier comparison (blind: never open the TR's results pages).
+1. **S2(c)**: judge the model's committed numbers against the digitised figures (lifetime and d² slope, within 15%).
+2. **S7, Mascotte A-10**: pre-register the prediction in its own record before any measured value is read (inputs screened, no outcomes, in `docs/validation/`); run on backhouse. Burick's Fig. 38 for the drop-size bracket. Measure S6's ratio on its setup first (film tables if the spray costs more than the gas there).
+3. Carried from 6 October: 2(a)'s restatement (the grid error), criterion 3's reference (unsettled at 1 ms), the `turbulence_pipe_verification` rerun, criterion 0(e) (the offline wall-model table), the Table B builder, then the Back, Massier and Gier comparison (blind: never open the TR's results pages).
 
 ## For Ben
 
