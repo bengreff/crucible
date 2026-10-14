@@ -781,6 +781,10 @@ int main(int argc, char** argv) {
   while (flow.time() < end && !settledStop) {
     double target = std::min({end, nextSample, nextSnapshot < snapshots.size() ? snapshots[nextSnapshot] : end});
     if (target <= flow.time()) target = std::min(end, flow.time() + 2e-6);
+    // The accumulated sample time can fall an ulp short of the end; the step of about 1e-18 s that then followed
+    // reported the boundary rates of its first stage alone and moved the RL10 development run's final device thrust
+    // by +7.4e-4 (13 October 2026). A target within 1e-12 s of the end is the end.
+    if (end - target < 1e-12) target = end;
     reacting.advanceTo(target);
     if (flow.time() >= nextSample) {
       sample();
@@ -952,7 +956,8 @@ int main(int argc, char** argv) {
   } catch (const std::exception& e) {
     std::printf("ideal-rocket comparison failed at p0 = %.0f Pa: %s\n", p0, e.what());
   }
-  // The first-cell y+ at the wall row (laminar estimate) and, for eqtt, the wall heat flow and axial force.
+  // The first-cell y+ at the wall row (the laminar estimate and, with wall functions, the law's from the last step)
+  // and, for eqtt, the wall heat flow and axial force.
   auto reportWall = [&]() {
     std::vector<double> yPlus, diffusion(ns), work;
     double chamberMax = 0;
@@ -968,6 +973,19 @@ int main(int argc, char** argv) {
     std::sort(sorted.begin(), sorted.end());
     std::printf("reported: first-cell y+ at the wall row (laminar estimate): median %.1f, largest %.1f, largest "
                 "upstream of the throat %.1f\n", sorted[sorted.size() / 2], sorted.back(), chamberMax);
+    yPlus.clear();
+    chamberMax = 0;
+    for (const auto& f : flow.wallYPlus())
+      if (!f.plate) {
+        yPlus.push_back(f.yPlus);
+        if (mesh.cells[f.cell].z < geo.throat) chamberMax = std::max(chamberMax, f.yPlus);
+      }
+    if (!yPlus.empty()) {
+      sorted = yPlus;
+      std::sort(sorted.begin(), sorted.end());
+      std::printf("reported: first-cell y+ at the wall row (wall functions): median %.1f, largest %.1f, largest "
+                  "upstream of the throat %.1f\n", sorted[sorted.size() / 2], sorted.back(), chamberMax);
+    }
   };
   if (!pasr) {
     if (turbulent) {

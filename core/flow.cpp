@@ -178,37 +178,92 @@ Mesh::Mesh(const Definition& d):nz(d.nz),nr(d.nr),dz(d.span()/d.nz) {
         double centroid=(i+0.5)*dz+dz*(r1-r0)*(r1+r0)/(4*(r0*r0+r0*r1+r1*r1));
         cells[index(i,j)]={v,centroid,first/v,pi*dz*(r0+r1)*(b-a),second/v};
     }
+    wallRadius=radius;wallDz=dz;wallStride=1;
+    columnSquares_.resize(nz);columnCubes_.resize(nz);
+    for(int i=0;i<nz;++i) {
+        double r0=radius[i],r1=radius[i+1];
+        columnSquares_[i]=dz*(r0*r0+r0*r1+r1*r1)/3;columnCubes_[i]=dz*(r0+r1)*(r0*r0+r1*r1)/4;
+    }
+    axialAreas_.resize(static_cast<std::size_t>(nz+1)*nr);ringMiddles_.resize(axialAreas_.size());
+    for(int face=0;face<=nz;++face) for(int j=0;j<nr;++j) {
+        const auto k=static_cast<std::size_t>(face)*nr+j;
+        if(uniform) {
+            axialAreas_[k]=pi*sq(radius[face])*(2*j+1)/sq(nr);
+            ringMiddles_[k]=radius[face]*(j+0.5)/nr;
+        } else {
+            axialAreas_[k]=pi*sq(radius[face])*(sq(fraction[j+1])-sq(fraction[j]));
+            ringMiddles_[k]=radius[face]*0.5*(fraction[j]+fraction[j+1]);
+        }
+    }
+    const auto radialCount=static_cast<std::size_t>(nz)*(nr+1);
+    radialAreaVectors_.resize(radialCount);radialMiddles_.resize(radialCount);
+    radialRadii_.resize(radialCount);radialSecondMoments_.resize(radialCount);
+    for(int i=0;i<nz;++i) for(int face=0;face<=nr;++face) {
+        const auto k=radialIndex(i,face);
+        double f=fraction[face];
+        radialMiddles_[k]=uniform?0.5*(radius[i]+radius[i+1])*face/nr:0.5*(radius[i]+radius[i+1])*f;
+        double r0=f*radius[i],r1=f*radius[i+1];
+        radialAreaVectors_[k]={-pi*(r0+r1)*(r1-r0),pi*(r0+r1)*dz};
+        // On a sloping column the reconstruction's faces sit on the same column radius as the centroids
+        // (cell.r is fraction-moment times R_col = 3 (r0 + r1)(r0^2 + r1^2) / (4 (r0^2 + r0 r1 + r1^2))),
+        // so each centroid lies between its faces. With the face's area-weighted radius instead, a thin
+        // ring at a sloping wall had both faces on one side of its centroid and its slopes extrapolated
+        // outside it.
+        r0=radius[i];r1=radius[i+1];
+        if(face==0) radialRadii_[k]=0;
+        else if(r0==r1) radialRadii_[k]=2*f*(r0*r0+r0*r1+r1*r1)/(3*(r0+r1));
+        else radialRadii_[k]=f*3*(r0+r1)*(r0*r0+r1*r1)/(4*(r0*r0+r0*r1+r1*r1));
+        radialSecondMoments_[k]=f*f*(sq(radius[i])+sq(radius[i+1]))/2;
+    }
 }
-double Mesh::axialArea(int face,int j) const {
-    if(uniform) return pi*sq(radius[face])*(2*j+1)/sq(nr);
-    return pi*sq(radius[face])*(sq(fraction[j+1])-sq(fraction[j]));
+Mesh Mesh::coarsened(const Mesh& finer) {
+    if(finer.nz%2 || finer.nr%2 || finer.nz<2 || finer.nr<2)
+        throw std::invalid_argument("A mesh coarsens only with an even number of columns and of rings.");
+    Mesh m;
+    m.nz=finer.nz/2;m.nr=finer.nr/2;m.dz=2*finer.dz;m.uniform=finer.uniform;
+    m.radius.resize(m.nz+1);m.fraction.resize(m.nr+1);
+    for(int i=0;i<=m.nz;++i) m.radius[i]=finer.radius[2*i];
+    for(int j=0;j<=m.nr;++j) m.fraction[j]=finer.fraction[2*j];
+    m.wallRadius=finer.wallRadius;m.wallDz=finer.wallDz;m.wallStride=2*finer.wallStride;
+    m.cells.resize(static_cast<std::size_t>(m.nz)*m.nr);
+    for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
+        double v=0,z=0,r=0,pressure=0,second=0;
+        for(int a=2*i;a<2*i+2;++a) for(int b=2*j;b<2*j+2;++b) {
+            const auto& c=finer.cells[finer.index(a,b)];
+            v+=c.volume;z+=c.volume*c.z;r+=c.volume*c.r;pressure+=c.radialPressureMeasure;second+=c.volume*c.radialSecondMoment;
+        }
+        m.cells[m.index(i,j)]={v,z/v,r/v,pressure,second/v};
+    }
+    m.columnSquares_.resize(m.nz);m.columnCubes_.resize(m.nz);
+    for(int i=0;i<m.nz;++i) {
+        m.columnSquares_[i]=finer.columnSquares_[2*i]+finer.columnSquares_[2*i+1];
+        m.columnCubes_[i]=finer.columnCubes_[2*i]+finer.columnCubes_[2*i+1];
+    }
+    // An axial face is two finer faces stacked on one line of constant z.
+    m.axialAreas_.resize(static_cast<std::size_t>(m.nz+1)*m.nr);m.ringMiddles_.resize(m.axialAreas_.size());
+    for(int face=0;face<=m.nz;++face) for(int j=0;j<m.nr;++j) {
+        const auto k=static_cast<std::size_t>(face)*m.nr+j;
+        m.axialAreas_[k]=finer.axialArea(2*face,2*j)+finer.axialArea(2*face,2*j+1);
+        m.ringMiddles_[k]=m.radius[face]*0.5*(m.fraction[j]+m.fraction[j+1]);
+    }
+    // A radial face is the polyline of two finer faces; its middle is their shared node.
+    const auto radialCount=static_cast<std::size_t>(m.nz)*(m.nr+1);
+    m.radialAreaVectors_.resize(radialCount);m.radialMiddles_.resize(radialCount);
+    m.radialRadii_.resize(radialCount);m.radialSecondMoments_.resize(radialCount);
+    for(int i=0;i<m.nz;++i) for(int face=0;face<=m.nr;++face) {
+        const auto k=m.radialIndex(i,face);
+        const auto a=finer.radialAreaVector(2*i,2*face),b=finer.radialAreaVector(2*i+1,2*face);
+        m.radialAreaVectors_[k]={a[0]+b[0],a[1]+b[1]};
+        m.radialMiddles_[k]=finer.radius[2*i+1]*m.fraction[face];
+        m.radialRadii_[k]=face==0?0:m.fraction[face]*(m.columnCubes_[i]/m.columnSquares_[i]);
+        m.radialSecondMoments_[k]=0.5*(finer.radialFaceSecondMoment(2*i,2*face)+finer.radialFaceSecondMoment(2*i+1,2*face));
+    }
+    return m;
 }
-double Mesh::ringMiddle(int face,int j) const {
-    if(uniform) return radius[face]*(j+0.5)/nr;
-    return radius[face]*0.5*(fraction[j]+fraction[j+1]);
-}
-double Mesh::radialFaceMiddle(int i,int j) const {
-    if(uniform) return 0.5*(radius[i]+radius[i+1])*j/nr;
-    return 0.5*(radius[i]+radius[i+1])*fraction[j];
-}
-std::array<double,2> Mesh::radialAreaVector(int i,int face) const {
-    double f=fraction[face];
-    double r0=f*radius[i],r1=f*radius[i+1];
-    return {-pi*(r0+r1)*(r1-r0),pi*(r0+r1)*dz};
-}
-// On a sloping column the reconstruction's faces sit on the same column radius as the centroids
-// (cell.r is fraction-moment times R = 3 (r0 + r1)(r0^2 + r1^2) / (4 (r0^2 + r0 r1 + r1^2))), so each
-// centroid lies between its faces. With the face's area-weighted radius instead, a thin ring at a
-// sloping wall had both faces on one side of its centroid and its slopes extrapolated outside it.
-double Mesh::radialFaceRadius(int i,int face) const {
-    double f=fraction[face],r0=radius[i],r1=radius[i+1];
-    if(face==0) return 0;
-    if(r0==r1) return 2*f*(r0*r0+r0*r1+r1*r1)/(3*(r0+r1));
-    return f*3*(r0+r1)*(r0*r0+r1*r1)/(4*(r0*r0+r0*r1+r1*r1));
-}
-double Mesh::radialFaceSecondMoment(int i,int face) const {
-    double f=fraction[face];
-    return f*f*(sq(radius[i])+sq(radius[i+1]))/2;
+double Mesh::wallRadiusAt(int i,double z) const {
+    // The finest segment of column i holding z (the column's first or last at its ends).
+    const int k=std::clamp(i*wallStride+static_cast<int>(std::floor((z-i*dz)/wallDz)),i*wallStride,(i+1)*wallStride-1);
+    return wallRadius[k]+(wallRadius[k+1]-wallRadius[k])*(z-k*wallDz)/wallDz;
 }
 Conserved conservative(Primitive w,double e) {
     return {w.rho,w.rho*w.uz,w.rho*w.ur,w.rho*e+0.5*w.rho*(sq(w.uz)+sq(w.ur))};

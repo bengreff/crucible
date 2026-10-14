@@ -124,7 +124,7 @@ std::array<Neighbour, 4> neighbours(const Mesh& m, bool chamber, const std::vect
         // The side wall's value sits where the cell's radial line meets it, at the wall radius at the
         // centroid's z (as the open faces' neighbours sit on the cell's axial line, 1e0fd9e).
         auto ar=m.radialAreaVector(i,m.nr);double area=std::hypot(ar[0],ar[1]);
-        double wall=m.radius[i]+(m.radius[i+1]-m.radius[i])*(c.z-i*m.dz)/m.dz;
+        double wall=m.wallRadiusAt(i,c.z);
         out[3]={Neighbour::Wall,0,0,wall-c.r,ar[0]/area,ar[1]/area};
     }
     return out;
@@ -645,13 +645,18 @@ Flow::WallSolution Flow::wallSolve(const WallFace& f,const Primitive& w,double t
                                              std::cbrt(cpW*wall.viscosity/wall.conductivity)},c);
     WallSolution out;
     if(u1>0) { const double scale=law.shear/u1;out.tz=-scale*uz;out.tr=-scale*ur; }
-    out.heat=law.heat;
+    out.heat=law.heat;out.yPlus=law.yPlus;
     const double ratio=mu1/wall.viscosity;
     const double eddy=tu.printedDerivative?wallLaw::yPlusDerivativePrinted(law.uPlus,law.gamma,law.beta,c)-ratio
                                           :wallLaw::eddyRatio(law.uPlus,law.gamma,law.beta,ratio,c);
     out.eddy=wall.viscosity*std::max(eddy,0.0);
     const double inner=6*wall.viscosity/(beta1*rhoW*sq(f.distance)),outer=law.uTau/(std::sqrt(betaStar)*c.kappa*f.distance);
     out.omega=std::hypot(inner,outer);
+    return out;
+}
+std::vector<Flow::WallYPlus> Flow::wallYPlus() const {
+    std::vector<WallYPlus> out;out.reserve(wallFaces_.size());
+    for(std::size_t n=0;n<wallFaces_.size();++n) out.push_back({wallFaces_[n].cell,wallFaces_[n].plate,wallSolutions_[n].yPlus});
     return out;
 }
 void Flow::transportDerivative(std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative) {

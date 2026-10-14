@@ -6,8 +6,8 @@
 namespace crucible {
 // Exact distance from each cell centroid to the no-slip walls. For a surface of revolution the
 // nearest point lies in the point's own meridional half-plane, so the distance is the plane
-// distance to the wall segments: the side wall, the polyline through (i dz, radius[i]) when
-// sideWall, and ring j of the injector face (z = 0, from fraction[j] to fraction[j + 1] of
+// distance to the wall segments: the side wall, the finest polyline through (k wallDz, wallRadius[k])
+// when sideWall, and ring j of the injector face (z = 0, from fraction[j] to fraction[j + 1] of
 // radius[0]) where plate[j]. Infinity where there is no wall at all.
 // direction, if given, receives each centroid's unit vector away from its nearest wall point (the
 // gradient of the distance; zero where there is no wall).

@@ -138,25 +138,55 @@ struct Definition {
 // r is the exact volume centroid radius (integral of r dV / V) where r-weighted cell averages sit;
 // radialSecondMoment is the integral of r^2 dV / V; radialPressureMeasure is the integral of dV / r.
 struct Cell { double volume{}, z{}, r{}, radialPressureMeasure{}, radialSecondMoment{}; };
+// The geometry the kernels read, held as explicit arrays (docs/evidence/AMR.md, step A): the direct
+// constructor fills them from the wall radius at each axial station and the ring fractions, and
+// coarsened() builds the level below a finer mesh from its arrays, so a coarse cell's sloped faces
+// are the polyline of its children's.
 struct Mesh {
     explicit Mesh(const Definition& definition);
+    // The mesh with the columns and the rings of `finer` paired (nz and nr even): volumes, the
+    // pressure measure, the r and r^2 integrals and the face area vectors summed; the radial face's
+    // reference radius f R_col with R_col the ratio of the summed integrals of R^3 and R^2 over z; its
+    // r^2 moment the mean of the two finer faces' (a trapezoid over the finer nodes); the side wall
+    // the finest polyline.
+    static Mesh coarsened(const Mesh& finer);
     int nz{}, nr{};
     double dz{};
+    // The wall radius at axial station i (0..nz) and the ring boundaries' fractions of it (0..nr); on
+    // a coarsened mesh, the finer mesh's at every other station and boundary.
     std::vector<double> radius;
-    // Radial position of ring boundary j (0..nr) as a fraction of the local wall radius.
     std::vector<double> fraction;
     bool uniform{true};
     std::vector<Cell> cells;
+    // The side wall as the finest polyline: wallRadius at stations wallDz apart from z = 0, wallStride
+    // of its segments per column (1 on a directly built mesh, where wallRadius is radius).
+    std::vector<double> wallRadius;
+    double wallDz{};
+    int wallStride{1};
     std::size_t index(int i, int j) const { return static_cast<std::size_t>(i)*nr+j; }
-    double axialArea(int face, int j) const;
+    double axialArea(int face, int j) const { return axialAreas_[static_cast<std::size_t>(face)*nr+j]; }
     // Radius of the middle of ring j on axial face `face`, and of radial face j at the middle of column i.
-    double ringMiddle(int face, int j) const;
-    double radialFaceMiddle(int i, int j) const;
-    std::array<double, 2> radialAreaVector(int i, int face) const;
+    double ringMiddle(int face, int j) const { return ringMiddles_[static_cast<std::size_t>(face)*nr+j]; }
+    double radialFaceMiddle(int i, int j) const { return radialMiddles_[radialIndex(i,j)]; }
+    std::array<double, 2> radialAreaVector(int i, int face) const { return radialAreaVectors_[radialIndex(i,face)]; }
     // Reference radius r_f and r^2 moment of a radial face: a quantity linear in r (or in r^2)
     // integrates over the face's radial area component exactly at these values.
-    double radialFaceRadius(int i, int face) const;
-    double radialFaceSecondMoment(int i, int face) const;
+    double radialFaceRadius(int i, int face) const { return radialRadii_[radialIndex(i,face)]; }
+    double radialFaceSecondMoment(int i, int face) const { return radialSecondMoments_[radialIndex(i,face)]; }
+    // The side wall's radius at axial position z inside column i, on the finest polyline.
+    double wallRadiusAt(int i, double z) const;
+    // Per column the integrals of R^2 and of R^3 over z, R(z) the wall radius: a cell between ring
+    // fractions a and b has the volume pi (b^2 - a^2) times the first and the centroid radius
+    // 2 (b^3 - a^3) / (3 (b^2 - a^2)) times R_col, the integral of R^3 over that of R^2.
+    const std::vector<double>& columnSquares() const { return columnSquares_; }
+    const std::vector<double>& columnCubes() const { return columnCubes_; }
+private:
+    Mesh() = default;
+    std::size_t radialIndex(int i, int j) const { return static_cast<std::size_t>(i)*(nr+1)+j; }
+    std::vector<double> axialAreas_, ringMiddles_;
+    std::vector<std::array<double, 2>> radialAreaVectors_;
+    std::vector<double> radialMiddles_, radialRadii_, radialSecondMoments_;
+    std::vector<double> columnSquares_, columnCubes_;
 };
 // Axial forces use +z = exhaust direction for forces on the gas. Thrusts are forces on the
 // device (supply/reservoir, walls, and later coils) positive against the exhaust (-z).
@@ -259,6 +289,11 @@ public:
     [[nodiscard]] const std::vector<double>& turbulence() const { return turbulence_; }
     [[nodiscard]] const std::vector<double>& wallDistances() const { return wallDistance_; }
     [[nodiscard]] const std::vector<double>& eddyViscosities() const { return eddy_; }
+    // Wall functions: per no-slip wall face (the side wall by column, then the plate rings), its cell,
+    // whether it is on the plate, and the first cell's y+ = rho_w u_tau d / mu_w from the last
+    // transport evaluation, the second stage of the last step (empty without wall functions).
+    struct WallYPlus { std::size_t cell; bool plate; double yPlus; };
+    [[nodiscard]] std::vector<WallYPlus> wallYPlus() const;
     // The PaSR closure's inputs per cell at the current state (TECHNICAL_PLAN step 7, "PaSR"; needs
     // turbulence): the mixing time tau_mix = cmix sqrt(nu_eff / epsilon), nu_eff = (mu + mu_t) / rho,
     // epsilon = beta* k omega (infinite where k = 0), and the segregation s, the largest over the
@@ -418,11 +453,11 @@ private:
     // Wall functions. Each no-slip wall face (the side wall by column, then the plate rings): its
     // cell, whether it is on the plate, the unit normal out of the gas and the centroid's normal
     // distance to it. Its solution at the current state: the wall's traction on the gas, q_w (gas to
-    // wall), and the first cell's mu_t and omega. Per entry of wallCells_ the face that sets that
+    // wall), the first cell's mu_t and omega, and its y+. Per entry of wallCells_ the face that sets that
     // cell's k and omega (the nearer, the side wall on a tie); per ring the plate face (-1: none); per
     // cell whether its turbulence is prescribed, and the rho k V the last prescription added.
     struct WallFace { std::size_t cell; bool plate; double nz, nr, distance; };
-    struct WallSolution { double tz{}, tr{}, heat{}, eddy{}, omega{}; };
+    struct WallSolution { double tz{}, tr{}, heat{}, eddy{}, omega{}, yPlus{}; };
     std::vector<WallFace> wallFaces_;
     std::vector<WallSolution> wallSolutions_;
     std::vector<std::size_t> wallCellFace_;

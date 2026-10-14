@@ -1,6 +1,6 @@
 # Adaptive resolution (TECHNICAL_PLAN *Lightweight engine*, order of work item 5)
 
-Status (13 October 2026, committed at 22:34 CDT by author time; this line said "about 22:45" until 22:36): design and criteria, stated before any AMR code. Nothing here is verified yet.
+Status (13 October 2026, 23:21 CDT): step A implemented, results below. 0(a), 0(b) and 0(c) are met; 0(d) is not met as written, with the decision recorded. Steps B to E are not started. The design and criteria were committed at 22:34 CDT by author time, before any AMR code; this line said "about 22:45" until 22:36.
 
 The plan chose block-structured AMR in the logical (i, j) index space of the body-fitted mapping: refinement ratio 2 in space and time, time-accurate subcycling, conservative averaging with refluxing (Berger and Colella, J. Comput. Phys. 82, 1989), and geometry taken from the finest level. It stated four criteria. This record turns that choice into a data layout, a step, tags and numbers, and adds three criteria of its own (the geometry refactor's identity, cost and determinism, and the RL10 measurement the decision rule needs).
 
@@ -137,15 +137,43 @@ Each level keeps the engine's rule: every cell and face is computed alone, and e
 
 ## Order of work
 
-- **A.** The explicit-geometry `Mesh`, its coarsening constructor and the restricted loops: criterion 0. Commit.
+- **A.** The explicit-geometry `Mesh`, its coarsening constructor and the restricted loops: criterion 0. Commit. (The restricted loops moved to B; see *Deviations*.)
 - **B.** Two levels in a fixed pattern with subcycling, registers and refluxing: criteria 1 and 3, then 2 with the pattern fixed. Commit.
 - **C.** Tags, regridding and interpolation: criterion 2 as stated (dynamic), 5(b). Commit.
 - **D.** C1 on base plus one level: thresholds fixed and recorded, then criteria 4 and 5(a). Commit.
 - **E.** The RL10 development chamber on AMR: criterion 6, and the decision rule. Commit, and update `TECHNICAL_PLAN`'s budget with the measured rows.
 
+## Results: step A, the explicit-geometry mesh (13 October 2026)
+
+`Mesh` now holds every geometric quantity the kernels read as arrays: per axial face the area and the ring middle; per radial face the area vector, the middle, r_f and the r^2 moment; per column the integrals of R^2 and R^3 over z; and the side wall as the finest polyline (`wallRadius`, `wallDz`, `wallStride`, `Mesh::wallRadiusAt`). The accessors read the arrays, so no call site changed. The direct constructor fills the arrays with the former formulas in the same arithmetic. `Mesh::coarsened` builds the level below as designed above. `walls.cpp` and the side wall's neighbour in `neighbours()` read the polyline. `radius`, `fraction` and `dz` remain, holding a coarsened mesh's stations, so `core/spray.cpp` reads them unchanged. Tests: `tests/amr_tests.cpp` (ctest `amr_verification`).
+
+- **0(a): met.** C1 `eqtt` 64 x 12 to 1 ms on 4 threads (Table A, wall functions `law`, the `hp` corrections). The history files before and after the refactor are identical byte for byte (`cmp`), and so are the final states dumped through `CRUCIBLE_STATE_DUMP` (98,304 bytes). The baseline used the build with the y+ accessor and the end-of-run fix of `chamber_study` (both below), taken before any geometry edit.
+- **0(b): met in results; the criterion's count was wrong.** Every test except turbulence_pipe_verification ran on both builds (the multi-hour pipe case was stopped unrun on both). Each gave the same result before and after the refactor.
+  - Before: 9 of 11 pass.
+  - After: 9 of 12 pass. The extra test, amr_verification, fails on 0(d) alone.
+  - transport_verification fails in both builds at its recorded radial orders, 1.218 and 1.444.
+  - spray_verification fails in both on SPRAY.md's S0(b): 1,245 J/kg against a 1,000 J/kg limit, recorded with the spray commit on main.
+  - The criterion's "8 of 9" was written before the rebase onto that commit brought in spray_verification. It counted the tests other than the two longest (pasr, turbulence_pipe).
+  - pasr and core_slow pass in both builds. Logs are in the scratch tree, `build/prof/amr0/ctest_*.log`.
+- **0(c): met.** Cylinder and cone (r from 0.05 to 0.02 m over 0.1 m), uniform rings and stretching 1.7347: 32 x 16 coarsened against 16 x 8 built directly. Every array is within 7.5e-16 of its largest magnitude. The radial face's r^2 moment differs by -f^2 (r1 - r0)^2 / 8, as amended before the code, to within 1.9e-16. The side-wall distances match within 6.4e-16.
+- **0(d): not met as written.** I chose the denominator with the test code, before its first run: the largest component among the cell's four face area vectors. The largest closure errors on the RL10 development contour (base 150 x 16, stretching 1.7347) are:
+
+  | Level | Mesh | Relative to the faces (limit 1e-14) | Relative to pi R^2 (printed) |
+  |---|---|---|---|
+  | 3, built directly | 1200 x 128 | 8.1e-14 | 7.6e-16 |
+  | 2, coarsened | 600 x 64 | 3.9e-14 | 6.7e-16 |
+  | 1, coarsened | 300 x 32 | 1.9e-14 | 5.7e-16 |
+  | 0, coarsened | 150 x 16 | 8.3e-15 (met) | 5.5e-16 |
+
+  - **The cause** lies in the direct formulas, which the refactor does not touch; it is not in the coarsening. Level 3 is built directly. The worst cell is in the bell, at R = 0.32 m, dz = 1.25 mm. The error is in the axial sum: A(i+1, j) - A(i, j) + the radial faces' z components. Each of those terms is computed from values the size of pi R^2, such as f R1 - f R0 inside -pi (r0 + r1)(r1 - r0). Their rounding is therefore a few epsilon of pi R^2, which is about epsilon R / dz of the faces. A directly built uniform 1200 x 128 mesh gives 4.4e-14, and the 150 x 16 base 8.2e-15. Coarsening sums the fine faces, so the absolute error carries over while the faces double: the ratio halves at each level, as the table shows.
+  - **The consequence** for quiescent gas is a spurious force of p times the closure error. At level 3's worst cell that is about 6e-10 N on about 7e-6 kg (*derived*, at 3 MPa and 3 kg/m^3). The resulting speed after 1,000 steps of 1e-8 s is about 1e-12 a, against criterion 1's bound of 1e-10 a.
+  - **Decision (13 October, 22:56 CDT).** No change to the arithmetic in step A, because 0(a) requires the same bits. 0(d) stays recorded as not met. Criterion 1 measures the consequence directly and is unchanged. If criterion 1 fails on this, the fix is already known: cancellation-free forms, -pi f^2 (R0 + R1)(R1 - R0) for the radial z component and pi R^2 (f_{j+1} - f_j)(f_{j+1} + f_j) for a stretched axial face. That fix would be a separate commit, checked against 0(d) with the same denominator.
+- **Printed beside, not judged.** Level 0 coarsened from level 3 against the 150 x 16 mesh built directly: the largest cell-volume difference is 2.1% and the largest side-wall face-area difference 0.74%. These are the chords' error on the throat arc, which the polyline removes. The throat station's area is identical, because both meshes place a station on the throat.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.
+- **The restricted loops move from step A to step B** (decided 13 October, after the step A geometry). Which loops must also cover the ghost cells (refresh, slopes, profiles, gradients, wall solves) and which cover only the active cells (gather, sources, admissibility) is fixed by step B's ghost handling. Writing the interval loops before that would fix the wrong shape. They carry step A's check: a single level with everything active must give the same bits.
 - **Three new criteria (0, 5, 6).** They do not relax the plan's four (here 1 to 4); they record the refactor's safety, the cost the budget assumed, and the measurement the decision rule needs.
 
 ## Literature
