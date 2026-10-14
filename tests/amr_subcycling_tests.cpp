@@ -12,9 +12,12 @@
 //        the uniform coarse and fine runs' and converging at order 0.8 or better on both pairs, the
 //        shock within one base cell, and the pressure behind it within 1e-3 of its jump of the uniform
 //        coarse run's.
-// Arguments: any of 1a 1b 3a 3b (default all) and a thread count (default 4).
+// Arguments: any of 1a 1b 3a 3b (default all) and a thread count (default 4). Step B2's checks (AMR.md,
+// Step B2: setup): b1 runs B1 (with the temperature-guess reset) instead of B2, ghost=N sets the ghost
+// width, and dump=PREFIX writes each run's active cells, steps and budget to PREFIX_<case>.bin.
 #include "core/amr.hpp"
 #include "core/flow.hpp"
+#include "tests/amr_dump.hpp"
 #include "tests/rl10_wall.hpp"
 #include <algorithm>
 #include <chrono>
@@ -29,7 +32,17 @@
 using namespace crucible;
 
 namespace {
-int failures = 0, threads = 4;
+int failures = 0, threads = 4, ghost = 0;
+bool b1 = false;
+std::string dumpPrefix;
+// The B1 or B2 choice and the ghost width (0: the default) for each AMR run, and its dump.
+void configure(Amr& amr) {
+  amr.setRestricted(!b1);
+  if (ghost > 0) amr.setGhostWidth(ghost);
+}
+void dump(const Amr& amr, const std::string& name) {
+  if (!dumpPrefix.empty()) writeAmrDump(amr, dumpPrefix + "_" + name + ".bin");
+}
 void check(bool ok, const std::string& what, double value, double limit) {
   std::printf("  %-74s %.3e (limit %.3g)  %s\n", what.c_str(), value, limit, ok ? "PASS" : "FAIL");
   if (!ok) ++failures;
@@ -84,6 +97,7 @@ void quiescentChamber() {
   const double a0 = std::sqrt(d.gas.gamma * d.gas.specificR * t0);
 
   Amr amr(d, 2);
+  configure(amr);
   amr.setThreads(threads);
   const Mesh& base = amr.level(0).mesh();
   int throat = 0;
@@ -97,6 +111,7 @@ void quiescentChamber() {
   }));
   const auto start = std::chrono::steady_clock::now();
   for (int n = 0; n < 1000; ++n) amr.step();
+  dump(amr, "1a");
   std::printf("  AMR: t = %.4e s after %llu base steps (%llu redone), %.1f s of wall\n", amr.time(),
               static_cast<unsigned long long>(amr.steps()), static_cast<unsigned long long>(amr.rejectedSteps()), seconds(start));
   for (int l = 0; l < amr.levels(); ++l) {
@@ -138,6 +153,7 @@ void uniformFlow() {
   d.totalTemperature = t0;
   const double a0 = std::sqrt(d.gas.gamma * d.gas.specificR * t0), u0 = 0.3 * a0, rho0 = p0 / (d.gas.specificR * t0);
   Amr amr(d, 2);
+  configure(amr);
   amr.setThreads(threads);
   for (int l = 0; l < amr.levels(); ++l) amr.level(l).setUniform({rho0, u0, 0, p0});
   amr.setActive(1, pattern(amr.level(1), [](int i, int j) { return (i >> 1) >= 150 && (i >> 1) < 250 && (j >> 1) >= 2 && (j >> 1) < 6; }));
@@ -145,6 +161,7 @@ void uniformFlow() {
   amr.averageDown();
   const auto start = std::chrono::steady_clock::now();
   for (int n = 0; n < 400; ++n) amr.step();
+  dump(amr, "1b");
   const double t = amr.time(), lo = (u0 + a0) * t, hi = d.length - (a0 - u0) * t;
   std::printf("  t = %.4e s after %llu base steps (%llu redone), %.1f s of wall; judged for z in (%.4f, %.4f) m\n", t,
               static_cast<unsigned long long>(amr.steps()), static_cast<unsigned long long>(amr.rejectedSteps()), seconds(start), lo, hi);
@@ -225,6 +242,7 @@ void acousticPulse() {
     fine.nz = 2 * n;
     fine.nr = 4;
     Amr amr(d, 1);
+    configure(amr);
     // The uniform runs on the AMR levels' own meshes.
     Flow coarseRun(d, Mesh(amr.level(0).mesh())), fineRun(fine, Mesh(amr.level(1).mesh()));
     for (Flow* f : {&amr.level(0), &amr.level(1), &coarseRun, &fineRun}) {
@@ -258,6 +276,7 @@ void acousticPulse() {
         error = s / v / (rho0 * (std::pow(1 + pulse.amplitude, 1 / gamma) - 1));
       }
     }
+    dump(amr, "3a_" + std::to_string(n));
     std::printf("  %d columns: %llu base steps, %.1f s of wall; difference from the uniform %d-column run %.4e of the "
                 "pulse's density amplitude; reflection %.4e of its pressure amplitude\n",
                 n, static_cast<unsigned long long>(amr.steps()), seconds(start), 2 * n, error, reflection);
@@ -318,6 +337,7 @@ void sod() {
     fine.nr = 4;
     const int first = static_cast<int>(std::lround(n / 3.0)), last = static_cast<int>(std::lround(2 * n / 3.0));
     Amr amr(d, 1);
+    configure(amr);
     amr.setThreads(threads);
     amr.setActive(1, pattern(amr.level(1), [&](int i, int) { return (i >> 1) >= first && (i >> 1) < last; }));
     amr.averageDown();
@@ -325,6 +345,7 @@ void sod() {
     coarseRun.setThreads(threads);
     fineRun.setThreads(threads);
     amr.advanceTo(t);
+    dump(amr, "3b_" + std::to_string(n));
     coarseRun.advanceTo(t);
     fineRun.advanceTo(t);
     const Flow& base = amr.level(0);
@@ -368,10 +389,14 @@ int main(int argc, char** argv) {
   for (int k = 1; k < argc; ++k) {
     const std::string a = argv[k];
     if (a == "1a" || a == "1b" || a == "3a" || a == "3b") cases.insert(a);
+    else if (a == "b1") b1 = true;
+    else if (a.rfind("ghost=", 0) == 0) ghost = std::atoi(a.c_str() + 6);
+    else if (a.rfind("dump=", 0) == 0) dumpPrefix = a.substr(5);
     else threads = std::max(1, std::atoi(a.c_str()));
   }
   if (cases.empty()) cases = {"1a", "1b", "3a", "3b"};
-  std::printf("AMR step B1, criteria 1 and 3 (%d threads)\n", threads);
+  std::printf("AMR step %s, criteria 1 and 3 (%d threads%s)\n", b1 ? "B1" : "B2", threads,
+              ghost > 0 ? (", ghost width " + std::to_string(ghost)).c_str() : "");
   if (cases.count("1b")) uniformFlow();
   if (cases.count("3b")) sod();
   if (cases.count("3a")) acousticPulse();

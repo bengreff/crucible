@@ -21,6 +21,7 @@ Amr::Amr(const Definition& base,int finer) {
         levels_.push_back(std::move(v));
     }
     const Flow& b=level(0);
+    ghost_=b.nt_?3:2;
     if(b.nt_ && (base.turbulence.wallFunctions || base.turbulence.propertyCorrections))
         throw std::invalid_argument("AMR does not yet carry the wall functions' prescription or the SST property corrections across levels.");
     for(int l=0;l<=finer;++l) {
@@ -88,8 +89,11 @@ bool Amr::covered(int l,std::size_t q) const {
 }
 // Whole parent cells, and proper nesting: every cell within the ghost width of an active cell of
 // level l (clipped to the domain) lies over an active cell of level l - 1. Then each level's owned
-// cells (active and not covered), where it books its boundary exchange and sources.
+// cells (active and not covered), where it books its boundary exchange and sources, and in B2 the
+// regions of the levels above the base.
 void Amr::check() {
+    if(ghost_<2 || (restricted_ && level(0).nt_ && ghost_<3))
+        throw std::invalid_argument("The ghost width must be at least 2, and 3 with turbulence in B2.");
     top_=0;
     for(int l=1;l<levels();++l) {
         const Flow& f=level(l);const Flow& c=level(l-1);
@@ -112,6 +116,41 @@ void Amr::check() {
         Flow& f=level(l);
         f.owned_.assign(f.mesh_.cells.size(),0);
         for(std::size_t q=0;q<f.owned_.size();++q) f.owned_[q]=f.isActive(q) && !covered(l,q)?1:0;
+    }
+    // B2: the parents of the ghosts (N_g less the active cells), all active by the nesting; their
+    // children are filled, and the other non-active cells (off cells) keep their state through the
+    // stages, so their stage and new values are set to it here once.
+    for(int l=1;l<levels();++l) {
+        Level& v=levels_[static_cast<std::size_t>(l)];
+        Flow& f=*v.flow;const Flow& c=level(l-1);
+        const Mesh& m=f.mesh_;const Mesh& cm=c.mesh_;
+        v.parents.clear();v.around.clear();
+        if(!restricted_) { f.clearRegions();continue; }
+        f.setRegions(ghost_);
+        const auto nr=static_cast<std::size_t>(m.nr);
+        auto parent=[&](std::size_t q) { return cm.index(static_cast<int>(q/nr)>>1,static_cast<int>(q%nr)>>1); };
+        std::vector<unsigned char> mark(cm.cells.size(),0),near(cm.cells.size(),0);
+        for(std::size_t q:f.within_[static_cast<std::size_t>(ghost_)]) if(!f.isActive(q)) mark[parent(q)]=1;
+        for(std::size_t p=0;p<mark.size();++p) {
+            if(!mark[p]) continue;
+            v.parents.push_back(p);
+            const int I=static_cast<int>(p/static_cast<std::size_t>(cm.nr)),J=static_cast<int>(p%static_cast<std::size_t>(cm.nr));
+            near[p]=1;
+            if(I>0) near[cm.index(I-1,J)]=1;
+            if(I<cm.nz-1) near[cm.index(I+1,J)]=1;
+            if(J>0) near[cm.index(I,J-1)]=1;
+            if(J<cm.nr-1) near[cm.index(I,J+1)]=1;
+        }
+        for(std::size_t p=0;p<near.size();++p) if(near[p]) v.around.push_back(p);
+        f.filled_.clear();
+        const std::size_t ns=f.ns_,nt=f.nt_;
+        for(std::size_t q=0;q<m.cells.size();++q) {
+            if(f.isActive(q)) continue;
+            if(mark[parent(q)]) f.filled_.push_back(q);
+            f.stage_[q]=f.next_[q]=f.state_[q];
+            for(std::size_t k=q*ns;k<(q+1)*ns;++k) f.speciesStage_[k]=f.speciesNext_[k]=f.species_[k];
+            for(std::size_t k=q*nt;k<(q+1)*nt;++k) f.turbulenceStage_[k]=f.turbulenceNext_[k]=f.turbulence_[k];
+        }
     }
     checked_=true;
 }
@@ -147,16 +186,18 @@ void Amr::averageDown(int l) {
     });
 }
 void Amr::fill(int l,std::vector<Conserved>& state,std::vector<double>& species,std::vector<double>& turbulence,double theta) {
-    Level& cv=levels_[static_cast<std::size_t>(l-1)];
-    const Flow& c=*cv.flow;const Flow& f=level(l);
+    Level& cv=levels_[static_cast<std::size_t>(l-1)];const Level& fv=levels_[static_cast<std::size_t>(l)];
+    const Flow& c=*cv.flow;Flow& f=*fv.flow;
     const Mesh& cm=c.mesh_;const Mesh& fm=f.mesh_;
     const std::size_t ns=c.ns_,nt=c.nt_,stride=4+ns+nt,count=cm.cells.size();
     cv.values.resize(count*stride);
     // Level l - 1 at theta, linear in time (its old state at 0 and its new state at 1 exactly). A
     // convex combination of admissible states is admissible (the internal energy is concave in the
     // conserved variables).
-    c.pool_->blocks(count,Flow::kCells,[&](std::size_t begin,std::size_t end,int) {
-        for(std::size_t q=begin;q<end;++q) {
+    const auto* around=restricted_?&fv.around:nullptr;
+    c.pool_->blocks(around?around->size():count,Flow::kCells,[&](std::size_t begin,std::size_t end,int) {
+        for(std::size_t n=begin;n<end;++n) {
+            const std::size_t q=around?(*around)[n]:n;
             double* v=cv.values.data()+q*stride;
             for(int k=0;k<4;++k) v[k]=(1-theta)*cv.oldState[q][k]+theta*c.state_[q][k];
             for(std::size_t k=0;k<ns;++k) v[4+k]=(1-theta)*cv.oldSpecies[q*ns+k]+theta*c.species_[q*ns+k];
@@ -169,8 +210,10 @@ void Amr::fill(int l,std::vector<Conserved>& state,std::vector<double>& species,
     // children's volume-weighted centroid, so the children's content is the parent's. The partial
     // densities, rho k and rho omega scale with the child's density. If a child is not admissible, the
     // parent's children all take its values.
-    c.pool_->blocks(count,Flow::kCells,[&](std::size_t begin,std::size_t end,int) {
-        for(std::size_t p=begin;p<end;++p) {
+    const auto* parents=restricted_?&fv.parents:nullptr;
+    c.pool_->blocks(parents?parents->size():count,Flow::kCells,[&](std::size_t begin,std::size_t end,int) {
+        for(std::size_t n=begin;n<end;++n) {
+            const std::size_t p=parents?(*parents)[n]:n;
             const int I=static_cast<int>(p/static_cast<std::size_t>(cm.nr)),J=static_cast<int>(p%static_cast<std::size_t>(cm.nr));
             const std::size_t child[4]={fm.index(2*I,2*J),fm.index(2*I,2*J+1),fm.index(2*I+1,2*J),fm.index(2*I+1,2*J+1)};
             if(f.isActive(child[0])) continue;
@@ -228,6 +271,7 @@ void Amr::fill(int l,std::vector<Conserved>& state,std::vector<double>& species,
                 for(std::size_t k=0;k<ns;++k) species[q*ns+k]=vp[4+k];
                 for(std::size_t k=0;k<nt;++k) turbulence[q*nt+k]=vp[4+ns+k];
             }
+            for(auto q:child) f.temperature_[q]=c.temperature_[p];
         }
     });
 }
@@ -287,10 +331,18 @@ bool Amr::advance(int l,double t,double dt,int half) {
     if(!f.secondStage(dt,attempt)) return false;
     f.accept(dt,t+dt,attempt);
     if(afterStep_) afterStep_(l,dt);
-    if(l>0) for(std::size_t k=0;k<v.fineSum.size();++k) v.fineSum[k]+=f.faceIntegral_[k];
+    // In B2 the registers hold only the faces a level computes (Flow::faces_), which contain every
+    // coarse-fine face.
+    const std::size_t stride=4+f.nw_;
+    if(l>0) {
+        if(!restricted_) for(std::size_t k=0;k<v.fineSum.size();++k) v.fineSum[k]+=f.faceIntegral_[k];
+        else for(std::size_t e:f.faces_) for(std::size_t k=e*stride;k<(e+1)*stride;++k) v.fineSum[k]+=f.faceIntegral_[k];
+    }
     if(l<top_) {
-        auto& sum=levels_[static_cast<std::size_t>(l+1)].fineSum;
-        std::fill(sum.begin(),sum.end(),0.0);
+        Level& u=levels_[static_cast<std::size_t>(l+1)];
+        auto& sum=u.fineSum;
+        if(!restricted_) std::fill(sum.begin(),sum.end(),0.0);
+        else for(std::size_t e:u.flow->faces_) std::fill_n(sum.begin()+static_cast<std::ptrdiff_t>(e*stride),stride,0.0);
         if(!advance(l+1,t,0.5*dt,0) || !advance(l+1,t+0.5*dt,0.5*dt,1)) return false;
         averageDown(l);
         if(!reflux(l)) return false;

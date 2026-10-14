@@ -12,6 +12,9 @@
 // Printed beside, not judged: the single-level values, c* and vacuum thrust at the end on both runs, the
 // largest errors over the run, and the wall time.
 // Usage: crucible_amr_budget [end time s, default 8e-3] [threads, default 4]; CRUCIBLE_EQ_TABLE names Table A.
+// Step B2's checks (AMR.md, Step B2: setup): b1 runs B1 (with the temperature-guess reset) instead of B2,
+// ghost=N sets the ghost width, dump=PATH writes the active cells, steps and budget at the end, and amr
+// stops after the AMR run (no single-level run, nothing judged).
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -29,6 +32,7 @@
 #include "cantera/core.h"
 #include "core/amr.hpp"
 #include "core/equilibrium_table.hpp"
+#include "tests/amr_dump.hpp"
 #include "tests/c1_geometry.hpp"
 
 using namespace crucible;
@@ -128,18 +132,31 @@ struct Tracker {
 }  // namespace
 
 int main(int argc, char** argv) {
-  const double end = argc > 1 ? std::atof(argv[1]) : 8e-3;
-  const int threads = argc > 2 ? std::max(1, std::atoi(argv[2])) : 4;
+  double end = 8e-3;
+  int threads = 4, ghost = 0, positional = 0;
+  bool b1 = false, amrOnly = false;
+  std::string dumpPath;
+  for (int k = 1; k < argc; ++k) {
+    const std::string a = argv[k];
+    if (a == "b1") b1 = true;
+    else if (a == "amr") amrOnly = true;
+    else if (a.rfind("ghost=", 0) == 0) ghost = std::atoi(a.c_str() + 6);
+    else if (a.rfind("dump=", 0) == 0) dumpPath = a.substr(5);
+    else if (positional++ == 0) end = std::atof(a.c_str());
+    else threads = std::max(1, std::atoi(a.c_str()));
+  }
   const char* path = std::getenv("CRUCIBLE_EQ_TABLE");
   if (!path) throw std::runtime_error("crucible_amr_budget needs CRUCIBLE_EQ_TABLE (Table A's file)");
   const EquilibriumTable table = EquilibriumTable::load(path);
   thermo::ReactionSource source("h2o2.yaml");
   const Definition d = c1eqtt(source, 32, 6);
-  std::printf("AMR criterion 2 on B1: C1 eqtt (resolved walls), base 32 x 6 plus one level, to %.4g ms, %d threads\n", end * 1e3,
-              threads);
+  std::printf("AMR criterion 2 on %s: C1 eqtt (resolved walls), base 32 x 6 plus one level, to %.4g ms, %d threads%s\n", b1 ? "B1" : "B2",
+              end * 1e3, threads, ghost > 0 ? (", ghost width " + std::to_string(ghost)).c_str() : "");
   std::printf("table %s: %s\n", path, table.provenance.c_str());
 
   Amr amr(d, 1);
+  amr.setRestricted(!b1);
+  if (ghost > 0) amr.setGhostWidth(ghost);
   std::vector<std::unique_ptr<thermo::ReactingFlow>> reacting;
   for (int l = 0; l < amr.levels(); ++l) {
     reacting.push_back(std::make_unique<thermo::ReactingFlow>(amr.level(l), "h2o2.yaml", threads, 1e-6, 1e-12,
@@ -201,6 +218,7 @@ int main(int argc, char** argv) {
     }
   }
   const double amrWall = seconds(clock0);
+  if (!dumpPath.empty()) writeAmrDump(amr, dumpPath);
   const auto final = amr.budget();
   double mdot = 0, fVac = 0;
   for (int l = 0; l < amr.levels(); ++l) {
@@ -212,6 +230,14 @@ int main(int argc, char** argv) {
   for (int l = 0; l < amr.levels(); ++l) {
     const auto& s = reacting[static_cast<std::size_t>(l)]->stats();
     std::printf("  level %d: table cells %ld, clamped %ld, outside (direct) %ld\n", l, s.tableCells, s.tableClamped, s.tableFallbacks);
+  }
+  if (amrOnly) {
+    std::printf("AMR only, not judged: mass %.3e, energy %.3e, momentum %.3e at the end (largest %.3e, %.3e, %.3e); igniter |E - 0.5 J| %.3e J; "
+                "c* %.2f m/s, vacuum thrust %.2f N; %llu base steps, %.1f s of wall\n",
+                final.massResidual / composite.largestMass, final.energyResidual / composite.largestEnergy,
+                final.momentumResidual / momentumScale(final), composite.worstMass, composite.worstEnergy, composite.worstMomentum,
+                std::abs(final.igniterEnergy - kIgniter), amrCstar, fVac, static_cast<unsigned long long>(amr.steps()), amrWall);
+    return 0;
   }
 
   // The single-level run on the same base mesh.

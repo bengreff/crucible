@@ -292,6 +292,9 @@ public:
     [[nodiscard]] const std::vector<double>& turbulence() const { return turbulence_; }
     [[nodiscard]] const std::vector<double>& wallDistances() const { return wallDistance_; }
     [[nodiscard]] const std::vector<double>& eddyViscosities() const { return eddy_; }
+    // AMR step B2 (docs/evidence/AMR.md, Step B2: setup): the cells whose state at the end of a step is
+    // read (N_1), which an after-step hook such as a reaction step must update; null: every cell.
+    [[nodiscard]] const std::vector<std::size_t>* stepCells() const { return region(1); }
     // Wall functions: per no-slip wall face (the side wall by column, then the plate rings), its cell,
     // whether it is on the plate, and the first cell's y+ = rho_w u_tau d / mu_w from the last
     // transport evaluation, the second stage of the last step (empty without wall functions).
@@ -422,19 +425,47 @@ private:
     bool recordFaces_{false};
     std::vector<double> faceIntegral_;
     void recordFaceIntegrals(double weight);
+    // AMR step B2 (docs/evidence/AMR.md, Step B2: setup): the kernels run over lists of cells and faces
+    // instead of the whole level. within_[k] lists the cells within Chebyshev distance k (index space) of
+    // an active cell, N_k, k = 0..g for the ghost width g, in ascending order, and distance_ holds each
+    // cell's distance (g + 1 beyond N_g). filled_ lists the non-active cells the driver fills (all four
+    // children of each parent of N_g \ A, so they contain N_g \ A), carried through the stages as B1
+    // carries its non-active cells. faces_ lists the faces with an active cell on a side in
+    // faceIntegral_'s numbering, the axialFaces_ axial ones first; columns_ the rows of N_1 in each column
+    // that has any, as [lo, hi) intervals. With no regions (a single level, the base, or B1) every loop
+    // runs over the whole level.
+    struct Column { int i; std::vector<std::array<int, 2>> rows; };
+    std::vector<std::vector<std::size_t>> within_;
+    std::vector<unsigned char> distance_;
+    std::vector<std::size_t> filled_, faces_;
+    std::size_t axialFaces_{};
+    std::vector<Column> columns_;
+    void setRegions(int width);
+    void clearRegions();
+    // The cells of N_k (null: every cell, with no regions or for k = kWhole), and whether cell q is among them.
+    static constexpr int kWhole=-1;
+    [[nodiscard]] const std::vector<std::size_t>* region(int k) const {
+        return within_.empty() || k<0?nullptr:&within_[static_cast<std::size_t>(k)];
+    }
+    [[nodiscard]] bool inRegion(std::size_t q,int k) const { return distance_.empty() || k<0 || distance_[q]<=k; }
+    // The ghost width g of the regions (0 with none, where the depths are not used).
+    [[nodiscard]] int ghostWidth() const { return within_.empty()?0:static_cast<int>(within_.size())-1; }
+    // Runs f(q, worker) on the pool for each cell of a list (null: every cell).
+    template<class F> void eachCell(const std::vector<std::size_t>* list,F f) const;
+    // Applies f(q) on the pool to each cell of a list (null: every cell); true if it returned true for all.
+    template<class F> bool allOf(const std::vector<std::size_t>* list,F f);
     void resetAccounting();
-    // Column i's limited axial slopes and radial face states.
-    void axialSlopes(int i);
-    void radialProfiles(int i);
+    // Column i's limited axial slopes and radial face states in rows lo..hi - 1.
+    void axialSlopes(int i,int lo,int hi);
+    void radialProfiles(int i,int lo,int hi);
     // One axial or radial face's area-weighted flux into axialFlux_ / radialFlux_ (y: the worker's scratch).
     void axialFace(int i, int j, double time, std::vector<double>& yl, std::vector<double>& yr);
     void radialFace(int i, int j, std::vector<double>& yl, std::vector<double>& yr);
     // Cell q's sum of its face fluxes, igniter and body force (before transport, the pressure source and the volume).
     void gather(std::size_t q, std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
                 std::vector<double>& turbulenceDerivative) const;
-    // Applies f(q) to every cell on the pool; true if it returned true for all.
-    template<class F> bool allCells(F f);
-    void refresh(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence);
+    // Over the cells of N_depth (region).
+    void refresh(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence, int depth);
     BoundaryRates rhs(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence,
                       std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
                       std::vector<double>& turbulenceDerivative, double time);
@@ -507,18 +538,26 @@ private:
     bool prescribeWallTurbulence(const std::vector<Conserved>& state, const std::vector<double>& species,
                                  std::vector<double>& turbulence);
     void prepareTransport();
-    void transportProperties();
+    // Over N_depth, with the wall-face omega of the wall cells among them.
+    void transportProperties(int depth);
     // Gradient field f of a cell (u_z, u_r, T, the mole fractions, then k and omega) and its value
     // on a wall face with unit normal (nz, nr).
     [[nodiscard]] double transportValue(std::size_t q, std::size_t f) const;
     [[nodiscard]] double wallValue(std::size_t q, std::size_t f, double nz, double nr) const;
-    void transportGradients();
-    // Eddy viscosity and diffusivities from the current gradients; with sources, also sources_.
-    void eddyViscosity(bool sources);
-    // Advances rho k and rho omega over tau under the SST sources at fixed rho and E.
+    // The gradients over N_depth, from the field values gathered over N_(depth + 1).
+    void transportGradients(int depth);
+    // Eddy viscosity and diffusivities from the current gradients over N_depth; with sources, also sources_.
+    void eddyViscosity(bool sources, int depth);
+    // Advances rho k and rho omega over tau under the SST sources at fixed rho and E, over N_depth.
     void turbulenceSource(const std::vector<Conserved>& state, std::vector<double>& turbulence,
-                          const std::vector<SourceCoefficients>& coefficients, double tau) const;
+                          const std::vector<SourceCoefficients>& coefficients, double tau, int depth) const;
     void transportFluxes(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
                          std::vector<double>& turbulenceDerivative, BoundaryRates& rates);
 };
+template<class F> void Flow::eachCell(const std::vector<std::size_t>* list, F f) const {
+    pool_->blocks(list ? list->size() : state_.size(), kCells, [&](std::size_t begin, std::size_t end, int worker) {
+        if(list) for(std::size_t n = begin; n < end; ++n) f((*list)[n], worker);
+        else for(std::size_t q = begin; q < end; ++q) f(q, worker);
+    });
+}
 } // namespace crucible

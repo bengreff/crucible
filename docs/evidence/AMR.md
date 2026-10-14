@@ -406,6 +406,18 @@ B2 replaces B1's whole-level loops with loops over lists of cells and faces. It 
 4. **3(c).** B2 with width 3 against width 2 on 3(a) and 3(b): `cmp`-identical files.
 5. **Printed, not judged:** width 4 against 3 on criterion 2's case to 1 ms, and B2's wall times beside B1's.
 
+## Step B2: what was built (14 October)
+
+The code follows the setup's regions (`Flow::setRegions`, the lists `within_`, `faces_` and `columns_`; `Amr::check` builds each level's fill parents and the cells around them). These points differ from the setup's text or were left open by it:
+- **The copy covers every filled cell, not N_g \ A.** The fill writes all four children of a ghost's parent, so some filled cells lie just beyond N_g. The copy that keeps a non-active cell's state through the stages runs over the filled cells (`Flow::filled_`). The off cells are the non-active cells outside that list. Nothing reads a filled cell beyond N_g, and it holds the same values as in B1.
+- **The default ghost width follows the level's turbulence.** The constructor sets 3 with turbulence and 2 without. `setGhostWidth` still overrides it, within the refusals (below 2, or below 3 with turbulence).
+- **Two whole-level paths remain.**
+  - `Flow::mixingInputs` gives the PaSR closure's inputs, which `ReactingFlow::react` forms first. It still refreshes and differentiates every cell.
+  - `Flow::transportDerivative`, a test probe, does the same.
+  - No check runs the PaSR closure under AMR, so that path is unverified in B2. Its whole-level refresh is also a cost to remove before criterion 5(a).
+- **The reaction counters count the cells a level steps.** Table cells, clamped and fallbacks cover N_1 in B2 and the whole level in B1, so B2 prints smaller counts. The clipped-energy sum is the same in both modes, because a non-active cell's entry is zeroed by the copy. The dumps hold no counters.
+- **The step's first `stableDt` reads stale ghosts.** With turbulence, `Amr::step` forms the step size after refreshing N_g and forming the eddy viscosity over N_{g-1}. These use the ghosts as the last step left them, and outside N_1 they differ between the modes, because B1's second half-source and `react` also covered them. The step size is taken over A, whose gradients read N_1 only, so it is the same in both modes. The ghosts are filled and recomputed before any stage reads them.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.

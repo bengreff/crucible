@@ -186,26 +186,21 @@ void Flow::prepareTransport() {
         leastSquares_[mesh_.index(i,j)]={c/det,-b/det,a/det};
     }
 }
-void Flow::transportProperties() {
+void Flow::transportProperties(int depth) {
     const auto& sp=medium_.species();const auto& d=definition_;
-    pool_->blocks(state_.size(),kCells,[&](std::size_t begin,std::size_t end,int worker) {
-        auto& work=transportScratch_[worker].work;
-        for(std::size_t q=begin;q<end;++q) {
-            const double* y=fractions_.data()+q*nw_;
-            auto t=medium_.transport(temperature_[q],primitives_[q].p,y,diffusion_.data()+q*ns_,work);
-            viscosity_[q]=t.viscosity;conductivity_[q]=t.conductivity;
-            double moles=0;
-            for(std::size_t k=0;k<ns_;++k) moles+=y[k]/sp[k].molarMass;
-            for(std::size_t k=0;k<ns_;++k) moles_[q*ns_+k]=y[k]/sp[k].molarMass/moles;
-        }
+    eachCell(region(depth),[&](std::size_t q,int worker) {
+        const double* y=fractions_.data()+q*nw_;
+        auto t=medium_.transport(temperature_[q],primitives_[q].p,y,diffusion_.data()+q*ns_,transportScratch_[worker].work);
+        viscosity_[q]=t.viscosity;conductivity_[q]=t.conductivity;
+        double moles=0;
+        for(std::size_t k=0;k<ns_;++k) moles+=y[k]/sp[k].molarMass;
+        for(std::size_t k=0;k<ns_;++k) moles_[q*ns_+k]=y[k]/sp[k].molarMass/moles;
     });
-    if(corrections_) pool_->blocks(state_.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
-        for(std::size_t q=begin;q<end;++q) {
-            const double rho=primitives_[q].rho,root=std::sqrt(rho),mu=viscosity_[q];
-            const double k=fractions_[q*nw_+ns_],omega=fractions_[q*nw_+ns_+1];
-            double* h=&correctionFields_[q*4];
-            h[0]=root/mu;h[1]=rho*k;h[2]=root*omega;h[3]=mu*omega;
-        }
+    if(corrections_) eachCell(region(depth),[&](std::size_t q,int) {
+        const double rho=primitives_[q].rho,root=std::sqrt(rho),mu=viscosity_[q];
+        const double k=fractions_[q*nw_+ns_],omega=fractions_[q*nw_+ns_+1];
+        double* h=&correctionFields_[q*4];
+        h[0]=root/mu;h[1]=rho*k;h[2]=root*omega;h[3]=mu*omega;
     });
     if(!nt_ || d.wallSlip || d.turbulence.wallFunctions) return;
     // Wall-face omega = factor 6 nu_w / (beta1 d1^2) of the cells next to a no-slip wall, nu_w at the
@@ -214,6 +209,7 @@ void Flow::transportProperties() {
         auto& s=transportScratch_[worker];
         for(std::size_t n=begin;n<end;++n) {
             const std::size_t q=wallCells_[n];
+            if(!inRegion(q,depth)) continue;
             const double* y=fractions_.data()+q*nw_;
             double nu=viscosity_[q]/primitives_[q].rho;
             if(corrections_) { wallDensity_[q]=primitives_[q].rho;wallViscosity_[q]=viscosity_[q]; }
@@ -251,7 +247,8 @@ double Flow::wallValue(std::size_t q,std::size_t f,double nz,double nr) const {
     if(f>=3+ns_ && !d.wallSlip && !d.turbulence.wallFunctions) return f==3+ns_?0.0:wallOmega_[q];
     return transportValue(q,f);
 }
-void Flow::transportGradients() {
+// The field values over N_(depth + 1) and the gradients over N_depth (depth kWhole: every cell).
+void Flow::transportGradients(int depth) {
     const auto& m=mesh_;
     const std::size_t nf=gradientFields();
     const bool chamber=definition_.experiment==Case::Chamber;
@@ -259,14 +256,11 @@ void Flow::transportGradients() {
     // differences are taken for all fields at once; every field's sums see the same operations in the
     // same order as one field at a time, so the gradients are unchanged bit for bit.
     fieldValues_.resize(state_.size()*nf);
-    pool_->blocks(state_.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
-        for(std::size_t q=begin;q<end;++q) for(std::size_t f=0;f<nf;++f) fieldValues_[q*nf+f]=transportValue(q,f);
-    });
-    pool_->blocks(state_.size(),kCells,[&](std::size_t begin,std::size_t end,int worker) {
-      auto& scratch=transportScratch_[worker].gradient;
-      scratch.resize(3*nf);
-      double *sz=scratch.data(),*sr=sz+nf,*delta=sr+nf;
-      for(std::size_t q=begin;q<end;++q) {
+    eachCell(region(depth<0?depth:depth+1),[&](std::size_t q,int) { for(std::size_t f=0;f<nf;++f) fieldValues_[q*nf+f]=transportValue(q,f); });
+    eachCell(region(depth),[&](std::size_t q,int worker) {
+        auto& scratch=transportScratch_[worker].gradient;
+        scratch.resize(3*nf);
+        double *sz=scratch.data(),*sr=sz+nf,*delta=sr+nf;
         const int i=static_cast<int>(q/m.nr),j=static_cast<int>(q%m.nr);
         auto stencil=neighbours(m,chamber,faceSupply_,i,j);const auto& inverse=leastSquares_[q];
         const double* v=&fieldValues_[q*nf];
@@ -285,14 +279,12 @@ void Flow::transportGradients() {
             gradients_[(q*nf+f)*2]=inverse[0]*sz[f]+inverse[1]*sr[f];
             gradients_[(q*nf+f)*2+1]=inverse[1]*sz[f]+inverse[2]*sr[f];
         }
-      }
     });
 }
-void Flow::eddyViscosity(bool withSources) {
+void Flow::eddyViscosity(bool withSources,int depth) {
     const auto& tu=definition_.turbulence;
     const std::size_t nf=gradientFields();
-    pool_->blocks(state_.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
-      for(std::size_t q=begin;q<end;++q) {
+    eachCell(region(depth),[&](std::size_t q,int) {
         const auto& w=primitives_[q];const double* g=&gradients_[q*nf*2];const double* y=fractions_.data()+q*nw_;
         const double k=y[ns_],omega=y[ns_+1],hoop=w.ur/mesh_.cells[q].r;
         const double strain2=2*(sq(g[0])+sq(g[3])+sq(hoop))+sq(g[1]+g[2]),strain=std::sqrt(strain2);
@@ -319,15 +311,14 @@ void Flow::eddyViscosity(bool withSources) {
         eddyDiffusion_[2*q]=(b.f1*sigmaK1+(1-b.f1)*sigmaK2)*mut;
         eddyDiffusion_[2*q+1]=(b.f1*sigmaW1+(1-b.f1)*sigmaW2)*mut;
         if(withSources) sources_[q]={strain2,strain,cross,nu,inverse,crossSource,sound_[q]};
-      }
     });
 }
 void Flow::mixingInputs(double cmix,const std::vector<std::size_t>& species,std::vector<double>& time,
                         std::vector<double>& segregation) {
     if(!nt_) throw std::logic_error("The PaSR closure needs turbulence.");
     for(std::size_t i:species) if(i>=ns_) throw std::invalid_argument("PaSR species index out of range.");
-    refresh(state_,species_,turbulence_);
-    transportProperties();transportGradients();eddyViscosity(false);
+    refresh(state_,species_,turbulence_,kWhole);
+    transportProperties(kWhole);transportGradients(kWhole);eddyViscosity(false,kWhole);
     const auto& tu=definition_.turbulence;
     const std::size_t nf=gradientFields(),count=state_.size();
     time.resize(count);segregation.resize(count);
@@ -351,10 +342,9 @@ void Flow::mixingInputs(double cmix,const std::vector<std::size_t>& species,std:
 //   y1 = (y0 + tau P0) / (1 + tau d0),  y = (y0 + tau/2 (P0 + P1)) / (1 + tau/2 (d0 y0 + d1 y1) / y1).
 // Each source term goes to P or D by its sign; positivity of k and omega is unconditional.
 void Flow::turbulenceSource(const std::vector<Conserved>& state,std::vector<double>& turbulence,
-                            const std::vector<SourceCoefficients>& coefficients,double tau) const {
-    pool_->blocks(state.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
-      for(std::size_t q=begin;q<end;++q) {
-        if(prescribedCell_[q]) continue;
+                            const std::vector<SourceCoefficients>& coefficients,double tau,int depth) const {
+    eachCell(region(depth),[&](std::size_t q,int) {
+        if(prescribedCell_[q]) return;
         const auto& c=coefficients[q];const double rho=state[q][0];
         // Production and destruction coefficient of k and omega at (k, omega).
         auto rates=[&](double k,double omega,double& pk,double& dk,double& pw,double& dw) {
@@ -378,7 +368,6 @@ void Flow::turbulenceSource(const std::vector<Conserved>& state,std::vector<doub
         const double k=(k0+0.5*tau*(pk0+pk1))/(1+0.5*tau*(k1>0?(dk0*k0+dk1*k1)/k1:dk1));
         const double w=(w0+0.5*tau*(pw0+pw1))/(1+0.5*tau*(dw0*w0+dw1*w1)/w1);
         turbulence[q*nt_]=rho*k;turbulence[q*nt_+1]=rho*w;
-      }
     });
 }
 void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative,
@@ -386,7 +375,9 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
     const auto& m=mesh_;const auto& d=definition_;const auto& sp=medium_.species();
     const std::size_t nf=gradientFields(),nv=ns_+nt_;
     const bool chamber=d.experiment==Case::Chamber;
-    transportProperties();
+    // AMR step B2: properties over N_2, gradients and mu_t over N_1, the faces with an active cell on a
+    // side and the sums over the active cells.
+    transportProperties(2);
     const bool law=nt_ && d.turbulence.wallFunctions;
     if(law) pool_->blocks(wallFaces_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
         for(std::size_t n=begin;n<end;++n) {
@@ -394,8 +385,9 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
             wallSolutions_[n]=wallSolve(wallFaces_[n],primitives_[q],temperature_[q],fractions_.data()+q*nw_,viscosity_[q],transportScratch_[worker]);
         }
     });
-    transportGradients();
-    if(nt_) eddyViscosity(false);
+    transportGradients(1);
+    if(nt_) eddyViscosity(false,1);
+    const bool restricted=!within_.empty();
     auto value=[&](std::size_t q,std::size_t f) { return fieldValues_[q*nf+f]; };  // gathered by transportGradients above
     auto rhoK=[&](std::size_t q) { return primitives_[q].rho*fractions_[q*nw_+ns_]; };
     // Flux per unit area through a face with unit normal (nz, nr) pointing from cell a to cell b, or
@@ -495,9 +487,10 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
     auto endKind=[&](int i,int j) { return neighbours(m,chamber,faceSupply_,i==0?0:m.nz-1,j)[i==0?0:1].kind; };
     // Axial faces (i, j), i = 0..nz: between cells (i - 1, j) and (i, j), or at the ends the injector
     // plate (a wall), a supply ring (no diffusive flux), the nozzle inlet or the outlet.
-    pool_->blocks(axialViscous_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
+    pool_->blocks(restricted?axialFaces_:axialViscous_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
         auto& s=transportScratch_[worker];
-        for(std::size_t f=begin;f<end;++f) {
+        for(std::size_t e=begin;e<end;++e) {
+            const std::size_t f=restricted?faces_[e]:e;
             const int i=static_cast<int>(f/m.nr),j=static_cast<int>(f%m.nr);
             double* jn=&axialViscousTransported_[f*nv];double* tn=jn+ns_;
             double* hn=corrections_?&axialCorrection_[f*4]:nullptr;
@@ -522,9 +515,11 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
         }
     });
     // Radial faces j = 1..nr of column i: between cells (i, j - 1) and (i, j), or the side wall (j = nr).
-    pool_->blocks(radialViscous_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
+    const std::size_t na=axialViscous_.size();
+    pool_->blocks(restricted?faces_.size()-axialFaces_:radialViscous_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
         auto& s=transportScratch_[worker];
-        for(std::size_t f=begin;f<end;++f) {
+        for(std::size_t e=begin;e<end;++e) {
+            const std::size_t f=restricted?faces_[axialFaces_+e]-na:e;
             const int i=static_cast<int>(f/(m.nr+1)),j=static_cast<int>(f%(m.nr+1));
             if(j==0) continue;
             double* jn=&radialViscousTransported_[f*nv];double* tn=jn+ns_;
@@ -540,72 +535,70 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
     });
     // Each cell sums its faces: the + side of an interior face gains area times the flux, the - side
     // loses it; an end face enters with sign +1 at i = 0 and -1 at i = nz.
-    pool_->blocks(state_.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
-      for(std::size_t q=begin;q<end;++q) {
-        const int i=static_cast<int>(q/m.nr),j=static_cast<int>(q%m.nr);
-        const std::size_t a0=q,a1=q+m.nr,r0=static_cast<std::size_t>(i)*(m.nr+1)+j,r1=r0+1;
-        auto gain=[&](double area,const Conserved& flux,const double* t) {
-            for(int k=1;k<4;++k) derivative[q][k]+=area*flux[k];
-            for(std::size_t k=0;k<ns_;++k) speciesDerivative[q*ns_+k]+=area*t[k];
-            for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]+=area*t[ns_+k];
-        };
-        auto lose=[&](double area,const Conserved& flux,const double* t) {
-            for(int k=1;k<4;++k) derivative[q][k]-=area*flux[k];
-            for(std::size_t k=0;k<ns_;++k) speciesDerivative[q*ns_+k]-=area*t[k];
-            for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]-=area*t[ns_+k];
-        };
-        auto endFace=[&](int face,std::size_t f) {
-            const auto kind=endKind(face,j);
-            if(kind==Neighbour::Supply) return;
-            const double sign=face==0?1:-1,area=axialArea_[f];const auto& flux=axialViscous_[f];
-            for(int k=1;k<4;++k) derivative[q][k]+=sign*area*flux[k];
-            if(kind==Neighbour::Wall) for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]+=sign*area*axialViscousTransported_[f*nv+ns_+k];
-        };
-        if(i>0) gain(axialArea_[a0],axialViscous_[a0],&axialViscousTransported_[a0*nv]); else endFace(0,a0);
-        if(i<m.nz-1) lose(axialArea_[a1],axialViscous_[a1],&axialViscousTransported_[a1*nv]); else endFace(m.nz,a1);
-        if(j>0) gain(radialArea_[r0],radialViscous_[r0],&radialViscousTransported_[r0*nv]);
-        if(j<m.nr-1) lose(radialArea_[r1],radialViscous_[r1],&radialViscousTransported_[r1*nv]);
-        else {  // the side wall
-            const double area=radialArea_[r1];const auto& flux=radialViscous_[r1];
-            for(int k=1;k<4;++k) derivative[q][k]-=area*flux[k];
-            for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]-=area*radialViscousTransported_[r1*nv+ns_+k];
-        }
-        // Hoop stress: tau_thth = (mu + mu_t)(2 u_r / r - 2/3 div u) - 2/3 rho k at the centroid.
-        const auto& c=m.cells[q];
-        double ur=primitives_[q].ur,div=gradients_[q*nf*2]+gradients_[(q*nf+1)*2+1]+ur/c.r;
-        double hoop=viscosity_[q]*(2*ur/c.r-2.0/3*div);
-        if(nt_) hoop+=eddy_[q]*(2*ur/c.r-2.0/3*div)-2.0/3*rhoK(q);
-        derivative[q][2]-=hoop*c.radialPressureMeasure;
-        // Property corrections: the corrected k and omega diffusion, F1 (S_n / mu) sum(inner k) + (1 - F1)
-        // sum(outer k) / sqrt(rho) and F1 (rho / mu)(S_n / mu) sum(inner omega) + (1 - F1) sum(outer omega),
-        // replace the conventional face sums (the same faces, signs and areas); the difference for k,
-        // Phi_k, also enters E (k is part of E), its integral booked in correctionEnergy. The wall
-        // functions' prescribed cells have no k or omega equation.
-        if(corrections_) {
-            correctionCell_[q]=0;
-            if(!prescribedCell_[q]) {
-                double conventional[2]={0,0},corrected[4]={0,0,0,0};
-                auto add=[&](double signedArea,const double* t,const double* h) {
-                    for(int k=0;k<2;++k) conventional[k]+=signedArea*t[ns_+k];
-                    for(int k=0;k<4;++k) corrected[k]+=signedArea*h[k];
-                };
-                auto addEnd=[&](int face,std::size_t f) {
-                    if(endKind(face,j)!=Neighbour::Wall) return;
-                    add((face==0?1:-1)*axialArea_[f],&axialViscousTransported_[f*nv],&axialCorrection_[f*4]);
-                };
-                if(i>0) add(axialArea_[a0],&axialViscousTransported_[a0*nv],&axialCorrection_[a0*4]); else addEnd(0,a0);
-                if(i<m.nz-1) add(-axialArea_[a1],&axialViscousTransported_[a1*nv],&axialCorrection_[a1*4]); else addEnd(m.nz,a1);
-                if(j>0) add(radialArea_[r0],&radialViscousTransported_[r0*nv],&radialCorrection_[r0*4]);
-                add(-radialArea_[r1],&radialViscousTransported_[r1*nv],&radialCorrection_[r1*4]);
-                const double rho=primitives_[q].rho,f1=blendF1_[q],sn=snOverMu_[q];
-                const double k=f1*sn*corrected[0]+(1-f1)*corrected[1]/std::sqrt(rho);
-                const double omega=f1*rho/viscosity_[q]*sn*corrected[2]+(1-f1)*corrected[3];
-                const double phiK=k-conventional[0];
-                turbulenceDerivative[q*nt_]+=phiK;turbulenceDerivative[q*nt_+1]+=omega-conventional[1];
-                derivative[q][3]+=phiK;
-                correctionCell_[q]=phiK;
-            }
-        }
+    eachCell(region(0),[&](std::size_t q,int) {
+      const int i=static_cast<int>(q/m.nr),j=static_cast<int>(q%m.nr);
+      const std::size_t a0=q,a1=q+m.nr,r0=static_cast<std::size_t>(i)*(m.nr+1)+j,r1=r0+1;
+      auto gain=[&](double area,const Conserved& flux,const double* t) {
+          for(int k=1;k<4;++k) derivative[q][k]+=area*flux[k];
+          for(std::size_t k=0;k<ns_;++k) speciesDerivative[q*ns_+k]+=area*t[k];
+          for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]+=area*t[ns_+k];
+      };
+      auto lose=[&](double area,const Conserved& flux,const double* t) {
+          for(int k=1;k<4;++k) derivative[q][k]-=area*flux[k];
+          for(std::size_t k=0;k<ns_;++k) speciesDerivative[q*ns_+k]-=area*t[k];
+          for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]-=area*t[ns_+k];
+      };
+      auto endFace=[&](int face,std::size_t f) {
+          const auto kind=endKind(face,j);
+          if(kind==Neighbour::Supply) return;
+          const double sign=face==0?1:-1,area=axialArea_[f];const auto& flux=axialViscous_[f];
+          for(int k=1;k<4;++k) derivative[q][k]+=sign*area*flux[k];
+          if(kind==Neighbour::Wall) for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]+=sign*area*axialViscousTransported_[f*nv+ns_+k];
+      };
+      if(i>0) gain(axialArea_[a0],axialViscous_[a0],&axialViscousTransported_[a0*nv]); else endFace(0,a0);
+      if(i<m.nz-1) lose(axialArea_[a1],axialViscous_[a1],&axialViscousTransported_[a1*nv]); else endFace(m.nz,a1);
+      if(j>0) gain(radialArea_[r0],radialViscous_[r0],&radialViscousTransported_[r0*nv]);
+      if(j<m.nr-1) lose(radialArea_[r1],radialViscous_[r1],&radialViscousTransported_[r1*nv]);
+      else {  // the side wall
+          const double area=radialArea_[r1];const auto& flux=radialViscous_[r1];
+          for(int k=1;k<4;++k) derivative[q][k]-=area*flux[k];
+          for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]-=area*radialViscousTransported_[r1*nv+ns_+k];
+      }
+      // Hoop stress: tau_thth = (mu + mu_t)(2 u_r / r - 2/3 div u) - 2/3 rho k at the centroid.
+      const auto& c=m.cells[q];
+      double ur=primitives_[q].ur,div=gradients_[q*nf*2]+gradients_[(q*nf+1)*2+1]+ur/c.r;
+      double hoop=viscosity_[q]*(2*ur/c.r-2.0/3*div);
+      if(nt_) hoop+=eddy_[q]*(2*ur/c.r-2.0/3*div)-2.0/3*rhoK(q);
+      derivative[q][2]-=hoop*c.radialPressureMeasure;
+      // Property corrections: the corrected k and omega diffusion, F1 (S_n / mu) sum(inner k) + (1 - F1)
+      // sum(outer k) / sqrt(rho) and F1 (rho / mu)(S_n / mu) sum(inner omega) + (1 - F1) sum(outer omega),
+      // replace the conventional face sums (the same faces, signs and areas); the difference for k,
+      // Phi_k, also enters E (k is part of E), its integral booked in correctionEnergy. The wall
+      // functions' prescribed cells have no k or omega equation.
+      if(corrections_) {
+          correctionCell_[q]=0;
+          if(!prescribedCell_[q]) {
+              double conventional[2]={0,0},corrected[4]={0,0,0,0};
+              auto add=[&](double signedArea,const double* t,const double* h) {
+                  for(int k=0;k<2;++k) conventional[k]+=signedArea*t[ns_+k];
+                  for(int k=0;k<4;++k) corrected[k]+=signedArea*h[k];
+              };
+              auto addEnd=[&](int face,std::size_t f) {
+                  if(endKind(face,j)!=Neighbour::Wall) return;
+                  add((face==0?1:-1)*axialArea_[f],&axialViscousTransported_[f*nv],&axialCorrection_[f*4]);
+              };
+              if(i>0) add(axialArea_[a0],&axialViscousTransported_[a0*nv],&axialCorrection_[a0*4]); else addEnd(0,a0);
+              if(i<m.nz-1) add(-axialArea_[a1],&axialViscousTransported_[a1*nv],&axialCorrection_[a1*4]); else addEnd(m.nz,a1);
+              if(j>0) add(radialArea_[r0],&radialViscousTransported_[r0*nv],&radialCorrection_[r0*4]);
+              add(-radialArea_[r1],&radialViscousTransported_[r1*nv],&radialCorrection_[r1*4]);
+              const double rho=primitives_[q].rho,f1=blendF1_[q],sn=snOverMu_[q];
+              const double k=f1*sn*corrected[0]+(1-f1)*corrected[1]/std::sqrt(rho);
+              const double omega=f1*rho/viscosity_[q]*sn*corrected[2]+(1-f1)*corrected[3];
+              const double phiK=k-conventional[0];
+              turbulenceDerivative[q*nt_]+=phiK;turbulenceDerivative[q*nt_+1]+=omega-conventional[1];
+              derivative[q][3]+=phiK;
+              correctionCell_[q]=phiK;
+          }
       }
     });
     if(corrections_) for(std::size_t q=0;q<correctionCell_.size();++q) if(isOwned(q)) rates.correction+=correctionCell_[q];
@@ -669,7 +662,7 @@ void Flow::transportDerivative(std::vector<Conserved>& derivative,std::vector<do
     if(!medium_.hasTransport()) throw std::logic_error("The medium has no transport data.");
     derivative.assign(state_.size(),Conserved{});speciesDerivative.assign(species_.size(),0.0);
     turbulenceDerivative.assign(turbulence_.size(),0.0);
-    refresh(state_,species_,turbulence_);
+    refresh(state_,species_,turbulence_,kWhole);
     BoundaryRates rates{};
     transportFluxes(derivative,speciesDerivative,turbulenceDerivative,rates);
     for(std::size_t q=0;q<state_.size();++q) {

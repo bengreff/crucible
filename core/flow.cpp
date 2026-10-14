@@ -456,12 +456,52 @@ void Flow::setThreads(int threads) {
     transportScratch_.assign(n,TransportScratch{{},std::vector<double>(ns_),std::vector<double>(ns_),std::vector<double>(ns_),{}});
     workerOk_.assign(n,1);workerDt_.assign(n,0.0);workerLimit_.assign(n,{});
 }
-template<class F> bool Flow::allCells(F f) {
+template<class F> bool Flow::allOf(const std::vector<std::size_t>* list,F f) {
     std::fill(workerOk_.begin(),workerOk_.end(),char{1});
-    pool_->blocks(state_.size(),kCells,[&](std::size_t begin,std::size_t end,int worker) {
-        for(std::size_t q=begin;q<end;++q) if(!f(q)) workerOk_[worker]=0;
-    });
+    eachCell(list,[&](std::size_t q,int worker) { if(!f(q)) workerOk_[worker]=0; });
     return std::find(workerOk_.begin(),workerOk_.end(),char{0})==workerOk_.end();
+}
+// AMR step B2: the regions of the active cells for ghost width `width` (docs/evidence/AMR.md, Step B2:
+// setup). The driver sets filled_.
+void Flow::setRegions(int width) {
+    const auto& m=mesh_;
+    const std::size_t count=m.cells.size();
+    distance_.assign(count,static_cast<unsigned char>(width+1));
+    for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
+        if(!active_[m.index(i,j)]) continue;
+        for(int ii=std::max(0,i-width);ii<=std::min(m.nz-1,i+width);++ii)
+            for(int jj=std::max(0,j-width);jj<=std::min(m.nr-1,j+width);++jj) {
+                auto& d=distance_[m.index(ii,jj)];
+                d=std::min(d,static_cast<unsigned char>(std::max(std::abs(ii-i),std::abs(jj-j))));
+            }
+    }
+    within_.assign(static_cast<std::size_t>(width+1),{});
+    for(std::size_t q=0;q<count;++q) for(int k=distance_[q];k<=width;++k) within_[static_cast<std::size_t>(k)].push_back(q);
+    faces_.clear();
+    const std::size_t na=axialFlux_.size();
+    for(std::size_t f=0;f<na;++f) {
+        const int i=static_cast<int>(f/m.nr),j=static_cast<int>(f%m.nr);
+        if((i>0 && active_[m.index(i-1,j)]) || (i<m.nz && active_[m.index(i,j)])) faces_.push_back(f);
+    }
+    axialFaces_=faces_.size();
+    for(std::size_t e=0;e<radialFlux_.size();++e) {
+        const int i=static_cast<int>(e/(m.nr+1)),j=static_cast<int>(e%(m.nr+1));
+        if(j>0 && (active_[m.index(i,j-1)] || (j<m.nr && active_[m.index(i,j)]))) faces_.push_back(na+e);
+    }
+    columns_.clear();
+    for(int i=0;i<m.nz;++i) {
+        Column c{i,{}};
+        for(int j=0;j<m.nr;) {
+            if(distance_[m.index(i,j)]>1) { ++j;continue; }
+            const int lo=j;
+            while(j<m.nr && distance_[m.index(i,j)]<=1) ++j;
+            c.rows.push_back({lo,j});
+        }
+        if(!c.rows.empty()) columns_.push_back(std::move(c));
+    }
+}
+void Flow::clearRegions() {
+    within_.clear();distance_.clear();filled_.clear();faces_.clear();columns_.clear();axialFaces_=0;
 }
 double Flow::BoundaryRates::grossMomentum() const {
     return std::abs(inletMomentum)+std::abs(outletMomentum)+std::abs(wallAxial)+std::abs(bodyAxial);
@@ -599,20 +639,18 @@ Primitive Flow::cellPrimitive(std::size_t q) const {
     return {u[0],u[1]/u[0],u[2]/u[0],u[0]*medium_.gasConstant(y.data())*t};
 }
 // Cell primitives, mass fractions (then specific k and omega), temperatures and frozen sound speeds of a state.
-void Flow::refresh(const std::vector<Conserved>& state,const std::vector<double>& species,const std::vector<double>& turbulence) {
-    pool_->blocks(state.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
-        for(std::size_t q=begin;q<end;++q) {
-            const auto& u=state[q];double* y=fractions_.data()+q*nw_;
-            normalise(species.data()+q*ns_,ns_,y);
-            double k=0;
-            if(nt_) { k=y[ns_]=turbulence[q*nt_]/u[0];y[ns_+1]=turbulence[q*nt_+1]/u[0]; }
-            if(!admissibleBulk(u,medium_.energyFloor(y)+k))
-                throw std::runtime_error("Non-admissible gas state: density or internal energy is not positive.");
-            double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y,temperature_[q]);
-            auto props=medium_.properties(t,y);
-            temperature_[q]=t;sound_[q]=std::sqrt((props.cv+props.r)/props.cv*props.r*t);
-            primitives_[q]={u[0],u[1]/u[0],u[2]/u[0],u[0]*props.r*t};
-        }
+void Flow::refresh(const std::vector<Conserved>& state,const std::vector<double>& species,const std::vector<double>& turbulence,int depth) {
+    eachCell(region(depth),[&](std::size_t q,int) {
+        const auto& u=state[q];double* y=fractions_.data()+q*nw_;
+        normalise(species.data()+q*ns_,ns_,y);
+        double k=0;
+        if(nt_) { k=y[ns_]=turbulence[q*nt_]/u[0];y[ns_+1]=turbulence[q*nt_+1]/u[0]; }
+        if(!admissibleBulk(u,medium_.energyFloor(y)+k))
+            throw std::runtime_error("Non-admissible gas state: density or internal energy is not positive.");
+        double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y,temperature_[q]);
+        auto props=medium_.properties(t,y);
+        temperature_[q]=t;sound_[q]=std::sqrt((props.cv+props.r)/props.cv*props.r*t);
+        primitives_[q]={u[0],u[1]/u[0],u[2]/u[0],u[0]*props.r*t};
     });
 }
 // Face thermodynamics from reconstructed (rho, p), mass fractions and (with turbulence) k; y is
@@ -771,16 +809,21 @@ SupplyFace Flow::supplyFace(const Supply& s,double g,const Primitive& in,const d
 // diffusivities mu + sigma mu_t lie below 4/3 (mu + mu_t)), and the source coefficients of the
 // first half of the split are frozen here.
 double Flow::stableDt() {
-    refresh(state_,species_,turbulence_);
+    // AMR step B2: with turbulence the source coefficients over N_(g-1), which read the gradients'
+    // neighbours in N_g; the step over the active cells.
+    const int g=ghostWidth();
+    refresh(state_,species_,turbulence_,nt_?g:0);
     const bool transport=medium_.hasTransport();
-    if(transport) transportProperties();
-    if(nt_) { transportGradients();eddyViscosity(true); }
+    if(transport) transportProperties(nt_?g:0);
+    if(nt_) { transportGradients(g-1);eddyViscosity(true,g-1); }
     // Each worker's smallest step, then the smallest of those (a minimum does not depend on the order).
     std::fill(workerDt_.begin(),workerDt_.end(),std::numeric_limits<double>::infinity());
-    pool_->blocks(mesh_.cells.size(),kCells,[&](std::size_t begin,std::size_t end,int worker) {
+    const auto* active=region(0);
+    pool_->blocks(active?active->size():mesh_.cells.size(),kCells,[&](std::size_t begin,std::size_t end,int worker) {
       double dt=std::numeric_limits<double>::infinity();
       StepLimit limit;
-      for(std::size_t q=begin;q<end;++q) {
+      for(std::size_t n=begin;n<end;++n) {
+        const std::size_t q=active?(*active)[n]:n;
         const int i=static_cast<int>(q/mesh_.nr),j=static_cast<int>(q%mesh_.nr);
         const auto& w=primitives_[q];
         double a=sound_[q],volume=mesh_.cells[q].volume;
@@ -823,9 +866,9 @@ double Flow::stableDt() {
 // u_r is odd (u_r = s r, s limited against the slope to the next centroid) and rho, u_z, p are
 // even (linear in r^2 about <r^2>). pressureSource_ is the exact integral of p/r dV over the
 // reconstructed profile, so a pressure gradient balanced by a body force stays at rest.
-void Flow::radialProfiles(int i) {
+void Flow::radialProfiles(int i,int lo,int hi) {
     const auto& m=mesh_;
-    for(int j=0;j<m.nr;++j) {
+    for(int j=lo;j<hi;++j) {
         auto q=m.index(i,j);const auto& cell=m.cells[q];auto c=values(primitives_[q]);
         double low=m.radialFaceRadius(i,j)-cell.r,high=m.radialFaceRadius(i,j+1)-cell.r;
         Conserved slope{};
@@ -866,7 +909,7 @@ void Flow::radialProfiles(int i) {
     // profile stays within half the cell value of it at the first face and on the axis. Unbounded, a
     // cell near zero beside large off-axis values gets a large face value, and outward flow there
     // removes more than the cell holds at any step size (omega past a throat, 5 October 2026).
-    for(int j=0;j<m.nr;++j) {
+    for(int j=lo;j<hi;++j) {
         auto q=m.index(i,j);const auto& cell=m.cells[q];
         double low=m.radialFaceRadius(i,j)-cell.r,high=m.radialFaceRadius(i,j+1)-cell.r;
         auto y=[&](int b,std::size_t k){return fractions_[m.index(i,b)*nw_+k];};
@@ -899,10 +942,10 @@ void Flow::radialProfiles(int i) {
 // ~1.1). Use the limited one-sided slope minmod(c-n1, n1-n2), which is second-order for smooth data
 // and falls back towards zero across a jump. Density/pressure/mass-fraction face values stay >= half
 // the cell value.
-void Flow::axialSlopes(int i) {
+void Flow::axialSlopes(int i,int lo,int hi) {
     const auto& m=mesh_;
     if(!definition_.secondOrder) {
-        for(int j=0;j<m.nr;++j) {
+        for(int j=lo;j<hi;++j) {
             auto q=m.index(i,j);slopesZ_[q]={};
             std::fill_n(fractionSlopesZ_.begin()+static_cast<std::ptrdiff_t>(q*nw_),nw_,0.0);
         }
@@ -918,7 +961,7 @@ void Flow::axialSlopes(int i) {
             fractionSlopesZ_[q*nw_+k]=std::clamp(sign*minmod(yc-fractions_[n1*nw_+k],fractions_[n1*nw_+k]-fractions_[n2*nw_+k]),-yc,yc);
         }
     };
-    for(int j=0;j<m.nr;++j) {
+    for(int j=lo;j<hi;++j) {
         if(i==0) { oneSided(m.index(0,j),m.index(1,j),m.index(2,j),-1);continue; }
         if(i==m.nz-1) { oneSided(m.index(m.nz-1,j),m.index(m.nz-2,j),m.index(m.nz-3,j),1);continue; }
         auto q=m.index(i,j); auto c=values(primitives_[q]);
@@ -1034,18 +1077,32 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
                               std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative,
                               std::vector<double>& turbulenceDerivative,double time) {
     const auto& d=definition_;const auto& m=mesh_;
-    refresh(state,species,turbulence);
+    // AMR step B2: the cells within 2 of an active cell, the slopes and profiles over N_1 (their stencils
+    // reach N_2), and the faces with an active cell on a side.
+    refresh(state,species,turbulence,2);
+    const bool restricted=!within_.empty();
     // Per column: axial slopes, radial profiles and the radial faces (which use only the column's profiles).
-    pool_->blocks(static_cast<std::size_t>(m.nz),1,[&](std::size_t begin,std::size_t end,int worker) {
+    pool_->blocks(restricted?columns_.size():static_cast<std::size_t>(m.nz),1,[&](std::size_t begin,std::size_t end,int worker) {
         auto& yl=faceFractions_[2*worker];auto& yr=faceFractions_[2*worker+1];
-        for(auto i=static_cast<int>(begin);i<static_cast<int>(end);++i) {
-            axialSlopes(i);radialProfiles(i);
-            for(int j=1;j<=m.nr;++j) radialFace(i,j,yl,yr);
+        for(std::size_t c=begin;c<end;++c) {
+            if(!restricted) {
+                const auto i=static_cast<int>(c);
+                axialSlopes(i,0,m.nr);radialProfiles(i,0,m.nr);
+                for(int j=1;j<=m.nr;++j) radialFace(i,j,yl,yr);
+                continue;
+            }
+            const int i=columns_[c].i;
+            for(const auto& rows:columns_[c].rows) { axialSlopes(i,rows[0],rows[1]);radialProfiles(i,rows[0],rows[1]); }
+            for(int j=1;j<=m.nr;++j)
+                if(isActive(m.index(i,j-1)) || (j<m.nr && isActive(m.index(i,j)))) radialFace(i,j,yl,yr);
         }
     });
-    pool_->blocks(axialFlux_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
+    pool_->blocks(restricted?axialFaces_:axialFlux_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
         auto& yl=faceFractions_[2*worker];auto& yr=faceFractions_[2*worker+1];
-        for(std::size_t f=begin;f<end;++f) axialFace(static_cast<int>(f/m.nr),static_cast<int>(f%m.nr),time,yl,yr);
+        for(std::size_t n=begin;n<end;++n) {
+            const std::size_t f=restricted?faces_[n]:n;
+            axialFace(static_cast<int>(f/m.nr),static_cast<int>(f%m.nr),time,yl,yr);
+        }
     });
     const bool transport=medium_.hasTransport();
     // A wall-function cell's k and omega are prescribed after the stage, not advanced.
@@ -1056,9 +1113,7 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         for(std::size_t k=0;k<ns_;++k) speciesDerivative[q*ns_+k]/=m.cells[q].volume;
         for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]=prescribed[q]?0.0:turbulenceDerivative[q*nt_+k]/m.cells[q].volume;
     };
-    pool_->blocks(state.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
-        for(std::size_t q=begin;q<end;++q) { gather(q,derivative,speciesDerivative,turbulenceDerivative);if(!transport) finish(q); }
-    });
+    eachCell(region(0),[&](std::size_t q,int) { gather(q,derivative,speciesDerivative,turbulenceDerivative);if(!transport) finish(q); });
     // Boundary exchange rates: the igniter (constant power over the step, set by step()), the inlet
     // and outlet faces, the side wall, and the volumetric forces (e.g. a Lorentz force), whose axial
     // integral is rates.bodyAxial, reacting on the equipment (coils) in deviceThrust, and whose work
@@ -1098,7 +1153,7 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
     if(!heating_.empty()) for(std::size_t q=0;q<state.size();++q) if(isOwned(q)) rates.energy+=heating_[q]*m.cells[q].volume;
     if(transport) {
         transportFluxes(derivative,speciesDerivative,turbulenceDerivative,rates);
-        pool_->blocks(state.size(),kCells,[&](std::size_t begin,std::size_t end,int) { for(std::size_t q=begin;q<end;++q) finish(q); });
+        eachCell(region(0),[&](std::size_t q,int) { finish(q); });
     }
     return rates;
 }
@@ -1150,7 +1205,9 @@ void Flow::clipTurbulence(std::vector<double>& turbulence,std::size_t q) {
     if(turbulence[q*nt_]<0) { clippedCell_[q]=turbulence[q*nt_]*mesh_.cells[q].volume;turbulence[q*nt_]=0; }
 }
 void Flow::sumClipped(Attempt& attempt) const {
-    if(nt_) for(double c:clippedCell_) attempt.clipped-=c;
+    if(!nt_) return;
+    if(const auto* active=region(0)) for(std::size_t q:*active) attempt.clipped-=clippedCell_[q];
+    else for(double c:clippedCell_) attempt.clipped-=c;
 }
 bool Flow::prescribe(std::vector<Conserved>& state,std::vector<double>& species,std::vector<double>& turbulence,Attempt& attempt) {
     if(!(nt_ && definition_.turbulence.wallFunctions)) return true;
@@ -1167,29 +1224,36 @@ bool Flow::firstStage(double dt,Attempt& attempt) {
         double overlap=std::min(time_+dt,ig.start+ig.duration)-std::max(time_,ig.start);
         if(overlap>0) igniterPower_=ig.energy/ig.duration*overlap/dt;
     }
-    if(recordFaces_) std::fill(faceIntegral_.begin(),faceIntegral_.end(),0.0);
+    if(recordFaces_) {
+        if(within_.empty()) std::fill(faceIntegral_.begin(),faceIntegral_.end(),0.0);
+        else for(std::size_t f:faces_) std::fill_n(faceIntegral_.begin()+static_cast<std::ptrdiff_t>(f*(4+nw_)),4+nw_,0.0);
+    }
     if(nt_) {
         turbulence_=turbulenceStart_;
-        turbulenceSource(state_,turbulence_,sourcesStart_,0.5*dt);
-        if(!allCells([&](std::size_t q) { return !isActive(q) || admissible(state_[q],species_.data()+q*ns_,turbulence_.data()+q*nt_); }))
+        turbulenceSource(state_,turbulence_,sourcesStart_,0.5*dt,ghostWidth()-1);
+        if(!allOf(region(0),[&](std::size_t q) { return !isActive(q) || admissible(state_[q],species_.data()+q*ns_,turbulence_.data()+q*nt_); }))
             return false;
     }
     attempt.first=rhs(state_,species_,turbulence_,rhs_,speciesRhs_,turbulenceRhs_,time_);
     if(recordFaces_) recordFaceIntegrals(0.5*dt);
-    const bool ok=allCells([&](std::size_t q) {
-        if(!isActive(q)) {
-            stage_[q]=state_[q];
-            std::copy_n(species_.begin()+static_cast<std::ptrdiff_t>(q*ns_),ns_,speciesStage_.begin()+static_cast<std::ptrdiff_t>(q*ns_));
-            std::copy_n(turbulence_.begin()+static_cast<std::ptrdiff_t>(q*nt_),nt_,turbulenceStage_.begin()+static_cast<std::ptrdiff_t>(q*nt_));
-            if(nt_) clippedCell_[q]=0;
-            return true;
-        }
+    // A cell that is not active keeps its value through both stages; B2 keeps only the filled ones, the
+    // others (off cells) having been set to their state when the regions were set.
+    const auto keep=[&](std::size_t q) {
+        stage_[q]=state_[q];
+        std::copy_n(species_.begin()+static_cast<std::ptrdiff_t>(q*ns_),ns_,speciesStage_.begin()+static_cast<std::ptrdiff_t>(q*ns_));
+        std::copy_n(turbulence_.begin()+static_cast<std::ptrdiff_t>(q*nt_),nt_,turbulenceStage_.begin()+static_cast<std::ptrdiff_t>(q*nt_));
+        if(nt_) clippedCell_[q]=0;
+        return true;
+    };
+    const bool ok=allOf(region(0),[&](std::size_t q) {
+        if(!isActive(q)) return keep(q);
         for(int k=0;k<4;++k) stage_[q][k]=state_[q][k]+dt*rhs_[q][k];
         for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesStage_[k]=species_[k]+dt*speciesRhs_[k];
         for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceStage_[k]=turbulence_[k]+dt*turbulenceRhs_[k];
         clipTurbulence(turbulenceStage_,q);
         return admissible(stage_[q],speciesStage_.data()+q*ns_,turbulenceStage_.data()+q*nt_);
     });
+    if(!within_.empty()) allOf(&filled_,keep);
     sumClipped(attempt);
     return ok;
 }
@@ -1197,27 +1261,30 @@ bool Flow::secondStage(double dt,Attempt& attempt) {
     if(!prescribe(stage_,speciesStage_,turbulenceStage_,attempt)) return false;
     attempt.second=rhs(stage_,speciesStage_,turbulenceStage_,rhs_,speciesRhs_,turbulenceRhs_,time_+dt);
     if(recordFaces_) recordFaceIntegrals(0.5*dt);
-    const bool ok=allCells([&](std::size_t q) {
-        if(!isActive(q)) {
-            next_[q]=stage_[q];
-            std::copy_n(speciesStage_.begin()+static_cast<std::ptrdiff_t>(q*ns_),ns_,speciesNext_.begin()+static_cast<std::ptrdiff_t>(q*ns_));
-            std::copy_n(turbulenceStage_.begin()+static_cast<std::ptrdiff_t>(q*nt_),nt_,turbulenceNext_.begin()+static_cast<std::ptrdiff_t>(q*nt_));
-            if(nt_) clippedCell_[q]=0;
-            return true;
-        }
+    const auto keep=[&](std::size_t q) {
+        next_[q]=stage_[q];
+        std::copy_n(speciesStage_.begin()+static_cast<std::ptrdiff_t>(q*ns_),ns_,speciesNext_.begin()+static_cast<std::ptrdiff_t>(q*ns_));
+        std::copy_n(turbulenceStage_.begin()+static_cast<std::ptrdiff_t>(q*nt_),nt_,turbulenceNext_.begin()+static_cast<std::ptrdiff_t>(q*nt_));
+        if(nt_) clippedCell_[q]=0;
+        return true;
+    };
+    const bool ok=allOf(region(0),[&](std::size_t q) {
+        if(!isActive(q)) return keep(q);
         for(int k=0;k<4;++k) next_[q][k]=0.5*(state_[q][k]+stage_[q][k]+dt*rhs_[q][k]);
         for(std::size_t k=q*ns_;k<(q+1)*ns_;++k) speciesNext_[k]=0.5*(species_[k]+speciesStage_[k]+dt*speciesRhs_[k]);
         for(std::size_t k=q*nt_;k<(q+1)*nt_;++k) turbulenceNext_[k]=0.5*(turbulence_[k]+turbulenceStage_[k]+dt*turbulenceRhs_[k]);
         clipTurbulence(turbulenceNext_,q);
         return admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
     });
+    if(!within_.empty()) allOf(&filled_,keep);
     sumClipped(attempt);
     if(!(ok && prescribe(next_,speciesNext_,turbulenceNext_,attempt))) return false;
     if(nt_) {
-        refresh(next_,speciesNext_,turbulenceNext_);
-        transportProperties();transportGradients();eddyViscosity(true);
-        turbulenceSource(next_,turbulenceNext_,sources_,0.5*dt);
-        return allCells([&](std::size_t q) { return !isActive(q) || admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_); });
+        // B2: the cells within distance 1 of the active ones, which the level above's fill reads.
+        refresh(next_,speciesNext_,turbulenceNext_,2);
+        transportProperties(2);transportGradients(1);eddyViscosity(true,1);
+        turbulenceSource(next_,turbulenceNext_,sources_,0.5*dt,1);
+        return allOf(region(0),[&](std::size_t q) { return !isActive(q) || admissible(next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_); });
     }
     return true;
 }
@@ -1239,8 +1306,10 @@ void Flow::accept(double dt,double newTime,const Attempt& attempt) {
 void Flow::recordFaceIntegrals(double weight) {
     const std::size_t stride=4+nw_,na=axialFlux_.size();
     const bool viscous=medium_.hasTransport();
-    pool_->blocks(na+radialFlux_.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
-        for(std::size_t f=begin;f<end;++f) {
+    const bool restricted=!within_.empty();
+    pool_->blocks(restricted?faces_.size():na+radialFlux_.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
+        for(std::size_t n=begin;n<end;++n) {
+            const std::size_t f=restricted?faces_[n]:n;
             const bool axial=f<na;const std::size_t e=axial?f:f-na;
             const double area=axial?axialArea_[e]:radialArea_[e];
             const auto& flux=axial?axialFlux_[e]:radialFlux_[e];
