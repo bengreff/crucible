@@ -150,17 +150,23 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 13 October, 23:25 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 14 October, 00:30 CDT)
 
 - **RL10A-3-3A tier 0 prediction committed** (`docs/validation/RL10A33A_PREDICTION.md`). No measured performance has been read; none may be until tier 1 is committed.
-- **AMR step A done** (`docs/evidence/AMR.md`, *Results*): the explicit-geometry `Mesh` with `Mesh::coarsened`.
-  - 0(a), 0(b) and 0(c) pass. 0(d) fails as written: face closure 1.9e-14 to 8.1e-14 at levels 1 to 3, from the direct formulas. The consequence is left to criterion 1, and the fix is noted there.
-  - Also in step A: the wall functions' y+ (`Flow::wallYPlus()`) and `chamber_study`'s end-of-run fix.
+- **AMR step A done** (`docs/evidence/AMR.md`, *Results*): the explicit-geometry `Mesh` with `Mesh::coarsened`. 0(a), 0(b) and 0(c) pass; 0(d) fails as written (closure 1.9e-14 to 8.1e-14 at levels 1 to 3, from the direct formulas). Also the wall functions' y+ (`Flow::wallYPlus()`) and `chamber_study`'s end-of-run fix.
+- **AMR step B1 done** (`docs/evidence/AMR.md`, *Step B1: results*; `core/amr.*`, ctest `amr_subcycling_verification`). Berger-Colella subcycling with refluxing; every level's kernels run over the whole level, and non-active cells are filled from below before each stage; inviscid only.
+  - **1(a) and 1(b) pass.** Quiescent RL10 chamber on three levels: |u|/a0 at most 2.0e-13, each level at its own mesh's single-level value. 0(d)'s closure fix is not needed.
+  - **3(a).** The reflection passes (3.4e-4 on 768 columns, falling). The order, 1.59 and 1.53 against 1.8, fails as written. A uniform control without AMR gives 1.63 and 1.50 on the same pulse (minmod at the peak), and the AMR's difference is a flat 0.55 of the uniform mesh's.
+  - **3(b).** L1, the orders and the shock place pass. The pressure peak behind the interface (5.5e-3 to 1.4e-3 of the jump, against 1e-3) fails as written. It is a wave the shock sheds as it leaves the fine level: its peak is about 6e-3 of the jump at every resolution, while its integral falls as h. Composite conservation holds to 5e-15.
+  - **Both failures stand as written.** The record gives the reading a later amendment could judge (the ratio to the uniform runs' own error). Whether to amend is the Director's call; nothing is applied.
 - **RL10 development chamber** (`docs/evidence/RL10_DEV.md`, development only, pre-vaporized). Settled thrust in 3.3 min (uniform rings) and 5.9 min (stretched) on 4 threads; the stretched mesh binds in the throat's wall row. The implicit-time rule provisionally says no implicit step on this mesh. With AMR the target y+ decides it (300: about 1.7 h projected; 956: under 35 min), to be measured in AMR step D.
 - **Table A for any pair: design and criteria** (`docs/evidence/TABLE_A_PAIRS.md`, nothing built). Diffusion moves elements up to 0.056 off the two-stream line in CH4/O2 flames, so the design is an exact element-potential solve seeded from a Bilger-f table, on `gri30_highT.yaml`.
-- **For the spray worker:** inquiry2 has no pending or planned edits in `core/medium.*`, so a lean λ and D entry point there will not conflict. AMR step B will edit `core/flow.*` and `core/transport.cpp`. The sub-300 K transport-fit finding is noted for any medium work.
-- **`main` not fast-forwarded.** The worktree branch `worktree-inquiry2` is rebased onto `main` (0b9366a), builds, and gives the recorded results on the AMR and spray tests. `main` is checked out in the main checkout, and the worktree guard refuses commands aimed there. Fast-forward from the main checkout: `git merge --ff-only worktree-inquiry2`.
-- **Next for inquiry2:** AMR step B (two levels in a fixed pattern, subcycling, registers, refluxing; criteria 1 and 3, then 2). Then Table A pairs step A, and the engine-spec schema for the blind-prediction database.
+- **For the spray worker:** inquiry2 has no pending or planned edits in `core/medium.*`, so a lean λ and D entry point there will not conflict. AMR step B2 will edit `core/flow.*` and `core/transport.cpp`. The sub-300 K transport-fit finding is noted for any medium work.
+- **`main` not fast-forwarded.** The worktree branch `worktree-inquiry2` is rebased onto `main` (3726e79) and builds. `main` is checked out in the main checkout, and the worktree guard refuses commands aimed there. Fast-forward from the main checkout: `git merge --ff-only worktree-inquiry2`.
+- **Next for inquiry2:**
+  - criterion 2 on B1 with the fixed pattern (setup recorded in AMR.md, *Step B1: how criterion 2 is run*): viscous registers, owned-face accounting, the igniter region from the finest level;
+  - then AMR step B2: the restricted interval loops, checked bit for bit against B1, then 3(c);
+  - then Table A pairs step A, and the engine-spec schema for the blind-prediction database.
 
 ## Exact next steps (in order)
 

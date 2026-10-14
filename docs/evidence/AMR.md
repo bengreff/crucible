@@ -1,6 +1,6 @@
 # Adaptive resolution (TECHNICAL_PLAN *Lightweight engine*, order of work item 5)
 
-Status (14 October 2026, 00:25 CDT): step A implemented, results below. 0(a), 0(b) and 0(c) are met; 0(d) is not met as written, with the decision recorded. Step B is under way in two parts (*Deviations*). B1 is implemented and judged (*Step B1: results*): 1(a) and 1(b) are met. 3(a)'s reflection is met and its order is not met as written: 1.59 and 1.53, the base scheme's own order on that pulse. 3(b) is met except its pressure peak, which is not met as written: a wave shed by the shock's crossing, whose peak is fixed by the scheme. B2, criterion 2 and 3(c) are next; steps C to E are not started. The design and criteria were committed at 22:34 CDT by author time, before any AMR code; this line said "about 22:45" until 22:36.
+Status (14 October 2026, 00:30 CDT): step A implemented, results below. 0(a), 0(b) and 0(c) are met; 0(d) is not met as written, with the decision recorded. Step B is under way in two parts (*Deviations*). B1 is implemented and judged (*Step B1: results*): 1(a) and 1(b) are met. 3(a)'s reflection is met and its order is not met as written: 1.59 and 1.53, the base scheme's own order on that pulse. 3(b) is met except its pressure peak, which is not met as written: a wave shed by the shock's crossing, whose peak is fixed by the scheme. Criterion 2's setup is recorded before its code (*Step B1: how criterion 2 is run*); it comes next, then B2 and 3(c). Steps C to E are not started. The design and criteria were committed at 22:34 CDT by author time, before any AMR code; this line said "about 22:45" until 22:36.
 
 The plan chose block-structured AMR in the logical (i, j) index space of the body-fitted mapping: refinement ratio 2 in space and time, time-accurate subcycling, conservative averaging with refluxing (Berger and Colella, J. Comput. Phys. 82, 1989), and geometry taken from the finest level. It stated four criteria. This record turns that choice into a data layout, a step, tags and numbers, and adds three criteria of its own (the geometry refactor's identity, cost and determinism, and the RL10 measurement the decision rule needs).
 
@@ -259,6 +259,29 @@ The driver is `core/amr.*`. `Flow` gains a constructor from a given mesh, a step
 - **Housekeeping.**
   - The RL10 development wall moved from `tests/amr_tests.cpp` to `tests/rl10_wall.hpp`, for both tests. `amr_verification` gives the same values after the move: 0(c) within 7.5e-16, and 0(d) at 8.1e-14, 3.9e-14, 1.9e-14 and 8.3e-15.
   - ctest `amr_subcycling_verification` therefore reports 5 failures as recorded: 3(a)'s two orders and 3(b)'s three pressure peaks. The failures stay as written rather than being moved to a later amendment's bounds.
+
+## Step B1: how criterion 2 is run (recorded 14 October, before any of its code)
+
+- **Fixed pattern.** The order of work runs criterion 2 in step B "with the pattern fixed"; the dynamic tags and regridding are step C's, judged there with the same bounds.
+- **Case.** C1 as `chamber_study eqtt`:
+  - Table A local equilibrium, transport, SST with resolved walls (no wall functions, no property corrections);
+  - one supply over the whole injector face;
+  - the igniter, 0.5 J over 0.2 ms from 0.2 ms in z 5 to 15 mm, r up to 10 mm.
+  - Base 32 x 6, one level (64 x 12), to 8 ms, on 4 threads. The single-level 32 x 6 run is computed beside it.
+- **The pattern.** Level 1 covers base rows 0 and 1 of columns 0 to 15 (the inner third from the injector face, past the igniter, to the throat at station 16) and base row 5 in every column (the wall strip through the throat to the outlet). Three things therefore lie across a coarse-fine boundary:
+  - **the injector face**, rows 0, 1 and 5 fine, rows 2 to 4 coarse;
+  - **the igniter**, coarse ring 2's outer child is in the region by its centroid (9.4 mm) while ring 2 itself is coarse;
+  - **the throat and outlet**, on the wall row.
+- **What the driver adds, before the run.**
+  - **(a) Registers.** The registers carry the viscous face fluxes with the convective ones. `transportFluxes` already stores each face's viscous flux and transported fluxes alone, in the same orientation as the convective faces, so the stage integral is area (F_c + F_v), and the moved amount plus area times the viscous transported flux.
+  - **(b) Composite accounting.** Each level counts its boundary exchange only where it owns the cell next to the face. A cell is owned where it is active and not covered by the level above. This applies to inlet, outlet and wall faces, the transport fluxes' wall heat and force, and the cell sources (igniter, heating, body force). The composite budget is the base's content (which holds the composite after average-down and reflux) against the sum over levels of their integrated owned exchanges. With no pattern set, `Flow` counts every face as before, so single-level bits are unchanged.
+  - **(c) The igniter's region is the finest level's.** The region is the finest level's cells by centroid, as a single-level run on that mesh would choose. A coarser cell's igniter volume is the sum of its children's. Each cell receives power times its igniter volume over the total, and the owned igniter volumes sum to the total on any pattern. On a single level the igniter volume of an igniter cell is its volume, so the arithmetic is the same.
+  - **(d) Still refused:** wall functions and the property corrections. Their prescription and correction fluxes need their own handling across levels; that comes before step E, with its own check.
+- **Judged** at 8 ms, with the gas's largest mass and largest |energy| taken over every base step:
+  - the composite mass and energy budget errors below 1e-12 of those, and no more than 10 times the single-level 32 x 6 run's, normalised the same way;
+  - the axial momentum balance error below 1e-12 of the largest gross momentum exchange, likewise;
+  - the composite igniter energy (the levels' owned deliveries summed) within 1e-14 of 0.5 J.
+- **Printed beside, not judged:** the single-level values, c* and vacuum thrust at 8 ms on both runs, and the wall time.
 
 ## Deviations from the plan's text
 
