@@ -2,24 +2,25 @@
 
 14 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Stopped at (14 October, about 00:10 CDT)
+## Stopped at (14 October, about 00:35 CDT)
 
 - **Step 5, liquid LOX: the spray is in the engine** (`core/spray.*`, design and results in `docs/evidence/SPRAY.md`). Lagrangian parcels on the NIST liquid, Abramzon-Sirignano drops with film integrals, KH-RT, walls, Gosman-Ioannides dispersion (S8 passes), exact exchange through `Flow::exchange` inside ReactingFlow's step. S0, S1, S3, S4, S5, S8 pass; S0(b) fails as stated (NASA-7's extrapolation, kept). S6: 3.7 times the gas step on the 96-cell S3 run; `Spray::wallTime()` (7897b1d) now measures it on the S7 runs (`spray_wall_s` in the history).
   - **S2(c) judged (1c5f577): fails as stated** against Lafon et al. (2008) at 10 atm: d² slope +30.4%, lifetime −17.5%. Read against S2 (the miss is physics both our model and the S2 film lack: real-fluid film, finite liquid conductivity, H2 dissolution); nothing changed. Digitised tables in `docs/evidence/spray/lafon_2008_digitised.md`.
   - **Cantera's default transport fits fail below 300 K**; `thermo::transportFits(mechanism, 60)` fixes it. **inquiry2 should know this for the medium rework.**
 - **S7, Mascotte A-10, pre-registered (8a5b8d0)** in `docs/validation/MASCOTTE_A10_PREDICTION.md`, driver `tests/mascotte_a10.cpp` (`crucible_mascotte_a10`), table `build/table_mascotte.bin` (check in `docs/evidence/mascotte/table_build_check.txt`). Blind: no measured value of the case has been read. §3 (Burick's bracket) and §6 (predicted values) are still to fill, each committed before the step after it.
-  - **Running** (started 14 October about 00:03 CDT):
-    - Mac, slot.py: `blob` 239×70 to 25 ms, CFL 0.8, log `/tmp/masc/blob.log`, outputs `/tmp/masc/blob_*`.
-    - Backhouse, tmux `crucible_s7_blobfine`: `blob` 478×70 (the grid check), tree `/home/greff/crucible_s7` (a git-archive export of main plus the timer; not `/home/greff/crucible`), log `runs/blob_fine.log`. About 120 ms per step on 6 threads under other users' load: about 13 h.
-    - The Mac's 1 ms CFL 0.8 stability test (`/tmp/masc/cfl08.log`): §7 records its result.
-  - **A Sonnet agent was digitising Burick (1972) Fig. 38** into `docs/evidence/spray/burick_fig38.md`. If its report is lost, rerun it. Then apply §3's rule (MMD to SMD with `SMD = X/Γ(1−1/q)`), commit §3, launch `rr:<SMD_um>:<q>:13.7` low and high at 239×70 on the Mac.
-  - The Mac is loaded by another project's jobs outside slot.py (load about 30 on 10 cores), so the Mac runs are slower than the 2 to 2.5 h projection.
+  - **§3 filled (bda3ab2):** q 3.207 (Burick's Eq. 5), SMD low 223 μm, high 574 μm, core 13.7 mm.
+  - **KH child-release fault found and fixed (61e8517):** children were released per 3% of the parcel's current mass (about 750 per blob; 326,061 parcels at 1.1 ms); now per 3% of its injected mass, as published (630 parcels at 1.1 ms). Spray tests rerun: as before.
+  - **Running, all four from t = 0 at 00:30 CDT, CFL 0.8 (the 1 ms test held):**
+    - Mac, slot.py: `blob` and `low` (`rr:223:3.207:13.7`) at 239×70; logs `/tmp/masc/{blob,low}.log`, outputs `/tmp/masc/{blob,low}_*`.
+    - Backhouse, tmux `crucible_s7_high` (`rr:574:3.207:13.7`, 239×70) and `crucible_s7_blobfine` (478×70), tree `/home/greff/crucible_s7` (main at 61e8517's spray code; not `/home/greff/crucible`), logs `runs/{high,blob_fine}.log`. The grid check takes about 13 h.
+    - Each run: settled if the halves differ ≤ 50 K at r ≤ 20 mm, otherwise extend by 10 ms (§2). Then `tools/mascotte_band.py <low> <high> <blob> <blob_fine> band.csv` gives §6.
+  - The Mac and backhouse both carry other users' jobs, so times are loose.
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
 ## Exact next steps (in order)
 
-1. **S7**: fill §3 from Burick, commit, run low and high. When all four runs finish: §6 (the band per §5), committed before any measured value is digitised. Then an agent digitises [N]'s CARS profiles and [R]'s OH image, and the judging goes into SPRAY.md S7. Copy the run CSVs into `docs/evidence/mascotte/`.
+1. **S7**: when all four runs finish (check each for settling; the S6 spray share is in `spray_wall_s`): §6 (the band per §5), committed before any measured value is digitised. Then an agent digitises [N]'s CARS profiles and [R]'s OH image, and the judging goes into SPRAY.md S7. Copy the run CSVs into `docs/evidence/mascotte/`.
 2. Carried from 6 October: criterion 3's reference (unsettled at 1 ms), the `turbulence_pipe_verification` rerun, criterion 0(e) (the offline wall-model table), the Table B builder, then the Back, Massier and Gier comparison (blind: never open the TR's results pages).
 
 ## For Ben
