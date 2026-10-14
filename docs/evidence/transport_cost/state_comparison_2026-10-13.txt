@@ -1,0 +1,46 @@
+# T2/T3 state comparison, 13 October 2026: build/prof/diffs.sh over the CRUCIBLE_STATE_DUMP files of
+# eqtt 64x12 law + hp (0.3 ms on 1 and 4 threads, 1 ms on 1 thread). base = 9809e26; new = the medium change
+# only; grad = the medium change and the gathered gradients (the committed code). Field-norm: the largest
+# difference over the block's largest magnitude, worst block printed.
+== base_short_t1 vs base_short_t4
+bit identical 98304 98304
+== new_short_t1 vs new_short_t4
+bit identical 98304 98304
+== grad_short_t1 vs grad_short_t4
+bit identical 98304 98304
+== base_short_t1 vs new_short_t1
+differ 98304 98304
+largest field-norm relative difference 8.79e-14
+== new_short_t1 vs grad_short_t1
+bit identical 98304 98304
+== base_1ms vs new_1ms
+differ 98304 98304
+largest field-norm relative difference 1.53e-13
+== new_1ms vs grad_1ms
+bit identical 98304 98304
+== base_1ms vs grad_1ms
+differ 98304 98304
+largest field-norm relative difference 1.53e-13
+# base_1ms vs grad_1ms, every block:
+differ 98304 98304
+rho      field-norm 5.83e-15  pointwise 1.09e-14
+rho uz   field-norm 5.75e-15  pointwise 1.86e-14
+rho ur   field-norm 7.05e-15  pointwise 4.96e-11
+rho E    field-norm 2.52e-14  pointwise 1.17e-13
+rho Y0   field-norm 2.75e-14  pointwise 3.13e-14
+rho Y1   field-norm 2.70e-14  pointwise 2.16e-13
+rho Y2   field-norm 1.10e-13  pointwise 5.17e-13
+rho Y3   field-norm 1.53e-13  pointwise 5.47e-13
+rho Y4   field-norm 6.10e-14  pointwise 2.97e-13
+rho Y5   field-norm 4.52e-15  pointwise 1.08e-14
+rho Y6   field-norm 1.35e-13  pointwise 5.41e-13
+rho Y7   field-norm 9.66e-14  pointwise 3.86e-13
+rho Y8   field-norm 0.00e+00  pointwise 0.00e+00
+rho Y9   field-norm 2.04e-14  pointwise 3.71e-12
+turb0    field-norm 3.73e-15  pointwise 3.11e-13
+turb1    field-norm 2.45e-15  pointwise 2.41e-14
+largest field-norm relative difference 1.53e-13
+# Last history row at 1 ms (base, then grad):
+t,supply,inlet,outlet,p_injector,p_chamber_end,F_vac,isp_vac_supply,exit_mach_min,T_max,igniter_energy,mass_budget,energy_budget,steps,wall_heat_flow,wall_axial_force,cstar
+1.000000000e-03,4.000000e-01,4.000000e-01,3.248790e-01,2.750266e+06,2.575043e+06,1.381944e+03,3.522977e+02,2.99497,3387.04,5.000000e-01,1.926e-13,-4.591e-13,17048,-2.878696109e+05,-3.743815786e+03,nan
+1.000000000e-03,4.000000e-01,4.000000e-01,3.248790e-01,2.750266e+06,2.575043e+06,1.381944e+03,3.522977e+02,2.99497,3387.04,5.000000e-01,1.637e-13,7.011e-13,17048,-2.878696109e+05,-3.743815786e+03,nan

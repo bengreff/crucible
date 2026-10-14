@@ -36,6 +36,7 @@ public:
     static Medium perfectGas(Gas gas);
     [[nodiscard]] std::size_t size() const { return species_.size(); }
     [[nodiscard]] const std::vector<Species>& species() const { return species_; }
+    [[nodiscard]] const std::vector<double>& inverseMolarMass() const { return inverseMass_; }  // kmol/kg
     [[nodiscard]] Properties properties(double t, const double* y) const;  // one pass over the species
     [[nodiscard]] double gasConstant(const double* y) const;              // J/(kg K)
     [[nodiscard]] double internalEnergy(double t, const double* y) const; // J/kg, NASA reference
@@ -62,8 +63,10 @@ public:
     Transport transport(double t, double p, const double* y, double* diffusion, std::vector<double>& work) const;
 private:
     std::vector<Species> species_;
-    std::vector<double> specificR_;
+    std::vector<double> specificR_, inverseMass_;
+    // h/R coefficients a0, a1/2, a2/3, a3/4, a4/5, a5 of each species' low and high range, divided once.
+    std::vector<std::array<double, 6>> lowEnthalpy_, highEnthalpy_;
     TransportFits fits_;
-    std::vector<double> wilkeMass_, wilkeRoot_;  // (W_j/W_k)^(1/4) and sqrt(8 (1 + W_k/W_j)), row k
+    std::vector<double> wilkeMass_, wilkeInverseRoot_;  // (W_j/W_k)^(1/4) and 1 / sqrt(8 (1 + W_k/W_j)), row k
 };
 } // namespace crucible

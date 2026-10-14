@@ -22,6 +22,8 @@
 //    Isp = lambda v_e + p_e eps c*/p0 with v_e = Isp_1D - p_e eps c*/p0.
 //  - Vacuum thrust: device thrust plus ambient pressure times exit area (valid with a supersonic
 //    exit, checked).
+// NASA CEA (RocketCEA, tools/cea_point.py) at the same p0, O/F, area ratio and 300 K reactant gases
+// is printed beside it as the reference column (added 13 October 2026; "unavailable" without .venv-cea).
 //
 // Usage: crucible_chamber_study <eq|eqt|eqtt|fr|frozen|frt|frp> <nz> <nr> <end time s> <threads> <output prefix>
 //        [igniter energy J] [igniter duration s]
@@ -64,6 +66,8 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include <unistd.h>
 
 #include "adapters/reacting_flow.hpp"
 #include "adapters/reaction.hpp"
@@ -115,6 +119,42 @@ Geometry geometry() {
   g.cylinderEnd = zc - z0;
   g.throat = -z0;
   return g;
+}
+
+// The NASA CEA reference column (tools/cea_point.py, RocketCEA's build of the NASA Glenn CEA2 Fortran),
+// reactants given as explicit CEA cards. The interpreter is CRUCIBLE_CEA_PYTHON or the source tree's
+// .venv-cea. Fills the values and returns true, or returns false with the reason in `line`.
+struct CeaPoint { double tc{}, cstar{}, ispShifting{}, ispFrozen{}, ispFrozenThroat{}; std::string version; };
+bool ceaPoint(const std::string& fuelCard, const std::string& oxCard, double of, double pc, double eps, CeaPoint& out,
+              std::string& line) {
+  const char* env = std::getenv("CRUCIBLE_CEA_PYTHON");
+  const std::string python = env ? env : std::string(CRUCIBLE_SOURCE_DIR) + "/.venv-cea/bin/python";
+  if (access(python.c_str(), X_OK) != 0) {
+    line = "no interpreter at " + python;
+    return false;
+  }
+  char numbers[128];
+  std::snprintf(numbers, sizeof numbers, " %.17g %.17g %.17g 2>&1", of, pc, eps);
+  const std::string command = "'" + python + "' '" + CRUCIBLE_SOURCE_DIR + "/tools/cea_point.py' '" + fuelCard + "' '" +
+                              oxCard + "'" + numbers;
+  FILE* pipe = popen(command.c_str(), "r");
+  if (!pipe) {
+    line = "popen failed";
+    return false;
+  }
+  char buffer[512], version[32] = "";
+  bool found = false;
+  while (std::fgets(buffer, sizeof buffer, pipe)) {
+    line = buffer;
+    while (!line.empty() && line.back() == '\n') line.pop_back();
+    // RocketCEA prints its own lines on import; the helper's is the one starting "rocketcea ".
+    if (std::sscanf(buffer, "rocketcea %31s Tc %lf cstar %lf Ivac_shifting %lf Ivac_frozen %lf Ivac_frozen_throat %lf", version,
+                    &out.tc, &out.cstar, &out.ispShifting, &out.ispFrozen, &out.ispFrozenThroat) == 6)
+      found = true;
+  }
+  const int status = pclose(pipe);
+  out.version = version;
+  return found && status == 0;
 }
 
 double dischargeCoefficient(double R, double g) {
@@ -762,6 +802,17 @@ int main(int argc, char** argv) {
     std::printf("1-D ideal rocket at p0 (%s thermo): Tc %.1f K, c* %.2f m/s, Isp_vac shifting %.2f s, "
                 "frozen %.2f s, gamma %.4f\n",
                 mechanism.c_str(), shifting.tc, shifting.cstar, shifting.ispVac, frozen.ispVac, shifting.gammaChamber);
+    CeaPoint cea;
+    std::string ceaLine;
+    if (ceaPoint("fuel H2 H 2 wt%=100. t(k)=300", "oxid O2 O 2 wt%=100. t(k)=300", kMixtureRatio, p0, eps, cea, ceaLine)) {
+      std::printf("NASA CEA at p0 (RocketCEA %s, gases at 300 K): Tc %.1f K, c* %.2f m/s, Isp_vac shifting %.2f s, "
+                  "frozen %.2f s, frozen from the throat %.2f s\n",
+                  cea.version.c_str(), cea.tc, cea.cstar, cea.ispShifting, cea.ispFrozen, cea.ispFrozenThroat);
+      std::printf("simulated/CEA: c* %.4f, Isp_vac %.4f of shifting (%.4f of frozen)\n", cstarSim / cea.cstar,
+                  ispSim / cea.ispShifting, ispSim / cea.ispFrozen);
+    } else {
+      std::printf("NASA CEA at p0: unavailable (%s)\n", ceaLine.c_str());
+    }
     std::printf("corrections: Cd %.5f (R = %.1f), lambda %.5f\n", cd, kArc / kRt, lambda);
     std::printf("predicted 2-D: c* %.2f m/s, Isp_vac shifting %.2f s, frozen %.2f s, F_vac %.2f N\n",
                 shifting.cstar / cd, corrected(shifting), corrected(frozen), corrected(shifting) * kG0 * mdot);

@@ -1,0 +1,18 @@
+# T4 step cost, 13 October 2026, Mac (M2 Pro) shared with other jobs. build/prof/interleave.sh:
+#   #!/bin/sh
+#   # T4: the previous and the new build alternated, eqtt 64x12 law + hp to 1 ms on 1 thread, twice each.
+#   B=/Users/ben/inquiry-project/.claude/worktrees/inquiry2/build/prof
+#   export CRUCIBLE_EQ_TABLE=/Users/ben/inquiry-project/build/table_a.bin CRUCIBLE_WALL_FUNCTIONS=law CRUCIBLE_SST_CORRECTION=hp
+#   for rep in 1 2; do
+#     for tag in base grad; do
+#       /usr/bin/time -p $B/chamber_study_$tag eqtt 64 12 0.001 1 $B/il_$tag$rep > $B/il_$tag$rep.log 2>&1
+#       echo "$tag rep $rep: $(grep -E '^real|^user' $B/il_$tag$rep.log | tr '\n' ' ') load $(uptime | sed 's/.*averages: //')"
+#     done
+#   done
+# base = the previous build (9809e26); grad = the new build (medium change and gathered gradients).
+base rep 1: real 80.03 user 78.78  load 7.56 7.21 5.93
+grad rep 1: real 73.03 user 69.81  load 10.03 8.06 6.36
+base rep 2: real 90.78 user 84.93  load 11.00 9.25 7.01
+grad rep 2: real 72.72 user 70.92  load 8.27 8.80 7.03
+
+[exited with code 0]

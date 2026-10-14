@@ -1,0 +1,6 @@
+[slot] waiting for a heavy-job slot / RAM (free 6.6 GB, need 3.0); waited 0s
+T1 over 100000 states (10 species):
+  mu 5.68e-16  lambda 4.34e-16  D_km 1.01e-15   (relative, bound 1e-13)  PASS
+  e 3.37e-15 (of cv T)  cv 0.00e+00  h 1.75e-15 (of cp T)  h_k 2.92e-15 (of cp_k T)   (bound 1e-14)  PASS
+  T from e 3.78e-15   (relative, bound 1e-12)  PASS
+T4 cost per call (ns, best of 5 sweeps): transport 206.0 -> 187.2 (1.10x), properties 16.0 -> 17.6 (0.91x), temperature from a 1% guess 134.6 -> 110.7 (1.22x)

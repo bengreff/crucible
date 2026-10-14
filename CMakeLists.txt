@@ -160,10 +160,13 @@ if(CRUCIBLE_WITH_CANTERA)
     add_executable(crucible_table_lookup_cost tests/table_lookup_cost.cpp)
     add_executable(crucible_step_cost tests/step_cost.cpp)
     target_link_libraries(crucible_step_cost PRIVATE crucible_thermo)
+    add_executable(crucible_medium_cost tests/medium_cost.cpp)
+    target_link_libraries(crucible_medium_cost PRIVATE crucible_thermo)
     add_executable(crucible_chamber_study tests/chamber_study.cpp)
     target_include_directories(crucible_chamber_study PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
     target_link_libraries(crucible_chamber_study PRIVATE crucible_thermo
       ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+    target_compile_definitions(crucible_chamber_study PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_executable(crucible_flame_study tests/flame_study.cpp)
     target_include_directories(crucible_flame_study PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
     target_link_libraries(crucible_flame_study PRIVATE crucible_thermo

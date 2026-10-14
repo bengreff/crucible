@@ -327,7 +327,7 @@ private:
     // Per worker: face mass fractions (left, right), the stage's admissibility and smallest stable step,
     // and the transport scratch (Medium::transport's work, the wall's diffusion coefficients, the face
     // mass fractions and species enthalpies).
-    struct TransportScratch { std::vector<double> work, diffusion, face, enthalpy; };
+    struct TransportScratch { std::vector<double> work, diffusion, face, enthalpy, gradient; };
     std::vector<std::vector<double>> faceFractions_;
     std::vector<TransportScratch> transportScratch_;
     std::vector<char> workerOk_;
@@ -380,7 +380,8 @@ private:
     // (cell-major, 3 + ns_ fields of {d/dz, d/dr}); each cell's inverse least-squares matrix. The
     // transport face fluxes, indexed like axialFlux_ and radialFlux_: bulk per unit area, then the
     // species and k, omega fluxes per unit area (stride ns_ + nt_), summed per cell like the convective ones.
-    std::vector<double> viscosity_, conductivity_, diffusion_, moles_, gradients_;
+    // fieldValues_ holds each cell's gradient fields (transportValue, cell-major), gathered by transportGradients.
+    std::vector<double> viscosity_, conductivity_, diffusion_, moles_, gradients_, fieldValues_;
     std::vector<std::array<double, 3>> leastSquares_;
     std::vector<Conserved> axialViscous_, radialViscous_;
     std::vector<double> axialViscousTransported_, radialViscousTransported_;

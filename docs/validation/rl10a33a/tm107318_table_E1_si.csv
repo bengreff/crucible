@@ -1,0 +1,28 @@
+# Source: Binder, M., Tomsik, T., and Veres, J. P., "RL10A-3-3A Rocket Engine
+# Modeling Project," NASA TM-107318, January 1997. NTRS ID 19970010379.
+# Table E1 (printed page 139; PDF page 145), same rows as
+# tm107318_table_E1.csv, converted to SI.
+#
+# Conversion: z_m = axial_location_in * 0.0254 (exact, 1 in = 0.0254 m).
+# Sign convention unchanged: z_m negative = upstream of the throat
+# (subsonic/converging side), z_m positive = downstream (supersonic/
+# diverging side), throat at z_m = 0. expansion_ratio (A/A*) is
+# dimensionless and unchanged by the conversion. No resampling or smoothing;
+# same 16 rows, same order, as the as-printed file.
+axial_location_in_wrt_throat,axial_location_m_wrt_throat,expansion_ratio_wrt_throat,regime
+-0.500,-0.012700,1.11,subsonic
+0.485,0.012319,1.29,supersonic
+-2.018,-0.051257,1.62,subsonic
+2.035,0.051689,2.35,supersonic
+-4.054,-0.102972,2.72,subsonic
+-6.068,-0.154127,3.65,subsonic
+-8.032,-0.204013,4.00,subsonic
+-10.00,-0.254000,4.14,subsonic
+-12.00,-0.304800,4.27,subsonic
+4.215,0.107061,4.29,supersonic
+6.588,0.167335,6.93,supersonic
+8.989,0.228321,9.95,supersonic
+16.54,0.420116,20.7,supersonic
+25.05,0.636270,33.2,supersonic
+33.41,0.848614,45.0,supersonic
+41.84,1.062736,56.1,supersonic

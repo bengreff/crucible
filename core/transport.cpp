@@ -255,25 +255,35 @@ void Flow::transportGradients() {
     const auto& m=mesh_;
     const std::size_t nf=gradientFields();
     const bool chamber=definition_.experiment==Case::Chamber;
+    // The fields are gathered once per cell into one contiguous array, then each neighbour's
+    // differences are taken for all fields at once; every field's sums see the same operations in the
+    // same order as one field at a time, so the gradients are unchanged bit for bit.
+    fieldValues_.resize(state_.size()*nf);
     pool_->blocks(state_.size(),kCells,[&](std::size_t begin,std::size_t end,int) {
+        for(std::size_t q=begin;q<end;++q) for(std::size_t f=0;f<nf;++f) fieldValues_[q*nf+f]=transportValue(q,f);
+    });
+    pool_->blocks(state_.size(),kCells,[&](std::size_t begin,std::size_t end,int worker) {
+      auto& scratch=transportScratch_[worker].gradient;
+      scratch.resize(3*nf);
+      double *sz=scratch.data(),*sr=sz+nf,*delta=sr+nf;
       for(std::size_t q=begin;q<end;++q) {
         const int i=static_cast<int>(q/m.nr),j=static_cast<int>(q%m.nr);
         auto stencil=neighbours(m,chamber,faceSupply_,i,j);const auto& inverse=leastSquares_[q];
-        for(std::size_t f=0;f<nf;++f) {
-            double v=transportValue(q,f),sz=0,sr=0;
-            for(const auto& n:stencil) {
-                double delta=0;
-                switch(n.kind) {
-                    case Neighbour::Cell: delta=transportValue(n.cell,f)-v;break;
-                    case Neighbour::Axis: delta=f==1?-2*v:0;break;
-                    case Neighbour::Wall: delta=wallValue(q,f,n.nz,n.nr)-v;break;
-                    case Neighbour::Open: case Neighbour::Supply: break;
-                }
-                double w=delta/(n.dz*n.dz+n.dr*n.dr);
-                sz+=w*n.dz;sr+=w*n.dr;
+        const double* v=&fieldValues_[q*nf];
+        std::fill(sz,sz+2*nf,0.0);
+        for(const auto& n:stencil) {
+            switch(n.kind) {
+                case Neighbour::Cell: { const double* u=&fieldValues_[n.cell*nf];for(std::size_t f=0;f<nf;++f) delta[f]=u[f]-v[f];break; }
+                case Neighbour::Axis: for(std::size_t f=0;f<nf;++f) delta[f]=f==1?-2*v[f]:0;break;
+                case Neighbour::Wall: for(std::size_t f=0;f<nf;++f) delta[f]=wallValue(q,f,n.nz,n.nr)-v[f];break;
+                case Neighbour::Open: case Neighbour::Supply: std::fill(delta,delta+nf,0.0);break;
             }
-            gradients_[(q*nf+f)*2]=inverse[0]*sz+inverse[1]*sr;
-            gradients_[(q*nf+f)*2+1]=inverse[1]*sz+inverse[2]*sr;
+            const double d2=n.dz*n.dz+n.dr*n.dr;
+            for(std::size_t f=0;f<nf;++f) { double w=delta[f]/d2;sz[f]+=w*n.dz;sr[f]+=w*n.dr; }
+        }
+        for(std::size_t f=0;f<nf;++f) {
+            gradients_[(q*nf+f)*2]=inverse[0]*sz[f]+inverse[1]*sr[f];
+            gradients_[(q*nf+f)*2+1]=inverse[1]*sz[f]+inverse[2]*sr[f];
         }
       }
     });
@@ -386,7 +396,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
     });
     transportGradients();
     if(nt_) eddyViscosity(false);
-    auto value=[&](std::size_t q,std::size_t f) { return transportValue(q,f); };
+    auto value=[&](std::size_t q,std::size_t f) { return fieldValues_[q*nf+f]; };  // gathered by transportGradients above
     auto rhoK=[&](std::size_t q) { return primitives_[q].rho*fractions_[q*nw_+ns_]; };
     // Flux per unit area through a face with unit normal (nz, nr) pointing from cell a to cell b, or
     // out of cell a through a wall (wall != nullptr) whose midpoint is at its displacement. rf is the

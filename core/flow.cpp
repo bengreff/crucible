@@ -394,7 +394,7 @@ void Flow::setThreads(int threads) {
     pool_=std::make_unique<Pool>(threads);
     const auto n=static_cast<std::size_t>(pool_->threads());
     faceFractions_.assign(2*n,std::vector<double>(nw_));
-    transportScratch_.assign(n,TransportScratch{{},std::vector<double>(ns_),std::vector<double>(ns_),std::vector<double>(ns_)});
+    transportScratch_.assign(n,TransportScratch{{},std::vector<double>(ns_),std::vector<double>(ns_),std::vector<double>(ns_),{}});
     workerOk_.assign(n,1);workerDt_.assign(n,0.0);
 }
 template<class F> bool Flow::allCells(F f) {
