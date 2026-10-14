@@ -21,6 +21,7 @@
 // T, Y_OH and rho Y_OH per cell) and <prefix>_oh.csv (the radially integrated OH per unit length).
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -194,9 +195,97 @@ int main(int argc, char** argv) {
     const auto t0 = std::chrono::steady_clock::now();
     double nextPrint = 0, nextSample = averageFrom;
     long steps = 0;
+    // CRUCIBLE_HOT_TRACE=<K>: the hottest cell, every step, kept in a ring of the last kRing steps; when it
+    // first passes <K>, the ring, the next kRing steps and its 9x9 neighbourhood are written to
+    // <prefix>_hot_trace.csv and <prefix>_hot_cells.csv (the over-temperature in low, docs/evidence/COST.md).
+    // excess = h + |u|^2/2 - (f_H h_H2(287 K) + (1 - f_H) h_LOX): the specific total enthalpy above the
+    // propellants' mixing line at the cell's hydrogen element fraction (the fill sits slightly off it).
+    const char* hotEnv = std::getenv("CRUCIBLE_HOT_TRACE");
+    const double hotT = hotEnv ? std::atof(hotEnv) : 0;
+    constexpr std::size_t kRing = 2000;
+    std::vector<std::string> ring;
+    std::size_t ringNext = 0;
+    long hotAfter = -1;
+    double hotLast = 0;
+    FILE* hotTrace = nullptr;
+    const std::size_t ns = medium.size();
+    std::vector<double> hydrogenShare(ns, 0);  // kg of H per kg of species k
+    for (std::size_t k = 0; k < ns; ++k) {
+      const std::string& name = medium.species()[k].name;
+      for (std::size_t c = 0; c < name.size(); ++c) {
+        if (name[c] != 'H' || (c + 1 < name.size() && std::islower(static_cast<unsigned char>(name[c + 1])))) continue;
+        int n = 0;
+        while (c + 1 < name.size() && std::isdigit(static_cast<unsigned char>(name[c + 1]))) n = 10 * n + (name[++c] - '0');
+        hydrogenShare[k] += (n ? n : 1) * 1.00794 / medium.species()[k].molarMass;
+      }
+    }
+    const double hHydrogen = medium.enthalpy(kHydrogenT, h2.data());
+    const double cellDr = radius / nr;
+    auto cellLine = [&](std::size_t q) {
+      const auto y = flow.massFractions(q);
+      const auto w = flow.cellPrimitive(q);
+      const double t = flow.temperature(q);
+      double fh = 0;
+      for (std::size_t k = 0; k < ns; ++k) fh += y[k] * hydrogenShare[k];
+      const auto& lg = spray.ledger();
+      const double hLox = lg.injectedMass > 0 ? lg.injectedEnergy / lg.injectedMass : 0;
+      const double excess = medium.enthalpy(t, y.data()) + 0.5 * (w.uz * w.uz + w.ur * w.ur) - (fh * hHydrogen + (1 - fh) * hLox);
+      const double* ex = spray.exchanged().data() + q * (ns + 3);
+      double depositMass = 0;
+      for (std::size_t k = 0; k < ns; ++k) depositMass += ex[k];
+      int count = 0;
+      double held = 0;
+      for (const auto& pc : spray.parcels())
+        if (pc.cell == static_cast<int>(q)) {
+          ++count;
+          held += pc.count * pc.dropMass(spray.liquid().at(pc.t).density);
+        }
+      char b[512];
+      std::snprintf(b, sizeof b, "%d,%d,%.3f,%.3f,%.2f,%.6e,%.6e,%.3f,%.3f,%.5e,%.5e,%.5e,%.5e,%.5f,%.6e,%.6e,%.6e,%d,%.4e",
+                    static_cast<int>(mesh.cells[q].z / mesh.dz), static_cast<int>(mesh.cells[q].r / cellDr),
+                    mesh.cells[q].z * 1e3, mesh.cells[q].r * 1e3, t, w.p, w.rho, w.uz, w.ur, y[indexOf(medium, "H2")],
+                    y[indexOf(medium, "O2")], y[indexOf(medium, "H2O")], y[oh], fh, excess,
+                    depositMass / (w.rho * mesh.cells[q].volume), ex[ns + 2] / (w.rho * mesh.cells[q].volume), count, held);
+      return std::string(b);
+    };
+    const char* hotHeader = "i,j,z_mm,r_mm,T,p,rho,uz,ur,Y_H2,Y_O2,Y_H2O,Y_OH,f_H,excess_J_per_kg,"
+                            "spray_mass_per_gas_mass,spray_energy_J_per_kg,parcels,liquid_kg";
     while (flow.time() < endTime) {
       reacting.step(endTime - flow.time());
       ++steps;
+      if (hotT > 0 && hotAfter != 0) {
+        std::size_t hot = 0;
+        for (std::size_t q = 1; q < mesh.cells.size(); ++q)
+          if (flow.temperature(q) > flow.temperature(hot)) hot = q;
+        char head[96];
+        std::snprintf(head, sizeof head, "%.9e,%ld,%.4e,", flow.time(), steps, flow.time() - hotLast);
+        hotLast = flow.time();
+        std::string line = head + cellLine(hot);
+        if (hotTrace) {
+          std::fprintf(hotTrace, "%s\n", line.c_str());
+          if (--hotAfter == 0) std::fclose(hotTrace);
+        } else if (flow.temperature(hot) > hotT) {
+          hotTrace = std::fopen((prefix + "_hot_trace.csv").c_str(), "w");
+          std::fprintf(hotTrace, "t,step,dt,%s\n", hotHeader);
+          for (std::size_t n = 0; n < ring.size(); ++n) std::fprintf(hotTrace, "%s\n", ring[(ringNext + n) % ring.size()].c_str());
+          std::fprintf(hotTrace, "%s\n", line.c_str());
+          FILE* cellsFile = std::fopen((prefix + "_hot_cells.csv").c_str(), "w");
+          std::fprintf(cellsFile, "%s\n", hotHeader);
+          const int i0 = static_cast<int>(mesh.cells[hot].z / mesh.dz), j0 = static_cast<int>(mesh.cells[hot].r / cellDr);
+          for (int i = std::max(0, i0 - 4); i <= std::min(nz - 1, i0 + 4); ++i)
+            for (int jr = std::max(0, j0 - 4); jr <= std::min(nr - 1, j0 + 4); ++jr)
+              std::fprintf(cellsFile, "%s\n", cellLine(mesh.index(i, jr)).c_str());
+          std::fclose(cellsFile);
+          std::printf("hot trace: T %.0f K at step %ld (t %.6f ms), cell %s\n", flow.temperature(hot), steps, flow.time() * 1e3,
+                      line.c_str());
+          std::fflush(stdout);
+          hotAfter = static_cast<long>(kRing);
+        } else {
+          if (ring.size() < kRing) ring.push_back(line);
+          else ring[ringNext] = line;
+          ringNext = (ringNext + 1) % kRing;
+        }
+      }
       const double now = flow.time();
       if (now >= nextSample - 1e-12 && now >= averageFrom) {
         all.add(flow, oh, 1);

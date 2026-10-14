@@ -122,6 +122,9 @@ class Spray {
   [[nodiscard]] const std::vector<Parcel>& parcels() const { return parcels_; }
   [[nodiscard]] const Ledger& ledger() const { return ledger_; }
   [[nodiscard]] double wallTime() const { return wall_; }  // wall time spent in advance() [s]
+  // The last advance()'s exchange per cell, Flow::exchange's input: ns species masses, axial and radial
+  // momentum, energy [kg, kg m/s, J] (ns + 3 per cell).
+  [[nodiscard]] const std::vector<double>& exchanged() const { return amounts_; }
   [[nodiscard]] const LiquidOxygen& liquid() const { return liquid_; }
   // Liquid held now (parcels plus mass the injectors have delivered but not yet released).
   [[nodiscard]] double liquidMass() const;

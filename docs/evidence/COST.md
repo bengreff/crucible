@@ -70,3 +70,22 @@ Not levers for this case:
 **Levers 1 and 2 together** (inferred from the design documents). Adaptive resolution is the Lightweight engine's main line. It keeps the physical march of step 1 and attacks the binding constraint here: the fine radial cells set both the cell count and the step everywhere. Spray subcycling is needed with it, or the spray caps the gain at about 2 to 2.5 times. Lever 3 is a fix and goes first in any case.
 
 **What it leaves** (derived from the rows above): blob from about 650 s per ms to about 80 to 130 s per ms, so 15 ms in about 20 to 35 minutes on the Mac. That is still 4 to 7 times over the 5-minute target. The rest is the explicit acoustic step itself, 7 to 30 times below the flow's own. Closing that needs a pressure-based (all-speed) treatment of the acoustics, pseudo-time (Ben's ruling), or the GPU. That is a later decision, once levers 1 to 3 are measured.
+
+## Lever 4, for later: implicit acoustics in physical time (a note, no code)
+
+Added at the Director's request (14 October, about 01:25 CDT) as the candidate for the last 4 to 7 times, with the GPU as the alternative.
+
+- **What it is.** An IMEX step in physical time: convection, diffusion, the turbulence model and the sources stay explicit; only the pressure terms that carry the acoustics are implicit. Each stage solves one elliptic (Helmholtz) equation for the pressure, with coefficients from the cell's rho a^2, then fluxes the pressure work and momentum with the new pressure. The conserved variables stay conservative. This is the all-speed, semi-implicit pressure family, for example Kwatra, Su, Gretarsson and Fedkiw (2009, J. Comput. Phys. 228), which keeps a density-based conservative scheme and a general equation of state. The march stays physical (step 1): there is no pseudo-time, and nothing is iterated to convergence except one linear solve per stage.
+- **Gain on the step.** The step becomes the convective one: 7 to 30 times longer here (derived above, the radial speeds guessed). Everything else per step (transport, Table A, the spray) then runs 7 to 30 times less often.
+- **Cost per step.** One Helmholtz solve per stage, two stages with SSPRK2, on 16,730 cells with a 5-point stencil. With conjugate gradients and a cheap preconditioner, or a geometric multigrid on the block grid, each solve is guessed at 0.15 to 0.5 of today's explicit step, which carries mixture transport, gradients and the spray per cell. So a step costs about 1.3 to 2 explicit steps (guessed).
+- **Net:** about **3.5 to 23 times** (derived from the two ranges above), and about 5 to 10 times as a central guess, because the larger steps also cut the Strang chemistry and spray calls. On top of levers 1 and 2 that brings 15 ms to about 2 to 7 minutes on the Mac (derived, all inputs guessed).
+- **What it costs in physics.** Acoustic waves at steps above the acoustic CFL are damped and dispersed, so the run would not resolve chamber acoustics or combustion instability. That fits the performance-prediction framing (honest bands, not instability CFD). The fill and pressure rise (about 1 ms time constants) are still resolved. In a throat, u is about a, so the convective and acoustic steps coincide and the gain there is about 1; with level subcycling the throat level keeps its own step.
+- **How it sits with the plan.** It is an implicit physical step, so the decision rule in TECHNICAL_PLAN's *Lightweight engine* applies. That rule names the wall strip's acoustic limit; here the binding limit is the bulk's, so the rule would need restating before this is built. That is the Director's and Ben's call.
+- **Against the GPU** (20 to 200 times over the Mac, guessed in TECHNICAL_PLAN's *Compute budget*): the GPU keeps every acoustic step and buys throughput; lever 4 removes steps. They multiply rather than compete, but lever 4 is the smaller port.
+
+## Decision (the Director, 14 October, about 01:25 CDT)
+
+1. Lever 3 first, as a correctness item: find why low's cells sit about 240 K above the flame temperature while blob's do not (spray energy coupling, parcel source clipping or differential diffusion), with a one-cell budget on a hot cell.
+2. Then lever 2, spray subcycling, with N chosen by measurement on S1 to S5.
+3. Lever 1 is inquiry2's B1; the Director points inquiry2 at this note.
+4. Lever 4 above: a note only, no code.
