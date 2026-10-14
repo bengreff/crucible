@@ -83,7 +83,15 @@ The correlating group, (V_g − V_L)/(V_L MR), is (317.1 − 2.18)/(2.183 × 2.1
 - **Exponent.** The Rosin-Rammler exponent is Burick's. If he gives a range, use the middle of it for both runs.
 - **Assessment (*inferred*).** Extrapolating a cold-flow wax correlation by six times in its group is weak ground. The band it gives is not a statement of confidence in either end. The Blob run, which does not use Burick, is the third leg.
 
-*To be added from the digitisation (before any production run): Burick's axes, curve, scatter, q, and the two Sauter mean diameters.*
+**Applied (14 October 2026, 00:30 CDT, before any production result).** The digitisation is `docs/evidence/spray/burick_fig38.md` (a Sonnet agent, NASA CR-120936 Fig. 38, p. 67; cold-flow content only).
+- **Axes.** The ordinate is D̄/D_L, the mass-median diameter over the liquid post diameter (5 mm here). The abscissa is the group above. Data markers span x ≈ 0.3 to 11; the curve is drawn to about 15.
+- **Property correction.** The report names one (Ingebo's relations, its Ref. 24, wax to FLOX) but does not give it, so by the rule the ordinate is used as printed. *Inferred* direction: LOX's viscosity is about 18 times below the wax's (0.225 against 4.0 cP), which tends toward smaller real drops. This is a declared limit of the bracket.
+- **Exponent.** Burick prints no number, but his Eq. (5), D30 = 0.455 D̄ for a Rosin-Rammler spray, fixes it. For a mass-based Rosin-Rammler, D30/MMD = Γ(1 − 3/q)^(−1/3) / (ln 2)^(1/q), so **q = 3.207** (*derived*). ±0.01 on 0.455 moves q by ±0.015. Then SMD = 0.851 MMD.
+- **High.** The upper edge of the scatter at the largest group with data (x ≈ 10 to 11) is 0.135. MMD 675 μm, **SMD 574 μm**.
+- **Low.** The curve's slope over group 4 to 12 is −0.371 (least squares on the digitised curve; −0.323 from its end points). The power law runs through the lower edge at the largest group with data (0.105 at x 10.5), the same anchor as the high rule. At 68.4 it gives 0.0523: MMD 262 μm, **SMD 223 μm**.
+- **Readings not taken, so the choice is visible.** Anchoring the low line on the agent's flagged low point (x 7.1, 0.052) would give an MMD of 112 μm. The curve divided by 1.7, the typical lower scatter, would give 164 μm. The last-group anchor is used because it mirrors the high rule and that point is flagged uncertain.
+- **Runs.** `rr:223:3.207:13.7` (low) and `rr:574:3.207:13.7` (high).
+- **Assessment (*inferred*).** Burick's own section 10.3 warns that this cold-flow data "may not be directly applicable to LOX/GH2", whose gas velocities are far higher. KH-RT acts on the released drops at about 300 m/s slip, so the injected size sets the start of breakup, not the final drop size.
 
 ## 4. Runs
 
