@@ -1,61 +1,25 @@
 # Session handoff
 
-6 October 2026, about 03:15 CDT · branch `main` (one line). Parked early (the Director's 02:55 usage note: each night is budgeted at about 20% of the week).
+13 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Stopped at (6 October, 03:15 CDT)
+## Stopped at (13 October)
 
-- **The hot wall, Option B (Ben, 6 October), is in.** The corrected SST of Hasan, Elias, Menter and Pecnik (JFM 1019 A8, 2025) is in the engine (`CRUCIBLE_SST_CORRECTION=hp`, +12% per step) and in the 1-D reference. R1, R2 (against the authors' own solver: −0.006% in u_c+) and R3 pass. TECHNICAL_PLAN records the change of SST form and Ben's reason. The Kawai-Larsson ODE wall model fails its a priori check, so the declared fallback applies: the corrected SST's own 1-D wall layer (`tools/sst_wall_layer.py`). It passes a priori to y+ 300 and misses τ_w by +2.79% at y+ 1,000. All of it is in `docs/evidence/WALL_FUNCTIONS.md` (status table at the end) and commit 0db3e93.
-- **Criterion 3, the shorter reference (the Director's item 2).** The settling test is declared and coded (two consecutive settled windows of 0.05 ms, contraction or span clause, cap 1 ms). 64 columns cost 63 min per 0.05 ms (projection 17 h or more), so the reference is cut to 32 columns. The coverage cost is stated in WALL_FUNCTIONS.md. The 32x32 reference has been running since 03:06 (below).
-- **The measured check.** Back, Massier and Gier, JPL TR 32-415, test 298 (0.87 MPa, 1,115 K). Its inputs were extracted blind into `docs/validation/BACK_MASSIER_GIER_INPUTS.md` and screened for outcomes. A blindness incident is recorded (three unlabelled rows of the TR's page 33 table seen in an agent transcript; not used). Never read that agent's raw transcript; never open the TR's results pages.
-- **Table B, design only** (`docs/evidence/TABLE_B.md`). The criteria were stated before code. Probes (1) to (4) (`tests/table_b_probe.cpp`):
-  - The snap keeps the cell's moles per kg once the branch recombines (nozzle snap error 245 K to 3.2 K).
-  - Burnt gas mixed into fresh gas below about 70% burnt is on no curve. Amended at 03:10: a counted CVODES fallback (c off the curve, or a snap moving any Y by more than 0.01), frozen branches kept and flagged, gate 2(c) restated, and 3(e) reported.
-  - Nothing is built yet.
-- **ctest** (`ctest_main_2026-10-06_wall_functions.txt`): 9 of the 10 that finished pass. `transport_verification` keeps its known radial-order failures (1.218, 1.444). The slow `turbulence_pipe_verification` was stopped by the time limit and has not been rerun since the transport changes. **Rerun it first** (`ctest -R turbulence_pipe` through slot.py, with a long alarm).
+- **Step 5, liquid LOX: the spray is in the engine** (`core/spray.*`, design and results in `docs/evidence/SPRAY.md`; commits 9809e26, 45b08b2, 15d6777). Lagrangian parcels on the NIST liquid, Abramzon-Sirignano drops, KH-RT, walls, exact exchange through `Flow::exchange`, inside ReactingFlow's step.
+  - S0, S1, S3, S4, S5 pass; S0(b) fails as stated (1,245 J/kg at 75 K, NASA-7's extrapolation; the 298.15 K anchor is kept, reasons in SPRAY.md).
+  - **S2 (single drop against a resolved film, `crucible_drop_film_1d`)**: the paper's 1/3 rule fails as stated (ṁ/d +24% to +78%). After that result, film integrals replace its conductances (`Spray::filmConductances`, 3 Gauss points, 3 passes): all six cases pass, pure H2 within 0.2% and 0.04 K, H2/H2O −6.6% to −6.8% and +0.7 K.
+  - Two bugs found: A-S's ρD must be the Blanc's-law mass-fraction D (W̄/W_c times Medium's D_km); and **Cantera's default transport fits fail below 300 K** (H2 conductivity negative under 97 K, O2 conductivity +137% at 90 K). `thermo::transportFits(mechanism, 60)` fixes it for liquid-oxygen flows; the default is unchanged. **inquiry2 should know this for the medium rework: any gas below 300 K in the engine sees the bad fits.**
+  - S6: the spray is about 10 to 14 times the gas step on the 96-cell S3 run (about 28 μs per parcel sub-step, loaded Mac), up from 2 times with the 1/3 rule; 10 transport calls per `rates`.
+  - Declared limit: the boiling hold does not release a drop that reaches saturation in a carrier gas (flash in the nozzle); flashes are counted.
+- **Backhouse runs collected** (277383e): 2(a)'s resolved half fails as stated (u_b +3.55%, St −6.22% against the Richardson limits) but matches the tool on its own 64 rings (+0.27%, −0.51%), the shared first-order wall grid error; the 32x32 criterion 3 reference hit its 1 ms cap unsettled (3 not judged on it). Nothing of ours is running on backhouse.
+- **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
 ## Exact next steps (in order)
 
-1. **Collect the backhouse runs** (list below). For c2a_off, record the drift direction only. For c2a_hp, when its stop test fires, judge criterion 2(a)'s resolved half against the corrected 1-D reference (c_f 0.00565337, St 0.00310987, Richardson limits) at the restated bands. For c3r, record the time to 0.1 ms and the projection, then the settling result (or the cap) and the means over the last 0.1 ms. These are the reference values for 3(a) and 3(b).
-2. **Rerun `turbulence_pipe_verification`** on the Mac (slot.py, alarm about 1 h) and record it in the evidence README.
-3. **Criterion 0(e): the offline wall-model table.** For N2 (the pipe cases), tabulate `tools/sst_wall_layer.py` on backhouse (inputs Re_1, T_1/T_w, T_w, u_1²/(c_p,w T_w); outputs y_1+ and B_q). For C1's mixture, first port the layer solver to C++ on the engine's property routines, because neither machine has Python Cantera. Check the port against the tool within 0.01% (WALL_FUNCTIONS.md, *The table, offline*). Check it against 2,000 random direct solves: 0.5% at the 99th percentile, 1% at most. Then wire the engine to read it, and rerun 1(a), 1(b), 2(a)'s wall-model half, 2(b) and 4 with it.
-4. **Table B builder**, to the amended design: gates 2(a) to 2(c) first, then criterion 3 (a) to (e). C1's wall-layer composition axes come from this design, so 3(a) and 3(b) wait for it.
-5. **The Back, Massier and Gier comparison**, once the wall model passes: run the engine as it will run the RL10, then compare with the TR's heat flux (heat flow within 10%, local within 20%). Only then may anyone read the TR's results.
-6. Then AMR (Lightweight engine item 5) and the RL10-like cold start (item 6), as before.
-
-## Left running on backhouse (03:15 CDT; ours, may continue)
-
-- tmux `crucible_c3r`: `/home/greff/crucible_c3/c3r.sh`. The criterion 3 reference: 32x32, stretching 5, corrected SST, from `law32_hp.state`, 8 threads. It stops at the settling test or at 1 ms. Expected about 7 h at tonight's load (2 µs took 53 s). Outputs: `c3r.txt`, `c3r_history.csv`, `c3r_field_*.csv`, `c3r_time.txt`, final state `c3r.state`.
-- tmux `crucible_c2a_hp`: `/home/greff/crucible_wf/c2a_hp.sh`. 2(a)'s resolved half: 64 rings, corrected SST, to its stop test (cap 80 ms), about 20 h. At 3.5 ms: c_f 0.00529, St 0.002929, u_b still rising about 0.2% per ms. Output `c2a_hp.txt`.
-- tmux `crucible_c2a_off`: the same with the corrections off, to 5 ms (ends about 03:20). Output `c2a_off.txt`.
-- c3t, the 64-column cost probe, was stopped at 0.05 ms by me (`c3t_cost.txt`, copied to `docs/evidence/wall_functions/c3_cost_64col_2026-10-06.txt`).
-- Not ours, do not touch: s12vis_*, flyapp-*, and every other session.
-
-## Stopped at (5 October, evening)
-
-- **Ben's direction, 21:45** (through the Director; TECHNICAL_PLAN *Lightweight engine*, verbatim there): a light engine, a cold start to full thrust in minutes on the Mac, heavy chemistry in tables built offline, adaptive resolution, no needless turbulence resolution. Dual time stepping (step 16) is parked behind a decision rule. Wall functions become the default wall treatment (step 17). The C2 to C4 dates were revised (T and L added; C4 still ends 8 November).
-- **SSTs (8914753).** NASA TMR's SSTs production (P = mu_t S^2 in both equations) replaced the CRUCIBLE-only omega fix. Checks 1-3 and 5 pass. The pipe matches on nr 16 and 32 (within 1.0e-4 and 2.1e-5). PaSR criterion 4 on 32x6 passes: light-off 0.206 ms, c* +1.5468%, Isp -1.2393%. The 64x12 SSTs rerun was cut by the 21:45 direction.
-- **Table A, tabulated equilibrium: done, all four criteria pass** (`docs/evidence/TABLE_A.md`, criteria committed first in db994a4).
-  - Axes as built: f_H, T, ln rho_r, with 131 x 129 x 97 nodes; 144 MB, built in 11 s on the Mac.
-  - Accuracy: 99th-percentile |dT| 1.06 K on 1e5 random states. The largest error on C1's own states is 0.83 K.
-  - C1 64x12 cold start to 8 ms: 163 s, against Cantera's 2,048 s (12.6 times faster). Full thrust (4 ms) in 82 s, or 84 s on 1 thread.
-  - Agreement with Cantera: c* -0.0053%, Isp equal to the printed digit, vacuum thrust -0.0006%.
-  - The flow step is now 85% to 90% of the step.
-  - Use it: `crucible_build_equilibrium_table build/table_a.bin 20 64 1e-4 129 97 1e-8 30 4`, then `CRUCIBLE_EQ_TABLE=build/table_a.bin crucible_chamber_study eqt ...`. The table file is not in git.
-- **Threaded flow step: done** (`docs/evidence/THREAD_POOL.md`; the Director's 22:50 item).
-  - One persistent pool (`core/pool`) runs the flow step and the reaction call.
-  - The result is bit-identical to the serial code on 1, 4 and 6 threads: eqt 64x12 to 1 and 8 ms, frp 32x6 to 0.25 ms. Faces are computed alone and summed per cell in the serial order; the fused-multiply-add lesson is in the record.
-  - C1 64x12 to full thrust (4 ms): 28 s on 4 threads (77 s before), 20 s on 6. To 8 ms: 56 s and 41 s (153 s before).
-  - Transport (`core/transport.cpp`) threaded on 6 October, the same pattern: turbulent C1 (`eqtt`, SST, Table A) 64x12 to 4 ms in 79 s on 4 threads (169 s with serial transport), 57 s on 6; bit-identical to serial transport on 1, 4 and 6 threads (`THREAD_POOL.md`, *Transport on the pool*).
-- **Stale notes fixed** (the Director's item 3):
-  - the `archive/README.md` link now points to RESEARCH.md section 7;
-  - the pre-pivot memory files are marked historical;
-  - the backhouse memory now gives `/home/greff/crucible`.
-- **Wall functions (6 October; `docs/evidence/WALL_FUNCTIONS.md`, commits d972db1, 64b0c9e, e10356a, b29adb2).**
-  - Nichols and Nelson's law is in the engine on every no-slip face (side wall and plate rings). The first cell's k and omega are prescribed and booked; switch with `CRUCIBLE_WALL_FUNCTIONS=law`. With it off, the engine is bit-identical to before.
-  - Pass: criterion 0 (a) to (d); 1(b) at y+ 99, 289 and 956 (c_f -2.5% to -3.6%, band 5%); 4 (cost +4.6% to +6.8%, band 10%).
-  - **Fails: criterion 2(b)**, the hot pipe (T_axis/T_w 4.9) against standard SST. c_f is -17% to -19% and St -15% (bands 5% and 10%). A semi-local ODE wall model (Kawai and Larsson, `tools/eq_wall_model.py`) misses by as much. The reference SST's heated buffer layer sits 1.7 lower in u+ than the cold law under van Driest scaling, and DNS does not do this (Hasan, Elias, Menter and Pecnik, JFM 2025: standard SST's errors against DNS reach about 15% in velocity and 40% in temperature over 39 boundary layers; an earlier version of this line quoted 23% and 29%, which are not in the paper). **Decided 6 October by Ben: Option B**, the corrected SST in the engine and the reference, criterion 2 restated against it (`WALL_FUNCTIONS.md`, *Restated 6 October*).
-  - Criterion 3's explicit reference (32 rings, y+ 1 on C1) is estimated at about 60 h; raised. 3(b), C1 to 8 ms with the law on 12 rings: c* -0.47%, Isp_vac -3.1%, 313 kW to the wall (34 kW with the no-slip wall), 218 s on 4 threads.
-- (Superseded 03:15 on 6 October: the 1(a) runs were lost with the backhouse tmux server at 01:40, and the Mac runs finished; see *Left running on backhouse*.)
+1. **S6 cost**: either a lean transport call that returns only λ and D_O2,m (needs a `Medium` entry point: coordinate with inquiry2, who own `core/medium.*`), or the film tables. Measure on the Mascotte setup first (SPRAY.md S6: tables if the spray costs more than the gas there).
+2. **Turbulent dispersion** (Gosman-Ioannides with SST k and ω) and its tracer check, stated in SPRAY.md before code. Required before S7.
+3. **S2(c)**: Lafon et al. (2008) figures, digitised by a Sonnet agent (lifetime and d² slope, within 15%); the statement is already committed.
+4. **S7, Mascotte A-10**: pre-register the prediction in its own record before any measured value is read (inputs screened, no outcomes, in `docs/validation/`); run on backhouse. Burick's Fig. 38 for the drop-size bracket.
+5. Carried from 6 October: 2(a)'s restatement (the grid error), criterion 3's reference (unsettled at 1 ms), the `turbulence_pipe_verification` rerun, criterion 0(e) (the offline wall-model table), the Table B builder, then the Back, Massier and Gier comparison (blind: never open the TR's results pages).
 
 ## For Ben
 
@@ -94,7 +58,7 @@ TECHNICAL_PLAN *Lightweight engine*, order of work:
    - the pipe divergence with the SST limiter active (`TURBULENCE_C2.md`);
    - the C1 finite-rate and finer-grid reruns after the axis clamp;
    - PaSR criterion 4 on 64x12 with SSTs.
-6. **C3, liquid LOX** (TECHNICAL_PLAN step 5), then **C4, RL10A-3-3A** under the blind protocol (a Sonnet agent extracts inputs only; pre-register vacuum Isp and thrust in git before any measured value is read).
+6. **C3, liquid LOX** (TECHNICAL_PLAN step 5; in progress, S0 to S6 run, see *Stopped at*), then **C4, RL10A-3-3A** under the blind protocol (a Sonnet agent extracts inputs only; pre-register vacuum Isp and thrust in git before any measured value is read).
 
 ## Backhouse (WSL2 Ubuntu, user greff; reach it with `ssh backhouse 'wsl bash -c "..."'` or stdin-piped scripts)
 
