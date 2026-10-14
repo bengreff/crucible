@@ -49,6 +49,7 @@ struct Parcel {
   double shed{};         // KH: mass shed per drop and not yet released as a child parcel [kg]
   double rtTime{};       // RT: time its waves have grown at the present diameter [s]
   double distance{};     // path length travelled since injection [m]
+  double injectedMass{}; // the parcel's liquid mass when injected or added [kg]; children inherit it
   // Turbulent dispersion: the eddy's velocity fluctuation (axial, radial, azimuthal in the parcel's
   // meridional plane) and the time left of its interaction [s]; 0 when it has none.
   double eddyZ{}, eddyR{}, eddyT{}, eddyTime{};
@@ -78,6 +79,7 @@ class Spray {
   };
   struct Breakup {
     bool on{true};
+    // KH releases a child each time a parcel's shed mass reaches shedFraction of its injected mass (Reitz 1987).
     double b0{0.61}, b1{10}, cRt{0.1}, cTau{1}, cBl{1}, shedFraction{0.03};
   };
   struct Settings {

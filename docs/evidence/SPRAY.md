@@ -38,7 +38,7 @@ Labels: *derived* is my own reasoning, *guessed* a number not yet measured, *cit
   - **Boiling and flashing.** If T_s would pass the saturation temperature at the cell's pressure, the drop is held there and ṁ = Q/L with the classical boiling form (B_T = c_pF (T_∞ − T_s)/L). A drop that finds itself above saturation (it moved to a lower pressure, as in the nozzle) evaporates the enthalpy above saturation at once (a flash, counted).
 - **Drag.** A sphere's drag with the evaporating-drop correction. Form and constants: *Literature*, below.
 - **Breakup**: KH-RT, Reitz (1987) wave model with the Rayleigh-Taylor branch of Patterson and Reitz (1998) and Beale and Reitz (1999). Equations and constants: *Literature*, below.
-  - KH: each drop's radius shrinks toward B0 Λ at the rate set by B1; the mass shed accumulates on the parcel and is released as a child parcel of drops of radius B0 Λ once it reaches 3% of the parcel (*cited*, through arXiv:2404.03170), with the parent's velocity.
+  - KH: each drop's radius shrinks toward B0 Λ at the rate set by B1; the mass shed accumulates on the parcel and is released as a child parcel of drops of radius B0 Λ once the parcel's shed mass reaches 3% of its injected mass, with the parent's velocity. *(Corrected 14 October: the code first compared with 3% of the parcel's current mass; see Results, KH child release. OpenFOAM's ReitzKHRT, read in its source, compares with 3% of the cloud's average injected parcel mass, `msLimit` 0.03; Reitz 1987 and Beale and Reitz 1999 were not reached.)*
   - RT: active beyond the breakup length; when its wavelength fits in the drop and its time has run, the drop splits to the RT wavelength, keeping mass.
   - Drops too small to follow (below 0.1 μm, *guessed*, far below anything that matters) become vapour at once; counted.
 - **Integration.** Per parcel, in sub-steps:
@@ -195,7 +195,7 @@ With SST on, a parcel sees the cell's mean velocity plus a fluctuation u′, aft
 - **S5** passes.
   - (a) The largest difference is 3.4e-16.
   - (b) One-way, a 1 mm blob at 90 K in H2 at 1 MPa and 300 K, streaming at 250 m/s:
-    - KH alone (RT disabled), to 0.2 ms: 207 children, liquid mass through every child within 2.7e-15. The 23 children of the blob match 2 B0 Λ at their creation within 1.3e-16.
+    - KH alone (RT disabled), to 0.2 ms: 207 children, liquid mass through every child within 2.7e-15. The 23 children of the blob match 2 B0 Λ at their creation within 1.3e-16. *After the release fix (14 October): 17 children, all of the blob, mass within 5.3e-16, diameters exact.*
     - KH-RT, to 0.5 ms: 4 RT events of the blob, mass within 1.4e-14. All of the liquid has evaporated by 0.5 ms.
   - The diameter check covers the blob's own children. The blob takes one sub-step per step, so its state at a child's creation is known from outside; smaller drops take several.
 - **S6** (S3 run, one thread, before the secant change). The gas alone took 1.71 s; with the spray, 5.19 s. **The spray is 3.48 s, 67% of the step, 2.0 times the gas step.** That is 3.4e5 parcel sub-steps per second (2.9 μs each), against 3.3 μs per cell-step for the gas. On 4 threads both were slower than on 1 (96 cells is too small to share).
@@ -208,6 +208,11 @@ With SST on, a parcel sees the cell's mean velocity plus a fluctuation u′, aft
   - The solver fault above, fixed: **the spray 6.15 s against the gas's 1.66 s, 3.7 times the gas step, 6.5 μs per parcel sub-step** (load about 5). The 1/3 rule's figure (2.0 times, 2.9 μs) was taken with the same fault in place.
   - S6's trigger stays as restated above: the ratio is measured on the Mascotte setup before its run, and the film tables follow if the spray costs more than the gas there.
   - The Mac carried other users' jobs (load average 10 to 14) for the secant timing, so only its residual counts are quoted.
+
+- **KH child release: an implementation fault, found on S7's first production run (14 October).** The code released a child each time a parcel's shed mass reached 3% of the parcel's *current* mass. So a 5 mm blob shrinking toward B0 Λ (about 1 μm at 300 m/s slip) kept releasing children all the way down: about 750 per blob (*derived*, 3 ln(a0/a_stable)/0.03). On the Mascotte blob run at 239×70, parcels went from 767 (0.9 ms) to 28,873 (1.0 ms) to 326,061 (1.1 ms), and that 0.1 ms took 439 s, 405 s of it in the spray. The run was stopped there.
+  - **Fixed** to the published rule (OpenFOAM's ReitzKHRT, read in its source): a child is released when the parcel's shed mass reaches 3% of its injected mass (`Parcel::injectedMass`, set at injection or `add`, inherited by children). That bounds the children per parcel at about 33, and a child, holding 3% of the injected mass, makes no grandchildren.
+  - **After the fix** (same run, same steps: 15,954 to 1.1 ms in both): 630 parcels at 1.1 ms, and that 0.1 ms took 29 s, 1 s of it in the spray. S0 to S8 rerun: all as before except S5(b)'s child count (17, was 207), which passes; S0(b) fails as before.
+  - S3, S4 and S8 have no breakup, or breakup that releases few children, so their numbers are unchanged (the rerun prints the same values). S5(b) tested the mass carried through each child and the child's size, not the release rule. No criterion tested the release rule, which is how this got through.
 
 ## Literature
 

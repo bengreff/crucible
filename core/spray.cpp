@@ -221,9 +221,10 @@ void Spray::add(Parcel parcel) {
   parcel.cell = locate(parcel.z, parcel.r);
   if (parcel.cell < 0) throw std::invalid_argument("Parcel outside the domain.");
   if (parcel.random == 0) parcel.random = settings_.seed ^ (0xd1b54a32d192ed03ULL * ++nextId_);
-  parcels_.push_back(parcel);
   const auto s = liquid_.at(parcel.t);
   const double m = parcel.count * parcel.dropMass(s.density);
+  if (!(parcel.injectedMass > 0)) parcel.injectedMass = m;
+  parcels_.push_back(parcel);
   ledger_.injectedMass += m;
   ledger_.injectedEnergy += m * (s.enthalpy + 0.5 * (sq(parcel.uz) + sq(parcel.ur) + sq(parcel.ut)));
   ledger_.injectedMomentum += m * parcel.uz;
@@ -849,7 +850,7 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
             p.shed += m - mNew;
             m = mNew;
             p.d = 2 * aNew;
-            if (p.shed >= breakup.shedFraction * (m + p.shed)) {
+            if (p.count * p.shed >= breakup.shedFraction * p.injectedMass) {
               Parcel child = p;
               child.d = 2 * stable;
               child.count = p.count * p.shed / child.dropMass(l.density);
@@ -934,6 +935,7 @@ void Spray::release(double t0, double t1) {
       pend.energy -= mass * specific;
       ledger_.injectedMomentum += mass * p.uz;
       ++ledger_.parcelsInjected;
+      p.injectedMass = mass;
       parcels_.push_back(p);
     }
   }
