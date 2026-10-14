@@ -1,6 +1,6 @@
 # RL10A-3-3A: prediction (tier 0)
 
-Status: tier 0 committed 13 October 2026, about 22:20 CDT, before any measured performance of this engine was read. Protocol: `RL10A33A_PROTOCOL.md` as amended up to and including its 13 October clarification. Tier 1 (the engine, the reported prediction) follows in a later commit. **No performance row is read, by me or an agent, until tier 1 is committed**, so tier 0's numbers here cannot inform tier 1 through a comparison. The comparison (`RL10A33A_COMPARISON.md`) will quote this commit's hash and tier 1's.
+Status: tier 0 committed 13 October 2026, 22:15 CDT as 92e98c7 (this line said "about 22:20" until 13 October, about 22:50), before any measured performance of this engine was read. Protocol: `RL10A33A_PROTOCOL.md` as amended up to and including its 13 October clarification. Tier 1 (the engine, the reported prediction) follows in a later commit. **No performance row is read, by me or an agent, until tier 1 is committed**, so tier 0's numbers here cannot inform tier 1 through a comparison. The comparison (`RL10A33A_COMPARISON.md`) will quote this commit's hash and tier 1's.
 
 Script and record: `rl10a33a/tier0.py`, output in `rl10a33a/tier0_2026-10-13.txt` (RocketCEA 1.2.3, NASA Glenn CEA2; SciPy's PCHIP).
 
