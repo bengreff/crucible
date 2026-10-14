@@ -1,0 +1,143 @@
+# AMR step A, criterion 0(b): ctest on the before build, 13 October 2026, this Mac, Release. Tests 1 to the pipe case in one run (stopped when the multi-hour turbulence_pipe_verification began, so it is not counted), then the rest by index.
+Test project /Users/ben/inquiry-project/.claude/worktrees/inquiry2/build/base
+      Start  1: core_verification
+ 1/12 Test  #1: core_verification ................   Passed   36.66 sec
+      Start  2: wall_function_verification
+ 2/12 Test  #2: wall_function_verification .......   Passed    0.24 sec
+      Start  3: core_slow_verification
+ 3/12 Test  #3: core_slow_verification ...........   Passed  102.56 sec
+      Start  4: thermo_cea_verification
+ 4/12 Test  #4: thermo_cea_verification ..........   Passed   42.15 sec
+      Start  5: reaction_verification
+ 5/12 Test  #5: reaction_verification ............   Passed    1.01 sec
+      Start  6: transport_verification
+ 6/12 Test  #6: transport_verification ...........***Failed  219.03 sec
+1. transport operator order on a contoured duct (h2o2.yaml, no-slip wall at 600 K)
+    32x8    axial momentum 1.112e-02  radial momentum 8.295e-03  energy 1.042e-02  species 1.188e-02
+           wall row:  1.526e+00  3.318e-01  5.769e-01  1.010e-02
+    64x16   axial momentum 3.415e-03  radial momentum 3.077e-03  energy 2.907e-03  species 3.420e-03
+           wall row:  3.612e+00  3.756e-01  6.930e-01  6.235e-03
+   128x32   axial momentum 9.743e-04  radial momentum 1.257e-03  energy 7.387e-04  species 9.402e-04
+           wall row:  8.993e+00  4.053e-01  7.837e-01  4.485e-03
+   256x64   axial momentum 2.796e-04  radial momentum 5.406e-04  energy 1.921e-04  species 2.501e-04
+           wall row:  8.527e+00  4.228e-01  8.444e-01  2.773e-03
+  axial momentum: observed order (two finest grids)          1.801e+00 (limit 1.8e+00)  ok
+  radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL
+  energy: observed order (two finest grids)                  1.943e+00 (limit 1.8e+00)  ok
+  species: observed order (two finest grids)                 1.911e+00 (limit 1.8e+00)  ok
+2. pipe decay, u_z = U J0(j01 r/R) exp(-nu j01^2 t/R^2), N2 at 1 kPa, R = 1 mm
+  nr 8    t 1.0738e-04 s  steps 4189  L1 error 2.547e-03  momentum balance 4.31e-20  energy balance -5.11e-15
+  nr 16   t 1.0738e-04 s  steps 10804  L1 error 6.505e-04  momentum balance 5.65e-19  energy balance -5.33e-15
+  nr 32   t 1.0738e-04 s  steps 34229  L1 error 1.636e-04  momentum balance -4.53e-19  energy balance 2.87e-16
+  pipe decay: observed order (nr 16 -> 32)                   1.992e+00 (limit 1.8e+00)  ok
+  pipe decay: L1 error at nr 32                              1.636e-04 (limit 1.0e-03)  ok
+  pipe decay: momentum balance (wall shear)                  5.651e-19 (limit 1.0e-12)  ok
+3. budgets with transport: closed chamber, isothermal wall and plate, ambient exit
+  t 2.271e-05 s, wall heat flow -91.54 W, wall axial force 61.7 N
+  mass balance                                               4.249e-16 (limit 1.0e-12)  ok
+  energy balance (with wall heat)                            2.265e-16 (limit 1.0e-12)  ok
+  axial momentum balance (with wall shear)                   7.004e-18 (limit 1.0e-12)  ok
+4. wall-clustered rings, radial stretching b = 2
+  64x16: wall ring 0.1657, axis ring 2.0639 of the equal height
+  4a. total cell volume against the duct                     1.776e-15 (limit 1.0e-13)  ok
+  4a. axial-face areas against pi R^2 (worst column)         3.331e-16 (limit 1.0e-13)  ok
+    32x8    axial momentum 1.715e-02  radial momentum 1.921e-02  energy 2.837e-02  species 3.428e-02
+           wall row:  1.974e+01  9.140e-01  1.578e+00  1.476e-01
+    64x16   axial momentum 7.906e-03  radial momentum 6.223e-03  energy 9.079e-03  species 1.208e-02
+           wall row:  1.967e+01  1.207e+00  2.119e+00  6.647e-02
+   128x32   axial momentum 2.554e-03  radial momentum 2.079e-03  energy 2.861e-03  species 3.846e-03
+           wall row:  1.889e+01  1.378e+00  2.452e+00  3.148e-02
+   256x64   axial momentum 6.927e-04  radial momentum 7.643e-04  energy 7.769e-04  species 1.031e-03
+           wall row:  1.870e+01  1.471e+00  2.636e+00  1.532e-02
+  4b. axial momentum: observed order (two finest grids)      1.882e+00 (limit 1.8e+00)  ok
+  4b. radial momentum: observed order (two finest grids)     1.444e+00 (limit 1.8e+00)  FAIL
+  4b. energy: observed order (two finest grids)              1.881e+00 (limit 1.8e+00)  ok
+  4b. species: observed order (two finest grids)             1.900e+00 (limit 1.8e+00)  ok
+  nr 8    t 1.0738e-04 s  steps 33089  L1 error 6.294e-03  momentum balance -2.66e-19  energy balance 5.27e-15
+  nr 16   t 1.0738e-04 s  steps 143104  L1 error 1.488e-03  momentum balance 3.07e-17  energy balance -8.38e-14
+  nr 32   t 1.0738e-04 s  steps 600308  L1 error 3.697e-04  momentum balance 1.21e-17  energy balance -1.05e-12
+  4c. pipe decay: observed order (nr 16 -> 32)               2.009e+00 (limit 1.8e+00)  ok
+  4c. pipe decay: L1 error at nr 32                          3.697e-04 (limit 1.0e-03)  ok
+  4c. pipe decay: momentum balance (wall shear)              3.075e-17 (limit 1.0e-12)  ok
+2 failures
+
+      Start  7: turbulence_verification
+ 7/12 Test  #7: turbulence_verification ..........   Passed   50.57 sec
+      Start  8: turbulence_pipe_verification
+
+Test project /Users/ben/inquiry-project/.claude/worktrees/inquiry2/build/base
+    Start  9: wall_function_threads
+1/4 Test  #9: wall_function_threads ............   Passed    0.34 sec
+    Start 10: pasr_verification
+2/4 Test #10: pasr_verification ................   Passed  184.04 sec
+    Start 11: spray_verification
+3/4 Test #11: spray_verification ...............***Failed   89.16 sec
+S0. Properties
+  table 54.3610 to 154.4140 K
+  (a) T(h(T)) at 10,000 temperatures across the table                            3.370e-16 (limit 1e-12)  PASS
+  (a) T_sat(p_sat(T)) likewise (the vapour-pressure inverse)                     2.396e-16 (limit 1e-12)  PASS
+     75 K: h_medium - h_NIST  -1245.1 J/kg
+     90 K: h_medium - h_NIST   -873.7 J/kg
+    100 K: h_medium - h_NIST   -673.5 J/kg
+    120 K: h_medium - h_NIST   -370.2 J/kg
+    150 K: h_medium - h_NIST   -106.7 J/kg
+    200 K: h_medium - h_NIST    +23.5 J/kg
+    250 K: h_medium - h_NIST    +10.9 J/kg
+    300 K: h_medium - h_NIST     +0.2 J/kg
+  medium O2 against NIST's 1e-6 MPa isobar, 75 to 300 K (the table's range): largest at 75 K
+  (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+S1. The drop model's algebra and integrator
+  N2:1 at 300 K: wet bulb 110.354593577 K (T_sat 119.621223957 K, evaporating), B_M 1.4350e+00, K 1.034086e-07 m^2/s, time to d_min 9.670365e-02 s
+  1715 sub-steps; drop temperature at the end 110.354593577 K
+  (a) d^2 against d0^2 - K t at 1,000 times (relative to d0^2)                   3.810e-14 (limit 1e-10)  PASS
+  (a) alive at (1 - 1e-10) and vaporised by (1 + 1e-10) of (d0^2 - d_min^2)/K    0.000e+00 (limit 1e-10)  PASS
+  H2:1 at 1200 K: wet bulb 119.621223957 K (T_sat 119.621223957 K, boiling), B_M 0.0000e+00, K 3.243355e-06 m^2/s, time to d_min 3.083224e-03 s
+  1044 sub-steps; drop temperature at the end 119.621223957 K
+  (a) d^2 against d0^2 - K t at 1,000 times (relative to d0^2)                   1.027e-14 (limit 1e-10)  PASS
+  (a) alive at (1 - 1e-10) and vaporised by (1 + 1e-10) of (d0^2 - d_min^2)/K    0.000e+00 (limit 1e-10)  PASS
+  208 evaporating cases, B_M 1.000e-06 to 2.000e+01, Re to 400.0; largest difference in B_T
+  (b) Re, B_M, Sh*, Nu*, B_T, mdot, Q against the paper's forms (evaporating)    4.099e-16 (limit 1e-12)  PASS
+  (b) boiling at saturation: Nu*, B_T, mdot, Q against the paper's forms         0.000e+00 (limit 1e-12)  PASS
+S5. Breakup
+  (a) KH and RT wavelengths and growth rates against the published forms         3.398e-16 (limit 1e-12)  PASS
+  KH alone: 43 parcels at 0.2 ms, 1035 children, 0 RT events of the blob, liquid 3.001712e-07 of 5.980043e-07 kg (exchanged 2.978e-07 kg)
+  (b) KH alone: liquid mass through every child (relative)                       4.603e-15 (limit 1e-13)  PASS
+  (b) KH alone: no RT event                                                      0.000e+00 (limit 5e-01)  PASS
+  23 children of the blob checked against it at creation
+  (b) each child's diameter against 2 B0 Lambda at its creation                  0.000e+00 (limit 1e-12)  PASS
+  KH-RT: 0 parcels at 0.5 ms, 0 children, 4 RT events of the blob, liquid 0.000000e+00 of 5.980043e-07 kg (exchanged 5.980e-07 kg)
+  (b) KH-RT: liquid mass through every child and RT event                        8.144e-15 (limit 1e-13)  PASS
+  (b) KH-RT: the blob breaks by RT at least once                                 0.000e+00 (limit 5e-01)  PASS
+S3. Budgets with parcels (16 by 6 cold chamber to 0.5 ms)
+  5414 steps in 7.2 s; 99 parcels injected, 455 children, 222 held at the end; 21 wall hits, 5 flashes, 3 vaporised, 0 clamped condensation sub-steps, 1185612 sub-steps
+  liquid injected 1.000000e-06 kg, evaporated 2.146844e-07 kg, out 1.557513e-07 kg, held 6.295643e-07 kg; wall impulse 0.0000e+00 N s, wall loss 4.7040e-06 J
+  injection, evaporation, wall rebounds and parcels leaving all occurred         0.000e+00 (limit 5e-01)  PASS
+  (a) gas mass balance with the exchange                                         4.626e-16 (limit 1e-11)  PASS
+  (a) gas energy balance with the exchange                                       4.175e-16 (limit 1e-11)  PASS
+  (a) gas axial momentum balance with the exchange                               9.432e-19 (limit 1e-11)  PASS
+  (a) liquid mass ledger                                                         7.337e-14 (limit 1e-11)  PASS
+  (a) liquid energy ledger                                                       3.984e-14 (limit 1e-11)  PASS
+  (a) liquid axial momentum ledger                                               4.769e-14 (limit 1e-11)  PASS
+  (b) whole system mass                                                          1.428e-14 (limit 1e-11)  PASS
+  (b) whole system energy                                                        5.492e-15 (limit 1e-11)  PASS
+  (b) whole system axial momentum                                                1.109e-17 (limit 1e-11)  PASS
+S4. Threads
+  final gas state and parcel list on 4 threads against 1, bit for bit            0.000e+00 (limit 5e-01)  PASS
+  final gas state and parcel list on 6 threads against 1, bit for bit            0.000e+00 (limit 5e-01)  PASS
+FAIL: 1 failure(s)
+
+    Start 12: mixture_verification
+4/4 Test #12: mixture_verification .............   Passed    1.72 sec
+
+75% tests passed, 1 tests failed out of 4
+
+Label Time Summary:
+slow    = 184.04 sec*proc (1 test)
+
+Total Test time (real) = 275.26 sec
+
+The following tests FAILED:
+	 11 - spray_verification (Failed)
+Errors while running CTest
+exit 8
+
