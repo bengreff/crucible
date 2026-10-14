@@ -422,6 +422,7 @@ void Flow::resetAccounting() {
         initialEnergy_+=state_[q][3]*mesh_.cells[q].volume;
     }
     integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=clippedTurbulentEnergy_=prescribedTurbulentEnergy_=integratedCorrection_=0;
+    exchangedMass_=exchangedEnergy_=exchangedMomentum_=0;
     lastRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
 }
 void Flow::setUniform(Primitive w) {
@@ -492,6 +493,22 @@ void Flow::setHeating(std::vector<double> power) {
 void Flow::setTotalPressure(double p) {
     if(!(p>0) || !std::isfinite(p)) throw std::invalid_argument("Reservoir pressure must be positive and finite.");
     totalPressure_=p;
+}
+void Flow::exchange(const std::vector<double>& amounts) {
+    const std::size_t stride=ns_+3;
+    if(amounts.size()!=state_.size()*stride) throw std::invalid_argument("Flow::exchange: amounts must hold cells x (species + 3).");
+    for(std::size_t q=0;q<state_.size();++q) {
+        const double* a=amounts.data()+q*stride;
+        if(std::all_of(a,a+stride,[](double x) { return x==0; })) continue;
+        const double v=mesh_.cells[q].volume;
+        double mass=0;
+        for(std::size_t k=0;k<ns_;++k) { species_[q*ns_+k]+=a[k]/v;mass+=a[k]; }
+        state_[q][0]+=mass/v;state_[q][1]+=a[ns_]/v;state_[q][2]+=a[ns_+1]/v;state_[q][3]+=a[ns_+2]/v;
+        exchangedMass_+=mass;exchangedMomentum_+=a[ns_];exchangedEnergy_+=a[ns_+2];
+        integratedMomentumGross_+=std::abs(a[ns_]);
+        if(!admissible(state_[q],species_.data()+q*ns_,nt_?turbulence_.data()+q*nt_:nullptr))
+            throw std::runtime_error("Flow::exchange left a cell non-admissible.");
+    }
 }
 bool Flow::admissible(const Conserved& u,const double* partial,const double* turbulence) const {
     // energyFloor is linear in the mass fractions, so it is evaluated on the clipped partial densities.
@@ -1167,10 +1184,11 @@ Measurements Flow::measurements() const {
         result.deviceThrust=result.inletMomentumFlux+result.wallAxialForce+result.bodyAxialForce-result.ambientAxialForce;
     }
     // Normalized by initial |P_z| plus the integrated gross momentum exchange (P_z can start at zero).
-    result.momentumBalanceError=(result.axialMomentum-initialMomentum_-integratedMomentumSource_)/
-        std::max(std::abs(initialMomentum_)+integratedMomentumGross_,std::numeric_limits<double>::min());
-    result.massBalanceError=(result.mass-initialMass_-integratedMassFlux_)/initialMass_;
-    result.energyBalanceError=(result.energy-initialEnergy_-integratedEnergyFlux_-integratedCorrection_)/initialEnergy_;
+    result.exchangedMass=exchangedMass_;result.exchangedEnergy=exchangedEnergy_;result.exchangedMomentum=exchangedMomentum_;
+    result.momentumBalanceScale=std::max(std::abs(initialMomentum_)+integratedMomentumGross_,std::numeric_limits<double>::min());
+    result.momentumBalanceError=(result.axialMomentum-initialMomentum_-integratedMomentumSource_-exchangedMomentum_)/result.momentumBalanceScale;
+    result.massBalanceError=(result.mass-initialMass_-integratedMassFlux_-exchangedMass_)/initialMass_;
+    result.energyBalanceError=(result.energy-initialEnergy_-integratedEnergyFlux_-integratedCorrection_-exchangedEnergy_)/initialEnergy_;
     result.correctionEnergy=integratedCorrection_;
     if(corrections_) {
         double weight=0,floored=0;

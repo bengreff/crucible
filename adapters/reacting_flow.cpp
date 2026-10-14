@@ -1,4 +1,5 @@
 #include "adapters/reacting_flow.hpp"
+#include "core/spray.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -202,9 +203,11 @@ double ReactingFlow::step(double maxDt) {
   // reaction halves span exactly half the flow step.
   // Steps end on the flow's schedule events (valves, igniter) so both halves stay symmetric.
   double planned = std::min({flow_.stableDt(), maxDt, flow_.nextEvent(flow_.time()) - flow_.time()});
+  if (spray_) planned = std::min(planned, spray_->nextEvent(flow_.time()) - flow_.time());
   if (chemistry_ != Chemistry::FiniteRate) {
     // Equilibrium is reached after every flow step, so a split is not needed: flow, then relax.
     const double taken = flow_.step(planned);
+    if (spray_) spray_->advance(taken);
     react(taken);
     ++stats_.steps;
     return taken;
@@ -221,6 +224,7 @@ double ReactingFlow::step(double maxDt) {
   }
   const double taken = flow_.step(planned);
   if (taken < planned) ++stats_.asymmetricSteps;  // admissibility rejection inside the flow step
+  if (spray_) spray_->advance(taken);
   react(0.5 * taken);
   ++stats_.steps;
   return taken;

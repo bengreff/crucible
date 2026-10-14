@@ -9,6 +9,8 @@
 #include "core/equilibrium_table.hpp"
 #include "core/flow.hpp"
 
+namespace crucible { class Spray; }
+
 namespace crucible::thermo {
 
 // Reacting flow by symmetric (Strang) splitting: half reaction step, one flow step, half reaction
@@ -64,6 +66,9 @@ class ReactingFlow {
   // in order and outlive this object.
   void useEquilibriumTable(const EquilibriumTable& table, long audit = 0);
   void react(double dt);  // one reaction substep over every cell (equilibrium: dt is unused)
+  // A liquid spray (core/spray.hpp) inside the shared step: it moves after the flow step with the
+  // same dt, before the second reaction half (docs/evidence/SPRAY.md, Coupling). Null: none.
+  void setSpray(crucible::Spray* spray) { spray_ = spray; }
   Chemistry chemistry() const { return chemistry_; }
   const Stats& stats() const { return stats_; }
 
@@ -71,6 +76,7 @@ class ReactingFlow {
   struct Worker;
   void checkThreads() const;
   Flow& flow_;
+  crucible::Spray* spray_ = nullptr;
   std::vector<std::unique_ptr<Worker>> workers_;
   Stats stats_;
   Chemistry chemistry_;

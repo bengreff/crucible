@@ -1,6 +1,6 @@
 # Liquid oxygen spray (TECHNICAL_PLAN step 5)
 
-Status (8 October 2026, about 23:40 CDT): design and criteria, stated before any spray code is run, with the literature filled in. Nothing here is verified yet.
+Status (13 October 2026): the design and criteria below were stated before any spray code ran (8 October). The code is in (`core/spray.hpp`, `core/spray.cpp`, `tests/spray_tests.cpp`), and S0, S1, S3, S4, S5 and S6 have been run (*Results*, below the criteria). S0(b) fails as stated and is kept with the reasons given. S2 and S7 are not yet run.
 
 Step 5 puts liquid oxygen into the engine as Lagrangian parcels: injection with a coaxial-injector drop-size bracket, KH-RT secondary breakup, Abramzon-Sirignano evaporation, and two-way exchange with the gas inside the shared step. The plan's verification is a single drop against a reference solution, mass and energy budgets closing with parcels present, and a published subcritical LOX/GH2 spray flame. The flame is Mascotte A-10 (ONERA, 1 MPa), chosen by inputs only: `docs/validation/MASCOTTE_A10_INPUTS.md`. Its prediction is pre-registered blind in a separate record, committed before any measured value is read.
 
@@ -104,6 +104,43 @@ Labels: *derived* is my own reasoning, *guessed* a number not yet measured, *cit
   - (b) A blob in a uniform fast gas stream, one-way: total drop mass conserved through every child to 1e-13 relative; each child's diameter equals 2 B0 Λ at its creation.
 - **S6. Cost** (measured, not a pass/fail): the spray's share of the step on the S3 run, and parcels times sub-steps per second. If the spray costs more than the gas step, the film properties are tabulated (not built until needed).
 - **S7. Mascotte A-10.** Validation, pre-registered in its own record before any measured value is read: the case's modelling choices (equivalent round chamber, igniter, wall condition, the bracket's correlations), the predicted quantities and their bands. Requires turbulent dispersion first.
+
+## Results (13 October 2026)
+
+`build/crucible_spray_tests` runs S0, S1, S3, S4 and S5 in about 90 s; `crucible_spray_tests cost [threads]` runs S6. All figures are *measured* unless labelled otherwise.
+
+- **S0(a)** passes: 3.4e-16 for T(h(T)) and 2.4e-16 for T_sat(p_sat(T)).
+- **S0(b) fails as stated: 1,245 J/kg at 75 K** against the 1 kJ/kg band. Here is h_medium − h_NIST on the engine's zero at each temperature:
+
+  | T [K] | 75 | 90 | 100 | 120 | 150 | 200 | 250 | 300 |
+  |---|---|---|---|---|---|---|---|---|
+  | J/kg | −1245.1 | −873.7 | −673.5 | −370.2 | −106.7 | +23.5 | +10.9 | +0.2 |
+
+  The error is the NASA-7 extrapolation below 200 K. The pre-stated remedy was to fit the liquid's zero and the cold gas together. It is not taken. Bringing 75 K inside the band needs a shift of at least 245 J/kg, and a fit over the cold range about 600 J/kg (*derived* from the table). Either moves that much error into the enthalpy the LOX carries into hot gas, where the medium is accurate and the chamber's energy budget is decided. The 298.15 K anchor keeps that delivered energy right. The cost falls only on the cold film: the vapour leaving a drop is placed at a temperature off by Δh/c_p, about 1.4 K at 75 K, 0.95 K at 90 K and 0.40 K at 120 K (*derived*, c_p of O2 gas 915 J/(kg K)). Mass and energy are still exchanged exactly (S3). The film's transport properties see the same offset, which is far inside S2's 2 K band. This is recorded as a failed criterion with its engineering resolution, not as a pass.
+- **S1(a)** has two cases at 1 MPa: a non-boiling wet bulb (N2 at 300 K) and a boiling one (H2 at 1,200 K).
+  - N2 at 300 K: the wet bulb is 110.3546 K (T_sat 119.6212 K), B_M 1.435 and K 1.034e-7 m²/s. d² against d0² − Kt at 1,000 times: 3.8e-14. The drop is alive at (1 − 1e-10) of the predicted life and vaporised by (1 + 1e-10). Pass.
+  - H2 at 1,200 K: the drop boils (below). K is 3.243e-6 m²/s, d² is within 1.0e-14 and the lifetime test passes. Pass.
+  - **Finding (derived, then measured): in hydrogen the A-S wet bulb is saturation, to double precision.** The wet-bulb balance needs B_T = c_pF (T∞ − T_s)/L. That is about 4.8 at 1,000 K, which with φ ≈ 0.044 needs B_M ≈ 2e17, i.e. 1 − Y_s ≈ 5e-18. That is below the resolution of a double. Measured at 1,000 K, 1e-13 K below T_sat: B_M 3.0e15, Q − ṁL = +8.1e-3 W per 100 μm drop (still heating). So a drop in hot hydrogen heats until Y_s rounds to 1, and from then on it is held at saturation by the boiling branch. That branch is the A-S limit: its B_T is exactly the wet-bulb value above. At the switch ṁ rises about 10% (1.85e-7 to 2.06e-7 kg/s). That is the unresolvable last decades of ln(1 + B_M), crossed in a negligible time.
+  - The same physics makes the drop's temperature equation stiff just below saturation in hydrogen. At 300 K the relaxation time is about 8e-9 s (*derived*). The sub-step bound covers it (S6 counts the cost).
+  - Two engine findings came out of S1(a). (1) A boiling drop is now held while heat arrives, judged by the heat's sign. Q − ṁL is zero only to within the rounding of a contracted multiply-add, and a −1e-19 W residual had released the drop from saturation. (2) **The medium's T(e) has two roots 2.6e-6 K apart at NASA-7's 1,000 K junction for H2**, and which one Medium::temperature returns depends on its guess (from 300 K: 999.99999999999989 K; from that value: 999.99999738817553 K). This is harmless for the physics and deterministic (the guesses do not depend on threads). But it moved the seen saturation point by 4.5e-8 K, so S1(a)'s boiling case runs at 1,200 K.
+- **S1(b)** passes. Across 208 evaporating cases (B_M 1e-6 to 20, Re 0 to 400) the largest difference is 6.1e-16, in B_T; the boiling cases show none. B_T is now solved by secant steps from A-S's fixed-point start. That needs 5.9 residual evaluations per solve on the S3 run, against 10.0 for the plain fixed point.
+- **S3** passes. The run takes 5,414 steps to 0.5 ms and includes 99 parcels injected, 455 children, 21 wall hits, 5 flashes, 3 vaporised and 1.19 million parcel sub-steps. Of the 1.0e-6 kg of liquid injected, 2.15e-7 kg evaporated, 1.56e-7 kg left through the outlet and 6.30e-7 kg is held. Balance errors:
+  - Gas (with the exchange): mass 2.6e-17, energy 1.7e-15, axial momentum 3.2e-20.
+  - Liquid ledgers: 7.3e-14, 4.3e-14 and 4.2e-14.
+  - Whole system (no exchange terms): 1.4e-14, 6.4e-15 and 9.5e-18.
+
+  The wall impulse is zero here: every hit was on the straight side wall, which has no axial normal.
+- **S4** passes: the final gas state and parcel list on 4 and 6 threads are identical to 1 thread, bit for bit.
+- **S5** passes.
+  - (a) The largest difference is 3.4e-16.
+  - (b) One-way, a 1 mm blob at 90 K in H2 at 1 MPa and 300 K, streaming at 250 m/s:
+    - KH alone (RT disabled), to 0.2 ms: 1,035 children, liquid mass through every child within 4.4e-15. The 23 children of the blob match 2 B0 Λ at their creation exactly.
+    - KH-RT, to 0.5 ms: 4 RT events of the blob, mass within 8.1e-15. All of the liquid has evaporated by 0.5 ms.
+  - The diameter check covers the blob's own children. The blob takes one sub-step per step, so its state at a child's creation is known from outside; smaller drops take several.
+- **S6** (S3 run, one thread, before the secant change). The gas alone took 1.71 s; with the spray, 5.19 s. **The spray is 3.48 s, 67% of the step, 2.0 times the gas step.** That is 3.4e5 parcel sub-steps per second (2.9 μs each), against 3.3 μs per cell-step for the gas. On 4 threads both were slower than on 1 (96 cells is too small to share).
+  - A sampled profile of the spray's time: the B_T solve and the rest of `rates` (expm1, pow, log1p and its own body) about 57%, mixture-averaged transport 28%, NASA-7 properties 10%.
+  - The stated trigger (spray costlier than the gas step) is met. **The film-property tables are still not built**, for two reasons. First, they would remove at most the 38% that is transport and properties. Second, S3's gas step is unrepresentatively cheap: 96 cells hold 2.3 parcels each, and the ratio scales with parcels per cell. This changes the trigger after the result, and is labelled so. The ratio will be measured on the Mascotte setup before its run, and the tables follow if the spray costs more than the gas there.
+  - The Mac carried other users' jobs (load average 10 to 14) for the secant timing, so only its residual counts are quoted.
 
 ## Literature
 

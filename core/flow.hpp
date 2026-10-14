@@ -181,6 +181,9 @@ struct Measurements {
     // added so far [J] (in the energy balance), and the F1-weighted fraction of cells whose S_n
     // denominator is at its floor psi / 10.
     double correctionEnergy{}, correctionFloored{};
+    // Flow::exchange: mass, total energy and axial momentum added so far [kg, J, kg m/s] (in the balances),
+    // and the momentum balance error's denominator [kg m/s].
+    double exchangedMass{}, exchangedEnergy{}, exchangedMomentum{}, momentumBalanceScale{};
     std::uint64_t steps{}, rejectedSteps{};
 };
 struct FieldSnapshot {
@@ -238,6 +241,10 @@ public:
     // Constant volumetric heating (W/m^3) per cell, e.g. to hold a heated pipe fully developed. It
     // enters the energy budget as an external exchange.
     void setHeating(std::vector<double> powerPerVolume);
+    // Add to each cell, from outside the gas (a spray, core/spray.hpp), per cell in stride ns + 3:
+    // each species' mass [kg], axial and radial momentum [kg m/s] and total energy [J]. Booked in the
+    // budgets as an external exchange (Measurements::exchanged*); throws if a cell is left non-admissible.
+    void exchange(const std::vector<double>& amounts);
     [[nodiscard]] Measurements measurements() const;
     [[nodiscard]] FieldSnapshot snapshot() const;
     [[nodiscard]] const Definition& definition() const { return definition_; }
@@ -396,6 +403,7 @@ private:
     std::vector<char> snFloored_;
     std::vector<double> axialCorrection_, radialCorrection_, correctionCell_;
     double integratedCorrection_{};
+    double exchangedMass_{}, exchangedEnergy_{}, exchangedMomentum_{};
     [[nodiscard]] std::size_t gradientFields() const { return 3+ns_+nt_+(corrections_?4:0); }
     bool corrections_{false};
     std::vector<std::size_t> wallCells_;

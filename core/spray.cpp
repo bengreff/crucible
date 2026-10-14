@@ -1,0 +1,807 @@
+#include "core/spray.hpp"
+#include <algorithm>
+#include <cmath>
+#include <fstream>
+#include <limits>
+#include <numbers>
+#include <sstream>
+#include <stdexcept>
+
+namespace crucible {
+namespace {
+constexpr double pi = std::numbers::pi;
+constexpr double tableTop = 5.01e6;  // Pa: the last subcritical row of the NIST table, rounded down
+double sq(double x) { return x * x; }
+// splitmix64 (Steele, Lea and Flood 2014): the stream's next 64 bits, and a number uniform in (0, 1).
+std::uint64_t next(std::uint64_t& state) {
+  std::uint64_t z = (state += 0x9e3779b97f4a7c15ULL);
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+  return z ^ (z >> 31);
+}
+double uniform(std::uint64_t& state) { return (static_cast<double>(next(state) >> 11) + 0.5) * 0x1.0p-53; }
+// ln(1 + b) / b, 1 at b = 0.
+double logRatio(double b) { return b > 1e-8 ? std::log1p(b) / b : 1 - b / 2; }
+// Abramzon and Sirignano's film correction F(B) = (1 + B)^0.7 ln(1 + B) / B.
+double filmCorrection(double b) { return std::pow(1 + b, 0.7) * logRatio(b); }
+}  // namespace
+
+// ---------------------------------------------------------------------------------------------------
+// Liquid oxygen
+
+LiquidOxygen LiquidOxygen::load(const std::string& path, double gasEnthalpy298) {
+  std::ifstream in(path);
+  if (!in) throw std::runtime_error("Cannot open the liquid oxygen table " + path);
+  LiquidOxygen out;
+  const double offset = gasEnthalpy298 - idealGasEnthalpy298;
+  std::string line;
+  while (std::getline(in, line)) {
+    if (line.empty() || line[0] == '#' || line.rfind("Temperature", 0) == 0) continue;
+    if (line.find("undefined") != std::string::npos) continue;  // the critical point itself
+    std::istringstream fields(line);
+    std::vector<double> v;
+    for (std::string f; std::getline(fields, f, '\t');) {
+      if (f.empty()) continue;
+      try { v.push_back(std::stod(f)); } catch (const std::exception&) { v.push_back(std::nan("")); }
+    }
+    if (v.size() < 25) throw std::runtime_error("Liquid oxygen table: short row in " + path);
+    // Columns: T, P [MPa], rho_l, v_l, u_l, h_l [kJ/kg], s_l, cv_l, cp_l [J/(g K)], a_l, JT_l, mu_l,
+    // k_l, sigma, then the vapour's rho, v, u, h, ...
+    out.rows_.push_back({v[0], std::log(v[1] * 1e6), v[2], v[5] * 1e3 + offset, v[8] * 1e3, v[11], v[12], v[13],
+                         v[17] * 1e3 + offset});
+  }
+  const auto n = out.rows_.size();
+  if (n < 2) throw std::runtime_error("Liquid oxygen table: too few rows in " + path);
+  out.t0_ = out.rows_.front()[0];
+  out.step_ = (out.rows_.back()[0] - out.t0_) / static_cast<double>(n - 1);
+  for (std::size_t i = 0; i < n; ++i) {
+    for (double x : out.rows_[i])
+      if (!std::isfinite(x)) throw std::runtime_error("Liquid oxygen table: non-finite value");
+    if (std::abs(out.rows_[i][0] - (out.t0_ + out.step_ * static_cast<double>(i))) > 1e-6)
+      throw std::runtime_error("Liquid oxygen table: rows are not uniform in T");
+    if (i > 0 && !(out.rows_[i][3] > out.rows_[i - 1][3] && out.rows_[i][1] > out.rows_[i - 1][1]))
+      throw std::runtime_error("Liquid oxygen table: enthalpy or vapour pressure not increasing");
+  }
+  return out;
+}
+std::array<double, 9> LiquidOxygen::row(double t) const {
+  const double x = std::clamp((t - t0_) / step_, 0.0, static_cast<double>(rows_.size() - 1));
+  const auto i = std::min(static_cast<std::size_t>(x), rows_.size() - 2);
+  const double f = x - static_cast<double>(i);
+  std::array<double, 9> out;
+  for (std::size_t c = 0; c < 9; ++c) out[c] = rows_[i][c] + f * (rows_[i + 1][c] - rows_[i][c]);
+  return out;
+}
+LiquidOxygen::State LiquidOxygen::at(double t) const {
+  const auto r = row(t);
+  return {r[2], r[3], r[4], r[5], r[6], r[7], std::exp(r[1]), r[8] - r[3]};
+}
+double LiquidOxygen::enthalpy(double t) const { return row(t)[3]; }
+double LiquidOxygen::vapourPressureSlope(double t) const {
+  const double x = std::clamp((t - t0_) / step_, 0.0, static_cast<double>(rows_.size() - 1));
+  const auto i = std::min(static_cast<std::size_t>(x), rows_.size() - 2);
+  return (rows_[i + 1][1] - rows_[i][1]) / step_;
+}
+namespace {
+// T at which column c (increasing) of a uniform-T table takes value x, inverting the linear interpolant.
+double invert(const std::vector<std::array<double, 9>>& rows, std::size_t c, double x, double t0, double step) {
+  if (x <= rows.front()[c]) return t0;
+  if (x >= rows.back()[c]) return t0 + step * static_cast<double>(rows.size() - 1);
+  const auto it = std::upper_bound(rows.begin(), rows.end(), x,
+                                   [c](double v, const std::array<double, 9>& r) { return v < r[c]; });
+  const auto i = static_cast<std::size_t>(it - rows.begin()) - 1;
+  const double f = (x - rows[i][c]) / (rows[i + 1][c] - rows[i][c]);
+  return t0 + step * (static_cast<double>(i) + f);
+}
+}  // namespace
+double LiquidOxygen::temperature(double h) const { return invert(rows_, 3, h, t0_, step_); }
+double LiquidOxygen::saturationTemperature(double p) const { return invert(rows_, 1, std::log(p), t0_, step_); }
+
+double Parcel::dropMass(double density) const { return density * pi / 6 * d * d * d; }
+
+// ---------------------------------------------------------------------------------------------------
+// Spray
+
+double Spray::Injector::opening(double time) const {
+  if (time < opens) return 0;
+  return ramp > 0 ? std::min(1.0, (time - opens) / ramp) : 1.0;
+}
+
+Spray::Spray(Flow& flow, LiquidOxygen liquid, Settings settings)
+    : flow_(flow), liquid_(std::move(liquid)), settings_(std::move(settings)) {
+  const auto& medium = flow_.medium();
+  const auto& species = medium.species();
+  const auto o2 = std::find_if(species.begin(), species.end(), [](const Species& s) { return s.name == "O2"; });
+  if (o2 == species.end()) throw std::invalid_argument("The spray needs O2 in the medium.");
+  oxygen_ = static_cast<std::size_t>(o2 - species.begin());
+  if (!medium.hasTransport()) throw std::invalid_argument("The spray's film model needs the medium's transport.");
+  for (const auto& j : settings_.injectors) {
+    if (!(j.rOuter > j.rInner) || !(j.rInner >= 0) || !(j.massFlow >= 0) || !(j.parcelRate > 0) || !(j.z >= 0))
+      throw std::invalid_argument("Spray injector: needs rOuter > rInner >= 0, massFlow >= 0, parcelRate > 0, z >= 0.");
+    if (!(j.temperature >= liquid_.minTemperature() && j.temperature <= liquid_.maxTemperature()))
+      throw std::invalid_argument("Spray injector: temperature outside the liquid table.");
+    if (j.size == Injector::Size::RosinRammler && !(j.sauterDiameter > 0 && j.exponent > 1))
+      throw std::invalid_argument("Spray injector: Rosin-Rammler needs a positive SMD and exponent above 1.");
+  }
+  if (!(settings_.restitution >= 0 && settings_.restitution <= 1)) throw std::invalid_argument("Restitution outside [0, 1].");
+  const auto& mesh = flow_.mesh();
+  const auto cells = mesh.cells.size();
+  const auto ns = medium.size();
+  cellGas_.assign(cells * (6 + ns), 0);
+  for (std::size_t q = 0; q < cells; ++q) cellGas_[q * (6 + ns)] = 300;  // temperature guess
+  cellLoad_.assign(cells * 5, 0);
+  amounts_.assign(cells * (ns + 3), 0);
+  occupied_.assign(cells, 0);
+  cellSize_.resize(cells);
+  for (int i = 0; i < mesh.nz; ++i)
+    for (int jr = 0; jr < mesh.nr; ++jr) {
+      const double width = 0.5 * (mesh.radius[i] + mesh.radius[i + 1]) * (mesh.fraction[jr + 1] - mesh.fraction[jr]);
+      cellSize_[mesh.index(i, jr)] = std::min(mesh.dz, width);
+    }
+  work_.resize(static_cast<std::size_t>(flow_.threads()));
+  for (auto& w : work_) w.resize(4 * ns + 8);
+  std::uint64_t seed = settings_.seed;
+  for (std::size_t k = 0; k < settings_.injectors.size(); ++k) {
+    injectorRandom_.push_back(seed + 0x632be59bd9b4e019ULL * (k + 1));
+    pending_.push_back({});
+  }
+  unit_.assign(ns, 0);
+  unit_[oxygen_] = 1;
+}
+
+// The wall radius at z, linear in each column, and its slope dR/dz.
+double Spray::wallRadius(double z, double* slope) const {
+  const auto& mesh = flow_.mesh();
+  const int i = std::clamp(static_cast<int>(z / mesh.dz), 0, mesh.nz - 1);
+  const double s = (mesh.radius[i + 1] - mesh.radius[i]) / mesh.dz;
+  if (slope) *slope = s;
+  return mesh.radius[i] + (z - mesh.dz * i) * s;
+}
+int Spray::locate(double z, double r) const {
+  const auto& mesh = flow_.mesh();
+  const double span = mesh.dz * mesh.nz;
+  if (!(z >= 0 && z < span && r >= 0)) return -1;
+  const int i = std::min(static_cast<int>(z / mesh.dz), mesh.nz - 1);
+  const double wall = wallRadius(z, nullptr);
+  if (r > wall) return -1;
+  const double s = r / wall;
+  const auto it = std::upper_bound(mesh.fraction.begin(), mesh.fraction.end(), s);
+  const int j = std::clamp(static_cast<int>(it - mesh.fraction.begin()) - 1, 0, mesh.nr - 1);
+  return static_cast<int>(mesh.index(i, j));
+}
+
+void Spray::add(Parcel parcel) {
+  parcel.cell = locate(parcel.z, parcel.r);
+  if (parcel.cell < 0) throw std::invalid_argument("Parcel outside the domain.");
+  if (parcel.random == 0) parcel.random = settings_.seed ^ (0xd1b54a32d192ed03ULL * ++nextId_);
+  parcels_.push_back(parcel);
+  const auto s = liquid_.at(parcel.t);
+  const double m = parcel.count * parcel.dropMass(s.density);
+  ledger_.injectedMass += m;
+  ledger_.injectedEnergy += m * (s.enthalpy + 0.5 * (sq(parcel.uz) + sq(parcel.ur) + sq(parcel.ut)));
+  ledger_.injectedMomentum += m * parcel.uz;
+}
+
+// The gas each occupied cell offers its parcels: T, p, rho, u_z, u_r, c_v, then the mass fractions.
+void Spray::gatherGas() {
+  const auto& medium = flow_.medium();
+  const auto ns = medium.size();
+  const auto& state = flow_.state();
+  const auto& partial = flow_.partialDensities();
+  const auto& turbulence = flow_.turbulence();
+  const std::size_t nt = turbulence.empty() ? 0 : 2;
+  // The parcels' cells and their neighbours: in one step a parcel moves less than a cell (its speed is
+  // below the gas's u + c, which bounds the step), so it stays among these; moveParcel checks.
+  const auto& mesh = flow_.mesh();
+  std::fill(occupied_.begin(), occupied_.end(), 0);
+  for (const auto& p : parcels_) {
+    const int i = p.cell / mesh.nr, j = p.cell % mesh.nr;
+    for (int a = std::max(i - 1, 0); a <= std::min(i + 1, mesh.nz - 1); ++a)
+      for (int b = std::max(j - 1, 0); b <= std::min(j + 1, mesh.nr - 1); ++b) occupied_[mesh.index(a, b)] = 1;
+  }
+  flow_.pool().blocks(state.size(), 256, [&](std::size_t begin, std::size_t end, int) {
+    for (std::size_t q = begin; q < end; ++q) {
+      if (!occupied_[q]) continue;
+      double* g = cellGas_.data() + q * (6 + ns);
+      double* y = g + 6;
+      double sum = 0;
+      for (std::size_t k = 0; k < ns; ++k) sum += std::max(partial[q * ns + k], 0.0);
+      for (std::size_t k = 0; k < ns; ++k) y[k] = std::max(partial[q * ns + k], 0.0) / sum;
+      const auto& u = state[q];
+      const double k = nt ? turbulence[q * nt] / u[0] : 0;
+      const double e = (u[3] - (sq(u[1]) + sq(u[2])) / (2 * u[0])) / u[0] - k;
+      const double t = medium.temperature(e, y, g[0]);
+      if (!std::isfinite(t)) throw std::runtime_error("Spray: non-admissible gas in an occupied cell.");
+      g[0] = t;
+      g[1] = u[0] * medium.gasConstant(y) * t;
+      g[2] = u[0];
+      g[3] = u[1] / u[0];
+      g[4] = u[2] / u[0];
+      g[5] = medium.cv(t, y);
+      if (g[1] > tableTop) throw std::runtime_error("Spray: a parcel's cell is above oxygen's critical pressure.");
+    }
+  });
+}
+
+Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<double>& work) const {
+  const auto& medium = flow_.medium();
+  const auto ns = medium.size();
+  if (gas.p > tableTop) throw std::runtime_error("Spray: gas above oxygen's critical pressure.");
+  Rates out;
+  const auto liquid = liquid_.at(parcel.t);
+  const double tSat = liquid_.saturationTemperature(gas.p);
+  out.boiling = parcel.t >= tSat || liquid.pressure >= gas.p;
+  // Surface composition: O2 at Raoult's mole fraction, the other species in the free stream's proportions.
+  double* ys = work.data();
+  double* yr = ys + ns;
+  double* diffusion = yr + ns;
+  const double yInf = gas.y[oxygen_];
+  double ySurface = 1, slope = 0;  // slope: dY_s/dT
+  if (!out.boiling) {
+    const double xs = liquid.pressure / gas.p;
+    double moles = 0, mass = 0;  // of the non-oxygen part of the free stream, per unit mass
+    for (std::size_t k = 0; k < ns; ++k)
+      if (k != oxygen_) { mass += gas.y[k]; moles += gas.y[k] / medium.species()[k].molarMass; }
+    if (mass > 1e-12) {
+      const double wOther = mass / moles, wO2 = medium.species()[oxygen_].molarMass;
+      const double mix = xs * wO2 + (1 - xs) * wOther;
+      ySurface = xs * wO2 / mix;
+      slope = wO2 * wOther / sq(mix) * xs * liquid_.vapourPressureSlope(parcel.t);
+    }
+    // Within rounding of saturation (Y_s rounds to 1, B_M is infinite): boiling.
+    if (!(ySurface < 1)) {
+      out.boiling = true;
+      ySurface = 1;
+      slope = 0;
+    }
+  }
+  const double ts = out.boiling ? tSat : parcel.t;
+  for (std::size_t k = 0; k < ns; ++k)
+    ys[k] = k == oxygen_ ? ySurface : (yInf < 1 ? (1 - ySurface) * gas.y[k] / (1 - yInf) : 0);
+  // The 1/3 rule.
+  const double tr = ts + (gas.t - ts) / 3;
+  for (std::size_t k = 0; k < ns; ++k) yr[k] = ys[k] + (gas.y[k] - ys[k]) / 3;
+  thread_local std::vector<double> scratch;
+  const auto transport = medium.transport(tr, gas.p, yr, diffusion, scratch);
+  const auto film = medium.properties(tr, yr);
+  const auto vapour = medium.properties(tr, unit_.data());
+  const double cpg = film.cv + film.r, cpf = vapour.cv + vapour.r;
+  const double rhoFilm = gas.p / (film.r * tr);
+  const double rhoD = rhoFilm * diffusion[oxygen_];
+  const double mu = transport.viscosity, lambda = transport.conductivity;
+  const double slip = std::sqrt(sq(gas.uz - parcel.uz) + sq(gas.ur - parcel.ur) + sq(parcel.ut));
+  out.reynolds = gas.rho * slip * parcel.d / mu;
+  const double pr = cpg * mu / lambda, sc = mu / rhoD, lewis = lambda / (rhoD * cpg);
+  const double f = out.reynolds > 1 ? std::pow(out.reynolds, 0.077) : 1.0;
+  const double sh0 = 1 + std::cbrt(1 + out.reynolds * sc) * f;
+  const double nu0 = 1 + std::cbrt(1 + out.reynolds * pr) * f;
+  double bt = 0;
+  if (out.boiling) {
+    // Held at saturation: all the heat that arrives evaporates liquid.
+    bt = gas.t > ts ? cpf * (gas.t - ts) / liquid_.at(ts).latent : 0;
+    out.nusselt = 2 + (nu0 - 2) / filmCorrection(bt);
+    out.sherwood = out.nusselt;
+    out.mass = pi * parcel.d * lambda / cpf * out.nusselt * std::log1p(bt);
+  } else {
+    if (ySurface - yInf < 0) out.clamped = true;
+    const double bm = std::max(0.0, (ySurface - yInf) / (1 - ySurface));
+    out.spalding = bm;
+    out.sherwood = 2 + (sh0 - 2) / filmCorrection(bm);
+    // B_T = (1 + B_M)^phi - 1 with phi = (c_pF / c_pg)(Sh* / Nu*(B_T)) / Le: secant steps on the residual
+    // from A-S's own fixed-point start (a fixed-point step whenever the secant leaves B > 0), and
+    // bisection on the residual when that does not settle within 30 iterations.
+    const double lnBm = std::log1p(bm);
+    auto residual = [&](double b) {
+      const double phi = cpf / cpg * out.sherwood / (2 + (nu0 - 2) / filmCorrection(b)) / lewis;
+      return std::expm1(phi * lnBm) - b;
+    };
+    bt = bm;
+    double rt = residual(bt);
+    bool settled = rt == 0;
+    double bPrev = bt, rPrev = rt;
+    if (!settled) bt += rt;
+    for (int it = 0; it < 30 && !settled; ++it) {
+      rt = residual(bt);
+      if (rt == 0) break;
+      double next = bt - rt * (bt - bPrev) / (rt - rPrev);
+      if (!(next > 0) || !std::isfinite(next)) next = bt + rt;
+      bPrev = bt;
+      rPrev = rt;
+      settled = std::abs(next - bt) <= 1e-14 * next;
+      bt = next;
+    }
+    if (!settled) {
+      double lo = 0, hi = std::max(1.0, 2 * bt);
+      while (residual(hi) > 0) hi *= 2;
+      for (int it = 0; it < 2000; ++it) {
+        const double mid = 0.5 * (lo + hi);
+        if (mid <= lo || mid >= hi) break;
+        (residual(mid) > 0 ? lo : hi) = mid;
+      }
+      bt = std::abs(residual(lo)) < std::abs(residual(hi)) ? lo : hi;
+      if (!std::isfinite(bt)) throw std::runtime_error("Spray: the heat-transfer number did not converge.");
+    }
+    out.nusselt = 2 + (nu0 - 2) / filmCorrection(bt);
+    out.mass = pi * parcel.d * rhoD * out.sherwood * std::log1p(bm);
+    // d(mdot)/dT through Y_s alone: pi d rho D Sh* (dY_s/dT) / (1 - Y_s); it sets the stiffness of the
+    // drop's temperature near its wet bulb, where Y_s nears 1.
+    if (ySurface > yInf) out.stiffness = liquid.latent * pi * parcel.d * rhoD * out.sherwood * slope / (1 - ySurface);
+  }
+  // Conduction to the surface, Q = mdot c_pF (T_inf - T_s) / B_T = pi d lambda Nu* (T_inf - T_s) ln(1 + B_T) / B_T.
+  out.conductance = pi * parcel.d * lambda * out.nusselt * logRatio(bt);
+  out.stiffness += out.conductance;
+  out.surface = ts;
+  out.heat = out.conductance * (gas.t - ts);
+  // Boiling: everything that arrives evaporates (the same value as the line above, written exactly).
+  if (out.boiling && gas.t > ts) out.heat = out.mass * liquid_.at(ts).latent;
+  out.transfer = bt;
+  // Drag: the momentum relaxation time tau = rho_l d^2 / (18 mu g(Re, B)), C_D = (24 / Re) g.
+  out.tau = liquid.density * sq(parcel.d) / (18 * mu * dragFactor(out.reynolds, bt));
+  out.dragCoefficient = 24 * dragFactor(out.reynolds, bt) / std::max(out.reynolds, 1e-300);
+  return out;
+}
+
+// Renksizbulut and Yuen (1983): C_D = (24 / Re)(1 + 0.2 Re^0.63) / (1 + B)^0.2 (see SPRAY.md, Literature).
+double Spray::dragFactor(double reynolds, double transfer) {
+  return (1 + 0.2 * std::pow(reynolds, 0.63)) / std::pow(1 + transfer, 0.2);
+}
+
+Spray::Waves Spray::waves(double d, double u, double rhoGas, double rhoLiquid, double muLiquid, double tension,
+                          double deceleration, double cRt) {
+  const double a = d / 2;
+  const double weGas = rhoGas * u * u * a / tension, weLiquid = rhoLiquid * u * u * a / tension;
+  const double reLiquid = rhoLiquid * u * a / muLiquid;
+  const double z = std::sqrt(weLiquid) / reLiquid, t = z * std::sqrt(weGas);
+  Waves w;
+  w.khLength = 9.02 * a * (1 + 0.45 * std::sqrt(z)) * (1 + 0.4 * std::pow(t, 0.7)) /
+               std::pow(1 + 0.87 * std::pow(weGas, 1.67), 0.6);
+  w.khRate = (0.34 + 0.38 * std::pow(weGas, 1.5)) / ((1 + z) * (1 + 1.4 * std::pow(t, 0.6))) /
+             std::sqrt(rhoLiquid * a * a * a / tension);
+  const double drive = deceleration * (rhoLiquid - rhoGas);
+  w.rtLength = 2 * pi * cRt * std::sqrt(3 * tension / drive);
+  w.rtRate = std::sqrt(2 / (3 * std::sqrt(3 * tension)) * std::pow(drive, 1.5) / (rhoLiquid + rhoGas));
+  return w;
+}
+
+Spray::Gas Spray::seen(int cell) const {
+  const double* g = cellGas_.data() + static_cast<std::size_t>(cell) * (6 + flow_.medium().size());
+  return {g[0], g[1], g[2], g[3], g[4], g + 6};
+}
+double Spray::blobDiameter(int injector) const {
+  const auto& j = settings_.injectors[static_cast<std::size_t>(injector)];
+  return 2 * (j.rOuter - j.rInner);
+}
+
+// The point-implicit seen state (SPRAY.md, Coupling): each parcel's drag and heat conductances at the
+// cell's own gas, summed into cells in parcel order; then each loaded cell's velocity and temperature
+// become the backward-Euler end state under those loads.
+void Spray::applyLoads(double dt) {
+  const auto ns = flow_.medium().size();
+  flow_.pool().blocks(parcels_.size(), 64, [&](std::size_t begin, std::size_t end, int worker) {
+    for (std::size_t i = begin; i < end; ++i) {
+      const auto& p = parcels_[i];
+      const auto r = rates(p, seen(p.cell), work_[static_cast<std::size_t>(worker)]);
+      slots_[i].drag = p.count * p.dropMass(liquid_.at(p.t).density) / r.tau;
+      slots_[i].conductance = p.count * r.conductance;
+      slots_[i].surface = r.surface;
+    }
+  });
+  std::fill(cellLoad_.begin(), cellLoad_.end(), 0.0);
+  for (std::size_t i = 0; i < parcels_.size(); ++i) {
+    const auto& p = parcels_[i];
+    double* l = cellLoad_.data() + static_cast<std::size_t>(p.cell) * 5;
+    l[0] += slots_[i].drag;
+    l[1] += slots_[i].drag * p.uz;
+    l[2] += slots_[i].drag * p.ur;
+    l[3] += slots_[i].conductance;
+    l[4] += slots_[i].conductance * slots_[i].surface;
+  }
+  const auto& cells = flow_.mesh().cells;
+  for (std::size_t q = 0; q < cells.size(); ++q) {
+    const double* l = cellLoad_.data() + q * 5;
+    if (l[0] == 0 && l[3] == 0) continue;
+    double* g = cellGas_.data() + q * (6 + ns);
+    const double gasMass = g[2] * cells[q].volume;
+    g[3] = (gasMass * g[3] + dt * l[1]) / (gasMass + dt * l[0]);
+    g[4] = (gasMass * g[4] + dt * l[2]) / (gasMass + dt * l[0]);
+    const double capacity = gasMass * g[5];
+    const double t = (capacity * g[0] + dt * l[4]) / (capacity + dt * l[3]);
+    g[1] *= t / g[0];
+    g[0] = t;
+  }
+}
+
+// One parcel across dt in sub-steps (SPRAY.md, Integration). Each sub-step's change of the parcel's
+// mass, momentum and energy from evaporation, heating and drag goes to the gas of the cell it started
+// in, as minus that change; walls, the outlet and breakup are booked separately.
+void Spray::moveParcel(std::size_t index, double dt, int worker) {
+  Slot& slot = slots_[index];
+  slot.deposits.clear();
+  slot.children.clear();
+  slot.wallImpulse = slot.wallLoss = slot.swirl = slot.outMass = slot.outEnergy = slot.outMomentum = 0;
+  slot.alive = true;
+  slot.substeps = slot.wallHits = slot.flashes = slot.vaporised = slot.clamped = 0;
+  Parcel& p = parcels_[index];
+  auto& work = work_[static_cast<std::size_t>(worker)];
+  const auto& mesh = flow_.mesh();
+  const double span = mesh.dz * mesh.nz;
+  const auto& breakup = settings_.breakup;
+  const double e = settings_.restitution;
+  const double minMass = liquid_.at(p.t).density * pi / 6 * std::pow(settings_.minDiameter, 3);
+  auto deposit = [&](int cell, double mass, double pz, double pr, double energy) {
+    if (!slot.deposits.empty() && slot.deposits.back().cell == cell) {
+      auto& d = slot.deposits.back();
+      d.mass += mass; d.pz += pz; d.pr += pr; d.energy += energy;
+    } else {
+      slot.deposits.push_back({cell, mass, pz, pr, energy});
+    }
+  };
+  // The parcel's own state across the sub-steps: mass and enthalpy per drop.
+  double m = p.dropMass(liquid_.at(p.t).density), h = liquid_.enthalpy(p.t);
+  double remaining = dt;
+  while (remaining > 0) {
+    if (!occupied_[static_cast<std::size_t>(p.cell)])
+      throw std::runtime_error("Spray: a parcel crossed more than one cell in a step.");
+    const Gas gas = seen(p.cell);
+    const int cell = p.cell;
+    ++slot.substeps;
+    // Start-of-sub-step totals (shed mass travels with the drop at its temperature and velocity).
+    const double ke0 = 0.5 * (sq(p.uz) + sq(p.ur) + sq(p.ut));
+    const double mass0 = p.count * (m + p.shed);
+    const double pz0 = mass0 * p.uz, px0 = mass0 * p.ur, py0 = mass0 * p.ut, e0 = mass0 * (h + ke0);
+    // Below the smallest followed size, or flashed whole: the liquid becomes vapour at once.
+    auto vaporise = [&]() {
+      deposit(cell, mass0, pz0, px0, e0);
+      slot.swirl += std::abs(py0);
+      ++slot.vaporised;
+      slot.alive = false;
+    };
+    if (m < minMass) { vaporise(); return; }
+    // A drop above saturation (it reached lower pressure) flashes the enthalpy above saturation.
+    const double tSat = liquid_.saturationTemperature(gas.p);
+    if (p.t > tSat) {
+      const double hSat = liquid_.enthalpy(tSat);
+      const double f = (h - hSat) / liquid_.at(tSat).latent;
+      ++slot.flashes;
+      if (f >= 1) { vaporise(); return; }
+      m *= 1 - f;
+      p.shed *= 1 - f;
+      h = hSat;
+      p.t = tSat;
+      p.d = std::cbrt(6 * m / (pi * liquid_.at(p.t).density));
+      if (m < minMass) { vaporise(); return; }
+    }
+    // Stage 1 and the sub-step's length.
+    const auto r1 = rates(p, gas, work);
+    if (r1.clamped) ++slot.clamped;
+    const auto l1 = liquid_.at(p.t);
+    double step = std::min(remaining, 0.25 * r1.tau);
+    if (r1.mass > 0) step = std::min(step, 0.25 * m / r1.mass);
+    if (!r1.boiling && r1.stiffness > 0) step = std::min(step, 0.25 * m * l1.cp / r1.stiffness);
+    const double speed = std::sqrt(sq(p.uz) + sq(p.ur) + sq(p.ut));
+    if (speed > 0) step = std::min(step, 0.5 * cellSize_[static_cast<std::size_t>(cell)] / speed);
+    if (step >= remaining) step = remaining;
+    remaining = step == remaining ? 0 : remaining - step;
+    // Mass and enthalpy: Heun on s = m^(2/3) and h.
+    const double s0 = std::cbrt(m) * std::cbrt(m);
+    const double fs1 = -2.0 / 3 * r1.mass / std::cbrt(m);
+    // The vapour leaves at the surface temperature (saturation when boiling) with that latent heat.
+    const double fh1 = (r1.heat - r1.mass * liquid_.at(r1.surface).latent) / m;
+    double s1 = s0 + step * fs1, h1 = h + step * fh1;
+    double m1 = m, t1 = p.t;
+    if (s1 * std::sqrt(s1) < minMass || !(s1 > 0)) {
+      m1 = 0;
+    } else {
+      Parcel q = p;
+      const double hSat = liquid_.enthalpy(tSat);
+      // Boiling: held at saturation while heat arrives (by the sign of the heat, not of fh1, which is
+      // zero to within the rounding of a contracted multiply-add).
+      const bool held = r1.boiling && r1.heat > 0;
+      if (!r1.boiling && h1 > hSat) h1 = hSat;
+      q.t = held ? p.t : h1 >= hSat ? tSat : liquid_.temperature(h1);
+      const double mq = s1 * std::sqrt(s1);
+      q.d = std::cbrt(6 * mq / (pi * liquid_.at(q.t).density));
+      const auto r2 = rates(q, gas, work);
+      const double fs2 = -2.0 / 3 * r2.mass / std::cbrt(mq);
+      const double fh2 = (r2.heat - r2.mass * liquid_.at(r2.surface).latent) / mq;
+      s1 = s0 + 0.5 * step * (fs1 + fs2);
+      h1 = held ? h : h + 0.5 * step * (fh1 + fh2);
+      m1 = r1.mass == 0 && r2.mass == 0 ? m : s1 * std::sqrt(s1);
+      if (held) {
+        t1 = p.t;
+      } else if (h1 >= hSat) {  // reached saturation within the step: boiling from the next
+        h1 = hSat;
+        t1 = tSat;
+      } else {
+        t1 = liquid_.temperature(h1);
+      }
+    }
+    // Velocity: exact relaxation toward the seen gas over the step at stage 1's drag; position exact.
+    // Frame: x radial in the parcel's start plane, y azimuthal, z axial; the gas has (u_r, 0, u_z).
+    const double decay = std::exp(-step / r1.tau), lag = -std::expm1(-step / r1.tau) * r1.tau;
+    const double vx = gas.ur + (p.ur - gas.ur) * decay, vy = p.ut * decay, vz = gas.uz + (p.uz - gas.uz) * decay;
+    const double x = p.r + gas.ur * step + (p.ur - gas.ur) * lag, y = p.ut * lag;
+    double z = p.z + gas.uz * step + (p.uz - gas.uz) * lag;
+    p.distance += std::sqrt(sq(x - p.r) + sq(y) + sq(z - p.z));
+    if (m1 < minMass) {  // vaporised within the sub-step
+      vaporise();
+      return;
+    }
+    // The exchange: minus the parcel's change over the sub-step.
+    const double ke1 = 0.5 * (vx * vx + vy * vy + vz * vz);
+    const double mass1 = p.count * (m1 + p.shed);
+    const double e1 = mass1 * (h1 + ke1);
+    deposit(cell, mass0 - mass1, pz0 - mass1 * vz, px0 - mass1 * vx, e0 - e1);
+    slot.swirl += std::abs(mass1 * vy - py0);
+    m = m1;
+    h = h1;
+    p.t = t1;
+    p.d = std::cbrt(6 * m / (pi * liquid_.at(p.t).density));
+    // Back to the meridional plane through the new position.
+    double rr = std::hypot(x, y), ur = vx, ut = vy, uz = vz;
+    if (rr > 0) {
+      const double c = x / rr, sn = y / rr;
+      ur = c * vx + sn * vy;
+      ut = -sn * vx + c * vy;
+    }
+    // Walls and the outlet. Injector plate:
+    const double mass = p.count * (m + p.shed);
+    if (z < 0) {
+      z = -e * z;
+      slot.wallImpulse += -(1 + e) * mass * uz;
+      slot.wallLoss += 0.5 * mass * (1 - e * e) * uz * uz;
+      uz = -e * uz;
+      ++slot.wallHits;
+    }
+    // Side wall: mirror about the column's wall line.
+    for (int bounce = 0; bounce < 4; ++bounce) {
+      double slope = 0;
+      const double wall = wallRadius(z, &slope);
+      if (rr <= wall) break;
+      const double norm = std::sqrt(1 + slope * slope), nz = -slope / norm, nr = 1 / norm;
+      const double depth = (rr - wall) / norm;
+      z -= (1 + e) * depth * nz;
+      rr -= (1 + e) * depth * nr;
+      const double vn = uz * nz + ur * nr;
+      if (vn > 0) {
+        slot.wallImpulse += -(1 + e) * vn * nz * mass;
+        slot.wallLoss += 0.5 * mass * (1 - e * e) * vn * vn;
+        uz -= (1 + e) * vn * nz;
+        ur -= (1 + e) * vn * nr;
+      }
+      ++slot.wallHits;
+      if (rr < 0) { rr = -rr; ur = -ur; }
+    }
+    if (z >= span) {
+      slot.outMass += mass;
+      slot.outEnergy += mass * (h + 0.5 * (uz * uz + ur * ur + ut * ut));
+      slot.outMomentum += mass * uz;
+      slot.alive = false;
+      return;
+    }
+    p.z = z;
+    p.r = rr;
+    p.uz = uz;
+    p.ur = ur;
+    p.ut = ut;
+    p.cell = locate(p.z, p.r);
+    if (p.cell < 0) {  // on a boundary to rounding (a corner): pulled just inside
+      p.z = std::clamp(p.z, 0.0, std::nextafter(span, 0.0));
+      p.r = std::min(p.r, wallRadius(p.z, nullptr) * (1 - 1e-12));
+      p.cell = locate(p.z, p.r);
+      if (p.cell < 0) throw std::runtime_error("Spray: a parcel left the domain through a wall.");
+    }
+    // Breakup, at the sub-step's end state inside the domain; it keeps every total of the liquid.
+    if (breakup.on) {
+      const double u = std::sqrt(sq(gas.uz - p.uz) + sq(gas.ur - p.ur) + sq(p.ut));
+      if (u > 0) {
+        const auto l = liquid_.at(p.t);
+        const double a = p.d / 2;
+        const auto w = waves(p.d, u, gas.rho, l.density, l.viscosity, l.tension, u / r1.tau, breakup.cRt);
+        const double stable = breakup.b0 * w.khLength;
+        const double tauKh = 3.726 * breakup.b1 * a / (w.khLength * w.khRate);
+        const double tauRt = breakup.cTau / w.rtRate;
+        const double length = p.injector >= 0 ? breakup.cBl * std::sqrt(l.density / gas.rho) * blobDiameter(p.injector) : 0;
+        if (p.distance >= length && w.rtLength < p.d && tauRt < tauKh) {
+          p.rtTime += step;
+          if (p.rtTime >= tauRt) {
+            const double ratio = std::pow(p.d / w.rtLength, 3);
+            p.count *= ratio;
+            p.shed /= ratio;
+            p.d = w.rtLength;
+            m = p.dropMass(l.density);
+            p.rtTime = 0;
+          }
+        } else {
+          p.rtTime = 0;
+          if (stable < a) {
+            const double aNew = stable + (a - stable) * std::exp(-step / tauKh);
+            const double mNew = l.density * pi / 6 * 8 * aNew * aNew * aNew;
+            p.shed += m - mNew;
+            m = mNew;
+            p.d = 2 * aNew;
+            if (p.shed >= breakup.shedFraction * (m + p.shed)) {
+              Parcel child = p;
+              child.d = 2 * stable;
+              child.count = p.count * p.shed / child.dropMass(l.density);
+              child.shed = 0;
+              child.random = next(p.random);
+              slot.children.push_back(child);
+              p.shed = 0;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// The opening's time integral from the valve's opening to t: the delivered mass is massFlow times it.
+namespace {
+double openedTime(const Spray::Injector& j, double t) {
+  if (t <= j.opens) return 0;
+  if (!(j.ramp > 0)) return t - j.opens;
+  const double x = t - j.opens;
+  return x < j.ramp ? x * x / (2 * j.ramp) : j.ramp / 2 + (x - j.ramp);
+}
+}  // namespace
+
+// The injectors deliver [t0, t1]'s liquid into their pending stores, and release a parcel every
+// 1 / parcelRate of open time, each carrying an equal share of what is pending.
+void Spray::release(double t0, double t1) {
+  ledger_.injectionThrust = 0;
+  for (std::size_t k = 0; k < settings_.injectors.size(); ++k) {
+    const auto& j = settings_.injectors[k];
+    auto& pend = pending_[k];
+    const auto l = liquid_.at(j.temperature);
+    const double area = pi * (sq(j.rOuter) - sq(j.rInner));
+    const double speed = j.velocity > 0 ? j.velocity : j.massFlow / (l.density * area);
+    const double specific = l.enthalpy + 0.5 * speed * speed;
+    const double delivered = j.massFlow * (openedTime(j, t1) - openedTime(j, t0));
+    const double cosMax = std::cos(j.coneHalfAngle);
+    // The injector's reaction, at the cone's mean axial speed (the parcels' own momentum is booked exactly).
+    ledger_.injectionThrust += j.massFlow * j.opening(t1) * speed * 0.5 * (1 + cosMax);
+    if (!(delivered > 0)) continue;
+    pend.mass += delivered;
+    pend.energy += delivered * specific;
+    ledger_.injectedMass += delivered;
+    ledger_.injectedEnergy += delivered * specific;
+    pend.time += t1 - t0;
+    const double interval = 1 / j.parcelRate;
+    const auto n = static_cast<long>(std::floor(pend.time / interval));
+    if (n <= 0) continue;
+    pend.time -= static_cast<double>(n) * interval;
+    const double share = pend.mass / static_cast<double>(n);
+    auto& random = injectorRandom_[k];
+    for (long c = 0; c < n; ++c) {
+      Parcel p;
+      p.injector = static_cast<int>(k);
+      p.t = j.temperature;
+      p.random = next(random);
+      if (j.size == Injector::Size::Blob) {
+        p.d = blobDiameter(static_cast<int>(k));
+      } else {
+        const double x = j.sauterDiameter * std::tgamma(1 - 1 / j.exponent);
+        const double top = -std::expm1(-std::pow(3 * j.sauterDiameter / x, j.exponent));
+        p.d = x * std::pow(-std::log1p(-uniform(random) * top), 1 / j.exponent);
+      }
+      if (j.size == Injector::Size::RosinRammler && j.coreLength > 0) {
+        p.z = j.z + uniform(random) * j.coreLength;
+        p.r = j.rOuter;
+      } else {
+        p.z = j.z;
+        p.r = std::sqrt(sq(j.rInner) + uniform(random) * (sq(j.rOuter) - sq(j.rInner)));
+      }
+      const double cosTheta = 1 - uniform(random) * (1 - cosMax), sinTheta = std::sqrt(1 - cosTheta * cosTheta);
+      const double phi = 2 * pi * uniform(random);
+      p.uz = speed * cosTheta;
+      p.ur = speed * sinTheta * std::cos(phi);
+      p.ut = speed * sinTheta * std::sin(phi);
+      p.count = share / p.dropMass(l.density);
+      p.cell = locate(p.z, p.r);
+      if (p.cell < 0) throw std::runtime_error("Spray: an injector releases outside the domain.");
+      const double mass = p.count * p.dropMass(l.density);
+      pend.mass -= mass;
+      pend.energy -= mass * specific;
+      ledger_.injectedMomentum += mass * p.uz;
+      ++ledger_.parcelsInjected;
+      parcels_.push_back(p);
+    }
+  }
+}
+
+void Spray::advance(double dt) {
+  if (!(dt > 0)) return;
+  const double t1 = flow_.time(), t0 = t1 - dt;
+  const auto ns = flow_.medium().size();
+  const double impulse = ledger_.wallImpulse;
+  if (!parcels_.empty()) {
+    if (work_.size() != static_cast<std::size_t>(flow_.threads())) {
+      work_.resize(static_cast<std::size_t>(flow_.threads()));
+      for (auto& w : work_) w.resize(4 * ns + 8);
+    }
+    gatherGas();
+    slots_.resize(parcels_.size());
+    if (settings_.implicitCoupling && settings_.twoWay) applyLoads(dt);
+    flow_.pool().blocks(parcels_.size(), 16, [&](std::size_t begin, std::size_t end, int worker) {
+      for (std::size_t i = begin; i < end; ++i) moveParcel(i, dt, worker);
+    });
+    std::fill(amounts_.begin(), amounts_.end(), 0.0);
+    std::vector<Parcel> kept;
+    kept.reserve(parcels_.size());
+    for (std::size_t i = 0; i < parcels_.size(); ++i) {
+      const auto& s = slots_[i];
+      for (const auto& d : s.deposits) {
+        double* a = amounts_.data() + static_cast<std::size_t>(d.cell) * (ns + 3);
+        a[oxygen_] += d.mass;
+        a[ns] += d.pz;
+        a[ns + 1] += d.pr;
+        a[ns + 2] += d.energy;
+        ledger_.exchangedMass += d.mass;
+        ledger_.exchangedMomentum += d.pz;
+        ledger_.exchangedEnergy += d.energy;
+      }
+      ledger_.wallImpulse += s.wallImpulse;
+      ledger_.wallLoss += s.wallLoss;
+      ledger_.droppedSwirl += s.swirl;
+      ledger_.outflowMass += s.outMass;
+      ledger_.outflowEnergy += s.outEnergy;
+      ledger_.outflowMomentum += s.outMomentum;
+      ledger_.substeps += s.substeps;
+      ledger_.wallHits += s.wallHits;
+      ledger_.flashes += s.flashes;
+      ledger_.vaporised += s.vaporised;
+      ledger_.clampedCondensation += s.clamped;
+      if (s.alive) kept.push_back(parcels_[i]);
+      for (const auto& c : s.children) {
+        kept.push_back(c);
+        ++ledger_.children;
+      }
+    }
+    parcels_.swap(kept);
+    if (settings_.twoWay) flow_.exchange(amounts_);
+  }
+  ledger_.wallThrust = (ledger_.wallImpulse - impulse) / dt;
+  release(t0, t1);
+}
+
+double Spray::nextEvent(double time) const {
+  double out = std::numeric_limits<double>::infinity();
+  for (const auto& j : settings_.injectors) {
+    if (j.opens > time) out = std::min(out, j.opens);
+    if (j.ramp > 0 && j.opens + j.ramp > time) out = std::min(out, j.opens + j.ramp);
+  }
+  return out;
+}
+
+double Spray::liquidMass() const {
+  double out = 0;
+  for (const auto& p : parcels_) out += p.count * (p.dropMass(liquid_.at(p.t).density) + p.shed);
+  for (const auto& q : pending_) out += q.mass;
+  return out;
+}
+double Spray::liquidEnergy() const {
+  double out = 0;
+  for (const auto& p : parcels_) {
+    const auto l = liquid_.at(p.t);
+    out += p.count * (p.dropMass(l.density) + p.shed) * (l.enthalpy + 0.5 * (sq(p.uz) + sq(p.ur) + sq(p.ut)));
+  }
+  for (const auto& q : pending_) out += q.energy;
+  return out;
+}
+double Spray::liquidMomentum() const {
+  double out = 0;
+  for (const auto& p : parcels_) out += p.count * (p.dropMass(liquid_.at(p.t).density) + p.shed) * p.uz;
+  return out;
+}
+std::array<double, 3> Spray::balanceErrors() const {
+  const auto& l = ledger_;
+  const double tiny = std::numeric_limits<double>::min();
+  const double mass = (liquidMass() - (l.injectedMass - l.exchangedMass - l.outflowMass)) / std::max(l.injectedMass, tiny);
+  const double energy = (liquidEnergy() - (l.injectedEnergy - l.exchangedEnergy - l.outflowEnergy - l.wallLoss)) /
+                        std::max(std::abs(l.injectedEnergy) + std::abs(l.exchangedEnergy) + std::abs(l.outflowEnergy) + l.wallLoss, tiny);
+  const double momentum = (liquidMomentum() - (l.injectedMomentum - l.exchangedMomentum - l.outflowMomentum + l.wallImpulse)) /
+                          std::max(std::abs(l.injectedMomentum) + std::abs(l.exchangedMomentum) + std::abs(l.outflowMomentum) + std::abs(l.wallImpulse), tiny);
+  return {mass, energy, momentum};
+}
+}  // namespace crucible
