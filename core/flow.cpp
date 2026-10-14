@@ -520,7 +520,7 @@ void Flow::resetAccounting() {
         initialMomentum_+=state_[q][1]*mesh_.cells[q].volume;
         initialEnergy_+=state_[q][3]*mesh_.cells[q].volume;
     }
-    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=clippedTurbulentEnergy_=prescribedTurbulentEnergy_=integratedCorrection_=0;
+    integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=heatCompensation_=clippedTurbulentEnergy_=prescribedTurbulentEnergy_=integratedCorrection_=0;
     exchangedMass_=exchangedEnergy_=exchangedMomentum_=0;
     lastRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
 }
@@ -1292,7 +1292,11 @@ void Flow::accept(double dt,double newTime,const Attempt& attempt) {
     state_.swap(next_);species_.swap(speciesNext_);turbulence_.swap(turbulenceNext_);
     time_=newTime;dt_=dt;++steps_;
     lastRates_=BoundaryRates::average(attempt.first,attempt.second);
-    integratedHeat_+=dt*lastRates_.heat;
+    {
+        const double term=dt*lastRates_.heat,sum=integratedHeat_+term;
+        heatCompensation_+=std::abs(integratedHeat_)>=std::abs(term)?(integratedHeat_-sum)+term:(term-sum)+integratedHeat_;
+        integratedHeat_=sum;
+    }
     clippedTurbulentEnergy_+=attempt.clipped;prescribedTurbulentEnergy_+=attempt.prescribed;
     integratedMassFlux_+=dt*lastRates_.mass;
     integratedEnergyFlux_+=dt*lastRates_.energy;
@@ -1369,7 +1373,7 @@ Measurements Flow::measurements() const {
     result.exitMach/=exitArea;
     if(definition_.experiment==Case::Chamber) {
         for(const auto& s:definition_.supplies) result.supplyMassFlow+=s.massFlow*s.opening(time_);
-        result.igniterPower=lastRates_.heat;result.igniterEnergy=integratedHeat_;
+        result.igniterPower=lastRates_.heat;result.igniterEnergy=deliveredHeat();
         double area=0;
         for(int j=0;j<mesh_.nr;++j) { double a=mesh_.axialArea(0,j);area+=a;result.injectorPressure+=a*cellPrimitive(mesh_.index(0,j)).p; }
         result.injectorPressure/=area;

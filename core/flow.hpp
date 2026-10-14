@@ -388,6 +388,10 @@ private:
     double integratedMassFlux_{}, integratedEnergyFlux_{}, initialMomentum_{};
     double integratedMomentumSource_{}, integratedMomentumGross_{}, integratedHeat_{}, clippedTurbulentEnergy_{};
     double prescribedTurbulentEnergy_{};
+    // The delivered igniter energy is integratedHeat_ plus heatCompensation_, a Neumaier compensated sum
+    // (docs/evidence/AMR.md, Before step C).
+    double heatCompensation_{};
+    [[nodiscard]] double deliveredHeat() const { return integratedHeat_+heatCompensation_; }
     // Chamber: supply index of each injector-face ring (-1: plate), each supply's ring area, the
     // igniter's cells and their total volume.
     std::vector<int> faceSupply_;

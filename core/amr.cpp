@@ -353,7 +353,7 @@ void Amr::save() {
     for(auto& v:levels_) {
         const Flow& f=*v.flow;auto& s=v.saved;
         s.state=f.state_;s.species=f.species_;s.turbulence=f.turbulence_;s.temperature=f.temperature_;
-        s.time=f.time_;s.dt=f.dt_;s.heat=f.integratedHeat_;s.mass=f.integratedMassFlux_;s.energy=f.integratedEnergyFlux_;
+        s.time=f.time_;s.dt=f.dt_;s.heat=f.integratedHeat_;s.heatCompensation=f.heatCompensation_;s.mass=f.integratedMassFlux_;s.energy=f.integratedEnergyFlux_;
         s.correction=f.integratedCorrection_;s.momentum=f.integratedMomentumSource_;s.gross=f.integratedMomentumGross_;
         s.clipped=f.clippedTurbulentEnergy_;s.prescribed=f.prescribedTurbulentEnergy_;s.steps=f.steps_;
     }
@@ -362,7 +362,7 @@ void Amr::restore() {
     for(auto& v:levels_) {
         Flow& f=*v.flow;const auto& s=v.saved;
         f.state_=s.state;f.species_=s.species;f.turbulence_=s.turbulence;f.temperature_=s.temperature;
-        f.time_=s.time;f.dt_=s.dt;f.integratedHeat_=s.heat;f.integratedMassFlux_=s.mass;f.integratedEnergyFlux_=s.energy;
+        f.time_=s.time;f.dt_=s.dt;f.integratedHeat_=s.heat;f.heatCompensation_=s.heatCompensation;f.integratedMassFlux_=s.mass;f.integratedEnergyFlux_=s.energy;
         f.integratedCorrection_=s.correction;f.integratedMomentumSource_=s.momentum;f.integratedMomentumGross_=s.gross;
         f.clippedTurbulentEnergy_=s.clipped;f.prescribedTurbulentEnergy_=s.prescribed;f.steps_=s.steps;
     }
@@ -384,7 +384,7 @@ Amr::Budget Amr::budget() const {
         c.massResidual-=f.integratedMassFlux_+f.exchangedMass_;
         c.energyResidual-=f.integratedEnergyFlux_+f.integratedCorrection_+f.exchangedEnergy_;
         c.momentumResidual-=f.integratedMomentumSource_+f.exchangedMomentum_;
-        c.momentumGross+=f.integratedMomentumGross_;c.igniterEnergy+=f.integratedHeat_;
+        c.momentumGross+=f.integratedMomentumGross_;c.igniterEnergy+=f.deliveredHeat();
     }
     return c;
 }

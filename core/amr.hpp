@@ -68,7 +68,7 @@ private:
     struct Saved {
         std::vector<Conserved> state;
         std::vector<double> species, turbulence, temperature;
-        double time{}, dt{}, heat{}, mass{}, energy{}, correction{}, momentum{}, gross{}, clipped{}, prescribed{};
+        double time{}, dt{}, heat{}, heatCompensation{}, mass{}, energy{}, correction{}, momentum{}, gross{}, clipped{}, prescribed{};
         std::uint64_t steps{};
     };
     struct Level {
