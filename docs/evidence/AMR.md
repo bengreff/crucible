@@ -1,6 +1,6 @@
 # Adaptive resolution (TECHNICAL_PLAN *Lightweight engine*, order of work item 5)
 
-Status (13 October 2026, 23:21 CDT): step A implemented, results below. 0(a), 0(b) and 0(c) are met; 0(d) is not met as written, with the decision recorded. Steps B to E are not started. The design and criteria were committed at 22:34 CDT by author time, before any AMR code; this line said "about 22:45" until 22:36.
+Status (13 October 2026, 23:59 CDT): step A implemented, results below. 0(a), 0(b) and 0(c) are met; 0(d) is not met as written, with the decision recorded. Step B is under way in two parts (*Deviations*), with the readings of criteria 1 and 3 recorded before their tests (*Step B1*); steps C to E are not started. The design and criteria were committed at 22:34 CDT by author time, before any AMR code; this line said "about 22:45" until 22:36.
 
 The plan chose block-structured AMR in the logical (i, j) index space of the body-fitted mapping: refinement ratio 2 in space and time, time-accurate subcycling, conservative averaging with refluxing (Berger and Colella, J. Comput. Phys. 82, 1989), and geometry taken from the finest level. It stated four criteria. This record turns that choice into a data layout, a step, tags and numbers, and adds three criteria of its own (the geometry refactor's identity, cost and determinism, and the RL10 measurement the decision rule needs).
 
@@ -170,10 +170,51 @@ Each level keeps the engine's rule: every cell and face is computed alone, and e
   - **Decision (13 October, 22:56 CDT).** No change to the arithmetic in step A, because 0(a) requires the same bits. 0(d) stays recorded as not met. Criterion 1 measures the consequence directly and is unchanged. If criterion 1 fails on this, the fix is already known: cancellation-free forms, -pi f^2 (R0 + R1)(R1 - R0) for the radial z component and pi R^2 (f_{j+1} - f_j)(f_{j+1} + f_j) for a stretched axial face. That fix would be a separate commit, checked against 0(d) with the same denominator.
 - **Printed beside, not judged.** Level 0 coarsened from level 3 against the 150 x 16 mesh built directly: the largest cell-volume difference is 2.1% and the largest side-wall face-area difference 0.74%. These are the chords' error on the throat arc, which the polyline removes. The throat station's area is identical, because both meshes place a station on the throat.
 
+## Step B1: how criteria 1 and 3 are run (recorded 13 October, 23:59 CDT, before any test code)
+
+I wrote these readings before the tests, so they cannot follow the results. The tests are `tests/amr_subcycling_tests.cpp` (ctest `amr_subcycling_verification`).
+
+- **1(a).** The setup:
+  - **Case.** The RL10 development wall (as 0(d)) as a Chamber: base 150 x 16 at stretching 1.7347, with levels 1 and 2 (the finest, 600 x 64, built directly).
+  - **Gas.** Perfect gas (gamma 1.4, R 287.05 J/kg K), inviscid, so every wall is a slip wall.
+  - **Fill and outlet.** 1 MPa, 300 K, at rest; outlet relaxation 0.
+  - **Supplies.** Two supplies, an inner core and an outer annulus, whose valves open at 1 s, after the run. The injector face therefore runs its supply-face path at zero flow beside the plate.
+  - **The pattern.** Level 1 covers the base's top four rows in every column (the wall strip from the injector face to the outlet), and every row of the 20 base columns centred on the throat (the narrowest station). Level 2 covers level 1's top six rows in every column, and every row of the 36 level-1 columns centred on the same throat.
+  - **Judged.** After 1,000 base steps: the largest |u| / a0 and |p / p0 - 1| over each level's active cells (on level 0, all cells).
+  - **Printed beside.** The base's mesh alone and the finest mesh alone, 1,000 of their own steps each.
+- **1(b).** The setup:
+  - **Case.** A cylinder of radius 0.035 m and length 0.6 m: base 400 x 8 at stretching 1.7347, transmissive ends, slip wall.
+  - **Flow.** Uniform axial flow at Mach 0.3, 1 bar, 300 K.
+  - **The pattern.** Level 1 covers base columns 150 to 249 and base rows 2 to 5. Level 2 covers base columns 170 to 229 and base rows 3 to 4. Both levels therefore have coarse-fine faces in both directions, on stretched rings.
+  - **Judged.** After 400 base steps: |u - u0| / a0 (both components) and |p / p0 - 1|, over the cells farther than (u0 + a0) t from the inlet and (a0 - u0) t from the outlet.
+  - **Printed beside.** The whole domain.
+- **3(a): an amendment and two readings.**
+  - **The amendment.** A Gaussian with a half-width of 8 base cells cannot start inside a 64-column mesh's left third (21 columns) or end inside its right third. Read as half the width at half maximum, the half-width leaves the tail above 1e-3 of the peak over ±25 columns; even the narrowest reading (the e-folding half-width) leaves it above 1e-3 over ±21. The pulse would lie across both interfaces and both ends from the start, so neither "crossing" nor "where the pulse came from" would mean anything. The amendment keeps the pulse (Gaussian, amplitude 1e-3 p0, half-width at half maximum 8 cells of the coarsest base) and the three resolutions, and makes the cylinder three times as long. The base meshes become 192, 384 and 768 columns, with thirds of 64, 128 and 256. The pulse starts at the middle of the left third, where its tail at the third's ends is 2^-16 = 1.5e-5 of the peak.
+  - **Reading 1: the width is fixed in length.** It is 8 cells of the coarsest base, and so 16 and 32 cells on the finer bases, as convergence requires.
+  - **Reading 2: each run has its own uniform finest mesh.** "The uniform finest mesh" is the uniform mesh at the run's finest level's resolution: 384, 768 and 1,536 columns.
+    - **The error** is the L1 norm of the density at the base's resolution: the uniform run averaged onto the base cells against the AMR run's composite, taken through its average-down.
+    - **When.** The time at which the pulse's centre reaches the middle of the right third, 2L / (3 a0) after the start.
+    - **Judged** on both pairs of successive meshes.
+    - **Why.** A single common reference (the finest of the three) would carry its own error into the coarser comparisons and inflate the observed order. Each run's own uniform finest gives a difference of order h^2 if the coarse-fine interface is second order, and of order h if it is not, which is what the criterion tests.
+  - **The pulse** is a simple wave moving toward the outlet. It is isentropic, with the incoming Riemann invariant u - 2a / (gamma - 1) exactly constant. A linear pulse would carry a left-moving part of order A^2 / p0 = 1e-3 A, the size of the bound. The initial values are cell averages by 6-point Gauss quadrature in z, on every level and on the uniform runs, so the composite starts consistent.
+  - **The reflection.** The largest |p - p_N| over the left third's base cells, divided by A, where p_N is the uniform base run's pressure.
+    - **When.** At 300 equal output times from the start to L / a0. By then the reflection of the second crossing has reached the middle of the left third, and the outlet's reflection of the pulse is still five sixths of the length away from it.
+    - **Why it isolates the reflection.** Both runs carry the incident pulse identically there, so the difference is what came back from the interfaces.
+    - **Judged** on 768 columns (below 1e-3), and as falling over both pairs.
+  - **Gas and mesh.** Perfect gas at 1 bar and 300 K, at rest. Radius 0.035 m, length 1.8 m, 2 base rows, slip wall, transmissive ends. Level 1 covers the middle third, all rows.
+- **3(b).** The setup:
+  - **Case.** The shock tube (Sod, as core_tests: the diaphragm at the middle, length 1, 2 rows) on 64, 128 and 256 columns, level 1 over the middle third, run to t = 0.25. The shock is then at 0.938 and the contact at 0.732, both past the interface at 2/3. The rarefaction's head is at 0.204, past the other interface.
+  - **The L1 error** is the density's against the exact solution at the cell centres, on the composite (the finest level covering each place). The order is judged on both pairs.
+  - **The shock's place** is where the density crosses the middle of its two exact states, interpolated between centres.
+  - **Reading.** "Behind it, upstream of the interface" is read as the coarse cells between the coarse-fine interface and 5 base cells behind the shock. They hold the post-shock gas the crossing could disturb. The contact lies inside this stretch, where the pressure is continuous. The other reading (the fine cells from the rarefaction's tail to the interface) is printed beside, not judged.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.
 - **The restricted loops move from step A to step B** (decided 13 October, after the step A geometry). Which loops must also cover the ghost cells (refresh, slopes, profiles, gradients, wall solves) and which cover only the active cells (gather, sources, admissibility) is fixed by step B's ghost handling. Writing the interval loops before that would fix the wrong shape. They carry step A's check: a single level with everything active must give the same bits.
+- **Step B in two parts** (decided 13 October, 23:37 CDT, before any step B code).
+  - **B1.** Every level's kernels run over the whole level. Before each stage the driver fills *every* cell of level l that is not active from level l-1, not only the ghosts. The active cells then see exactly what width-2 ghosts would give them, plus filled values further out that no active stencil reads. B1 is inviscid only: the driver refuses transport and turbulence until the viscous and correction registers exist. Criteria 1 and 3(a), 3(b) are judged on B1.
+  - **B2.** The restricted interval loops, with real ghost and off cells. Checked bit for bit against B1 on the active cells, then 3(c), which in B1 would hold trivially (every width fills everything). B2 comes before criterion 5(a), the cost.
 - **Three new criteria (0, 5, 6).** They do not relax the plan's four (here 1 to 4); they record the refactor's safety, the cost the budget assumed, and the measurement the decision rule needs.
 
 ## Literature
