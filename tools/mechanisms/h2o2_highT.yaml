@@ -1,0 +1,591 @@
+description: 'h2o2.yaml (Cantera) with NASA TM-4513 NASA-7 thermo to 6,000 K for every species; written by tools/mechanisms/make_h2o2_highT.py.
+
+  Hydrogen-Oxygen submechanism extracted from GRI-Mech 3.0.
+
+  Modified from the original to include N2.
+
+
+  Redlich-Kwong coefficients are based on tabulated critical properties or
+
+  estimated according to the method of Joback and Reid, "Estimation of pure-
+
+  component properties from group-contributions," Chem. Eng. Comm. 57 (1987)
+
+  233-243'
+units:
+  length: cm
+  time: s
+  quantity: mol
+  activation-energy: cal/mol
+phases:
+- name: ohmech
+  thermo: ideal-gas
+  elements:
+  - O
+  - H
+  - Ar
+  - N
+  species:
+  - H2
+  - H
+  - O
+  - O2
+  - OH
+  - H2O
+  - HO2
+  - H2O2
+  - AR
+  - N2
+  kinetics: gas
+  transport: mixture-averaged
+  state:
+    T: 300.0
+    P: 1 atm
+species:
+- name: H2
+  composition:
+    H: 2
+  thermo:
+    model: NASA7
+    temperature-ranges:
+    - 200.0
+    - 1000.0
+    - 6000.0
+    data:
+    - - 2.34433112
+      - 0.00798052075
+      - -1.9478151e-05
+      - 2.01572094e-08
+      - -7.37611761e-12
+      - -917.935173
+      - 0.683010238
+    - - 2.93286579
+      - 0.000826607967
+      - -1.46402335e-07
+      - 1.54100359e-11
+      - -6.88804432e-16
+      - -813.065597
+      - -1.02432887
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source TPIS78
+  transport:
+    model: gas
+    geometry: linear
+    well-depth: 38.0
+    diameter: 2.92
+    polarizability: 0.79
+    rotational-relaxation: 280.0
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 143319000000.0
+    b: 18.42802577
+- name: H
+  composition:
+    H: 1
+  thermo:
+    model: NASA7
+    temperature-ranges:
+    - 200.0
+    - 1000.0
+    - 6000.0
+    data:
+    - - 2.5
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 25473.6599
+      - -0.446682853
+    - - 2.50000286
+      - -5.65334214e-09
+      - 3.63251723e-12
+      - -9.1994972e-16
+      - 7.95260746e-20
+      - 25473.6589
+      - -0.446698494
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 5/93
+  transport:
+    model: gas
+    geometry: atom
+    well-depth: 145.0
+    diameter: 2.05
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 132125000000.0
+    b: 17.63395812
+- name: O
+  composition:
+    O: 1
+  thermo:
+    model: NASA7
+    temperature-ranges:
+    - 200.0
+    - 1000.0
+    - 6000.0
+    data:
+    - - 3.1682671
+      - -0.00327931884
+      - 6.64306396e-06
+      - -6.12806624e-09
+      - 2.11265971e-12
+      - 29122.2592
+      - 2.05193346
+    - - 2.54363697
+      - -2.73162486e-05
+      - -4.1902952e-09
+      - 4.95481845e-12
+      - -4.79553694e-16
+      - 29226.012
+      - 4.92229457
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 1/90
+  transport:
+    model: gas
+    geometry: atom
+    well-depth: 80.0
+    diameter: 2.75
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 474173000000.0
+    b: 10.69952492
+- name: O2
+  composition:
+    O: 2
+  thermo:
+    model: NASA7
+    temperature-ranges:
+    - 200.0
+    - 1000.0
+    - 6000.0
+    data:
+    - - 3.78245636
+      - -0.00299673415
+      - 9.847302e-06
+      - -9.68129508e-09
+      - 3.24372836e-12
+      - -1063.94356
+      - 3.65767573
+    - - 3.66096083
+      - 0.000656365523
+      - -1.41149485e-07
+      - 2.05797658e-11
+      - -1.29913248e-15
+      - -1215.97725
+      - 3.41536184
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source TPIS89
+  transport:
+    model: gas
+    geometry: linear
+    well-depth: 107.4
+    diameter: 3.458
+    polarizability: 1.6
+    rotational-relaxation: 3.8
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 1741020000000.0
+    b: 22.08100907
+- name: OH
+  composition:
+    O: 1
+    H: 1
+  thermo:
+    model: NASA7
+    temperature-ranges:
+    - 200.0
+    - 1000.0
+    - 6000.0
+    data:
+    - - 3.99201543
+      - -0.00240131752
+      - 4.61793841e-06
+      - -3.88113333e-09
+      - 1.3641147e-12
+      - 3615.08056
+      - -0.103925458
+    - - 2.83864607
+      - 0.00110725586
+      - -2.93914978e-07
+      - 4.20524247e-11
+      - -2.42169092e-15
+      - 3943.95852
+      - 5.84452662
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source TPIS78
+  transport:
+    model: gas
+    geometry: linear
+    well-depth: 80.0
+    diameter: 2.75
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 477552000000.0
+    b: 10.72986231
+- name: H2O
+  composition:
+    H: 2
+    O: 1
+  thermo:
+    model: NASA7
+    temperature-ranges:
+    - 200.0
+    - 1000.0
+    - 6000.0
+    data:
+    - - 4.19864056
+      - -0.0020364341
+      - 6.52040211e-06
+      - -5.48797062e-09
+      - 1.77197817e-12
+      - -30293.7267
+      - -0.849032208
+    - - 2.67703787
+      - 0.00297318329
+      - -7.7376969e-07
+      - 9.44336689e-11
+      - -4.26900959e-15
+      - -29885.8938
+      - 6.88255571
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 8/89
+  transport:
+    model: gas
+    geometry: nonlinear
+    well-depth: 572.4
+    diameter: 2.605
+    dipole: 1.844
+    rotational-relaxation: 4.0
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 14267400000000.0
+    b: 21.12705912
+- name: HO2
+  composition:
+    H: 1
+    O: 2
+  thermo:
+    model: NASA7
+    temperature-ranges:
+    - 200.0
+    - 1000.0
+    - 6000.0
+    data:
+    - - 4.30179801
+      - -0.00474912051
+      - 2.11582891e-05
+      - -2.42763894e-08
+      - 9.29225124e-12
+      - 294.80804
+      - 3.71666245
+    - - 4.17228728
+      - 0.00188117647
+      - -3.46277408e-07
+      - 1.94657853e-11
+      - 1.76254294e-16
+      - 61.8102964
+      - 2.95767746
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 5/89
+  transport:
+    model: gas
+    geometry: nonlinear
+    well-depth: 107.4
+    diameter: 3.458
+    rotational-relaxation: 1.0
+    note: '*'
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 1466520000000.0
+    b: 21.27344867
+- name: H2O2
+  composition:
+    H: 2
+    O: 2
+  thermo:
+    model: NASA7
+    temperature-ranges:
+    - 200.0
+    - 1000.0
+    - 6000.0
+    data:
+    - - 4.27611269
+      - -0.000542822417
+      - 1.67335701e-05
+      - -2.15770813e-08
+      - 8.62454363e-12
+      - -17754.2989
+      - 3.43505074
+    - - 4.57333537
+      - 0.0040498407
+      - -1.29479479e-06
+      - 1.9728171e-10
+      - -1.13402846e-14
+      - -18054.8121
+      - 0.704278488
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 2/93
+  transport:
+    model: gas
+    geometry: nonlinear
+    well-depth: 107.4
+    diameter: 3.458
+    rotational-relaxation: 3.8
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 1466520000000.0
+    b: 21.27344867
+- name: AR
+  composition:
+    Ar: 1
+  thermo:
+    model: NASA7
+    temperature-ranges:
+    - 200.0
+    - 1000.0
+    - 6000.0
+    data:
+    - - 2.5
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - -745.375
+      - 4.37967491
+    - - 2.5
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - -745.375
+      - 4.37967491
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 6/88
+  transport:
+    model: gas
+    geometry: atom
+    well-depth: 136.5
+    diameter: 3.33
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 1694660000000.0
+    b: 22.30627035
+- name: N2
+  composition:
+    N: 2
+  thermo:
+    model: NASA7
+    temperature-ranges:
+    - 200.0
+    - 1000.0
+    - 6000.0
+    data:
+    - - 3.53100528
+      - -0.000123660987
+      - -5.02999437e-07
+      - 2.43530612e-09
+      - -1.40881235e-12
+      - -1046.97628
+      - 2.96747468
+    - - 2.95257626
+      - 0.00139690057
+      - -4.92631691e-07
+      - 7.86010367e-11
+      - -4.60755321e-15
+      - -923.948645
+      - 5.87189252
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source TPIS78
+  transport:
+    model: gas
+    geometry: linear
+    well-depth: 97.53
+    diameter: 3.621
+    polarizability: 1.76
+    rotational-relaxation: 4.0
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 1559760000000.0
+    b: 26.81724983
+reactions:
+- equation: 2 O + M <=> O2 + M
+  type: three-body
+  rate-constant:
+    A: 1.2e+17
+    b: -1.0
+    Ea: 0.0
+  efficiencies:
+    H2: 2.4
+    H2O: 15.4
+    AR: 0.83
+- equation: O + H + M <=> OH + M
+  type: three-body
+  rate-constant:
+    A: 5.0e+17
+    b: -1.0
+    Ea: 0.0
+  efficiencies:
+    H2: 2.0
+    H2O: 6.0
+    AR: 0.7
+- equation: O + H2 <=> H + OH
+  rate-constant:
+    A: 38700.0
+    b: 2.7
+    Ea: 6260.0
+- equation: O + HO2 <=> OH + O2
+  rate-constant:
+    A: 20000000000000.0
+    b: 0.0
+    Ea: 0.0
+- equation: O + H2O2 <=> OH + HO2
+  rate-constant:
+    A: 9630000.0
+    b: 2.0
+    Ea: 4000.0
+- equation: H + O2 + M <=> HO2 + M
+  type: three-body
+  rate-constant:
+    A: 2.8e+18
+    b: -0.86
+    Ea: 0.0
+  efficiencies:
+    O2: 0.0
+    H2O: 0.0
+    N2: 0.0
+    AR: 0.0
+- equation: H + 2 O2 <=> HO2 + O2
+  rate-constant:
+    A: 2.08e+19
+    b: -1.24
+    Ea: 0.0
+- equation: H + O2 + H2O <=> HO2 + H2O
+  rate-constant:
+    A: 1.126e+19
+    b: -0.76
+    Ea: 0.0
+- equation: H + O2 + N2 <=> HO2 + N2
+  rate-constant:
+    A: 2.6e+19
+    b: -1.24
+    Ea: 0.0
+- equation: H + O2 + AR <=> HO2 + AR
+  rate-constant:
+    A: 7.0e+17
+    b: -0.8
+    Ea: 0.0
+- equation: H + O2 <=> O + OH
+  rate-constant:
+    A: 2.65e+16
+    b: -0.6707
+    Ea: 17041.0
+- equation: 2 H + M <=> H2 + M
+  type: three-body
+  rate-constant:
+    A: 1.0e+18
+    b: -1.0
+    Ea: 0.0
+  efficiencies:
+    H2: 0.0
+    H2O: 0.0
+    AR: 0.63
+- equation: 2 H + H2 <=> 2 H2
+  rate-constant:
+    A: 9.0e+16
+    b: -0.6
+    Ea: 0.0
+- equation: 2 H + H2O <=> H2 + H2O
+  rate-constant:
+    A: 6.0e+19
+    b: -1.25
+    Ea: 0.0
+- equation: H + OH + M <=> H2O + M
+  type: three-body
+  rate-constant:
+    A: 2.2e+22
+    b: -2.0
+    Ea: 0.0
+  efficiencies:
+    H2: 0.73
+    H2O: 3.65
+    AR: 0.38
+- equation: H + HO2 <=> O + H2O
+  rate-constant:
+    A: 3970000000000.0
+    b: 0.0
+    Ea: 671.0
+- equation: H + HO2 <=> O2 + H2
+  rate-constant:
+    A: 44800000000000.0
+    b: 0.0
+    Ea: 1068.0
+- equation: H + HO2 <=> 2 OH
+  rate-constant:
+    A: 84000000000000.0
+    b: 0.0
+    Ea: 635.0
+- equation: H + H2O2 <=> HO2 + H2
+  rate-constant:
+    A: 12100000.0
+    b: 2.0
+    Ea: 5200.0
+- equation: H + H2O2 <=> OH + H2O
+  rate-constant:
+    A: 10000000000000.0
+    b: 0.0
+    Ea: 3600.0
+- equation: OH + H2 <=> H + H2O
+  rate-constant:
+    A: 216000000.0
+    b: 1.51
+    Ea: 3430.0
+- equation: 2 OH (+M) <=> H2O2 (+M)
+  type: falloff
+  low-P-rate-constant:
+    A: 2.3e+18
+    b: -0.9
+    Ea: -1700.0
+  high-P-rate-constant:
+    A: 74000000000000.0
+    b: -0.37
+    Ea: 0.0
+  Troe:
+    A: 0.7346
+    T3: 94.0
+    T1: 1756.0
+    T2: 5182.0
+  efficiencies:
+    H2: 2.0
+    H2O: 6.0
+    AR: 0.7
+- equation: 2 OH <=> O + H2O
+  rate-constant:
+    A: 35700.0
+    b: 2.4
+    Ea: -2110.0
+- equation: OH + HO2 <=> O2 + H2O
+  duplicate: true
+  rate-constant:
+    A: 14500000000000.0
+    b: 0.0
+    Ea: -500.0
+- equation: OH + H2O2 <=> HO2 + H2O
+  duplicate: true
+  rate-constant:
+    A: 2000000000000.0
+    b: 0.0
+    Ea: 427.0
+- equation: OH + H2O2 <=> HO2 + H2O
+  duplicate: true
+  rate-constant:
+    A: 1.7e+18
+    b: 0.0
+    Ea: 29410.0
+- equation: 2 HO2 <=> O2 + H2O2
+  duplicate: true
+  rate-constant:
+    A: 130000000000.0
+    b: 0.0
+    Ea: -1630.0
+- equation: 2 HO2 <=> O2 + H2O2
+  duplicate: true
+  rate-constant:
+    A: 420000000000000.0
+    b: 0.0
+    Ea: 12000.0
+- equation: OH + HO2 <=> O2 + H2O
+  duplicate: true
+  rate-constant:
+    A: 5000000000000000.0
+    b: 0.0
+    Ea: 17330.0
