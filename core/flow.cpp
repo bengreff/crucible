@@ -456,6 +456,47 @@ void Flow::setThreads(int threads) {
     transportScratch_.assign(n,TransportScratch{{},std::vector<double>(ns_),std::vector<double>(ns_),std::vector<double>(ns_),{}});
     workerOk_.assign(n,1);workerDt_.assign(n,0.0);workerLimit_.assign(n,{});
 }
+void Flow::setBudgetProbe(std::vector<std::size_t> cells,std::vector<double> weights) {
+    if(!active_.empty()) throw std::logic_error("Flow::setBudgetProbe: single level only.");
+    if(weights.size()!=ns_) throw std::invalid_argument("Flow::setBudgetProbe: one weight per species.");
+    for(std::size_t q:cells) if(q>=state_.size()) throw std::out_of_range("Flow::setBudgetProbe: no such cell.");
+    probe_.cells=std::move(cells);probe_.weights=std::move(weights);
+    probe_.sums.assign(probe_.cells.size()*kProbeStride,0.0);
+    probeStage_.assign(probe_.sums.size(),0.0);probeAttempt_.assign(probe_.sums.size(),0.0);
+}
+// The probe cells' convective face terms and sources of the current right-hand side, with gather's
+// faces, signs and supply composition.
+void Flow::probeConvective() {
+    const auto& m=mesh_;const auto& d=definition_;
+    std::fill(probeStage_.begin(),probeStage_.end(),0.0);
+    auto tracked=[&](const double* t) { double s=0;for(std::size_t k=0;k<ns_;++k) s+=probe_.weights[k]*t[k];return s; };
+    for(std::size_t c=0;c<probe_.cells.size();++c) {
+        const std::size_t q=probe_.cells[c];
+        const int i=static_cast<int>(q/m.nr),j=static_cast<int>(q%m.nr);
+        const std::size_t a0=q,a1=q+m.nr,r0=static_cast<std::size_t>(i)*(m.nr+1)+j,r1=r0+1;
+        double* out=probeStage_.data()+c*kProbeStride;
+        auto put=[&](int face,double sign,double area,const Conserved& flux,double moved) {
+            double* o=out+face*kFaceTerms;
+            o[kInviscidMass]=sign*area*flux[0];o[kInviscidEnergy]=sign*area*flux[3];o[kInviscidTracked]=sign*moved;
+        };
+        const bool injector=i==0 && d.experiment==Case::Chamber;
+        const int supply=injector?faceSupply_[j]:-1;
+        double moved=0;
+        if(supply>=0) for(std::size_t k=0;k<ns_;++k) moved+=probe_.weights[k]*axialArea_[a0]*axialFlux_[a0][0]*d.supplies[supply].composition[k];
+        else if(!injector) moved=tracked(&axialTransported_[a0*nw_]);
+        put(0,1,axialArea_[a0],axialFlux_[a0],moved);
+        put(1,-1,axialArea_[a1],axialFlux_[a1],tracked(&axialTransported_[a1*nw_]));
+        if(j>0) put(2,1,radialArea_[r0],radialFlux_[r0],tracked(&radialTransported_[r0*nw_]));
+        put(3,-1,radialArea_[r1],radialFlux_[r1],tracked(&radialTransported_[r1*nw_]));
+        double* source=out+4*kFaceTerms;
+        if(igniterPower_>0 && igniterCell_[q]) source[kIgniter]=igniterPower_*igniterCellVolume_[q]/igniterVolume_;
+        if(!heating_.empty()) source[kHeating]=heating_[q]*m.cells[q].volume;
+        if(!bodyForce_.empty()) {
+            const auto& f=bodyForce_[q];
+            source[kBodyWork]=(f[0]*primitives_[q].uz+f[1]*primitives_[q].ur)*m.cells[q].volume;
+        }
+    }
+}
 template<class F> bool Flow::allOf(const std::vector<std::size_t>* list,F f) {
     std::fill(workerOk_.begin(),workerOk_.end(),char{1});
     eachCell(list,[&](std::size_t q,int worker) { if(!f(q)) workerOk_[worker]=0; });
@@ -605,6 +646,12 @@ void Flow::exchange(const std::vector<double>& amounts) {
         state_[q][0]+=mass/v;state_[q][1]+=a[ns_]/v;state_[q][2]+=a[ns_+1]/v;state_[q][3]+=a[ns_+2]/v;
         exchangedMass_+=mass;exchangedMomentum_+=a[ns_];exchangedEnergy_+=a[ns_+2];
         integratedMomentumGross_+=std::abs(a[ns_]);
+        for(std::size_t c=0;c<probe_.cells.size();++c) {
+            if(probe_.cells[c]!=q) continue;
+            double* source=probe_.sums.data()+c*kProbeStride+4*kFaceTerms;
+            source[kExchangedMass]+=mass;source[kExchangedEnergy]+=a[ns_+2];
+            for(std::size_t k=0;k<ns_;++k) source[kExchangedTracked]+=probe_.weights[k]*a[k];
+        }
         if(!admissible(state_[q],species_.data()+q*ns_,nt_?turbulence_.data()+q*nt_:nullptr))
             throw std::runtime_error("Flow::exchange left a cell non-admissible.");
     }
@@ -1114,6 +1161,7 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
         for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]=prescribed[q]?0.0:turbulenceDerivative[q*nt_+k]/m.cells[q].volume;
     };
     eachCell(region(0),[&](std::size_t q,int) { gather(q,derivative,speciesDerivative,turbulenceDerivative);if(!transport) finish(q); });
+    if(!probe_.cells.empty()) probeConvective();
     // Boundary exchange rates: the igniter (constant power over the step, set by step()), the inlet
     // and outlet faces, the side wall, and the volumetric forces (e.g. a Lorentz force), whose axial
     // integral is rates.bodyAxial, reacting on the equipment (coils) in deviceThrust, and whose work
@@ -1236,6 +1284,7 @@ bool Flow::firstStage(double dt,Attempt& attempt) {
     }
     attempt.first=rhs(state_,species_,turbulence_,rhs_,speciesRhs_,turbulenceRhs_,time_);
     if(recordFaces_) recordFaceIntegrals(0.5*dt);
+    for(std::size_t n=0;n<probeStage_.size();++n) probeAttempt_[n]=0.5*dt*probeStage_[n];
     // A cell that is not active keeps its value through both stages; B2 keeps only the filled ones, the
     // others (off cells) having been set to their state when the regions were set.
     const auto keep=[&](std::size_t q) {
@@ -1261,6 +1310,7 @@ bool Flow::secondStage(double dt,Attempt& attempt) {
     if(!prescribe(stage_,speciesStage_,turbulenceStage_,attempt)) return false;
     attempt.second=rhs(stage_,speciesStage_,turbulenceStage_,rhs_,speciesRhs_,turbulenceRhs_,time_+dt);
     if(recordFaces_) recordFaceIntegrals(0.5*dt);
+    for(std::size_t n=0;n<probeStage_.size();++n) probeAttempt_[n]+=0.5*dt*probeStage_[n];
     const auto keep=[&](std::size_t q) {
         next_[q]=stage_[q];
         std::copy_n(speciesStage_.begin()+static_cast<std::ptrdiff_t>(q*ns_),ns_,speciesNext_.begin()+static_cast<std::ptrdiff_t>(q*ns_));
@@ -1291,6 +1341,7 @@ bool Flow::secondStage(double dt,Attempt& attempt) {
 void Flow::accept(double dt,double newTime,const Attempt& attempt) {
     state_.swap(next_);species_.swap(speciesNext_);turbulence_.swap(turbulenceNext_);
     time_=newTime;dt_=dt;++steps_;
+    for(std::size_t n=0;n<probeAttempt_.size();++n) probe_.sums[n]+=probeAttempt_[n];
     lastRates_=BoundaryRates::average(attempt.first,attempt.second);
     {
         const double term=dt*lastRates_.heat,sum=integratedHeat_+term;

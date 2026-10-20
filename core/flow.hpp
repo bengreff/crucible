@@ -330,8 +330,38 @@ public:
     // Face of a supply delivering mass flux g [kg/(m^2 s)] against the interior face state inside
     // (composition yInside, mass fractions); g = 0 is a closed valve.
     [[nodiscard]] SupplyFace supplyFace(const Supply& supply, double g, const Primitive& inside, const double* yInside) const;
+    // A read-only budget probe (docs/evidence/COST.md, lever 3; single level). For each listed cell, the
+    // integrals over the accepted steps, since setBudgetProbe, of what entered it through each of its
+    // faces by mechanism, and of its sources. Faces: 0 the axial face at its low z (the injector plate or
+    // a supply ring in the first column of a chamber), 1 the one at its high z, 2 the radial face below
+    // it (zero at the axis), 3 the one above it. Per face, as gains of the cell in kg, J and kg of the
+    // tracked combination sum_k weights[k] rho Y_k (e.g. the hydrogen element): the convective mass,
+    // total energy and tracked fluxes; the viscous work, the molecular and turbulent conduction, the
+    // diffusion of k (part of E), the species-enthalpy diffusion sum_k h_k j_k and the tracked diffusion
+    // sum_k w_k j_k, each split into its molecular part and its turbulent part (each with its share of
+    // the correction flux); and, as the cells used them, the viscous energy flux (the parts' sum to
+    // rounding) and the tracked diffusion. A wall-function face's heat flux is booked as molecular
+    // conduction, an open end's viscous energy flux as work. After the four faces: the cell's sources.
+    // The parts are recomputed from the stage's own gradients and properties and do not touch the step.
+    enum FaceTerm { kInviscidMass, kInviscidEnergy, kInviscidTracked, kViscousWork, kConduction, kTurbulentConduction,
+                    kTurbulentEnergyDiffusion, kSpeciesEnthalpy, kTurbulentSpeciesEnthalpy, kTrackedDiffusion,
+                    kTurbulentTrackedDiffusion, kViscousEnergy, kTrackedTransport, kFaceTerms };
+    enum SourceTerm { kIgniter, kHeating, kBodyWork, kCorrection, kExchangedMass, kExchangedEnergy, kExchangedTracked,
+                      kSourceTerms };
+    static constexpr std::size_t kProbeStride=4*kFaceTerms+kSourceTerms;
+    struct BudgetProbe {
+        std::vector<std::size_t> cells;
+        std::vector<double> weights;  // per species
+        std::vector<double> sums;     // per cell in stride kProbeStride: face f's term t at f kFaceTerms + t, then the sources
+    };
+    void setBudgetProbe(std::vector<std::size_t> cells, std::vector<double> weights);
+    [[nodiscard]] const BudgetProbe& budgetProbe() const { return probe_; }
 private:
     friend class Amr;
+    // The budget probe: its sums, the current right-hand side's terms and the attempt's (dt/2 per stage).
+    BudgetProbe probe_;
+    std::vector<double> probeStage_, probeAttempt_;
+    void probeConvective();
     // Exchange rates of one right-hand-side evaluation, combined with the RK weights.
     struct BoundaryRates {
         double mass{}, energy{}, inlet{}, outlet{}, inletMomentum{}, outletMomentum{}, wallAxial{}, bodyAxial{}, heat{}, wallHeat{};
