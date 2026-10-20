@@ -12,8 +12,8 @@ option(CRUCIBLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
 include(CTest)
 find_package(Threads REQUIRED)
 find_package(Eigen3 NO_MODULE)
-add_library(crucible_core core/equilibrium_table.cpp core/flow.cpp core/medium.cpp core/pool.cpp core/session.cpp core/transport.cpp
-  core/spray.cpp core/walls.cpp)
+add_library(crucible_core core/equilibrium_table.cpp core/flow.cpp core/manifold_table.cpp core/medium.cpp core/pool.cpp core/session.cpp
+  core/transport.cpp core/spray.cpp core/walls.cpp)
 target_include_directories(crucible_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(crucible_core PUBLIC Threads::Threads)
 if(MSVC)
@@ -86,6 +86,12 @@ if(CRUCIBLE_WITH_CANTERA)
   add_executable(crucible_build_equilibrium_table tools/build_equilibrium_table.cpp)
   target_include_directories(crucible_build_equilibrium_table PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
   target_link_libraries(crucible_build_equilibrium_table PRIVATE crucible_thermo
+    ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+  # Offline builder of the tabulated finite-rate progress manifold (Table B); sees Cantera for its
+  # version string and for the N2-reacts refusal check.
+  add_executable(crucible_build_manifold_table tools/build_manifold_table.cpp)
+  target_include_directories(crucible_build_manifold_table PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+  target_link_libraries(crucible_build_manifold_table PRIVATE crucible_thermo
     ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
   if(BUILD_TESTING)
     add_executable(crucible_thermo_tests tests/thermo_tests.cpp)

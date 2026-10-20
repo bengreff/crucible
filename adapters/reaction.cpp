@@ -299,4 +299,27 @@ void ReactionStep::advance(double rho, double* z, double dt, const Mixing& mixin
 
 long ReactionStep::steps() const { return impl_->steps; }
 
+double ReactionStep::follow(double rho, double* z, double tEnd, const StepObserver& observe) {
+  auto& s = *impl_;
+  s.context.rho = rho;
+  s.context.mixing = Mixing{};  // no PaSR closure: the fallback's own rate, as the table's build wants
+  s.context.species = nullptr;
+  for (sunindextype i = 0; i < s.n; ++i) NV_Ith_S(s.z, i) = z[i];
+  if (CVodeReInit(s.cvode, 0.0, s.z) != CV_SUCCESS) throw std::runtime_error("CVODES reinit failed");
+  CVodeSetStopTime(s.cvode, tEnd);
+  realtype t = 0.0;
+  constexpr long kMaxInternalSteps = 2000000;
+  long taken = 0;
+  for (;;) {
+    const int flag = CVode(s.cvode, tEnd, s.z, &t, CV_ONE_STEP);
+    if (flag < 0) throw std::runtime_error("CVODES failed with flag " + std::to_string(flag));
+    if (++taken > kMaxInternalSteps) throw std::runtime_error("ReactionStep::follow exceeded its internal step cap");
+    const bool keepGoing = observe ? observe(t, NV_DATA_S(s.z)) : true;
+    if (!keepGoing || flag == CV_TSTOP_RETURN || t >= tEnd) break;
+  }
+  for (sunindextype i = 0; i < s.n; ++i) z[i] = NV_Ith_S(s.z, i);
+  CVodeGetNumSteps(s.cvode, &s.steps);
+  return t;
+}
+
 }  // namespace crucible::thermo

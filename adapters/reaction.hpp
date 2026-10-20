@@ -94,6 +94,14 @@ class ReactionStep {
                int samples = 1, const Observer& observe = {});
   long steps() const;  // internal steps taken by the last advance
 
+  // One uninterrupted CVODES integration at fixed density (CVodeReInit from z, CVodeSetStopTime(tEnd),
+  // then CVode(..., CV_ONE_STEP) repeatedly), showing the observer every internal step reached. Stops
+  // when the observer returns false or t reaches tEnd. Returns the time reached; z returns the state
+  // there. Throws if more than 2e6 internal steps are taken (docs/evidence/TABLE_B.md, "The builder,
+  // stated before its code": the offline table's cold, no-time-limit branches).
+  using StepObserver = std::function<bool(double t, const double* z)>;
+  double follow(double rho, double* z, double tEnd, const StepObserver& observe);
+
  private:
   struct Impl;
   std::unique_ptr<Impl> impl_;
