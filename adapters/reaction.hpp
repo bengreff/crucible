@@ -39,6 +39,11 @@ class ReactionSource {
 
   // dz/dt at fixed density: dY_k/dt = w_k W_k / rho, dT/dt = -sum(u_k w_k) / (rho cv).
   void rates(double rho, const double* z, double* dzdt);
+  // The exact Jacobian of rates() at fixed density, column-major: jac[j * n + i] = d(dz_i/dt)/dz_j with
+  // n = nSpecies() + 1 (docs/evidence/TABLE_B.md, "The analytic Jacobian"). Built from Cantera's analytic
+  // net-production derivatives (third bodies and falloff included) and the NASA-7 heat capacities.
+  // dzdt, if given, returns rates() at the same state.
+  void jacobian(double rho, const double* z, double* jac, double* dzdt = nullptr);
 
   // Adiabatic constant-(u, v) equilibrium of the same elements; z holds the start
   // state and returns the equilibrium.
@@ -76,10 +81,12 @@ double reactingFraction(const double* z, const double* dzdt, const std::vector<s
                         const Mixing& mixing);
 
 // CRUCIBLE-owned stiff integration of the reaction sources (CVODES variable-order BDF,
-// dense direct linear solve with a difference-quotient Jacobian).
+// dense direct linear solve). The Newton matrix uses ReactionSource::jacobian (under the PaSR closure,
+// times kappa_eff held over the iteration), or CVODES's own difference quotients if asked.
 class ReactionStep {
  public:
-  ReactionStep(ReactionSource& source, double rtol, double atol);
+  enum class Jacobian { Analytic, DifferenceQuotient };
+  ReactionStep(ReactionSource& source, double rtol, double atol, Jacobian jacobian = Jacobian::Analytic);
   ~ReactionStep();
   ReactionStep(const ReactionStep&) = delete;
   ReactionStep& operator=(const ReactionStep&) = delete;

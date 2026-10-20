@@ -1,0 +1,14 @@
+candidate 0 (Y_H2O): worst turn-back 5.779e-02 at f_H 0.55595 Z_N 0.3000 eta 1.00000 rho 1.3161e-02; N-gate failures 27 (worst at f_H 0.55595 Z_N 0.3000 eta 1.00000 rho 3.0000e+01); 28 s
+  its 2(b) worst |dT| 65.389 K at f_H 0.55595 Z_N 0.3000 eta 0.60000 rho 1.0000e-03; 2(c) frozen lower 25, upper 20, integrator failures 0; criterion 1 |sum Y - 1| 2.22e-16, elements 2.42e-16 after projection
+candidate 1 (Y_H2O + Y_HO2 + Y_H2O2): worst turn-back 1.211e-01 at f_H 0.05595 Z_N 0.3000 eta 0.20000 rho 3.0000e+01; N-gate failures 25 (worst at f_H 0.55595 Z_N 0.3000 eta 1.00000 rho 2.2795e+00); 22 s
+  its 2(b) worst |dT| 65.389 K at f_H 0.55595 Z_N 0.3000 eta 0.60000 rho 1.0000e-03; 2(c) frozen lower 25, upper 20, integrator failures 0; criterion 1 |sum Y - 1| 4.44e-16, elements 2.71e-16 after projection
+candidate 2 (the O2 consumed): worst turn-back 7.036e+00 at f_H 0.05595 Z_N 0.0000 eta 0.60000 rho 1.0000e-03; N-gate failures 25 (worst at f_H 0.55595 Z_N 0.3000 eta 1.00000 rho 3.0000e+01); 22 s
+  its 2(b) worst |dT| 132.392 K at f_H 0.55595 Z_N 0.0000 eta 0.20000 rho 1.3161e-02; 2(c) frozen lower 15, upper 10, integrator failures 0; criterion 1 |sum Y - 1| 4.44e-16, elements 3.37e-16 after projection
+gate 2(a) (progress variable): FAIL (no candidate passed on every node)
+gate 2(b) (equilibrium end state vs equilibrateUV): worst |dT| 132.392 K at f_H 0.55595 Z_N 0.0000 eta 0.20000 rho 1.3161e-02 (limit 3.0 K): FAIL
+gate 2(c): frozen branches: lower 15, upper 10 (reported, not required zero); integrator failures 0 (must be 0): pass
+criterion 1 (node conservation): element error 1.47e-10 raw, 3.37e-16 after projection (worst at f_H 0.11191 Z_N 0.0000 eta 0.60000 rho 1.0000e-03), |sum Y - 1| 4.44e-16 (limit 1e-12): pass
+nodes: 120 degenerate, 24 with a zero-span branch, 0 outside the thermo range
+branch integration: 316 branches, mean 9.56 ms, worst 89.20 ms
+Table B built 2026-10-20 18:29 CDT by crucible_build_manifold_table from ../tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes (2 lean, 2 rich, 0 clustered), Z_N {0.000000,0.300000}, eta 6 over [0,1], ln rho 5 over [0.001, 30] kg/m3; progress variable the O2 consumed; 300 nodes in 22 s on 2 threads; node element error 1.47e-10 raw, 3.37e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b FAIL, 2c pass, criterion 1 pass -- GATE FAILURE
+Not writing /tmp/x.bin: a gate failed. Set CRUCIBLE_TABLE_B_WRITE_ANYWAY=1 to write it anyway for inspection.

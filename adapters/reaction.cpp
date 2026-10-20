@@ -1,6 +1,7 @@
 #include "adapters/reaction.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <stdexcept>
 
@@ -20,6 +21,10 @@ struct ReactionSource::Impl {
   std::shared_ptr<Cantera::ThermoPhase> gas;
   std::shared_ptr<Cantera::Kinetics> kinetics;
   std::vector<double> wdot, uk;
+  // jacobian(): Cantera's derivatives, molar cv_k, and each species' NASA-7 data as reportParams gives it
+  // (c[0] the mid temperature, c[1..7] the high range, c[8..14] the low range); empty until first used.
+  std::vector<double> dwdT, dwdP, cvk;
+  std::vector<std::array<double, 15>> nasa;
 
   // Put the phase at (T, rho, Y) without renormalising Y (integrator iterates may not sum to 1).
   void set(double t, double rho, const double* y) {
@@ -141,6 +146,86 @@ void ReactionSource::rates(double rho, const double* z, double* dzdt) {
   dzdt[0] = -heat / (rho * gas.cv_mass());
 }
 
+void ReactionSource::jacobian(double rho, const double* z, double* jac, double* dzdt) {
+  auto& gas = *impl_->gas;
+  auto& kinetics = *impl_->kinetics;
+  const std::size_t ns = nSpecies(), n = ns + 1;
+  if (impl_->nasa.empty()) {
+    // Exact derivatives: third-body and falloff terms in. Cantera takes one-sided differences in T and [M]
+    // for falloff and the equilibrium constants; the rest is analytic. Their step is 1e-7 relative, not the
+    // default 1e-8: against converged differences, 1e-8 leaves round-off of 1.0e-6 in dT/dT at 2,500 K,
+    // and the worst column is 3.1e-7 (h2o2) and 4.4e-7 (h2o2_highT) at 1e-7 (measured, TABLE_B.md).
+    Cantera::AnyMap settings;
+    settings["skip-third-bodies"] = false;
+    settings["skip-falloff"] = false;
+    settings["rtol-delta"] = 1e-7;
+    kinetics.setDerivativeSettings(settings);
+    impl_->dwdT.resize(ns);
+    impl_->dwdP.resize(ns);
+    impl_->cvk.resize(ns);
+    impl_->nasa.resize(ns);
+    for (std::size_t k = 0; k < ns; ++k) {
+      int type;
+      double tlow, thigh, pref;
+      gas.speciesThermo().reportParams(k, type, impl_->nasa[k].data(), tlow, thigh, pref);
+      if (type != NASA2) throw std::runtime_error("Species " + speciesName(k) + " is not NASA-7 data");
+    }
+  }
+  const double t = z[0];
+  const double* y = z + 1;
+  impl_->set(t, rho, y);
+  // Cantera 3.2's getNetProductionRates_ddT reads a stale state after a composition change at unchanged
+  // (T, rho): the falloff reactions' species rows come out wrong by up to 5e4 times (measured, TABLE_B.md,
+  // "The analytic Jacobian"). Invalidating the kinetics cache gives the fresh values exactly.
+  kinetics.invalidateCache();
+  auto& wdot = impl_->wdot;
+  auto& uk = impl_->uk;
+  auto& cvk = impl_->cvk;
+  kinetics.getNetProductionRates(wdot.data());       // [kmol/(m^3 s)]
+  kinetics.getNetProductionRates_ddT(impl_->dwdT.data());  // concentrations held
+  kinetics.getNetProductionRates_ddP(impl_->dwdP.data());  // T and concentrations held
+  const Eigen::SparseMatrix<double> dwdc = kinetics.netProductionRates_ddCi();  // (k, j): d w_k / d C_j
+  gas.getPartialMolarIntEnergies(uk.data());         // [J/kmol]
+  gas.getPartialMolarCp(cvk.data());
+  const double gasConstant = Cantera::GasConstant, p = gas.pressure();
+  for (double& c : cvk) c -= gasConstant;            // molar cv_k of the ideal gas
+  const double cv = gas.cv_mass();
+  double heat = 0.0, heatT = 0.0, dcvdT = 0.0;
+  for (std::size_t k = 0; k < ns; ++k) {
+    const double wk = gas.molecularWeight(k);
+    const double dwdT = impl_->dwdT[k] + impl_->dwdP[k] * p / t;  // at fixed volume, P = R T sum C
+    heat += uk[k] * wdot[k];
+    heatT += cvk[k] * wdot[k] + uk[k] * dwdT;
+    const auto& c = impl_->nasa[k];
+    const double* a = t <= c[0] ? c.data() + 8 : c.data() + 1;
+    dcvdT += y[k] / wk * gasConstant * (a[1] + t * (2 * a[2] + t * (3 * a[3] + t * 4 * a[4])));
+    jac[k + 1] = wk / rho * dwdT;  // column 0: d/dT
+  }
+  const double fT = -heat / (rho * cv);
+  jac[0] = -heatT / (rho * cv) - fT * dcvdT / cv;
+  // Columns 1..K: d/dY_j = (rho / W_j) d/dC_j, plus the pressure term R T dw/dP.
+  for (std::size_t j = 0; j < ns; ++j) {
+    double* column = jac + (j + 1) * n;
+    const double wj = gas.molecularWeight(j);
+    double sum = 0.0;
+    for (std::size_t k = 0; k < ns; ++k) {
+      const double d = gasConstant * t * impl_->dwdP[k];
+      column[k + 1] = gas.molecularWeight(k) / wj * d;
+      sum += uk[k] * d;
+    }
+    for (Eigen::SparseMatrix<double>::InnerIterator it(dwdc, static_cast<Eigen::Index>(j)); it; ++it) {
+      const auto k = static_cast<std::size_t>(it.row());
+      column[k + 1] += gas.molecularWeight(k) / wj * it.value();
+      sum += uk[k] * it.value();
+    }
+    column[0] = -(sum + fT * cvk[j]) / (wj * cv);
+  }
+  if (dzdt) {
+    for (std::size_t k = 0; k < ns; ++k) dzdt[k + 1] = wdot[k] * gas.molecularWeight(k) / rho;
+    dzdt[0] = fT;
+  }
+}
+
 void ReactionSource::equilibrateUV(double rho, double* z) { equilibrate(rho, z, "UV"); }
 void ReactionSource::equilibrateTV(double rho, double* z) { equilibrate(rho, z, "TV"); }
 
@@ -207,6 +292,22 @@ int rhs(realtype, N_Vector z, N_Vector dz, void* data) {
   return 0;
 }
 
+// The Newton matrix: ReactionSource::jacobian, times kappa_eff (held) under the PaSR closure.
+int jacobian(realtype, N_Vector z, N_Vector, SUNMatrix jac, void* data, N_Vector work, N_Vector, N_Vector) {
+  auto* c = static_cast<Context*>(data);
+  try {
+    c->source->jacobian(c->rho, NV_DATA_S(z), SM_DATA_D(jac), NV_DATA_S(work));
+  } catch (const Cantera::CanteraError&) {
+    return 1;  // recoverable: CVODES retries with a smaller step
+  }
+  if (c->mixing.segregation > 0) {
+    const double f = reactingFraction(NV_DATA_S(z), NV_DATA_S(work), *c->species, c->mixing);
+    const std::size_t entries = c->n * c->n;
+    for (std::size_t i = 0; i < entries; ++i) SM_DATA_D(jac)[i] *= f;
+  }
+  return 0;
+}
+
 }  // namespace
 
 double reactingFraction(const double* z, const double* dzdt, const std::vector<std::size_t>& species,
@@ -243,7 +344,7 @@ struct ReactionStep::Impl {
   }
 };
 
-ReactionStep::ReactionStep(ReactionSource& source, double rtol, double atol)
+ReactionStep::ReactionStep(ReactionSource& source, double rtol, double atol, Jacobian jacobianKind)
     : impl_(std::make_unique<Impl>()) {
   auto& s = *impl_;
   s.source = &source;
@@ -262,9 +363,15 @@ ReactionStep::ReactionStep(ReactionSource& source, double rtol, double atol)
   N_VDestroy_Serial(abs);
   CVodeSetUserData(s.cvode, &s.context);
   CVodeSetMaxNumSteps(s.cvode, 100000);
+  // CVODES's first step from a cold start in a dense radical pool (200 K, recombining in 5e-14 to 2e-10 s)
+  // is 3e-7 to 2e-6 s, and its default 10 corrector failures, each cutting h by 4, stop 10 to 100 times
+  // short of a step Newton can take (measured, TABLE_B.md). 40 reach 1e-24 of the first step. A run that
+  // never fails 10 times in one step is unchanged.
+  CVodeSetMaxConvFails(s.cvode, 40);
   s.jac = SUNDenseMatrix(s.n, s.n);
   s.linear = SUNLinSol_Dense(s.z, s.jac);
   CVodeSetLinearSolver(s.cvode, s.linear, s.jac);
+  if (jacobianKind == Jacobian::Analytic) CVodeSetJacFn(s.cvode, jacobian);
 }
 
 ReactionStep::~ReactionStep() = default;

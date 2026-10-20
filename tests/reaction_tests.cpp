@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -160,6 +161,58 @@ int main() {
     check(worstMu <= 1e-12, "viscosity max rel. difference", worstMu, 1e-12);
     check(worstLambda <= 1e-12, "conductivity max rel. difference", worstLambda, 1e-12);
     check(worstD <= 1e-12, "D_km max rel. difference (see note)", worstD, 1e-12);
+  }
+
+  // The analytic Jacobian against differences of rates() at well-scaled states (docs/evidence/TABLE_B.md,
+  // "The analytic Jacobian"): every species at Y >= 1e-3; per column, max_i |J - J_FD| <= 1e-6 max_i |J_FD|.
+  // Stated before the code with central differences at steps 1e-6 of |z_j|: that failed (1.40e-6 and
+  // 2.91e-6), mostly on the reference's own round-off, which grows as 1/step (measured). Restated after the
+  // result, flagged there: Richardson-extrapolated central differences, (4 D(h) - D(2h)) / 3, at 1e-5 of |z_j|.
+  for (const std::string mechanism : {std::string("h2o2.yaml"), std::string(CRUCIBLE_SOURCE_DIR "/tools/mechanisms/h2o2_highT.yaml")}) {
+    std::printf("analytic Jacobian against central differences (%s)\n", mechanism.c_str());
+    ReactionSource source(mechanism);
+    const std::size_t ns = source.nSpecies(), n = ns + 1;
+    std::mt19937 random(20261020);
+    std::uniform_real_distribution<double> uniform(0.0, 1.0);
+    std::vector<double> z(n), zp(n), fp(n), fm(n), d1(n), d2(n), jac(n * n);
+    double worstColumn = 0, worstEntry = 0;
+    int states = 0;
+    for (double t : {800.0, 1500.0, 2500.0, 3500.0})
+      for (double rho : {0.05, 1.0, 20.0})
+        for (int draw = 0; draw < 6; ++draw) {
+          std::vector<double> w(ns);
+          double sum = 0;
+          for (double& v : w) sum += v = uniform(random);
+          z[0] = t;
+          for (std::size_t k = 0; k < ns; ++k) z[k + 1] = 1e-3 + (1 - ns * 1e-3) * w[k] / sum;
+          source.jacobian(rho, z.data(), jac.data());
+          ++states;
+          for (std::size_t j = 0; j < n; ++j) {
+            const double h = 1e-5 * std::abs(z[j]);
+            auto central = [&](double step, std::vector<double>& d) {
+              zp = z;
+              zp[j] = z[j] + step;
+              source.rates(rho, zp.data(), fp.data());
+              zp[j] = z[j] - step;
+              source.rates(rho, zp.data(), fm.data());
+              for (std::size_t i = 0; i < n; ++i) d[i] = (fp[i] - fm[i]) / (2 * step);
+            };
+            central(h, d1);
+            central(2 * h, d2);
+            for (std::size_t i = 0; i < n; ++i) d1[i] = (4 * d1[i] - d2[i]) / 3;
+            double scale = 0, error = 0;
+            for (std::size_t i = 0; i < n; ++i) scale = std::max(scale, std::abs(d1[i]));
+            for (std::size_t i = 0; i < n; ++i) {
+              const double fd = d1[i], e = std::abs(jac[j * n + i] - fd);
+              error = std::max(error, e);
+              if (std::abs(fd) > 1e-3 * scale) worstEntry = std::max(worstEntry, e / std::abs(fd));
+            }
+            worstColumn = std::max(worstColumn, error / scale);
+          }
+        }
+    std::printf("  %d states, %zu columns each\n", states, n);
+    check(worstColumn <= 1e-6, "worst column max|J - J_FD| / max|J_FD|", worstColumn, 1e-6);
+    std::printf("  worst entry above 1e-3 of its column's largest: relative %.3e (reported)\n", worstEntry);
   }
   std::printf("%d failures\n", failures);
   return failures == 0 ? 0 : 1;

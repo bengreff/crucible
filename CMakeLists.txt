@@ -108,6 +108,7 @@ if(CRUCIBLE_WITH_CANTERA)
     target_include_directories(crucible_reaction_tests PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
     target_link_libraries(crucible_reaction_tests PRIVATE crucible_thermo
       ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+    target_compile_definitions(crucible_reaction_tests PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME reaction_verification COMMAND crucible_reaction_tests)
     add_executable(crucible_transport_tests tests/transport_tests.cpp)
     target_link_libraries(crucible_transport_tests PRIVATE crucible_thermo)
