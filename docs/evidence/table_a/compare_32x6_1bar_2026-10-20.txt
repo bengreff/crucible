@@ -1,0 +1,21 @@
+# python3 tools/compare_histories.py build/eqt32_old_rerun_history.csv build/eqt32_1bar_history.csv, 20 October 2026 (Mac)
+# reference: eqt32_old_rerun (today's rerun of the 5 October table_a.bin on h2o2.yaml, confirmed bit-for-bit reproducible against eqt32_old_2026-10-20.txt's printed values)
+t [ms]       p_inj      outlet       F_vac
+ 0.500  +2.959e-04  +1.205e-04  +3.118e-04
+ 1.000  +1.827e-04  +6.682e-05  +1.072e-04
+ 1.500  +1.375e-04  +2.970e-05  +7.063e-05
+ 2.000  +1.183e-04  +1.221e-05  +5.497e-05
+ 2.500  +1.117e-04  +4.271e-06  +4.725e-05
+ 3.000  +1.089e-04  +2.003e-06  +4.533e-05
+ 3.500  +1.076e-04  +7.503e-07  +4.410e-05
+ 4.000  +1.073e-04  +2.500e-07  +4.349e-05
+ 4.500  +1.070e-04  +0.000e+00  +4.348e-05
+ 5.000  +1.067e-04  +0.000e+00  +4.348e-05
+ 5.500  +1.070e-04  +0.000e+00  +4.348e-05
+ 6.000  +1.067e-04  +0.000e+00  +4.348e-05
+ 6.500  +1.070e-04  +0.000e+00  +4.348e-05
+ 7.000  +1.070e-04  +0.000e+00  +4.289e-05
+ 7.500  +1.070e-04  +0.000e+00  +4.289e-05
+ 8.000  +1.070e-04  +0.000e+00  +4.289e-05
+max      2.959e-04   1.205e-04   3.118e-04
+injector pressure and outlet mass flow within 0.001 at every printed time: pass

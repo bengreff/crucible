@@ -1,0 +1,30 @@
+# python3 tools/mechanisms/check_h2o2_refp.py /Users/ben/venvs/crucible/lib/python3.14/site-packages/rocketcea/thermo.inp, 20 October 2026 (Mac)
+# venv: /Users/ben/venvs/crucible (Cantera 3.2.0, RocketCEA 1.2.3), PYTHONPATH=/opt/homebrew/lib/python3.14/site-packages for PyYAML 6.0.3
+
+# h2o2.yaml (/Users/ben/src/cantera/data/h2o2.yaml) NASA-7 (no reference-pressure declared) raw s/R, g/RT against CEA thermo.inp NASA-9
+# d(s/R) = s/R(h2o2.yaml) - s/R(CEA); d(g/RT) = g/RT(h2o2.yaml) - g/RT(CEA), g/RT = h/RT - s/R
+# -ln(1.01325) = -0.013163 (h2o2.yaml 1-atm-fit signature, see docstring); ~0 (1-bar-fit signature)
+species              T=298.15                  T=1000.00                 T=3000.00  
+            d(s/R)    d(g/RT)      d(s/R)    d(g/RT)      d(s/R)    d(g/RT)
+H2       +0.000000  -0.000000   +0.002402  -0.001483   +0.001567  -0.001664
+H        +0.000000  -0.000161   +0.000000  -0.000048   +0.000000  -0.000016
+O        -0.000000  +0.000024   -0.000569  +0.000363   -0.000117  +0.000262
+O2       -0.000000  +0.000000   +0.000056  -0.000089   -0.000587  +0.000297
+OH       -0.000000  +0.834580   -0.000796  +0.249344   +0.000180  +0.083088
+H2O      +0.000000  +0.000000   -0.000046  -0.000036   +0.000479  -0.000262
+HO2      -0.000000  +0.214605   -0.002840  +0.065705   -0.001760  +0.023288
+H2O2     -0.000000  -0.000000   -0.002740  +0.001627   -0.001146  +0.001499
+AR       -0.013675  +0.013675   -0.013675  +0.013675   -0.013675  +0.013675
+N2       -0.011592  +0.012169   -0.009724  +0.010651   -0.009373  +0.010182
+
+# reading: |d(s/R)| within 2e-3 of 0 -> 1-bar-consistent; within 2e-3 of ln(1.01325) in magnitude -> 1-atm-consistent (sign as measured)
+H2      mean d(s/R)  +0.001323 (spread over T 2.40e-03) -> 1-bar-consistent (s matches CEA)
+H       mean d(s/R)  +0.000000 (spread over T 1.95e-08) -> 1-bar-consistent (s matches CEA)
+O       mean d(s/R)  -0.000229 (spread over T 5.69e-04) -> 1-bar-consistent (s matches CEA)
+O2      mean d(s/R)  -0.000177 (spread over T 6.43e-04) -> 1-bar-consistent (s matches CEA)
+OH      mean d(s/R)  -0.000205 (spread over T 9.75e-04) -> 1-bar-consistent (s matches CEA)
+H2O     mean d(s/R)  +0.000145 (spread over T 5.25e-04) -> 1-bar-consistent (s matches CEA)
+HO2     mean d(s/R)  -0.001534 (spread over T 2.84e-03) -> 1-bar-consistent (s matches CEA)
+H2O2    mean d(s/R)  -0.001295 (spread over T 2.74e-03) -> 1-bar-consistent (s matches CEA)
+AR      mean d(s/R)  -0.013675 (spread over T 5.52e-09) -> 1-atm-consistent (GRI lower by ~ln(1.01325))
+N2      mean d(s/R)  -0.010230 (spread over T 2.22e-03) -> neither band (see raw d(s/R))
