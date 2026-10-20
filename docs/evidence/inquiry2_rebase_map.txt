@@ -1,0 +1,31 @@
+# inquiry2 commits: rebased onto main e297140 on 20 October 2026 (about 18:25 CDT).
+# The rebase keeps author dates; the IDs change. Columns: earlier ID(s) cited in the docs, current ID, author date (CDT), subject.
+# Earlier IDs: the 13 to 14 October originals, then those after the rebase onto 71a3f2c (20 October, afternoon).
+04e93cc,ca3b9cc   b36ff33 2026-10-13 21:55:48 The viscous step's cost (docs/evidence/TRANSPORT_COST.md): the profile, then the same formulas with the divisi
+b659d5b           4b54448 2026-10-13 22:00:41 core/contour: the monotone cubic (PCHIP) wall contour through area-against-station nodes, with SciPy's PchipIn
+afb065c           6a0badf 2026-10-13 22:10:58 RL10A-3-3A protocol amended before any prediction. The addendum (Table 6.1.1 plenum temperatures, Figure E1's 
+92e98c7,21b6dfd   30b7506 2026-10-13 22:15:33 RL10A-3-3A tier 0 prediction committed before any measured performance is read (docs/validation/RL10A33A_PREDI
+544944c           b58cfeb 2026-10-13 22:34:19 AMR design and criteria before any AMR code (docs/evidence/AMR.md). Levels as full-domain arrays in the mappin
+36d8aa8           2b4e5bf 2026-10-13 22:34:29 Flow::stepLimit(): the cell that set the last stableDt() (the lowest index among equal steps, so the same on a
+c2d42b9           0e8864f 2026-10-13 22:36:02 Timestamps and hashes after the rebase onto main (45b08b2, the spray commit): the tier 0 commit and the AMR de
+6771c85           acc1d71 2026-10-13 22:38:16 AMR.md amended before any code (22:37 CDT): criterion 0(c) states its one exception. The radial face's r^2 mom
+6b65909           cad2135 2026-10-13 23:21:31 AMR step A: the explicit-geometry Mesh. Every geometric quantity the kernels read is now an array (axial face 
+5121d66           a459bf5 2026-10-13 23:21:41 RL10A-3-3A development chamber, development only (docs/evidence/RL10_DEV.md): pre-vaporized H2/O2 at 300 K on 
+f0c902b           d412f65 2026-10-13 23:22:30 Table A for any propellant pair: design and criteria before any code (docs/evidence/TABLE_A_PAIRS.md). Measure
+83f82c3           e4960bf 2026-10-13 23:25:07 Handoff: inquiry2's lane at 23:25 CDT (tier 0 committed, AMR step A done with 0(d) recorded as not met, the RL
+09997b6           9dd7dfb 2026-10-13 23:58:28 AMR step B: the B1/B2 split and the readings of criteria 1 and 3, recorded before any test code (docs/evidence
+b3a8c0e           a04359e 2026-10-14 00:22:41 AMR step B1: the subcycling driver (core/amr.*) and criteria 1 and 3 judged (docs/evidence/AMR.md, Step B1: re
+1e67d09           5cc7d23 2026-10-14 00:28:41 AMR criterion 2 on B1: the setup, recorded before any of its code (docs/evidence/AMR.md, Step B1: how criterio
+0d073f7           7ba95b4 2026-10-14 01:07:04 AMR criterion 2 on B1, pattern fixed (docs/evidence/AMR.md, Step B1: criterion 2 results). The driver gains vi
+9fdab9b,33e20da   543cd92 2026-10-14 01:31:15 AMR step B2: the setup, recorded before any of its code (docs/evidence/AMR.md, Step B2: setup). The ghost widt
+7d28c17,fb11252   31056e3 2026-10-14 02:05:07 AMR step B2: the restricted loops, before their checks (docs/evidence/AMR.md, Step B2: what was built). Flow::
+25ce5ca           2688b4b 2026-10-14 02:06:05 Handoff: inquiry2's AMR step B2 code committed (7d28c17) and its five checks queued on backhouse (tmux inquiry
+bcd944f,31e1554   34818d7 2026-10-14 02:10:20 AMR before step C: the igniter's compensated sum, recorded before its code (docs/evidence/AMR.md, Before step 
+9294985,be08f2d   9ba4c10 2026-10-14 02:10:20 AMR before step C: the igniter's compensated sum (Flow::heatCompensation_, Flow::deliveredHeat; Amr::save, res
+0419374           d54e36f 2026-10-14 02:10:35 Handoff: inquiry2's igniter compensated sum committed, its checks queued behind B2's on backhouse (tmux inquir
+8652024,b896b52   383e8e0 2026-10-20 17:15:27 Lever 3: the one-cell budget's readout registered before its code (COST.md): closure of rho E V to 1e-9, then 
+8b4f6e1           b6c6ea2 2026-10-20 17:24:05 Lever 3: the one-cell budget probe (Flow::setBudgetProbe, read-only). Per probe cell and face, the inviscid ma
+4ec5449           114057a 2026-10-20 17:25:26 Lever 3: the readout script (cost/budget_read.py) and one clause made precise before the run reaches its windo
+5362434           b0d1850 2026-10-20 17:36:42 COST.md: lever 3's stamps and SHAs corrected after the rebase (registration b896b52, authored 17:15:27; probe 
+4d54495           bc06b6b 2026-10-20 17:47:23 Lever 3: the one-cell budget's results. Closure to 5e-15. The registered readout on i 0, j 0-2 is mixed (invis
+21485fd           840b97f 2026-10-20 18:16:55 Lever 3: temperature reconstruction fails the check, and the face enthalpy bound goes under test (both off by 
