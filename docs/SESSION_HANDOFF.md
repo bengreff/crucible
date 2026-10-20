@@ -2,6 +2,23 @@
 
 20 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (20 October, about 18:30 CDT; session after /clear, READY TO CLEAR at about 100k)
+
+The Director's brief (after /clear, session to about 20:00): (1) Table B: fix the 40 integrator failures first, then a small table in O/F 4 to 6 and the RL10's pressure band, then domain against progress variable (a declared domain with a CVODES fallback is acceptable if its rate in a C1-like run is measured and under about 1% of cell updates); (2) measure how much h2o2.yaml's 1-atm standard state moved earlier results, C1 at least; (3) declare three RL10 tier-1 modelling choices with expected effects.
+
+1. **Table B's integrator failures (3f97e80; TABLE_B.md, *The integrator failures: two causes, measured*).** All 40 are lower branches from the frozen start, failing before the first step.
+   - **(A) 17 at η = 0, fixed:** the T* bisection had no sign change, so it drifted to 6,000 K (15) or a round-off root (2). The bracket is now checked first. At or below its low end the start is the complete-combustion products. 0 failures at η = 0.
+   - **(B) 23 at η 0.2 to 0.8, ρ 2.28 and 30 kg/m³, f_H 0.056 and f_st: the cold dense-radical start (the Director's suspect), open.** Flag −4 before a step, dT/dt 9e11 to 4e15 K/s. Probe (reverted): a forced 1e-18 s first step lets 22 of 23 integrate, but it breaks a 6,000 K upper branch that passed before. Inferred cause: the difference-quotient Jacobian at atol 1e-30.
+   - **Next, in order:** an analytic Jacobian in `ReactionStep::follow()` (Cantera 3.2's analytic net-production derivatives, plus T and the constant-volume energy), or a scaled perturbation. Check with `ctest -R reaction` and C1, since the runtime's fallback shares the Jacobian. Rerun the small table. Then the small table in the C1 and RL10 range (f_H nodes at O/F 4 to 6; ρ over the RL10's chamber pressure band), then domain against progress variable by the Director's rule.
+   - The command: `cd build && CRUCIBLE_TABLE_B_NODE_REPORT=<csv> ./crucible_build_manifold_table <out> 2 2 0 0,0.3 6 5 1e-3 30 2 ../tools/mechanisms/h2o2_highT.yaml` (11 s per candidate).
+2. **h2o2.yaml's 1-atm standard state: a Sonnet agent was running at this writing** (task: per-species s/R against CEA's `thermo.inp`, the variant `tools/mechanisms/h2o2_1bar.yaml`, Table A on the 5 October axes, C1 32x6 `eqt` against `eqt32_old_2026-10-20.txt`, and the CEA check). Its files land in `docs/evidence/table_a/*1bar*` and `docs/evidence/table_b/h2o2_refp_species_2026-10-20.txt`, `cea_equilibrium_check_h2o2_1bar_2026-10-20.txt`. **If it is not recorded in TABLE_A.md below this line, record it next.**
+3. **RL10 tier-1 modelling choices (3f97e80; `docs/validation/rl10a33a/tier1_skeleton.md`, *Tier 1's modelling choices*).** Each choice has its expected direction stated before any run, all inferred:
+   - **Rings as continuous annular inlets** that keep the elements' flow areas (LOX slot 0.85 mm wide at R 50 mm). More interface per unit flow area on the outer rings (R / 23.9 mm against round jets), so c* biased up and the near-face heat flux up.
+   - **Swirl neglected:** larger drops and a longer flame, so c* biased low. 2-D with swirl is a tier-2 candidate if S7 shows the spray is sensitive.
+   - **Transpired H2** as a uniform inflow over the porous face at about 10%, so the elements run at O/F 5.62. A lower face heat flux; c* slightly low.
+   - This replaces protocol §4's uniform face for tier 1. The protocol (inquiry2's line) needs the matching amendment.
+   - Still open: the per-ring counts, if the fuel-only outer row and the inner row without swirlers are not 27-element rings.
+
 ## Stopped at (20 October, about 17:50 CDT; extra session from 17:10, READY TO CLEAR at about 100k)
 
 Ben's direction: straight line to RL10; speed must not block fidelity ("slow runs are fine for now"). inquiry2 owns `core/flow.*`, `core/amr.*` and the hot-pocket fix (lever 3): not touched from here. The Director's brief for this session, all four items committed:
