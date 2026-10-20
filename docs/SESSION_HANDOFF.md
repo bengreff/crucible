@@ -2,18 +2,34 @@
 
 20 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Stopped at (20 October, about 18:05 CDT; extra session 17:10 to 20:00, READY TO CLEAR at about 100k)
+## Stopped at (20 October, about 17:50 CDT; extra session from 17:10, READY TO CLEAR at about 100k)
 
-Ben's direction today: straight line to RL10; speed must not block fidelity ("slow runs are fine for now"). inquiry2 owns `core/flow.*`, `core/amr.*` and the hot-pocket fix (lever 3): not touched from here.
+Ben's direction: straight line to RL10; speed must not block fidelity ("slow runs are fine for now"). inquiry2 owns `core/flow.*`, `core/amr.*` and the hot-pocket fix (lever 3): not touched from here. The Director's brief for this session, all four items committed:
 
-1. **Done: the Table B builder is reviewed and on `main` (3369f41).** Read against TABLE_B.md's builder statement; builds clean; ctest reaction, thermo, mixture, pasr pass. Not done: the review's open question, whether nodes flagged outside should enter the gates (they do now). It goes away if nothing is outside after item 2.
-2. **The 3,500 K ceiling (acab338; TABLE_B.md, *The 3,500 K ceiling*).** `tools/mechanisms/h2o2_highT.yaml` = h2o2.yaml with NASA TM-4513's NASA-7 fits to 6,000 K (Cantera's `nasa_gas.yaml`), no core change. Species check against CEA's NASA-9 (`docs/evidence/table_b/thermo_highT_check_2026-10-20.txt`): cp within 0.15% at 3,500 to 5,000 K, 0.3% to 6,000 K. **Found: OH's enthalpy is 2.07 kJ/mol from CEA's in both files** (Ruscic 2002's revision; not corrected). N2 in h2o2.yaml stops at 5,000 K, so Cantera's maxTemp there was 3,500 K and is now 6,000 K. **Next, in order:**
-   - (a) The equilibrium check as stated in TABLE_B.md (pass |dT| <= 3 K vs CEA where CEA's Tc is 3,000 to 5,000 K). There is no Cantera Python: write a small C++ tool on libcantera.a (HP equilibrium of H2 and O2 at given T, O/F, p; both mechanisms) and drive it and RocketCEA from Python. **RocketCEA is now in `/tmp/ceaenv_new`** (`/tmp/ceaenv` was emptied; reinstalled 1.2.3 tonight). If OH's offset fails the bar, that is a DECISION for the Director (adopt the revised OH heat of formation, sourced, or keep TM-4513 as is).
-   - (b) The builders take the mechanism as an argument (hard-coded `"h2o2.yaml"` at `tools/build_equilibrium_table.cpp:98,246` and `tools/build_manifold_table.cpp:551`), printed in the provenance.
-   - (c) Table A: T edges at `tools/build_equilibrium_table.cpp:203` (now to 4,000) extend to 6,000 K; rebuild with h2o2_highT; criterion 2(a).
-   - (d) Rebuild the small Table B (5 f_H x 2 Z_N x 6 eta x 5 ln rho; the usage line is at the top of `main()` in the builder) with h2o2_highT; report the gate table against TABLE_B.md's gates as written. Expect 2(a) may still fail at high eta where equilibrium water is nearly all dissociated (span tiny, turn-back relative to span huge): that is physics, not the ceiling (inferred), and the eta range is then a stated decision, not a tune.
-   - Any run using a table built on h2o2_highT must load h2o2_highT for its fallback and core thermo too.
-3. **RL10A-3-3A blind setup: re-scoped.** inquiry2's branch already has `docs/validation/RL10A33A_INPUTS.md`, `RL10A33A_PROTOCOL.md` (tiers, brackets, comparison order, exposures declared) and `RL10A33A_PREDICTION.md` (tier 0, committed 13 October), not yet on `main`. A new `RL10A33A_INPUTS.md` on `main` would be an add/add conflict for inquiry2's rebase, so it was not written. In the protocol, chamber pressure is a predicted quantity (withheld), not an input. **The gap is the injector element geometry** (count 162 vs 216 unreconciled; no LOX post or annulus dimensions), which tier 1 needs for the drop size (Burick). A Sonnet agent extracted it, inputs only, into `docs/validation/rl10a33a/injector_element_inputs.md` (a new name, no conflict; screened by count-only grep and a digit-masked view, committed, not yet read in full here). Found, by the agent's report: 216 elements in 8 rings (162 swirlers: the inner row without swirlers, the outer row fuel-only, one 1966 report disagreeing on the outer row), the Rigimesh face and its transpiration fraction, the Fig. E9 swirler estimate. **Missing: LOX post and annulus diameters, ring radii, recess**, so Burick's velocities need declared brackets. **Next:** read it in full. Then the tier 1 settings record as a new file `docs/validation/RL10A33A_TIER1_SETTINGS.md` (grid and AMR levels, Table A or B, wall functions, SST-hp, spray SMD from the element geometry and SPRAY.md's bracket, settling per the protocol section 3); the prediction itself is filled after the run.
+1. **OH and the equilibrium check against CEA (b83e522; TABLE_B.md, *OH's heat of formation, the reference pressure, and the equilibrium check*).**
+   - h2o2_highT now carries OH's heat of formation from Ruscic 2002, as CEA does (the Director's decision), and every species at TM-4513's 1 bar standard state.
+   - Found: Cantera's `nasa_gas.yaml` declares no reference pressure, so the fits were read at 1 atm, putting each Kp off by 1.01325^Δn.
+   - The check passes: worst |ΔT| 1.79 K over 153 cases, bar 3 K. With TM-4513's OH it would be +7.42 K.
+   - **Open item:** GRI `h2o2.yaml`, the mechanism of every run before today, also declares no reference pressure. It is unchecked, and its CEA check gives +6.13 K beside.
+2. **Table A to 6,000 K on h2o2_highT (f8c2c07; TABLE_A.md, *To 6,000 K*): passes.**
+   - Criterion 2(a): 99th percentile 1.086 K at 200 to 4,000 K, and 1.515 K on the extension to 4,000 to 6,000 K.
+   - C1 32x6, the table against direct Cantera on the same mechanism: within 0.007%; histories 1.2e-4; audit 0.825 K.
+   - The mechanism change alone moves C1 by 0.03%, toward CEA (Tc 3,348.1 K against CEA's 3,347.7 K; GRI 3,351.7 K).
+   - The table file is `build/table_a_highT.bin`, not in git. Its provenance holds the mechanism as the path `../tools/mechanisms/h2o2_highT.yaml`, so run from `build/` with `CRUCIBLE_MECHANISM=../tools/mechanisms/h2o2_highT.yaml`: the driver refuses a mismatched string.
+3. **Table B small rebuild on h2o2_highT (df882ce; TABLE_B.md, *The small table rebuilt on h2o2_highT: the gate table*): 2(a), 2(b) and 2(c) still fail for every candidate; criterion 1 now passes.**
+   - Nodes outside the thermo range fell from 146 to 0, so the review's open question about whether outside nodes enter the gates is moot for now.
+   - Per-node report: `docs/evidence/table_b/small_highT_nodes_2026-10-20.csv`, from the builder's new `CRUCIBLE_TABLE_B_NODE_REPORT`.
+   - **(a) 2(c): 40 CVODES failures at t = 0 (flags −3 and −4), all at ρ ≥ 0.17 kg/m³, mostly at η ≤ 0.6, at f_H 0.056 and f_st.** Not atol: 38 at 1e-20 (measured, then reverted).
+     - Inferred: the lower branches from the cold frozen start, a dense radical pool at about 200 K.
+     - **Next:** tag the branch in `NodeOutcome::failure`, and print the start T, Y and the first right-hand side of one failing node. That is an engineering fix; restate it in TABLE_B.md if the start or the integration changes.
+   - **(b) 2(a) and the N gate fail at f_H 0.556 (O/F 0.8) and hot f_st (η ≥ 0.4).** Physics of linear-in-Y variables (inferred). **A design question is raised for the Director in TABLE_B.md:** state the table's domain and send everything outside it to CVODES, or choose a different progress variable.
+   - **(c) No node of the small table is in the C1 range** (f_H 0.143 to 0.2). After (a), build a small table with f_H nodes there (for example, lean and rich counts that put nodes at O/F 4 to 6) to measure the gates where C1 and RL10 run.
+4. **RL10A-3-3A tier-1 skeleton (f8b3196; `docs/validation/rl10a33a/tier1_skeleton.md`, a new name, no conflict with inquiry2's protocol files).**
+   - It holds tier 1's settings to fix, and declared ranges for the missing element dimensions, all inferred from analogs (`analog_coax_elements.md`, Sonnet agent, screened before reading).
+   - The ranges: LOX post ID 2.62 to 4.78 mm (central 3.54); tip wall 0.20 to 0.37 d_L; annulus gap 0.09 to 0.80 d_L; recess 0 to 1 d_L; pitch from face area 15.7 mm.
+   - The agent's two incidental RL10 exposures are declared there; it recorded nothing.
+   - **Open:** the ring layout is under-determined (27 per ring will not fit one pitch from the axis; `injector_element_inputs.md` also says the outer row is fuel-only and the inner row has no swirler), swirl (no swirl velocity in 2-D), and the transpired H2.
+   - The protocol (`RL10A33A_PROTOCOL.md`) is still only in inquiry2's line.
 
 ## Stopped at (14 October, about 02:25 CDT; parked by the Director)
 
