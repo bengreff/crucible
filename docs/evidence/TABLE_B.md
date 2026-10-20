@@ -211,6 +211,26 @@ The Director's order: fix gate 2(c)'s 40 integrator failures first, measuring th
   - **Next (engineering, not a design question):** give the builder's `follow()` an analytic Jacobian (Cantera 3.2's analytic derivatives of the net production rates, plus T and the constant-volume energy), or scale the perturbation; then rerun the small table. If that is not enough, an initial step tied to the start's own time scale (a stated rule, for example 1e-6 of T/|dT/dt|). The runtime's CVODES fallback uses the same Jacobian, so the change is checked with `ctest -R reaction` and C1 before it is kept.
 - **Gates otherwise unchanged by fix A:** Y_H2O's worst turn-back 5.78e-2 and 25 N-gate failures, 2(b) 64.9 K; the O2 consumed's worst turn-back falls from 2.15e6 to 7.04 (its worst sat on an η = 0 node).
 
+## The analytic Jacobian, stated before its code (20 October 2026, about 18:15 CDT)
+
+The Director's order: give the integration an exact Jacobian in place of CVODES's difference quotients, and check it before keeping it. `ReactionStep` (`advance` and `follow`) is the builder's integrator and the runtime's CVODES fallback, so the change reaches both.
+
+- **The Jacobian of z = [T, Y_1..Y_K] at fixed ρ** (*derived*). With C_j = ρ Y_j / W_j, f_k = W_k ω_k / ρ and f_T = −Σ u_k ω_k / (ρ c_v):
+  - ∂f_k/∂Y_j = (W_k / W_j)(D_kj + R T ∂ω_k/∂P), with D = Cantera's `netProductionRates_ddCi()` (each C_j alone, T and P held), and the P term because at fixed volume P = R T Σ C.
+  - ∂f_k/∂T = (W_k / ρ)(∂ω_k/∂T + (P/T) ∂ω_k/∂P), from `getNetProductionRates_ddT` (concentrations held) and `_ddP`.
+  - ∂f_T/∂Y_j = −(1 / (W_j c_v)) [Σ_k u_k (D_kj + R T ∂ω_k/∂P) + f_T c_v,j], with c_v,j molar; c_v = Σ Y_k c_v,k / W_k is linear in each Y (Cantera's unnormalised mass fractions).
+  - ∂f_T/∂T = −(Σ_k c_v,k ω_k + Σ_k u_k ∂ω_k/∂T|_V) / (ρ c_v) − f_T (∂c_v/∂T) / c_v, with ∂c_v,k/∂T from the NASA-7 coefficients.
+  - Cantera's settings: `skip-third-bodies` and `skip-falloff` false, so third-body and falloff terms are in. Cantera itself takes the falloff [M] derivative and the T derivatives of falloff and of the equilibrium constants by a relative 1e-8 perturbation (well scaled: T and [M] are never near zero). Everything else is analytic.
+- **Under the PaSR closure** (segregation > 0) the Newton matrix is κ_eff(z) times the Jacobian above: κ_eff is held over the Newton iteration and its own derivative is left out. The right-hand side is unchanged, so this changes convergence, not the solution (CVODES needs only an approximate Newton matrix). With segregation 0 it is the Jacobian above.
+- **The difference quotient stays available** (a constructor option) for the comparisons below. The analytic one becomes the default.
+
+**Checks, stated before the code:**
+
+1. **It matches finite differences at well-scaled states.** States with every species at Y ≥ 1e-3 (renormalised random mixes, 6 per point), at T 800, 1,500, 2,500 and 3,500 K and ρ 0.05, 1 and 20 kg/m³, on h2o2.yaml and h2o2_highT. Reference: central differences of `rates` with steps 1e-6 of |z_j|. Pass: for every column j, max_i |J_ij − J_ij^FD| ≤ 1e-6 max_i |J_ij^FD|. The worst column and the worst entry above 1e-3 of its column's largest are reported. In `crucible_reaction_tests`.
+2. **The cold dense-radical starts integrate.** The small table as before (`crucible_build_manifold_table <out> 2 2 0 0,0.3 6 5 1e-3 30 2 ../tools/mechanisms/h2o2_highT.yaml`): the 23 lower branches that failed (f_H 0.056 and f_st, η 0.2 to 0.8, ρ 2.28 and 30 kg/m³; `small_highT_bracketfix_nodes_2026-10-20.csv`) and the 6,000 K upper branch the forced first step broke (f_H 0.056, η 1, ρ 30) all integrate, and the table has 0 integrator failures in all. Its gate table is reported in full.
+3. **Nothing that passed regresses.** `ctest -R "reaction|pasr"` passes as before.
+4. **C1 is unchanged within the integrator's tolerance.** C1 finite-rate, inviscid, 32x6 (`crucible_chamber_study fr 32 6 <end> 2 <prefix>`, h2o2.yaml, rtol 1e-6, atol 1e-12), the analytic build against the difference-quotient build of the parent commit, same machine and threads. Pass: c*, vacuum Isp and vacuum thrust at the end within 1e-4 relative, the light-off time within 1%, and the injector pressure within 1e-3 relative at every printed time. Reported: the reaction's wall time and steps in both. The end time is chosen from a timed short run and stated before the comparison.
+
 ## The runtime, stated before its code (14 October 2026, about 01:20 CDT)
 
 - **Why the corners cannot be read at the cell's c** (*derived*). Lean of stoichiometric, c_cp = 9 Y_H (all the hydrogen as water), so it rises with f_H. In cold burnt gas, c_eq is close to c_cp. A cell at its own c_eq, between f_H nodes f_1 < f < f_2, then has c above c_cp(f_1): the leaner corner's whole curve ends below the cell's c. The rich side is the mirror image. So *Y is interpolated linearly in c at each corner* would extrapolate at the nozzle exit and in the cooled wall layer, which are the places the table is for.
