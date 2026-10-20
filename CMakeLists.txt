@@ -93,6 +93,11 @@ if(CRUCIBLE_WITH_CANTERA)
   target_include_directories(crucible_build_manifold_table PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
   target_link_libraries(crucible_build_manifold_table PRIVATE crucible_thermo
     ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+  # HP equilibrium of H2 and O2 on a given mechanism, for the check against CEA (TABLE_B.md).
+  add_executable(crucible_equilibrium_hp tools/equilibrium_hp.cpp)
+  target_include_directories(crucible_equilibrium_hp PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+  target_link_libraries(crucible_equilibrium_hp PRIVATE ${CANTERA_ROOT}/build/lib/libcantera.a
+    ${ACCELERATE_FRAMEWORK} Threads::Threads)
   if(BUILD_TESTING)
     add_executable(crucible_thermo_tests tests/thermo_tests.cpp)
     target_link_libraries(crucible_thermo_tests PRIVATE crucible_thermo)

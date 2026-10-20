@@ -1,0 +1,8 @@
+# Diagnostic probes: crucible_equilibrium_hp T_K for (T0 K, O/F, p): (300,6,1MPa) (3000,8,20MPa) (3000,3,1MPa) (1500,6,20MPa)
+CEA (RocketCEA 1.2.3):                     3336.09 4487.23 3619.29 4085.16
+h9_ALL.yaml: 3334.3910 4483.9120 3617.0495 4082.8071 
+bar_h9_ALL.yaml: 3336.1243 4487.2323 3619.3248 4085.1949 
+h2o2_highT_1atm_tm4513OH.yaml: 3340.1223 4488.4908 3620.9769 4089.4776 
+h2o2_highT.yaml: 3336.1738 4486.9345 3619.4210 4085.2193 
+# h9_ALL = every species on CEA's NASA-9 (diag_nasa9_swap.py ALL) read at 1 atm; bar_h9_ALL = the same at 1 bar.
+# At CEA's own state (1,500 K reactants, O/F 6, 1 MPa; T 3,556.47 K), h9_ALL: h 3,659.60 kJ/kg against CEA's 3,659.43; TP equilibrium at CEA's T: X_H 0.10922 against 0.10850, X_H2O 0.48622 against 0.48769 (more dissociated at 1 atm).

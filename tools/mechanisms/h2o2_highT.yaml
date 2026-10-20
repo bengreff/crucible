@@ -1,4 +1,5 @@
-description: 'h2o2.yaml (Cantera) with NASA TM-4513 NASA-7 thermo to 6,000 K for every species; written by tools/mechanisms/make_h2o2_highT.py.
+description: 'h2o2.yaml (Cantera) with NASA TM-4513 NASA-7 thermo to 6,000 K for every species (standard state 1
+  bar, as TM-4513), OH''s heat of formation from Ruscic et al. 2002 (as in CEA); written by tools/mechanisms/make_h2o2_highT.py.
 
   Hydrogen-Oxygen submechanism extracted from GRI-Mech 3.0.
 
@@ -66,6 +67,7 @@ species:
       - -6.88804432e-16
       - -813.065597
       - -1.02432887
+    reference-pressure: 100000.0
     note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source TPIS78
   transport:
     model: gas
@@ -102,6 +104,7 @@ species:
       - 7.95260746e-20
       - 25473.6589
       - -0.446698494
+    reference-pressure: 100000.0
     note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 5/93
   transport:
     model: gas
@@ -136,6 +139,7 @@ species:
       - -4.79553694e-16
       - 29226.012
       - 4.92229457
+    reference-pressure: 100000.0
     note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 1/90
   transport:
     model: gas
@@ -170,6 +174,7 @@ species:
       - -1.29913248e-15
       - -1215.97725
       - 3.41536184
+    reference-pressure: 100000.0
     note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source TPIS89
   transport:
     model: gas
@@ -198,16 +203,18 @@ species:
       - 4.61793841e-06
       - -3.88113333e-09
       - 1.3641147e-12
-      - 3615.08056
+      - 3366.2760519051044
       - -0.103925458
     - - 2.83864607
       - 0.00110725586
       - -2.93914978e-07
       - 4.20524247e-11
       - -2.42169092e-15
-      - 3943.95852
+      - 3695.1540119051047
       - 5.84452662
-    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source TPIS78
+    reference-pressure: 100000.0
+    note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source TPIS78; Hf298 moved from
+      TM-4513's 39346.882 to 37278.206 J/mol, Ruscic et al. 2002 as in CEA thermo.inp (a6 of both ranges shifted)
   transport:
     model: gas
     geometry: linear
@@ -242,6 +249,7 @@ species:
       - -4.26900959e-15
       - -29885.8938
       - 6.88255571
+    reference-pressure: 100000.0
     note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 8/89
   transport:
     model: gas
@@ -279,6 +287,7 @@ species:
       - 1.76254294e-16
       - 61.8102964
       - 2.95767746
+    reference-pressure: 100000.0
     note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 5/89
   transport:
     model: gas
@@ -316,6 +325,7 @@ species:
       - -1.13402846e-14
       - -18054.8121
       - 0.704278488
+    reference-pressure: 100000.0
     note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 2/93
   transport:
     model: gas
@@ -351,6 +361,7 @@ species:
       - 0.0
       - -745.375
       - 4.37967491
+    reference-pressure: 100000.0
     note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source L 6/88
   transport:
     model: gas
@@ -385,6 +396,7 @@ species:
       - -4.60755321e-15
       - -923.948645
       - 5.87189252
+    reference-pressure: 100000.0
     note: NASA TM-4513 (McBride, Gordon and Reno 1993) via Cantera nasa_gas.yaml; source TPIS78
   transport:
     model: gas
