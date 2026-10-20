@@ -10,7 +10,9 @@
 // SST, adiabatic no-slip walls, the chamber filled at rest with the overall mixture's complete-
 // combustion products at 1 MPa and 2,000 K; supply and LOX valves ramp open over 1 ms.
 //
-// CRUCIBLE_CFL overrides Definition::cfl.
+// CRUCIBLE_CFL overrides Definition::cfl; CRUCIBLE_RECONSTRUCT_T sets Definition::temperatureReconstruction,
+// CRUCIBLE_BOUND_H Definition::boundedFaceEnthalpy; CRUCIBLE_PRANDTL_T overrides the turbulent Prandtl
+// number (a diagnostic: Pr_t = Sc_t makes turbulent transport carry the excess enthalpy as one scalar).
 // Usage: crucible_mascotte_a10 <size> <nz> <nr> <end s> <average from s> <threads> <prefix> <table|none>
 //                             [parcels per second] [table audit interval]
 //   size: blob (Reitz's blob, KH-RT atomises), or rr:<SMD um>:<q>:<core length mm> (Rosin-Rammler
@@ -115,6 +117,9 @@ int main(int argc, char** argv) {
     d.transport = thermo::transportFits("h2o2.yaml", 60);  // fits valid down to cold O2 (SPRAY.md, Results: S2)
     d.wallTemperature = 0;
     if (const char* cfl = std::getenv("CRUCIBLE_CFL")) d.cfl = std::atof(cfl);
+    if (std::getenv("CRUCIBLE_RECONSTRUCT_T")) d.temperatureReconstruction = true;
+    if (std::getenv("CRUCIBLE_BOUND_H")) d.boundedFaceEnthalpy = true;
+    if (const char* prt = std::getenv("CRUCIBLE_PRANDTL_T")) d.turbulence.prandtl = std::atof(prt);
     Supply s;
     s.innerRadius = kAnnulusInner;
     s.outerRadius = kAnnulusOuter;

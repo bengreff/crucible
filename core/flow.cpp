@@ -700,6 +700,28 @@ void Flow::refresh(const std::vector<Conserved>& state,const std::vector<double>
         primitives_[q]={u[0],u[1]/u[0],u[2]/u[0],u[0]*props.r*t};
     });
 }
+Conserved Flow::reconstructionValues(std::size_t q) const {
+    auto w=values(primitives_[q]);
+    if(definition_.temperatureReconstruction) w[0]=temperature_[q];
+    return w;
+}
+void Flow::toFace(Primitive& w,double* y) const {
+    if(!definition_.temperatureReconstruction) return;
+    normalise(y,ns_,y);
+    w.rho=w.p/(medium_.gasConstant(y)*w.rho);
+}
+double Flow::cellEnthalpy(std::size_t q) const {
+    const double* y=fractions_.data()+q*nw_;const auto& w=primitives_[q];
+    return medium_.properties(temperature_[q],y).e+(nt_?y[ns_]:0.0)+w.p/w.rho;
+}
+void Flow::boundEnthalpy(Primitive& w,Thermal& t,double* y,std::size_t q,std::size_t other) const {
+    if(!definition_.boundedFaceEnthalpy) return;
+    const double h=t.e+w.p/w.rho,a=cellEnthalpy(q),b=cellEnthalpy(other);
+    if(h>=std::min(a,b) && h<=std::max(a,b)) return;
+    w=primitives_[q];
+    std::copy_n(fractions_.data()+q*nw_,nw_,y);
+    t=faceThermal(w,y);
+}
 // Face thermodynamics from reconstructed (rho, p), mass fractions and (with turbulence) k; y is
 // clipped and normalised in place. The face energy includes k, so the flux carries rho k in E.
 Thermal Flow::faceThermal(const Primitive& w,double* y) const {
@@ -916,23 +938,23 @@ double Flow::stableDt() {
 void Flow::radialProfiles(int i,int lo,int hi) {
     const auto& m=mesh_;
     for(int j=lo;j<hi;++j) {
-        auto q=m.index(i,j);const auto& cell=m.cells[q];auto c=values(primitives_[q]);
+        auto q=m.index(i,j);const auto& cell=m.cells[q];auto c=reconstructionValues(q);
         double low=m.radialFaceRadius(i,j)-cell.r,high=m.radialFaceRadius(i,j+1)-cell.r;
         Conserved slope{};
         auto centroidSlope=[&](int a,int b,int k){
-            return (values(primitives_[m.index(i,b)])[k]-values(primitives_[m.index(i,a)])[k])/(m.cells[m.index(i,b)].r-m.cells[m.index(i,a)].r);};
+            return (reconstructionValues(m.index(i,b))[k]-reconstructionValues(m.index(i,a))[k])/(m.cells[m.index(i,b)].r-m.cells[m.index(i,a)].r);};
         if(definition_.secondOrder && j==0) {
             Conserved curvature{};
             if(m.nr>=3) {
                 auto moment=[&](int b){return m.cells[m.index(i,b)].radialSecondMoment;};
-                auto w1=values(primitives_[m.index(i,1)]),w2=values(primitives_[m.index(i,2)]);
+                auto w1=reconstructionValues(m.index(i,1)),w2=reconstructionValues(m.index(i,2));
                 for(int k:{0,1,3}) curvature[k]=minmod((w1[k]-c[k])/(moment(1)-moment(0)),(w2[k]-w1[k])/(moment(2)-moment(1)));
             }
             if(m.nr>=2) slope[2]=minmod(c[2]/cell.r,centroidSlope(0,1,2));
             Primitive top=unpack(c);
             double face=m.radialFaceSecondMoment(i,1)-cell.radialSecondMoment;
             top.rho+=curvature[0]*face;top.uz+=curvature[1]*face;top.ur+=slope[2]*high;top.p+=curvature[3]*face;
-            radialLow_[q]=primitives_[q];radialHigh_[q]=top;
+            radialLow_[q]=unpack(c);radialHigh_[q]=top;
             pressureSource_[q]=c[3]*cell.radialPressureMeasure+curvature[3]*(cell.r*cell.volume-cell.radialSecondMoment*cell.radialPressureMeasure);
             continue;
         }
@@ -999,7 +1021,7 @@ void Flow::axialSlopes(int i,int lo,int hi) {
         return;
     }
     auto oneSided=[&](std::size_t q,std::size_t n1,std::size_t n2,double sign) {
-        auto c=values(primitives_[q]),a=values(primitives_[n1]),b=values(primitives_[n2]);
+        auto c=reconstructionValues(q),a=reconstructionValues(n1),b=reconstructionValues(n2);
         auto& slope=slopesZ_[q];
         for(int k=0;k<4;++k) slope[k]=sign*minmod(c[k]-a[k],a[k]-b[k]);
         for(int k:{0,3}) slope[k]=std::clamp(slope[k],-c[k],c[k]);
@@ -1011,9 +1033,9 @@ void Flow::axialSlopes(int i,int lo,int hi) {
     for(int j=lo;j<hi;++j) {
         if(i==0) { oneSided(m.index(0,j),m.index(1,j),m.index(2,j),-1);continue; }
         if(i==m.nz-1) { oneSided(m.index(m.nz-1,j),m.index(m.nz-2,j),m.index(m.nz-3,j),1);continue; }
-        auto q=m.index(i,j); auto c=values(primitives_[q]);
+        auto q=m.index(i,j); auto c=reconstructionValues(q);
         auto ql=m.index(i-1,j),qr=m.index(i+1,j);
-        auto l=values(primitives_[ql]),r=values(primitives_[qr]);
+        auto l=reconstructionValues(ql),r=reconstructionValues(qr);
         for(int k=0;k<4;++k) slopesZ_[q][k]=minmod(c[k]-l[k],r[k]-c[k]);
         for(std::size_t k=0;k<nw_;++k)
             fractionSlopesZ_[q*nw_+k]=minmod(fractions_[q*nw_+k]-fractions_[ql*nw_+k],fractions_[qr*nw_+k]-fractions_[q*nw_+k]);
@@ -1027,10 +1049,12 @@ void Flow::axialFace(int i,int j,double time,std::vector<double>& yl,std::vector
     const auto f=static_cast<std::size_t>(i)*m.nr+j;
     auto& stored=axialFlux_[f];double* transported=axialTransported_.data()+f*nw_;
     auto reconstructed=[&](std::size_t q,double direction,std::vector<double>& y) {
-        auto w=values(primitives_[q]);
+        auto w=reconstructionValues(q);
         for(int k=0;k<4;++k) w[k]+=direction*0.5*slopesZ_[q][k];
         for(std::size_t k=0;k<nw_;++k) y[k]=fractions_[q*nw_+k]+direction*0.5*fractionSlopesZ_[q*nw_+k];
-        return unpack(w);
+        auto face=unpack(w);
+        toFace(face,y.data());
+        return face;
     };
     auto il=m.index(std::max(0,i-1),j),ir=m.index(std::min(m.nz-1,i),j);
     // Boundary models receive the reconstructed interior face state.
@@ -1058,6 +1082,7 @@ void Flow::axialFace(int i,int j,double time,std::vector<double>& yl,std::vector
     Thermal tl=faceThermal(l,yl.data());
     if(i==m.nz) { bool ambientInflow=false;r=outlet(l,yl.data(),primitives_[il],ambientInflow);yr=ambientInflow?ambient_:yl; }
     Thermal tr=faceThermal(r,yr.data());
+    if(i>0 && i<m.nz) { boundEnthalpy(l,tl,yl.data(),il,ir);boundEnthalpy(r,tr,yr.data(),ir,il); }
     stored=faceFlux(d.lowMach,l,tl,r,tr,1,0,i>0 && i<m.nz);
     const auto& y=stored[0]>=0?yl:yr;
     for(std::size_t k=0;k<nw_;++k) transported[k]=area*stored[0]*y[k];
@@ -1070,10 +1095,12 @@ void Flow::radialFace(int i,int j,std::vector<double>& yl,std::vector<double>& y
     double nz=ar[0]/area,nr=ar[1]/area;
     Primitive l=radialHigh_[il];
     std::copy_n(fractionsHigh_.begin()+static_cast<std::ptrdiff_t>(il*nw_),nw_,yl.begin());
+    toFace(l,yl.data());
     Primitive r=l;
     if(j==m.nr) { r=reflect(l,nz,nr);yr=yl; }
-    else { r=radialLow_[ir];std::copy_n(fractionsLow_.begin()+static_cast<std::ptrdiff_t>(ir*nw_),nw_,yr.begin()); }
+    else { r=radialLow_[ir];std::copy_n(fractionsLow_.begin()+static_cast<std::ptrdiff_t>(ir*nw_),nw_,yr.begin());toFace(r,yr.data()); }
     Thermal tl=faceThermal(l,yl.data()),tr=faceThermal(r,yr.data());
+    if(j<m.nr) { boundEnthalpy(l,tl,yl.data(),il,ir);boundEnthalpy(r,tr,yr.data(),ir,il); }
     auto& flux=radialFlux_[f];
     flux=faceFlux(definition_.lowMach,l,tl,r,tr,nz,nr,true);
     // A stationary slip wall has exactly zero mass and energy exchange.

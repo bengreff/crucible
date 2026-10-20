@@ -62,6 +62,15 @@ struct Definition {
     double totalPressure{300000}, totalTemperature{300}, backPressure{15000};
     double cfl{0.4};
     bool secondOrder{true};
+    // Reconstruct T in place of rho (face rho = p / (R(Y_face) T_face)): the face temperature stays
+    // within the limited range of T where the composition jumps, which rho, p and Y reconstructed
+    // separately do not guarantee (COST.md, lever 3).
+    bool temperatureReconstruction{false};
+    // At interior faces, a side whose reconstructed enthalpy h = e + k + p/rho lies outside the two
+    // cells' range takes its cell's own state (first order on that side): reconstructing T and Y,
+    // or rho and Y, separately can pair one cell's temperature with the other's composition
+    // (COST.md, lever 3).
+    bool boundedFaceEnthalpy{false};
     LowMach lowMach{LowMach::None};
     Case experiment{Case::Nozzle};
     Gas gas{};
@@ -510,6 +519,14 @@ private:
         return nt_?turbulence[q*nt_]/u[0]:0.0;
     }
     Thermal faceThermal(const Primitive& w, double* y) const;
+    // A cell's reconstructed variables: (rho, u_z, u_r, p), or (T, u_z, u_r, p) under temperatureReconstruction;
+    // toFace turns a reconstructed face state back into (rho, u_z, u_r, p), normalising y.
+    [[nodiscard]] Conserved reconstructionValues(std::size_t q) const;
+    void toFace(Primitive& w, double* y) const;
+    // boundedFaceEnthalpy: cell q's enthalpy, and the bound applied to one side's face state (w, t, y)
+    // between cells q (its own) and other.
+    [[nodiscard]] double cellEnthalpy(std::size_t q) const;
+    void boundEnthalpy(Primitive& w, Thermal& t, double* y, std::size_t q, std::size_t other) const;
     Primitive inlet(Primitive inside) const;
     // ambientInflow is set when a Chamber exit draws ambient gas in (subsonic backflow).
     // inside: the reconstructed face state of the last cell; cell: that cell's own state.
