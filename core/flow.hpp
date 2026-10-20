@@ -364,11 +364,17 @@ public:
         std::vector<double> sums;     // per cell in stride kProbeStride: face f's term t at f kFaceTerms + t, then the sources
     };
     void setBudgetProbe(std::vector<std::size_t> cells, std::vector<double> weights);
+    // Under boundedFaceEnthalpy, the bound judges the excess b = h + |u|^2/2 - sum_k c_k Y_k (h without k) in
+    // place of h when c (per species) is given, e.g. c_k = h_ox + (h_fuel - h_ox) times the fuel element's share
+    // of species k: the total enthalpy above the propellants' mixing line, which h and Y bounded separately
+    // do not bound (COST.md, lever 3). Empty: h.
+    void setBoundedExcess(std::vector<double> c) { boundedExcess_ = std::move(c); }
     [[nodiscard]] const BudgetProbe& budgetProbe() const { return probe_; }
 private:
     friend class Amr;
     // The budget probe: its sums, the current right-hand side's terms and the attempt's (dt/2 per stage).
     BudgetProbe probe_;
+    std::vector<double> boundedExcess_;
     std::vector<double> probeStage_, probeAttempt_;
     void probeConvective();
     // Exchange rates of one right-hand-side evaluation, combined with the RK weights.
@@ -523,8 +529,9 @@ private:
     // toFace turns a reconstructed face state back into (rho, u_z, u_r, p), normalising y.
     [[nodiscard]] Conserved reconstructionValues(std::size_t q) const;
     void toFace(Primitive& w, double* y) const;
-    // boundedFaceEnthalpy: cell q's enthalpy, and the bound applied to one side's face state (w, t, y)
-    // between cells q (its own) and other.
+    // boundedFaceEnthalpy: the bounded measure of a state (w, e with k, y), cell q's, and the bound applied to
+    // one side's face state (w, t, y) between cells q (its own) and other.
+    [[nodiscard]] double boundMeasure(const Primitive& w, double e, const double* y) const;
     [[nodiscard]] double cellEnthalpy(std::size_t q) const;
     void boundEnthalpy(Primitive& w, Thermal& t, double* y, std::size_t q, std::size_t other) const;
     Primitive inlet(Primitive inside) const;

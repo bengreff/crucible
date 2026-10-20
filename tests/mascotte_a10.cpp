@@ -11,7 +11,8 @@
 // combustion products at 1 MPa and 2,000 K; supply and LOX valves ramp open over 1 ms.
 //
 // CRUCIBLE_CFL overrides Definition::cfl; CRUCIBLE_RECONSTRUCT_T sets Definition::temperatureReconstruction,
-// CRUCIBLE_BOUND_H Definition::boundedFaceEnthalpy; CRUCIBLE_PRANDTL_T overrides the turbulent Prandtl
+// CRUCIBLE_BOUND_H Definition::boundedFaceEnthalpy, and CRUCIBLE_BOUND_B the same judged on the excess above
+// the mixing line (Flow::setBoundedExcess); CRUCIBLE_PRANDTL_T overrides the turbulent Prandtl
 // number (a diagnostic: Pr_t = Sc_t makes turbulent transport carry the excess enthalpy as one scalar).
 // Usage: crucible_mascotte_a10 <size> <nz> <nr> <end s> <average from s> <threads> <prefix> <table|none>
 //                             [parcels per second] [table audit interval]
@@ -118,7 +119,7 @@ int main(int argc, char** argv) {
     d.wallTemperature = 0;
     if (const char* cfl = std::getenv("CRUCIBLE_CFL")) d.cfl = std::atof(cfl);
     if (std::getenv("CRUCIBLE_RECONSTRUCT_T")) d.temperatureReconstruction = true;
-    if (std::getenv("CRUCIBLE_BOUND_H")) d.boundedFaceEnthalpy = true;
+    if (std::getenv("CRUCIBLE_BOUND_H") || std::getenv("CRUCIBLE_BOUND_B")) d.boundedFaceEnthalpy = true;
     if (const char* prt = std::getenv("CRUCIBLE_PRANDTL_T")) d.turbulence.prandtl = std::atof(prt);
     Supply s;
     s.innerRadius = kAnnulusInner;
@@ -290,7 +291,17 @@ int main(int argc, char** argv) {
       }
       std::fflush(budget);
     };
+    // CRUCIBLE_BOUND_B: the bound judges the excess above the mixing line (Flow::setBoundedExcess), from the
+    // first step with injected LOX (h_LOX is the spray's injected energy per kilogram); h before.
+    bool excessBound = !std::getenv("CRUCIBLE_BOUND_B");
     while (flow.time() < endTime) {
+      if (!excessBound && spray.ledger().injectedMass > 0) {
+        const double hLox = spray.ledger().injectedEnergy / spray.ledger().injectedMass;
+        std::vector<double> c(ns);
+        for (std::size_t k = 0; k < ns; ++k) c[k] = hLox + (hHydrogen - hLox) * hydrogenShare[k];
+        flow.setBoundedExcess(c);
+        excessBound = true;
+      }
       reacting.step(endTime - flow.time());
       ++steps;
       if (hotT > 0 && hotAfter != 0) {

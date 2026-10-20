@@ -710,13 +710,19 @@ void Flow::toFace(Primitive& w,double* y) const {
     normalise(y,ns_,y);
     w.rho=w.p/(medium_.gasConstant(y)*w.rho);
 }
+double Flow::boundMeasure(const Primitive& w,double e,const double* y) const {
+    if(boundedExcess_.empty()) return e+w.p/w.rho;
+    double b=e-(nt_?y[ns_]:0.0)+w.p/w.rho+0.5*(w.uz*w.uz+w.ur*w.ur);
+    for(std::size_t k=0;k<ns_;++k) b-=boundedExcess_[k]*y[k];
+    return b;
+}
 double Flow::cellEnthalpy(std::size_t q) const {
-    const double* y=fractions_.data()+q*nw_;const auto& w=primitives_[q];
-    return medium_.properties(temperature_[q],y).e+(nt_?y[ns_]:0.0)+w.p/w.rho;
+    const double* y=fractions_.data()+q*nw_;
+    return boundMeasure(primitives_[q],medium_.properties(temperature_[q],y).e+(nt_?y[ns_]:0.0),y);
 }
 void Flow::boundEnthalpy(Primitive& w,Thermal& t,double* y,std::size_t q,std::size_t other) const {
     if(!definition_.boundedFaceEnthalpy) return;
-    const double h=t.e+w.p/w.rho,a=cellEnthalpy(q),b=cellEnthalpy(other);
+    const double h=boundMeasure(w,t.e,y),a=cellEnthalpy(q),b=cellEnthalpy(other);
     if(h>=std::min(a,b) && h<=std::max(a,b)) return;
     w=primitives_[q];
     std::copy_n(fractions_.data()+q*nw_,nw_,y);
