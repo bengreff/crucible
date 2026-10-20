@@ -1,0 +1,138 @@
+
+[CVODES ERROR]  CVode
+  At t = 3.22647e+10 and h = 1.64148, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.14544e+10 and h = 0.0622686, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 0 and h = 3.8147e-24, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 1.5034e+14 and h = 263.618, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 8.96731e+09 and h = 1.19126, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 3.03142e+10 and h = 0.100823, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.05237e+14 and h = 85.212, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 5.13355e+10 and h = 1.51179, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.91422e+13 and h = 158.255, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.94129e+13 and h = 1.35401e+07, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 3.22647e+10 and h = 1.64148, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.14544e+10 and h = 0.0622686, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 0 and h = 3.8147e-24, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 1.5034e+14 and h = 263.618, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 8.96731e+09 and h = 1.19126, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 3.03142e+10 and h = 0.100823, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.05237e+14 and h = 85.212, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 5.13355e+10 and h = 1.51179, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.91422e+13 and h = 158.255, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.94129e+13 and h = 1.35401e+07, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 3.22647e+10 and h = 1.64148, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.14544e+10 and h = 0.0622686, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 0 and h = 3.8147e-24, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 1.5034e+14 and h = 263.618, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 1.56505e+11 and h = 3.37463, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 8.96731e+09 and h = 1.19126, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.05237e+14 and h = 85.212, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 5.13355e+10 and h = 1.51179, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.91422e+13 and h = 158.255, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.45455e+09 and h = 0.19379, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+
+[CVODES ERROR]  CVode
+  At t = 2.94129e+13 and h = 1.35401e+07, the corrector convergence test failed repeatedly or with |h| = hmin.
+
+candidate 0 (Y_H2O): worst turn-back 8.286e+06 at f_H 0.05595 Z_N 0.0000 eta 0.00000 rho 1.7321e-01; N-gate failures 31 (worst at f_H 0.55595 Z_N 0.0000 eta 1.00000 rho 1.7321e-01); 26 s
+  its 2(b) worst |dT| 31.944 K at f_H 0.55595 Z_N 0.0000 eta 0.60000 rho 1.0000e-03; 2(c) frozen lower 11, upper 19, integrator failures 12; criterion 1 |sum Y - 1| 4.44e-16, elements 2.79e-16 after projection
+candidate 1 (Y_H2O + Y_HO2 + Y_H2O2): worst turn-back 8.291e+06 at f_H 0.05595 Z_N 0.0000 eta 0.00000 rho 1.7321e-01; N-gate failures 29 (worst at f_H 0.55595 Z_N 0.0000 eta 1.00000 rho 2.2795e+00); 19 s
+  its 2(b) worst |dT| 31.944 K at f_H 0.55595 Z_N 0.0000 eta 0.60000 rho 1.0000e-03; 2(c) frozen lower 11, upper 19, integrator failures 12; criterion 1 |sum Y - 1| 3.33e-16, elements 3.19e-16 after projection
+candidate 2 (the O2 consumed): worst turn-back 9.018e+06 at f_H 0.05595 Z_N 0.0000 eta 0.00000 rho 1.7321e-01; N-gate failures 31 (worst at f_H 0.55595 Z_N 0.3000 eta 1.00000 rho 2.2795e+00); 10 s
+  its 2(b) worst |dT| 981.865 K at f_H 0.55595 Z_N 0.0000 eta 1.00000 rho 1.3161e-02; 2(c) frozen lower 12, upper 15, integrator failures 11; criterion 1 |sum Y - 1| 4.44e-16, elements 2.74e-16 after projection
+gate 2(a) (progress variable): FAIL (no candidate passed on every node)
+gate 2(b) (equilibrium end state vs equilibrateUV): worst |dT| 981.865 K at f_H 0.55595 Z_N 0.0000 eta 1.00000 rho 1.3161e-02 (limit 3.0 K): FAIL
+gate 2(c): frozen branches: lower 12, upper 15 (reported, not required zero); integrator failures 11 (must be 0): FAIL
+criterion 1 (node conservation): element error 2.15e-04 raw, 2.74e-16 after projection (worst at f_H 0.11191 Z_N 0.0000 eta 1.00000 rho 2.2795e+00), |sum Y - 1| 4.44e-16 (limit 1e-12): pass
+nodes: 120 degenerate, 13 with a zero-span branch, 4 outside the thermo range
+branch integration: 321 branches, mean 13.45 ms, worst 2797.87 ms
+Table B built 2026-10-20 17:50 CDT by crucible_build_manifold_table from ../tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes (2 lean, 2 rich, 0 clustered), Z_N {0.000000,0.300000}, eta 6 over [0,1], ln rho 5 over [0.001, 30] kg/m3; progress variable the O2 consumed; 300 nodes in 10 s on 2 threads; node element error 2.15e-04 raw, 2.74e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b FAIL, 2c FAIL, criterion 1 pass -- GATE FAILURE
+Not writing /tmp/x.bin: a gate failed. Set CRUCIBLE_TABLE_B_WRITE_ANYWAY=1 to write it anyway for inspection.

@@ -283,6 +283,7 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
 
     // The lower branch's start.
     std::vector<double> zLower(ns + 1);
+    double lowerTStar = std::numeric_limits<double>::quiet_NaN();  // NaN: the reactants' start
     if (energyAt(200.0, yReactants) <= e) {
       zLower[0] = temperatureAt(e, yReactants);
       std::copy(yReactants.begin(), yReactants.end(), zLower.begin() + 1);
@@ -294,10 +295,22 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
         source.equilibrateTV(rho, w.data());
         return std::vector<double>(w.begin() + 1, w.end());
       };
-      const double tStar = bisect([&](double ts) { return energyAt(200.0, frozenAt(ts)) - e; }, 300.0, 6000.0);
-      auto y = frozenAt(tStar * (1 - 1e-9));
-      zLower[0] = temperatureAt(e, y);
-      std::copy(y.begin(), y.end(), zLower.begin() + 1);
+      // The bracket is checked before bisecting (TABLE_B.md, *The integrator failures*). At or below
+      // the family's low end (eta = 0 carries the products at 200 K exactly), the equilibrium at 300 K
+      // differs from the complete-combustion products only by trace dissociation, so the products
+      // are the start; without this the bisection drifts to its upper bound.
+      const auto g = [&](double ts) { return energyAt(200.0, frozenAt(ts)) - e; };
+      if (g(300.0) >= -1e-9 * (eHi - eLo)) {
+        zLower[0] = temperatureAt(e, yComplete);
+        std::copy(yComplete.begin(), yComplete.end(), zLower.begin() + 1);
+      } else {
+        if (g(6000.0) < 0) throw std::runtime_error("lower branch: no frozen start up to 6000 K carries the node's energy");
+        const double tStar = bisect(g, 300.0, 6000.0);
+        lowerTStar = tStar;
+        auto y = frozenAt(tStar * (1 - 1e-9));
+        zLower[0] = temperatureAt(e, y);
+        std::copy(y.begin(), y.end(), zLower.begin() + 1);
+      }
     }
 
     // The shared equilibrium (both branches meet here).
@@ -327,7 +340,7 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
 
     // Integrates one branch from zStart toward branchCEq, recording every internal step (with its
     // exact rate, hence lambda) until within kStopFrac of the span or the time horizon.
-    auto runBranch = [&](const std::vector<double>& zStart, double branchCEq, bool& frozenOut) {
+    auto runBranch = [&](const char* name, const std::vector<double>& zStart, double branchCEq, bool& frozenOut) {
       std::vector<RawStep> steps;
       const double cStart = progress(zStart.data() + 1);
       const double span = std::fabs(branchCEq - cStart);
@@ -348,12 +361,31 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
       frozenOut = true;
       std::vector<double> z = zStart;
       const auto clock0 = std::chrono::steady_clock::now();
-      step.follow(rho, z.data(), kTEnd, [&](double t, const double* zz) {
-        steps.push_back(withLambda(zz, t));
-        const bool close = std::fabs(branchCEq - steps.back().c) <= kStopFrac * span;
-        if (close) frozenOut = false;
-        return !close;
-      });
+      try {
+        step.follow(rho, z.data(), kTEnd, [&](double t, const double* zz) {
+          steps.push_back(withLambda(zz, t));
+          const bool close = std::fabs(branchCEq - steps.back().c) <= kStopFrac * span;
+          if (close) frozenOut = false;
+          return !close;
+        });
+      } catch (const std::exception& ex) {
+        // Tag the failing branch with its start (TABLE_B.md, 2(c)): which branch, how it started,
+        // the start's T and first right-hand side, the furthest step reached, and the start's Y.
+        source.rates(rho, zStart.data(), dzdt.data());
+        std::string why = std::string(name) + " branch";
+        char buf[256];
+        if (name[0] == 'l')
+          why += std::isnan(lowerTStar) ? " (reactants start)" : (std::snprintf(buf, sizeof buf, " (frozen start, T* %.6g K)", lowerTStar), buf);
+        std::snprintf(buf, sizeof buf, ": start T %.6g K, dT/dt %.4e K/s, c %.6e to c_eq %.6e; %zu steps recorded, last t %.4e s T %.6g K; ",
+                      zStart[0], dzdt[0], cStart, branchCEq, steps.size(), steps.back().t, steps.back().T);
+        why += buf;
+        why += ex.what();
+        why += "; start Y";
+        for (std::size_t q = 0; q < ns; ++q) { std::snprintf(buf, sizeof buf, " %.4e", zStart[q + 1]); why += buf; }
+        why += "; start dY/dt";
+        for (std::size_t q = 0; q < ns; ++q) { std::snprintf(buf, sizeof buf, " %.4e", dzdt[q + 1]); why += buf; }
+        throw std::runtime_error(why);
+      }
       const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - clock0).count();
       result.branchTimeSumMs += ms;
       result.branchTimeWorstMs = std::max(result.branchTimeWorstMs, ms);
@@ -363,8 +395,8 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
 
     std::vector<RawStep> lowerSteps, upperSteps;
     bool lowerFrozen = false, upperFrozen = false;
-    if (!zeroSpanLower) lowerSteps = runBranch(zLower, cEq, lowerFrozen);
-    if (!zeroSpanUpper) upperSteps = runBranch(zUpper, cEq, upperFrozen);
+    if (!zeroSpanLower) lowerSteps = runBranch("lower", zLower, cEq, lowerFrozen);
+    if (!zeroSpanUpper) upperSteps = runBranch("upper", zUpper, cEq, upperFrozen);
     result.lowerFrozen = lowerFrozen;
     result.upperFrozen = upperFrozen;
     if (lowerFrozen || upperFrozen) node.flags |= ManifoldTable::kFrozen;
