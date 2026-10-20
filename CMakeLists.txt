@@ -93,6 +93,11 @@ if(CRUCIBLE_WITH_CANTERA)
   target_include_directories(crucible_build_manifold_table PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
   target_link_libraries(crucible_build_manifold_table PRIVATE crucible_thermo
     ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+  # A chamber study's state samples, re-expressed in another mechanism's eta (TABLE_B.md).
+  add_executable(crucible_state_samples_eta tools/state_samples_eta.cpp)
+  target_include_directories(crucible_state_samples_eta PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+  target_link_libraries(crucible_state_samples_eta PRIVATE ${CANTERA_ROOT}/build/lib/libcantera.a
+    ${ACCELERATE_FRAMEWORK} Threads::Threads)
   # HP equilibrium of H2 and O2 on a given mechanism, for the check against CEA (TABLE_B.md).
   add_executable(crucible_equilibrium_hp tools/equilibrium_hp.cpp)
   target_include_directories(crucible_equilibrium_hp PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})

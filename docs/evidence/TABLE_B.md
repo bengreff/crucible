@@ -230,6 +230,131 @@ The Director's order: give the integration an exact Jacobian in place of CVODES'
 2. **The cold dense-radical starts integrate.** The small table as before (`crucible_build_manifold_table <out> 2 2 0 0,0.3 6 5 1e-3 30 2 ../tools/mechanisms/h2o2_highT.yaml`): the 23 lower branches that failed (f_H 0.056 and f_st, η 0.2 to 0.8, ρ 2.28 and 30 kg/m³; `small_highT_bracketfix_nodes_2026-10-20.csv`) and the 6,000 K upper branch the forced first step broke (f_H 0.056, η 1, ρ 30) all integrate, and the table has 0 integrator failures in all. Its gate table is reported in full.
 3. **Nothing that passed regresses.** `ctest -R "reaction|pasr"` passes as before.
 4. **C1 is unchanged within the integrator's tolerance.** C1 finite-rate, inviscid, 32x6 (`crucible_chamber_study fr 32 6 <end> 2 <prefix>`, h2o2.yaml, rtol 1e-6, atol 1e-12), the analytic build against the difference-quotient build of the parent commit, same machine and threads. Pass: c*, vacuum Isp and vacuum thrust at the end within 1e-4 relative, the light-off time within 1%, and the injector pressure within 1e-3 relative at every printed time. Reported: the reaction's wall time and steps in both. The end time is chosen from a timed short run and stated before the comparison.
+   - **End time, stated before the comparison (18:12 CDT):** 4 ms, with C1's 300 J igniter (`crucible_chamber_study fr 32 6 4e-3 2 <prefix> 300`). The timed run (difference quotient, to 1 ms) took 221 s per ms once lit, so about 15 min per run.
+
+### Results (20 October, 18:25 CDT)
+
+**Check 1, as stated: FAIL** (measured). The worst column was 1.402e-6 (h2o2.yaml, 1 column of 792) and 2.911e-6 (h2o2_highT, 3 columns), against 1e-6, all in the T row. Two findings on the way:
+
+- **A Cantera 3.2 bug (measured, reproduced in plain Cantera).** After a composition change at unchanged T and ρ, `getNetProductionRates_ddT` returns stale values. The falloff species' rows (H, O2, OH, HO2, H2O2) were wrong by up to 5e4 times, and the first run of the check failed at 1.3e7 to 2.4e7. `invalidateCache()` before the derivative calls gives the fresh values exactly, and the code now does that.
+- **What remained was round-off, in two places (measured by scans).**
+  - The reference's own: its worst column falls with the step as round-off over the step does. At steps of 1e-7, 1e-6 and 1e-5 it was 1.9e-5, 1.4e-6 and 0 on h2o2, and 1.3e-5, 2.9e-6 and 1.0e-6 on highT.
+  - Cantera's: the reference was then made converged (Richardson-extrapolated central differences at 1e-5, whose values at h, 2h, 4h and 8h change by a factor of 4 each time). The one column left was ∂f_T/∂T at 2,500 K and ρ 20 (1.02e-6), and it moves with Cantera's one-sided step `rtol-delta`:
+
+| `rtol-delta` | 1e-10 | 1e-9 | 1e-8 (default) | 3e-8 | 1e-7 | 3e-7 | 1e-6 |
+|---|---|---|---|---|---|---|---|
+| highT worst column | 1.4e-4 | 1.6e-5 | 1.02e-6 | 6.1e-7 | 4.4e-7 | 1.3e-6 | 4.4e-6 |
+| h2o2 worst column | | | 4.9e-7 | 2.3e-7 | 3.1e-7 | 9.4e-7 | |
+
+- **Restated after the result (flagged): Cantera's step is 1e-7, not 1e-8, and the reference is the Richardson one at 1e-5.** The bar stays at 1e-6. The worst column is then 3.09e-7 (h2o2) and 4.38e-7 (highT): pass.
+
+**Check 2, as stated: FAIL** (measured; `table_b/small_highT_analyticjac_2026-10-20.txt`, nodes `..._analyticjac_nodes_2026-10-20.csv`). The 6,000 K upper branch integrates, but the same 23 lower branches fail (the same set as the bracket-fix run). Each fails with flag −4 at t = 0, and the last step sizes (1.25e-12 to 9.34e-12 s) match the difference-quotient run's to every printed digit. The gate table:
+
+| Gate | Y_H2O | Y_H2O + Y_HO2 + Y_H2O2 | The O2 consumed |
+|---|---|---|---|
+| 2(a) worst turn-back (bar 1e-9) | 5.78e-2 | 5.78e-2 | 7.04 |
+| 2(a) N-gate failures (bar 0) | 25 | 25 | 25 |
+| 2(b) worst \|ΔT\| (bar 3 K) | 65.4 K | 65.4 K | 132.4 K |
+| 2(c) integrator failures (bar 0) | 23 | 23 | 23 |
+| 2(c) frozen branches, lower and upper | 25, 20 | 25, 20 | 15, 10 |
+| Criterion 1 after projection (bar 1e-12) | 2.2e-16, 2.4e-16 | 4.4e-16, 2.6e-16 | 4.4e-16, 3.4e-16 |
+
+- The O2 consumed's 2(b) moved from 592.7 K (f_H 0.556, Z_N 0.3, η 0.6, ρ 1e-3) to 132.4 K (f_H 0.556, Z_N 0, η 0.2, ρ 0.013). Inferred: at O/F 0.8 the O2 runs out long before the end, so that variable's end point is ill-conditioned and moves with the integrator's path.
+
+**The mechanism, written down before more code (rule 4: two fixes have missed it, the forced first step and the Jacobian).** *Inferred, from CVODES 5.3's step logic:*
+- The Jacobian was not the cause. The last step sizes are the same with either Jacobian because the failure path does not depend on it.
+- CVODES estimates a first step. At every corrector failure it cuts h by 4, and it gives up at the 10th failure (`maxncf`, default 10). So the last h is the first h × 4⁻⁹, and the first step was about 3e-7 to 2.4e-6 s (*derived*). The recombination time is 5e-14 to 2e-10 s, so that is 3 to 7 orders too long.
+- At the last h, h/τ is still 10 to 1e2 at the fastest starts. One implicit step must then carry T from 200 K to thousands of kelvin, and 3 Newton iterations from the predicted state cannot converge on Arrhenius terms, however exact the Jacobian.
+- This fits the probe: a forced first step of 1e-18 s let 22 of the 23 through.
+
+**Next (an engineering change; checked, not assumed):** allow more corrector failures (`CVodeSetMaxConvFails`), so that h keeps falling by 4 until Newton converges (from 1e-6 s, 30 failures reach 1e-18 s). This changes nothing on any path that never reached 10 failures in one step: CVODES's path is identical up to that point. So every branch and run that passed before is reproduced bit for bit, which the reaction tests and C1 will show. Before that change, the first step and the failure count are measured on one failing start.
+
+**The mechanism, measured (18:35 CDT; a probe build that reports CVODES's counters on failure, not kept).** All 23 starts have a first step of 3.3e-7 to 2.4e-6 s, against T/|dT/dt| of 4.9e-14 to 2.2e-10 s. Each starts the same way: exactly 10 corrector failures with 10 Jacobian evaluations (a fresh exact Jacobian at every retry), 12 to 22 Newton iterations, no step taken. This is the inferred mechanism, confirmed.
+
+**The change: 40 corrector failures allowed per step, not 10** (`CVodeSetMaxConvFails` in `ReactionStep`; with the analytic Jacobian, the code that is kept).
+- **Check 2 rerun after the change (flagged as after the result):** 0 integrator failures in all three candidates, so gate 2(c) passes (`table_b/small_highT_maxconvfails_2026-10-20.txt`, nodes `..._maxconvfails_nodes_2026-10-20.csv`). The 6,000 K upper branch still integrates.
+- **The gate table after the change:**
+
+| Gate | Y_H2O | Y_H2O + Y_HO2 + Y_H2O2 | The O2 consumed |
+|---|---|---|---|
+| 2(a) worst turn-back (bar 1e-9) | 5.78e-2 | 1.21e-1 | 7.04 |
+| 2(a) N-gate failures (bar 0) | 27 | 25 | 25 |
+| 2(b) worst \|ΔT\| (bar 3 K) | 65.4 K | 65.4 K | 132.4 K |
+| 2(c) integrator failures (bar 0) | **0** | **0** | **0** |
+| 2(c) frozen branches, lower and upper | 25, 20 | 25, 20 | 15, 10 |
+| Criterion 1 after projection (bar 1e-12) | 2.2e-16, 2.4e-16 | 4.4e-16, 2.7e-16 | 4.4e-16, 3.4e-16 |
+
+- **The 23 branches now integrated add to 2(a), and nothing else changed.** Y_H2O's N-gate failures rise from 25 to 27. The second candidate's worst turn-back rises to 0.121, at f_H 0.056, Z_N 0.3, η 0.2 and ρ 30, which is one of those branches. 2(b) and the frozen counts are unchanged.
+- **Branch time:** mean 9.6 ms and worst 89 ms, against 4.7 and 20 ms, over 316 branches against 270. The new ones are the cold dense-radical starts.
+- **Gates 2(a) and 2(b) still fail.** Their failures are at f_H 0.556 and f_st and at f_H 0.056, all outside O/F 4 to 6. That is item 2's question.
+
+**Check 3: pass** (measured). `ctest -R "reaction|pasr"` passes with the analytic Jacobian and 40 corrector failures (`reaction_verification` 2 s, `pasr_verification` 391 s).
+- **The 40 failures change nothing there:** a `crucible_pasr_tests` built with the analytic Jacobian and the default 10 prints the same output to every digit, timing lines aside.
+- **The Jacobian does move the PaSR test's integration errors, within its limits:** against a build that predates it, for example 1.441e-8 to 2.318e-8 in T at rtol 1e-10, and 2.255e-6 to 1.461e-6 at rtol 1e-7. A different Newton matrix takes a different path inside the tolerance. That is expected, not a regression, and every case still passes its stated limit.
+- `reaction_verification`'s ignition and gri30 outputs are unchanged apart from wall times.
+
+**Check 4: pass** (measured, 18:47 CDT; histories and logs in `/tmp/c1jac`, not kept). Both builds ran to 4 ms with the 300 J igniter. Against the difference-quotient build of the parent commit, the analytic build with 40 corrector failures gives:
+- c* 2,477.28 m/s, vacuum thrust 1,665.07 N and vacuum Isp 424.53 s in both, identical to every printed digit, so within 1e-4 relative.
+- At every printed time, the injector pressure and the outlet mass flow differ by 0, and the vacuum thrust by at most 1.34e-7 relative. The injector-pressure bar was 1e-3.
+- 34,701 flow steps in both.
+- The light-off time is not printed in finite-rate mode, so that part of the check was not judged. The identical pressure history through ignition is the evidence that it did not move.
+- **Reaction wall time:** 923.4 s against 778.2 s (+19%, or 138.6 against 116.8 µs per cell update; measured, on a shared machine at load 17 to 23, so the comparison is loose). The study does not print CVODES's own step count. On these states the exact Jacobian buys no speed. Its use is the 23 cold starts above, through the corrector failures it shares with the quotient.
+
+## The small table in O/F 4 to 6 and a chamber pressure band (20 October 2026, 18:43 CDT)
+
+**The table:** f_H nodes at O/F 6, 5 and 4 (1/7, 1/6, 1/5; the builder's new `CRUCIBLE_TABLE_B_FH_NODES`); Z_N {0, 0.3}; η 6 nodes; ln ρ 5 nodes over [0.3, 80] kg/m³; on h2o2_highT. Command: `CRUCIBLE_TABLE_B_FH_NODES=0.142857,0.166667,0.2 crucible_build_manifold_table <out> 0 0 0 0,0.3 6 5 0.3 80 2 ../tools/mechanisms/h2o2_highT.yaml`.
+
+**The density band (declared; no RL10 measurement read).** The RL10's chamber pressure is one of its blind predictions, so the band is a wide declared one: 1 to 10 MPa, which contains C1 (injector pressure 1.55 MPa at 0.5 ms and 3.3 MPa at 2.5 ms, measured this session) and any engine of the RL10's class. In density (*derived*, ideal gas at O/F 5, W about 12 kg/kmol): hot products at 1 MPa and 3,600 K are 0.37 kg/m³, and cold products at 10 MPa and 200 K are 73. The table is rectangular in (η, ln ρ), so its dense hot corner lies far above the band.
+
+**The gate table** (measured; `table_b/of4to6_highT_2026-10-20.txt`, nodes `..._nodes_2026-10-20.csv`). The first candidate, Y_H2O, passes 2(a), so the builder did not try the others.
+
+| Gate | Y_H2O |
+|---|---|
+| 2(a) worst turn-back (bar 1e-9) | **0** (pass) |
+| 2(a) N-gate failures (bar 0) | **0** (pass) |
+| 2(b) worst \|ΔT\| (bar 3 K) | **0.010 K** (pass; f_H 0.2, Z_N 0, η 0.6, ρ 0.3) |
+| 2(c) integrator failures (bar 0) | **2** (FAIL) |
+| 2(c) frozen branches, lower and upper | 15, 20 |
+| Criterion 1 after projection (bar 1e-12) | 4.4e-16, 3.6e-16 (pass) |
+| Nodes: degenerate, zero-span, outside the thermo range | 0, 20, 0 |
+
+- **The 2 failures are not integrator failures but the builder's named refusal** ("no frozen start up to 6000 K carries the node's energy"). Both are at η 0.6 and ρ 80 kg/m³ (f_H 1/7 and 1/6, Z_N 0).
+  - At that density the 6,000 K equilibrium is so little dissociated that no composition frozen from it holds the node's energy at 200 K.
+  - The node's equilibrium pressure is of order 200 MPa (*inferred*: about 3,500 K at W 12), 20 times the band's top. So the failures lie outside the band, in the table's rectangular corner.
+- **Inside O/F 4 to 6, where C1 and the RL10 run, the progress variable Y_H2O is monotone and 2(b) holds to 0.01 K.** The 2(a) and 2(b) failures of the earlier small table were at f_H 0.056, f_st and 0.556 (O/F 16.9, 7.9 and 0.8), outside this range.
+
+## The fallback rate in a C1-like run, stated before it is measured (20 October 2026, 18:50 CDT)
+
+The Director's rule: a declared domain with a CVODES fallback is acceptable if, in a C1-like run, the fallback takes under about 1% of cell updates; otherwise the progress variable is reopened.
+
+- **What is counted.** The runtime is not yet written, so the count is the cell updates that the *domain* sends to CVODES. A cell update is counted if its state is outside the table's axes (f_H, Z_N, η, ρ), or if any of its 16 corners has failed a gate: a 2(a) turn-back above 1e-9 or an N-gate failure, a 2(b) |ΔT| above 3 K, a 2(c) failure, or the outside flag. The runtime's other causes need the runtime and are not counted: off the curve, ΔY above ΔY_max, frozen reach and AR. So the measured rate is a **lower bound** on the fallback rate.
+- **The table:** as the O/F 4 to 6 table above, but with ln ρ over [1e-3, 80] kg/m³ in 9 nodes, so that the axes reach C1's nozzle (its exit density is about 0.03 kg/m³, *inferred*).
+- **The run:** C1 finite-rate 32x6 to 4 ms with the 300 J igniter, on h2o2_highT (the table's mechanism, through `CRUCIBLE_MECHANISM`), with the analytic Jacobian. Every 2 µs, each cell's (f_H, Z_N, η, ρ) is written through the chamber study's new `CRUCIBLE_STATE_SAMPLES`, with η taken from the cell's own complete-combustion products as in the builder. Each sample is weighted by the flow steps since the previous one, so the fraction is of cell updates.
+- **Reported:** the fraction over the whole run (the stated figure, judged against 1%), and over the last millisecond (the burning chamber); each broken down by cause. The causes are Z_N above the axis (the ambient N2 the start purges), ρ, η or f_H outside the axes, and a failed corner.
+- **The decision follows the rule.** Under 1%: a declared domain, named by its axes. Over 1%: the cause breakdown says whether a wider axis would fix it or the progress variable must be reopened.
+
+### The table it is measured against (measured, 18:46 CDT; `table_b/c1range_highT_2026-10-20.txt`, nodes `..._nodes_2026-10-20.csv`)
+
+`CRUCIBLE_TABLE_B_FH_NODES=0.142857,0.166667,0.2 crucible_build_manifold_table <out> 0 0 0 0,0.3 6 9 1e-3 80 2 ../tools/mechanisms/h2o2_highT.yaml`: 324 nodes, 536 branches (mean 8.7 ms, worst 82 ms).
+
+| Gate | Y_H2O | Y_H2O + Y_HO2 + Y_H2O2 | The O2 consumed |
+|---|---|---|---|
+| 2(a) worst turn-back (bar 1e-9) | 0.253 (f_H 1/6, Z_N 0, η 0.6, ρ 1e-3) | 0.198 (same node) | 4.76 |
+| 2(a) N-gate failures (bar 0) | 8 | 8 | 8 |
+| 2(b) worst \|ΔT\| (bar 3 K) | 0.126 K | 0.126 K | 1.05 K |
+| 2(c) integrator failures (bar 0) | 2 | 2 | 2 |
+| 2(c) frozen branches, lower and upper | 27, 28 | 27, 28 | 9, 0 |
+| Criterion 1 after projection (bar 1e-12) | 4.4e-16, 3.2e-16 | 4.4e-16, 3.3e-16 | 4.4e-16, 3.1e-16 |
+
+- **2(a) fails at low density, in every candidate.** For Y_H2O, 85 of 324 nodes fail. 83 of them are at ρ ≤ 0.069 kg/m³ (all four of the lowest density nodes: 25, 25, 23 and 10 failures), and they are spread over η 0.2 to 1. The other 2 are the ρ 80 refusals.
+  - *Inferred:* at 1e-3 to 0.07 kg/m³ and these energies, the equilibrium is so dissociated that the path from the frozen start makes H2O and then gives some back as the radical pool grows. A product mass fraction then turns back.
+  - From 0.28 to 19.5 kg/m³ (the band's interior) there is no 2(a) failure, as in the 0.3 to 80 table.
+- **2(b) passes in all candidates** (worst 1.05 K). **2(c)'s 2 failures** are the same two ρ 80 refusals as in the O/F 4 to 6 table.
+- **So no progress variable passes on the C1-range axes,** and the fallback rate is measured against Y_H2O, the declared one (candidate 0). A cell is counted as fallback if any of its 16 corners fails a gate.
+- **Deviation from the statement above (flagged).** The C1 run on h2o2_highT failed at 0.206 ms, as the igniter turned on: "Temperature iteration did not converge", in the flow's energy-to-temperature inversion (`/tmp/c1fb/fb_highT_failed.log`). C1 on h2o2.yaml passes the same point. That failure is an open finding, not fixed this session. The sampled run is therefore on h2o2.yaml.
+  - f_H, Z_N and ρ do not depend on the mechanism file, but η does. Its top end is u(6,000 K) of the products, and h2o2.yaml's polynomials end at 3,500 K. Extrapolated, its u(6,000 K) of the O/F 4 to 6 products is 8.0 to 8.6% higher than h2o2_highT's, so the run's η reads up to 0.079 low near η 1. At 200 K the two energies agree. (Measured, in a probe.)
+  - So each sample's η is re-expressed in h2o2_highT's energies before it is classified. The cell's energy e is recovered from η on h2o2.yaml's ends, and then η = (e − u_b(200 K)) / (u_b(6,000 K) − u_b(200 K)), using the products from (f_H, Z_N) (new `tools/state_samples_eta.cpp`, built as `crucible_state_samples_eta`).
+  - What is left: the C1 states are h2o2.yaml's, whose thermo below 3,500 K differs from h2o2_highT's by the OH and 1-bar corrections (about 1e-4 in C1's c*, TABLE_A.md).
 
 ## The runtime, stated before its code (14 October 2026, about 01:20 CDT)
 

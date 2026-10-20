@@ -33,6 +33,8 @@
 // regardless, clearly labelled in the provenance, for inspecting a failed build.
 // CRUCIBLE_TABLE_B_NODE_REPORT=<path> writes one CSV row per node and candidate: its gate numbers,
 // flags, c_0, c_eq, c_cp, T_eq and, for an integrator failure, the exception's text.
+// CRUCIBLE_TABLE_B_FH_NODES=<comma list> gives the f_H nodes directly (the lean, rich and clustering
+// arguments are then ignored), for small tables that measure the gates over a chosen range.
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -580,18 +582,20 @@ int main(int argc, char** argv) {
   const std::string out = argv[1];
   const int fLean = std::atoi(argv[2]), fRich = std::atoi(argv[3]);
   const double fCluster = std::atof(argv[4]);
-  std::vector<double> zList;
-  {
-    std::string s = argv[5];
+  auto parseList = [](const std::string& s) {
+    std::vector<double> list;
     std::size_t pos = 0;
     while (pos <= s.size()) {
       const std::size_t comma = s.find(',', pos);
-      zList.push_back(std::atof(s.substr(pos, comma - pos).c_str()));
+      list.push_back(std::atof(s.substr(pos, comma - pos).c_str()));
       if (comma == std::string::npos) break;
       pos = comma + 1;
     }
-    std::sort(zList.begin(), zList.end());
-  }
+    std::sort(list.begin(), list.end());
+    return list;
+  };
+  const std::vector<double> zList = parseList(argv[5]);
+  const char* fHNodes = std::getenv("CRUCIBLE_TABLE_B_FH_NODES");
   const int nEta = std::atoi(argv[6]), nLnRho = std::atoi(argv[7]);
   const double rhoMin = std::atof(argv[8]), rhoMax = std::atof(argv[9]);
   const int threads = std::max(1, std::atoi(argv[10]));
@@ -621,7 +625,9 @@ int main(int argc, char** argv) {
   for (int i = 0; i <= fLean; ++i) axes.fH.push_back(sp.idx.hInWater * i / fLean);
   for (int i = 1; i <= fRich; ++i) axes.fH.push_back(sp.idx.hInWater + (1 - sp.idx.hInWater) * i / fRich);
   std::size_t clustered = 0;
-  if (fCluster > 0) {
+  if (fHNodes) {
+    axes.fH = parseList(fHNodes);
+  } else if (fCluster > 0) {
     for (double d = fCluster; d < sp.idx.hInWater / fLean; d *= 1.5, ++clustered) axes.fH.push_back(sp.idx.hInWater - d);
     for (double d = fCluster; d < (1 - sp.idx.hInWater) / fRich; d *= 1.5, ++clustered) axes.fH.push_back(sp.idx.hInWater + d);
     for (double d = fCluster; d < sp.idx.hInWater / fLean; d *= 1.5, ++clustered) axes.fH.push_back(d);
@@ -810,14 +816,21 @@ int main(int argc, char** argv) {
   const std::time_t now = std::time(nullptr);
   char date[64];
   std::strftime(date, sizeof date, "%Y-%m-%d %H:%M %Z", std::localtime(&now));
-  std::string zStr;
+  std::string zStr, fHStr;
   for (double v : axes.zN) zStr += (zStr.empty() ? "" : ",") + std::to_string(v);
+  if (fHNodes) {
+    for (double v : axes.fH) fHStr += (fHStr.empty() ? "{" : ",") + std::to_string(v);
+    fHStr += "} as given";
+  } else {
+    fHStr = "(" + std::to_string(fLean) + " lean, " + std::to_string(fRich) + " rich, " + std::to_string(clustered) +
+            " clustered)";
+  }
   std::snprintf(text, sizeof text,
-                "Table B built %s by crucible_build_manifold_table from %s, Cantera %s; f_H %zu nodes (%d lean, %d rich, "
-                "%zu clustered), Z_N {%s}, eta %d over [0,1], ln rho %d over [%.3g, %.3g] kg/m3; progress variable %s; "
+                "Table B built %s by crucible_build_manifold_table from %s, Cantera %s; f_H %zu nodes %s, Z_N {%s}, "
+                "eta %d over [0,1], ln rho %d over [%.3g, %.3g] kg/m3; progress variable %s; "
                 "%zu nodes in %.0f s on %d threads; node element error %.2e raw, %.2e after projection, |sum Y - 1| %.2e; "
                 "gates: 2a %s, 2b %s, 2c %s, criterion 1 %s%s",
-                date, mechanism.c_str(), Cantera::version().c_str(), nFH, fLean, fRich, clustered, zStr.c_str(), nEta, nLnRho,
+                date, mechanism.c_str(), Cantera::version().c_str(), nFH, fHStr.c_str(), zStr.c_str(), nEta, nLnRho,
                 rhoMin, rhoMax, chosen >= 0 ? candidateNames[chosen] : candidateNames[2], totalNodes, buildWall, threads,
                 stats.worstRaw, stats.worstProjected, stats.worstSum, gate2a ? "pass" : "FAIL", gate2b ? "pass" : "FAIL",
                 gate2c ? "pass" : "FAIL", criterion1 ? "pass" : "FAIL", allGatesPass ? "" : " -- GATE FAILURE");

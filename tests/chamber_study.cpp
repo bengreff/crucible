@@ -37,6 +37,10 @@
 // (criterion 3's shorter reference) starts from a CRUCIBLE_STATE_DUMP of another grid, interpolated, with
 // the supply fully open and no igniter; time restarts at zero and the history adds c* every 0.05 ms.
 // The history carries the wall heat flow and the wall axial force in every run.
+// CRUCIBLE_STATE_SAMPLES=<path> (added 20 October 2026; docs/evidence/TABLE_B.md, "The fallback rate")
+// writes, at every 2 us sample, each cell's Table B coordinates (f_H, Z_N, eta with the cell's own
+// complete-combustion products, rho) and the flow steps since the last sample, for counting the run's
+// cell updates against a table's domain.
 // Writes <prefix>_history.csv (every 2 us), <prefix>_mesh.csv (stations) and <prefix>_field_<us>.csv
 // snapshots (<prefix>_field_<us>_failed.csv for the last state of a run that stopped); tools/chamber_plots.py
 // renders them.
@@ -470,6 +474,44 @@ int main(int argc, char** argv) {
                "t,supply,inlet,outlet,p_injector,p_chamber_end,F_vac,isp_vac_supply,exit_mach_min,T_max,"
                "igniter_energy,mass_budget,energy_budget,steps,wall_heat_flow,wall_axial_force,cstar\n");
   auto historySolution = Cantera::newSolution(mechanism, "", "none");
+  std::FILE* stateSamples = nullptr;
+  if (const char* path = std::getenv("CRUCIBLE_STATE_SAMPLES")) {
+    stateSamples = std::fopen(path, "w");
+    if (!stateSamples) throw std::runtime_error(std::string("cannot write ") + path);
+    std::fprintf(stateSamples, "t,steps,i,j,f_H,Z_N,eta,rho\n");
+  }
+  long stepsAtLastSample = 0;
+  auto writeStates = [&]() {
+    auto& th = *historySolution->thermo();
+    const std::size_t eH = th.elementIndex("H"), eO = th.elementIndex("O"), eN = th.elementIndex("N");
+    const std::size_t kH2O = th.speciesIndex("H2O"), kH2 = th.speciesIndex("H2"), kO2 = th.speciesIndex("O2"),
+                      kN2 = th.speciesIndex("N2");
+    const double hInWater = 2 * th.atomicWeight(eH) / th.molecularWeight(kH2O);
+    const long steps = reacting.stats().steps;
+    for (int i = 0; i < nz; ++i)
+      for (int j = 0; j < nr; ++j) {
+        auto q = mesh.index(i, j);
+        auto w = flow.cellPrimitive(q);
+        auto y = flow.massFractions(q);
+        auto z = source.elementMassFractions(y.data());
+        // Complete-combustion products of the cell's elements, as tools/build_manifold_table.cpp's productsOf.
+        std::vector<double> products(y.size(), 0.0);
+        if (z[eH] * (1 - hInWater) >= z[eO] * hInWater) {
+          products[kH2O] = z[eO] / (1 - hInWater);
+          products[kH2] = std::max(z[eH] - products[kH2O] * hInWater, 0.0);
+        } else {
+          products[kH2O] = z[eH] / hInWater;
+          products[kO2] = std::max(z[eO] - products[kH2O] * (1 - hInWater), 0.0);
+        }
+        products[kN2] = z[eN];
+        const double eLo = source.internalEnergy(200.0, w.rho, products.data()),
+                     eHi = source.internalEnergy(6000.0, w.rho, products.data()),
+                     e = source.internalEnergy(flow.temperature(q), w.rho, y.data());
+        std::fprintf(stateSamples, "%.6e,%ld,%d,%d,%.9e,%.9e,%.9e,%.9e\n", flow.time(), steps - stepsAtLastSample, i, j,
+                     z[eH] / (z[eH] + z[eO]), z[eN], (e - eLo) / (eHi - eLo), w.rho);
+      }
+    stepsAtLastSample = steps;
+  };
   std::vector<double> snapshots = {2e-5, 5e-5, 1e-4, 2e-4, 3e-4, 4e-4, 5e-4, 7.5e-4, 1e-3, 1.5e-3, 2e-3, 3e-3, 4e-3, 6e-3, 8e-3};
   std::size_t nextSnapshot = 0;
   const auto clock0 = std::chrono::steady_clock::now();
@@ -580,6 +622,7 @@ int main(int argc, char** argv) {
     reacting.advanceTo(target);
     if (flow.time() >= nextSample) {
       sample();
+      if (stateSamples) writeStates();
       nextSample += 2e-6;
       if (start && rows.size() % 25 == 0) settlingWindow();
       if (rows.size() % 250 == 0) {
@@ -623,12 +666,14 @@ int main(int argc, char** argv) {
     }
   } catch (const std::exception& e) {
     std::fclose(history);
+    if (stateSamples) std::fclose(stateSamples);
     std::printf("\nexception at %.6f ms after %ld steps: %s\n", flow.time() * 1e3, reacting.stats().steps, e.what());
     writeField(flow.time(), "_failed");  // the last state the run reached, for the diagnosis
     if (pasr) std::printf("criterion 4 (b): the run did not reach its end  FAIL\n");
     return 1;
   }
   std::fclose(history);
+  if (stateSamples) std::fclose(stateSamples);
   if (const char* path = std::getenv("CRUCIBLE_STATE_DUMP")) {
     // The final state's raw doubles (conserved, partial densities, turbulence), to compare builds bit for bit.
     FILE* f = std::fopen(path, "wb");
