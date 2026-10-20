@@ -179,3 +179,49 @@ Same tree, same Mac, 5 threads, to 8 ms. Cantera's references were rerun on this
 - Table A is the equilibrium model only. It burns cold premixed gas at once, as `LocalEquilibrium` does, so ignition delay and kinetic lag need Table B.
 - The table covers `h2o2.yaml` with inert N2 and Ar. A mechanism in which N reacts is refused by the builder.
 - States above 3,500 K or above rho_r 30 kg/m^3 take the direct call (none in C1). An RL10 chamber at about 3 MPa sits well inside the rho_r axis. Its hottest states should be checked against the 3,500 K edge before C4.
+
+## To 6,000 K (20 October 2026, about 17:35 CDT; stated before the build)
+
+Why: Table B's energy axis reaches past 3,500 K by design, and Table A's T axis was the mechanism's thermo range, so both stop where `h2o2.yaml`'s fits do (TABLE_B.md, *The 3,500 K ceiling*). `tools/mechanisms/h2o2_highT.yaml` carries NASA TM-4513's fits to 6,000 K at their 1 bar standard state, with OH's heat of formation from Ruscic et al. (2002); its HP equilibrium matches CEA's to 1.79 K over 3,000 to 5,000 K (TABLE_B.md, *OH's heat of formation, the reference pressure, and the equilibrium check*).
+
+- **What changes in the code.** `crucible_build_equilibrium_table` takes the mechanism as a last, optional argument (default `h2o2.yaml`) and prints it in the provenance; its `check` takes it after the seed and refuses a table whose provenance names another. The check samples energies up to the frozen products at 5,000 K or the table's top T, whichever is higher. `crucible_chamber_study` reads the mechanism from `CRUCIBLE_MECHANISM` (default `h2o2.yaml`) for the core thermo, transport and reaction, and refuses a Table A built on another.
+- **The build.** The same f and ρ_r axes as on 5 October (`20 64 1e-4`, 97 ρ_r nodes over 1e-8 to 30 kg/m³). The T axis is h2o2_highT's range, 200 to 6,000 K, at the same 25 K spacing: 233 nodes.
+- **Criteria, unchanged, plus one extension.**
+  - Criterion 1 as stated.
+  - Criterion 2(a) as stated (99th percentile of |ΔT| ≤ 3 K on T_eq 200 to 4,000 K, 1e5 states, seed 1, against direct Cantera on h2o2_highT). **Extension:** the same bar on T_eq 4,000 to 6,000 K, judged separately.
+  - **Nothing moved below 3,500 K (C1, 32x6, cheap):** criterion 3 restated on h2o2_highT, the table run (`eqt`) against direct Cantera (`eq`) on the same mechanism, 32x6 to 8 ms on 5 threads: settled c*, vacuum Isp, vacuum thrust and injector pressure within 0.05%, histories within 1e-3 (`compare_histories.py`). Criterion 2(b) on the same run (audit every 200 reaction calls): max |ΔT| ≤ 3 K. Beside, not judged: today's code with the 5 October table on `h2o2.yaml`, to show what the mechanism change alone moves.
+
+### Results (20 October 2026, about 17:50 CDT): all pass
+
+- **Build:** 2,960,731 nodes in 30 s on 4 threads. Criterion 1 passes at every node: element error 3.64e-16 after the projection, |Σ Y − 1| 4.44e-16, no failures ([check](table_a/check_highT_2026-10-20.txt), provenance on its first line).
+- **Criterion 2(a), 1e5 samples:** 0 outside, 1 clamped, 0 Cantera failures. Lookups pass criterion 1 (4.44e-16, 5.13e-16).
+
+  | T_eq band (K) | States | Median \|ΔT\| (K) | 99th (K) | Max (K) |
+  |---|---|---|---|---|
+  | 200–1,000 | 10,211 | 0.000 | 0.000 | 0.000 |
+  | 1,000–2,000 | 15,874 | 0.001 | 0.248 | 1.430 |
+  | 2,000–2,500 | 16,246 | 0.191 | 1.154 | 4.319 |
+  | 2,500–3,000 | 24,101 | 0.279 | 1.109 | 5.368 |
+  | 3,000–3,500 | 16,016 | 0.310 | 1.416 | 5.351 |
+  | 3,500–4,000 | 10,058 | 0.354 | 1.683 | 5.522 |
+  | 4,000–5,000 | 7,261 | 0.427 | 1.545 | 4.339 |
+  | 5,000–6,000 | 233 | 0.009 | 0.703 | 0.732 |
+
+  - **200 to 4,000 K (as stated):** 92,506 states, **99th percentile 1.086 K** (5 October's table: 1.063 K), max 5.522 K at f 0.1315, ρ_r 26.7 kg/m³, T_eq 3,564 K: **pass**.
+  - **4,000 to 6,000 K (the extension):** 7,494 states, **99th percentile 1.515 K**, max 4.339 K: **pass**.
+  - Few samples land above 5,000 K: the check draws energies up to the frozen products at 6,000 K, and equilibrium dissociation takes most of them below 5,000 K.
+  - Largest |ΔY|: O2 1.67e-3, H2O 1.60e-3, OH 1.04e-3.
+- **C1, 32x6 to 8 ms on h2o2_highT (criterion 3 restated): pass.** The table run ([eqt](table_a/eqt32_highT_2026-10-20.txt)) against direct Cantera ([eq](table_a/eq32_highT_2026-10-20.txt)):
+
+  | | Cantera | Table | Table/Cantera − 1 |
+  |---|---|---|---|
+  | c* (m/s) | 2,477.89 | 2,477.73 | −0.0065% |
+  | Vacuum thrust (N) | 1,678.61 | 1,678.58 | −0.0018% |
+  | Vacuum Isp (s) | 427.93 | 427.92 | −0.0023% |
+  | Injector pressure (MPa) | 3.31724 | 3.31702 | −0.0066% |
+
+  - Histories: largest relative differences 1.17e-4 (injector pressure), 2.36e-5 and 1.05e-4 against the 1e-3 limit ([compare](table_a/compare_32x6_highT_2026-10-20.txt)). 5 October's table on `h2o2.yaml` gave 1.15e-4, 2.39e-5 and 8.7e-5.
+  - Criterion 2(b), audit every 200 reaction calls: 65,472 cells, max |ΔT| 0.825 K, max |ΔY| 2.05e-4 (5 October: 0.844 K): **pass**.
+  - Table use: 13,063,296 cell updates, 48,788 clamped at an axis end, none outside. 4.2 s of the 47 s run against Cantera's 225 s of 327 s, on a shared Mac (2 to 4 other jobs), so the times are indicative only.
+- **What the mechanism change alone moves (beside, not judged).** The 5 October table on `h2o2.yaml`, run on today's code ([log](table_a/eqt32_old_2026-10-20.txt)), reproduces 5 October's run to within 3e-5 relative (c* 2,478.43 against 2,478.40 m/s; the code has moved since). Against it, the h2o2_highT table run is lower by 0.028% in c*, 0.013% in thrust, 0.012% in Isp and 0.030% in injector pressure. The cause is the thermo, not the table: the same chamber's 1-D ideal rocket gives Tc 3,348.1 K on h2o2_highT and 3,351.7 K on `h2o2.yaml`, and CEA (RocketCEA, the same reactants at 300 K, O/F 5 and p0 3.155 MPa) gives 3,347.7 K and c* 2,428.61 m/s, against 2,428.76 (h2o2_highT) and 2,429.41 m/s (`h2o2.yaml`). So the change moves C1 toward CEA.
+- **A label fixed.** The chamber study's line "1-D ideal rocket at p0 (h2o2.yaml thermo)" was hard-coded and printed on the h2o2_highT runs above, though the numbers are on the run's mechanism. It now prints the mechanism; the runs above were made before the fix.

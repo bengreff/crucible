@@ -1,7 +1,7 @@
 // C1 chamber study: a premixed gaseous H2/O2 thrust chamber started "valves open, ignite"
 // (TECHNICAL_PLAN, Dated plan to January). The chamber starts full of ambient N2 at rest, the
 // valve ramps the supply open, the igniter fires, and the run marches in physical time until the
-// chamber has settled. Mechanism: h2o2.yaml (verification use only, not a rocket-pressure model).
+// chamber has settled. Mechanism: h2o2.yaml by default (verification use only, not a rocket-pressure model).
 //
 // Geometry (built here as a contour table): throat radius 10 mm, chamber radius 25 mm, circular
 // throat arcs of radius 20 mm on both sides (R = r_c / r_t = 2), 30 degree convergent cone,
@@ -27,6 +27,8 @@
 //        [igniter energy J] [igniter duration s]
 // "eqt" is "eq" with the equilibrium from Table A (docs/evidence/TABLE_A.md): the table file is
 // CRUCIBLE_EQ_TABLE, and CRUCIBLE_EQ_AUDIT (default 0, none) sets the audit's interval in reaction calls.
+// CRUCIBLE_MECHANISM (default h2o2.yaml, added 20 October 2026) is the mechanism for the core thermo,
+// the transport and the reaction; eqt refuses a table whose provenance names another.
 // "eqtt" (added 5 October 2026) is "eqt" made viscous and turbulent as "frt" (no PaSR closure, and
 // eqt's igniter): the turbulent C1 of the wall-function criteria (docs/evidence/WALL_FUNCTIONS.md).
 // It reports the first-cell y+ and the wall heat flow and axial force at the end; criterion 4 is not judged.
@@ -283,7 +285,10 @@ int main(int argc, char** argv) {
   const auto chemistry = mode == "eq" || tabulated ? thermo::Chemistry::LocalEquilibrium
                          : mode == "fr" || turbulent ? thermo::Chemistry::FiniteRate
                                                      : thermo::Chemistry::Frozen;
-  thermo::ReactionSource source("h2o2.yaml");
+  const char* mechanismEnv = std::getenv("CRUCIBLE_MECHANISM");
+  const std::string mechanism = mechanismEnv ? mechanismEnv : "h2o2.yaml";
+  std::printf("mechanism: %s\n", mechanism.c_str());
+  thermo::ReactionSource source(mechanism);
   const auto geo = geometry();
 
   Definition d;
@@ -310,7 +315,7 @@ int main(int argc, char** argv) {
   // unless given. Local equilibrium burns any premixed gas at once, so in "eq" mode it has no role.
   d.igniter = {0.005, 0.015, 0.010, start ? 0.0 : igniterEnergy, 2e-4, igniterDuration};
   if (turbulent) {  // as tests/step_cost.cpp: Spalart-Rumsey ambient, supply I 0.05 and ratio 10
-    d.transport = thermo::transportFits("h2o2.yaml");
+    d.transport = thermo::transportFits(mechanism);
     d.wallTemperature = 600;
     d.turbulence.enabled = true;
     d.supplies[0].turbulenceIntensity = 0.05;
@@ -346,13 +351,13 @@ int main(int argc, char** argv) {
 
   Flow flow(d);
   if (start) {
-    auto startSolution = Cantera::newSolution("h2o2.yaml", "", "none");
+    auto startSolution = Cantera::newSolution(mechanism, "", "none");
     restoreInterpolated(flow, d, start->path, start->nz, start->nr, start->stretching,
                         chemistry == thermo::Chemistry::LocalEquilibrium ? startSolution->thermo().get() : nullptr);
     std::printf("start: %s (%dx%d, radial stretching %g) interpolated to %dx%d; supply fully open, no igniter\n",
                 start->path.c_str(), start->nz, start->nr, start->stretching, nz, nr);
   }
-  thermo::ReactingFlow reacting(flow, "h2o2.yaml", threads, 1e-6, 1e-12, chemistry);
+  thermo::ReactingFlow reacting(flow, mechanism, threads, 1e-6, 1e-12, chemistry);
   if (closure) reacting.setMixingClosure(1.0, {"H2", "O2", "H2O"});
   EquilibriumTable table;
   long audit = 0;
@@ -361,6 +366,8 @@ int main(int argc, char** argv) {
     if (!path) throw std::runtime_error("eqt needs CRUCIBLE_EQ_TABLE");
     if (const char* a = std::getenv("CRUCIBLE_EQ_AUDIT")) audit = std::atol(a);
     table = EquilibriumTable::load(path);
+    if (table.provenance.find("from " + mechanism + ",") == std::string::npos)
+      throw std::runtime_error(std::string("the table ") + path + " was not built from " + mechanism);
     reacting.useEquilibriumTable(table, audit);
     std::printf("table %s: %s\naudit every %ld reaction calls\n", path, table.provenance.c_str(), audit);
   }
@@ -462,7 +469,7 @@ int main(int argc, char** argv) {
   std::fprintf(history,
                "t,supply,inlet,outlet,p_injector,p_chamber_end,F_vac,isp_vac_supply,exit_mach_min,T_max,"
                "igniter_energy,mass_budget,energy_budget,steps,wall_heat_flow,wall_axial_force,cstar\n");
-  auto historySolution = Cantera::newSolution("h2o2.yaml", "", "none");
+  auto historySolution = Cantera::newSolution(mechanism, "", "none");
   std::vector<double> snapshots = {2e-5, 5e-5, 1e-4, 2e-4, 3e-4, 4e-4, 5e-4, 7.5e-4, 1e-3, 1.5e-3, 2e-3, 3e-3, 4e-3, 6e-3, 8e-3};
   std::size_t nextSnapshot = 0;
   const auto clock0 = std::chrono::steady_clock::now();
@@ -692,7 +699,7 @@ int main(int argc, char** argv) {
   std::printf("simulated: mdot out %.6f kg/s (supply %.6f), c* %.2f m/s, vacuum thrust %.2f N, vacuum Isp %.2f s\n",
               mdot, m.supplyMassFlow, cstarSim, fVac, ispSim);
   try {
-    thermo::Mixture mix("h2o2.yaml");
+    thermo::Mixture mix(mechanism);
     thermo::Reactant fuel{"H2:1", 300.0, std::nullopt}, ox{"O2:1", 300.0, std::nullopt};
     auto shifting = mix.idealRocket(fuel, ox, kMixtureRatio, p0, eps, thermo::Expansion::Equilibrium);
     auto frozen = mix.idealRocket(fuel, ox, kMixtureRatio, p0, eps, thermo::Expansion::FrozenAtChamber);
@@ -702,9 +709,9 @@ int main(int argc, char** argv) {
       double pressurePart = r.pExit * eps * r.cstar / p0;
       return (lambda * (r.ispVac * kG0 - pressurePart) + pressurePart) / kG0;
     };
-    std::printf("1-D ideal rocket at p0 (h2o2.yaml thermo): Tc %.1f K, c* %.2f m/s, Isp_vac shifting %.2f s, "
+    std::printf("1-D ideal rocket at p0 (%s thermo): Tc %.1f K, c* %.2f m/s, Isp_vac shifting %.2f s, "
                 "frozen %.2f s, gamma %.4f\n",
-                shifting.tc, shifting.cstar, shifting.ispVac, frozen.ispVac, shifting.gammaChamber);
+                mechanism.c_str(), shifting.tc, shifting.cstar, shifting.ispVac, frozen.ispVac, shifting.gammaChamber);
     std::printf("corrections: Cd %.5f (R = %.1f), lambda %.5f\n", cd, kArc / kRt, lambda);
     std::printf("predicted 2-D: c* %.2f m/s, Isp_vac shifting %.2f s, frozen %.2f s, F_vac %.2f N\n",
                 shifting.cstar / cd, corrected(shifting), corrected(frozen), corrected(shifting) * kG0 * mdot);

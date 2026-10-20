@@ -14,17 +14,22 @@
 // NASA polynomials are extrapolated. States hotter than the range take the direct call in the run.
 //
 // Usage: crucible_build_equilibrium_table <out> <f nodes, lean side> <f nodes, rich side> <f spacing at f_st>
-//                                         <T nodes> <rho_r nodes> <rho_r min> <rho_r max> <threads>
+//                                         <T nodes> <rho_r nodes> <rho_r min> <rho_r max> <threads> [mechanism]
+// The mechanism (default h2o2.yaml) is printed in the provenance; a run that loads the table must run
+// its fallback and core thermo on the same file.
 // The f axis is uniform on [0, f_st] and on [f_st, 1], with f_st that of H2O, plus nodes at
 // f_st +- d, 0 + d and 1 - d, d growing from the given spacing by 1.5 per node while below the
 // uniform spacing (0: none): near f_st the equilibrium has a near-kink (excess O2 on one side, H2 on
 // the other) whose width is set by dissociation, and near the ends one element is a trace. T and ln rho_r are uniform.
 //
-//        crucible_build_equilibrium_table check <table> <samples> <threads> [rho min] [rho max] [seed]
-// checks a table against direct Cantera (TABLE_A criteria 1 for lookups and 2a). States are uniform
+//        crucible_build_equilibrium_table check <table> <samples> <threads> [rho min] [rho max] [seed] [mechanism]
+// checks a table against direct Cantera (TABLE_A criteria 1 for lookups and 2a) on the mechanism its
+// provenance names (refused otherwise). States are uniform
 // in (f, z = Y_N2, eta, ln rho), rho over [rho min, rho max] (default 1e-4 to 30 kg/m3), eta = (e - e_lo) / (e_hi - e_lo) between the query's complete-combustion
-// products at the range's lowest T and the same products, frozen, at 5000 K: a superset of the
-// table's energies (states above it are counted outside). |dT| is the core's temperature
+// products at the range's lowest T and the same products, frozen, at 5000 K or the table's top T if
+// higher: a superset of the table's energies (states above it are counted outside). Criterion 2(a)
+// is judged on T_eq 200 to 4000 K as stated; a table reaching above 4000 K is also judged on
+// 4000 K to its top T at the same bar (TABLE_A.md, *To 6,000 K*). |dT| is the core's temperature
 // (Medium::temperature) from the table's Y at the query's e, against the march's direct call
 // (equilibrateUV).
 #include <algorithm>
@@ -92,10 +97,13 @@ double uniform(std::uint64_t seed, std::uint64_t sample, std::uint64_t draw) {
   return static_cast<double>(x >> 11) * 0x1.0p-53;
 }
 
-int check(const std::string& path, std::size_t samples, int threads, double rhoMin, double rhoMax, std::uint64_t seed) {
+int check(const std::string& path, std::size_t samples, int threads, double rhoMin, double rhoMax, std::uint64_t seed,
+          const std::string& mechanism) {
   const auto table = EquilibriumTable::load(path);
   std::printf("%s\n", table.provenance.c_str());
-  const std::string mechanism = "h2o2.yaml";
+  if (table.provenance.find("from " + mechanism + ",") == std::string::npos)
+    throw std::runtime_error("the table was not built from " + mechanism + " (see its provenance)");
+  const double highT = std::max(kHighT, table.tMax);
   thermo::ReactionSource probe(mechanism);
   const std::size_t ns = probe.nSpecies();
   if (table.species.size() != ns) throw std::runtime_error("table species differ from the mechanism");
@@ -138,7 +146,7 @@ int check(const std::string& path, std::size_t samples, int threads, double rhoM
       const double target[3] = {c.f * (1 - c.z), (1 - c.f) * (1 - c.z), c.z};
       const double rho = std::exp(c.lnRho);
       y = products(s, ns, target[0], target[1], target[2]);
-      const double eLow = source.internalEnergy(lowT, 1, y.data()), eHigh = source.internalEnergy(kHighT, 1, y.data());
+      const double eLow = source.internalEnergy(lowT, 1, y.data()), eHigh = source.internalEnergy(highT, 1, y.data());
       const double e = eLow + c.eta * (eHigh - eLow);
       double t = 0;
       const auto result = table.lookup(y.data(), e, rho, yt.data(), t);
@@ -176,7 +184,7 @@ int check(const std::string& path, std::size_t samples, int threads, double rhoM
   const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - clock0).count();
 
   std::size_t outside = 0, clamped = 0;
-  std::vector<double> band, all;
+  std::vector<double> band, all, upper;
   const Sample* worst = nullptr;
   for (const auto& c : out) {
     if (c.result == static_cast<int>(EquilibriumTable::Result::Outside)) ++outside;
@@ -186,6 +194,8 @@ int check(const std::string& path, std::size_t samples, int threads, double rhoM
     if (c.tRef >= 200 && c.tRef <= 4000) {
       band.push_back(c.dT);
       if (!worst || c.dT > worst->dT) worst = &c;
+    } else if (c.tRef > 4000 && c.tRef <= table.tMax) {
+      upper.push_back(c.dT);
     }
   }
   auto quantile = [](std::vector<double> v, double p) {
@@ -200,8 +210,8 @@ int check(const std::string& path, std::size_t samples, int threads, double rhoM
   std::printf("criterion 1 (lookups): element error %.2e, |sum Y - 1| %.2e (limit 1e-12): %s\n", worstElement, worstSum,
               worstElement <= 1e-12 && worstSum <= 1e-12 ? "pass" : "FAIL");
   // Bands of Cantera's T, for the resolution choice.
-  const double edges[] = {200, 1000, 2000, 2500, 3000, 3500, 4000};
-  for (int b = 0; b + 1 < 7; ++b) {
+  const double edges[] = {200, 1000, 2000, 2500, 3000, 3500, 4000, 5000, 6000};
+  for (int b = 0; b + 1 < 9; ++b) {
     std::vector<double> v;
     for (const auto& c : out)
       if (!std::isnan(c.dT) && c.tRef >= edges[b] && c.tRef < edges[b + 1]) v.push_back(c.dT);
@@ -210,7 +220,7 @@ int check(const std::string& path, std::size_t samples, int threads, double rhoM
   }
   std::vector<double> tableT;
   for (const auto& c : out)
-    if (!std::isnan(c.dTable) && c.tRef >= 200 && c.tRef <= 4000) tableT.push_back(c.dTable);
+    if (!std::isnan(c.dTable) && c.tRef >= 200 && c.tRef <= std::max(4000.0, table.tMax)) tableT.push_back(c.dTable);
   std::printf("interpolated table T against Cantera's (consistency only): 99th %.3f K\n", quantile(tableT, 0.99));
   std::printf("max |dY_k|:");
   for (std::size_t q = 0; q < ns && q < 16; ++q) {
@@ -226,16 +236,22 @@ int check(const std::string& path, std::size_t samples, int threads, double rhoM
   std::printf("criterion 2(a): T_eq 200-4000 K, %zu states: |dT| median %.3f K, 99th percentile %.3f K, max %.3f K "
               "(limit 3 K on the 99th): %s\n", band.size(), quantile(band, 0.5), p99,
               band.empty() ? std::nan("") : *std::max_element(band.begin(), band.end()), p99 <= 3 ? "pass" : "FAIL");
-  return worstElement <= 1e-12 && worstSum <= 1e-12 && p99 <= 3 && failures == 0 ? 0 : 1;
+  const double p99upper = quantile(upper, 0.99);
+  const bool upperPass = upper.empty() || p99upper <= 3;
+  if (table.tMax > 4000)
+    std::printf("criterion 2(a), extended: T_eq 4000-%.0f K, %zu states: |dT| median %.3f K, 99th percentile %.3f K, max "
+                "%.3f K (limit 3 K on the 99th): %s\n", table.tMax, upper.size(), quantile(upper, 0.5), p99upper,
+                upper.empty() ? std::nan("") : *std::max_element(upper.begin(), upper.end()), upperPass ? "pass" : "FAIL");
+  return worstElement <= 1e-12 && worstSum <= 1e-12 && p99 <= 3 && upperPass && failures == 0 ? 0 : 1;
 }
 
 int main(int argc, char** argv) {
   if (argc >= 5 && std::string(argv[1]) == "check")
     return check(argv[2], std::strtoull(argv[3], nullptr, 10), std::max(1, std::atoi(argv[4])),
                  argc > 5 ? std::atof(argv[5]) : 1e-4, argc > 6 ? std::atof(argv[6]) : 30,
-                 argc > 7 ? std::strtoull(argv[7], nullptr, 10) : 1);
-  if (argc != 10) {
-    std::fprintf(stderr, "usage: %s <out> <f lean> <f rich> <f spacing at f_st> <T> <rho_r> <rho_r min> <rho_r max> <threads>\n", argv[0]);
+                 argc > 7 ? std::strtoull(argv[7], nullptr, 10) : 1, argc > 8 ? argv[8] : "h2o2.yaml");
+  if (argc != 10 && argc != 11) {
+    std::fprintf(stderr, "usage: %s <out> <f lean> <f rich> <f spacing at f_st> <T> <rho_r> <rho_r min> <rho_r max> <threads> [mechanism]\n", argv[0]);
     return 2;
   }
   const std::string out = argv[1];
@@ -243,7 +259,7 @@ int main(int argc, char** argv) {
   const double fCluster = std::atof(argv[4]);
   const int nT = std::atoi(argv[5]), nRho = std::atoi(argv[6]), threads = std::max(1, std::atoi(argv[9]));
   const double rhoMin = std::atof(argv[7]), rhoMax = std::atof(argv[8]);
-  const std::string mechanism = "h2o2.yaml";
+  const std::string mechanism = argc == 11 ? argv[10] : "h2o2.yaml";
 
   thermo::ReactionSource probe(mechanism);
   double minT, maxT;

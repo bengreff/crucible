@@ -1,0 +1,16 @@
+Table A built 2026-10-20 17:31 CDT by crucible_build_equilibrium_table from ../tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 233 over [200, 6000] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 2960731 nodes in 30 s on 4 threads; node element error 1.86e-10 from Cantera, 3.64e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+100000 samples (seed 1, rho 0.0001 to 30 kg/m3) in 2 s on 3 threads: 0 outside the table (direct call in the run), 1 clamped, 0 Cantera failures
+criterion 1 (lookups): element error 4.44e-16, |sum Y - 1| 5.13e-16 (limit 1e-12): pass
+  T_eq  200-1000 K:  10211 states, |dT| median 0.000, 99th 0.000, max 0.000 K
+  T_eq 1000-2000 K:  15874 states, |dT| median 0.001, 99th 0.248, max 1.430 K
+  T_eq 2000-2500 K:  16246 states, |dT| median 0.191, 99th 1.154, max 4.319 K
+  T_eq 2500-3000 K:  24101 states, |dT| median 0.279, 99th 1.109, max 5.368 K
+  T_eq 3000-3500 K:  16016 states, |dT| median 0.310, 99th 1.416, max 5.351 K
+  T_eq 3500-4000 K:  10058 states, |dT| median 0.354, 99th 1.683, max 5.522 K
+  T_eq 4000-5000 K:   7261 states, |dT| median 0.427, 99th 1.545, max 4.339 K
+  T_eq 5000-6000 K:    233 states, |dT| median 0.009, 99th 0.703, max 0.732 K
+interpolated table T against Cantera's (consistency only): 99th 1.126 K
+max |dY_k|: H2 2.50e-04 H 5.52e-05 O 7.33e-04 O2 1.67e-03 OH 1.04e-03 H2O 1.60e-03 HO2 3.40e-05 H2O2 2.08e-06 AR 0.00e+00 N2 2.64e-10
+worst state in 200-4000 K: f 0.13150 z 0.2705 eta 0.57079 rho 2.6724e+01 T_eq 3564.1 K |dT| 5.522 K
+criterion 2(a): T_eq 200-4000 K, 92506 states: |dT| median 0.171 K, 99th percentile 1.086 K, max 5.522 K (limit 3 K on the 99th): pass
+criterion 2(a), extended: T_eq 4000-6000 K, 7494 states: |dT| median 0.422 K, 99th percentile 1.515 K, max 4.339 K (limit 3 K on the 99th): pass
