@@ -10,8 +10,9 @@
 // runtime can blend corners point by point. A frozen branch (induction not complete by 1e15 s)
 // places the same fractions on the span it actually reached.
 //
-// Mechanism: h2o2.yaml only; the builder refuses a mechanism in which N2 reacts (checked directly
-// on its reactions, not inferred).
+// Mechanism: h2o2.yaml or a file with its species (default h2o2.yaml; tools/mechanisms/h2o2_highT.yaml
+// carries its thermo to 6,000 K), printed in the provenance; the builder refuses a mechanism in which
+// N2 reacts (checked directly on its reactions, not inferred).
 //
 // The progress variable is chosen from three linear-in-Y candidates in order (Y_H2O; Y_H2O + Y_HO2
 // + Y_H2O2; the O2 consumed), each tried as a full build: gate 2(a) (turn-back) and the N gate must
@@ -23,13 +24,15 @@
 //
 // Usage: crucible_build_manifold_table <out> <f_H nodes, lean side> <f_H nodes, rich side>
 //                                       <f_H spacing at f_st> <Z_N list, comma separated>
-//                                       <eta nodes> <ln rho nodes> <rho min> <rho max> <threads>
+//                                       <eta nodes> <ln rho nodes> <rho min> <rho max> <threads> [mechanism]
 // f_H is built exactly as Table A's f axis (tools/build_equilibrium_table.cpp): uniform on [0, f_st]
 // and [f_st, 1] with f_st the H mass fraction in H2O, plus clustering at f_st and the ends. eta is
 // uniform on [0, 1]. ln rho is uniform over [log(rho min), log(rho max)].
 //
 // The table is written only if every gate passes. Set CRUCIBLE_TABLE_B_WRITE_ANYWAY=1 to write it
 // regardless, clearly labelled in the provenance, for inspecting a failed build.
+// CRUCIBLE_TABLE_B_NODE_REPORT=<path> writes one CSV row per node and candidate: its gate numbers,
+// flags, c_0, c_eq, c_cp, T_eq and, for an integrator failure, the exception's text.
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -214,6 +217,8 @@ struct NodeOutcome {
   double rawElementError = 0, projectedElementError = 0, sumError = 0;
   int branchesIntegrated = 0;
   double branchTimeSumMs = 0, branchTimeWorstMs = 0;
+  double c0 = 0, cEq = 0, cCp = 0, tEq = 0;
+  std::string failure;  // the exception's text when integratorFailure
 };
 
 // Builds one node into `out` at `nodeIdx`. Everything that can throw (equilibration, integration)
@@ -299,6 +304,7 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     std::vector<double> zEq = zLower;
     source.equilibrateUV(rho, zEq.data());
     const double cEq = progress(zEq.data() + 1);
+    result.tEq = zEq[0];
     if (zEq[0] > maxThermoT) result.outside = true;
 
     // The upper branch's start: complete combustion.
@@ -310,6 +316,9 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     node.c0 = c0;
     node.cEq = cEq;
     node.cCp = cCp;
+    result.c0 = c0;
+    result.cEq = cEq;
+    result.cCp = cCp;
     if (zLower[0] > maxThermoT || zUpper[0] > maxThermoT) result.outside = true;
 
     const double spanLower = std::fabs(cEq - c0), spanUpper = std::fabs(cCp - cEq);
@@ -413,6 +422,11 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     // Table A's projection: the smallest change weighted by Y_k that restores the node's exact
     // (H, O) elements.
     auto project = [&](std::vector<double>& y, double& rawErr, double& projErr, double& sumErr) {
+      // The table stores the reacting species only; the runtime rebuilds the inert ones from Z_N.
+      // So they are checked at their exact values (N2 = Z_N, others 0), not at the integration's,
+      // which drift by about rtol.
+      for (std::size_t q = 0; q < ns; ++q)
+        if (sp.reactingPosition[q] == kNotReacting) y[q] = q == sp.idx.n2 ? zn : 0.0;
       auto errors = [&](double err[2]) {
         double total = 0;
         err[0] = -zh;
@@ -514,8 +528,9 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
       }
       result.nGateOk = ok;
     }
-  } catch (const std::exception&) {
+  } catch (const std::exception& ex) {
     result.integratorFailure = true;
+    result.failure = ex.what();
   }
   return result;
 }
@@ -523,10 +538,10 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 11) {
+  if (argc != 11 && argc != 12) {
     std::fprintf(stderr,
                  "usage: %s <out> <f_H lean> <f_H rich> <f_H spacing at f_st> <Z_N list, comma> <eta nodes> "
-                 "<ln rho nodes> <rho min> <rho max> <threads>\n",
+                 "<ln rho nodes> <rho min> <rho max> <threads> [mechanism]\n",
                  argv[0]);
     return 2;
   }
@@ -548,8 +563,15 @@ int main(int argc, char** argv) {
   const int nEta = std::atoi(argv[6]), nLnRho = std::atoi(argv[7]);
   const double rhoMin = std::atof(argv[8]), rhoMax = std::atof(argv[9]);
   const int threads = std::max(1, std::atoi(argv[10]));
-  const std::string mechanism = "h2o2.yaml";
+  const std::string mechanism = argc == 12 ? argv[11] : "h2o2.yaml";
   const bool writeAnyway = std::getenv("CRUCIBLE_TABLE_B_WRITE_ANYWAY") != nullptr;
+  const char* nodeReportPath = std::getenv("CRUCIBLE_TABLE_B_NODE_REPORT");
+  std::FILE* nodeReport = nodeReportPath ? std::fopen(nodeReportPath, "w") : nullptr;
+  if (nodeReportPath && !nodeReport) throw std::runtime_error(std::string("cannot write ") + nodeReportPath);
+  if (nodeReport)
+    std::fprintf(nodeReport, "candidate,f_H,Z_N,eta,rho,T_eq,c0,c_eq,c_cp,degenerate,zero_span,outside,lower_frozen,upper_frozen,"
+                             "integrator_failure,turn_back,n_gate_checked,n_gate_ok,dT_2b_lower,dT_2b_upper,raw_element_error,"
+                             "sum_error,failure\n");
 
   refuseReactingN2(mechanism);
 
@@ -635,6 +657,17 @@ int main(int argc, char** argv) {
         const double eta = table.eta(k), rho = std::exp(table.lnRho(l));
         const auto r = buildNode(source, step, sp, candidate, maxT, sLower, table.fH[i], table.zN[j], eta, rho,
                                   table.eLo[table.fzIndex(i, j)], table.eHi[table.fzIndex(i, j)], table, idx);
+        if (nodeReport) {
+          std::string why = r.failure;
+          for (char& ch : why) if (ch == ',' || ch == '\n' || ch == '"') ch = ' ';
+          std::lock_guard<std::mutex> lock(report);
+          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%s\n",
+                       candidate, table.fH[i], table.zN[j], eta, rho, r.tEq, r.c0, r.cEq, r.cCp, r.degenerate, r.zeroSpan,
+                       r.outside, r.lowerFrozen, r.upperFrozen, r.integratorFailure, r.turnBack, r.nGateChecked, r.nGateOk,
+                       r.hasDT2bLower ? std::to_string(r.dT2bLower).c_str() : "",
+                       r.hasDT2bUpper ? std::to_string(r.dT2bUpper).c_str() : "", r.rawElementError, r.sumError,
+                       why.c_str());
+        }
         if (r.turnBack > ts.worstTurnBack) { ts.worstTurnBack = r.turnBack; ts.worstTurnBackLoc = {i, j, k, l}; }
         if (r.nGateChecked && !r.nGateOk) { ++ts.nGateFailures; ts.worstNGateLoc = {i, j, k, l}; }
         if (r.hasDT2bLower && r.dT2bLower > ts.worstDT2b) { ts.worstDT2b = r.dT2bLower; ts.worstDT2bLoc = {i, j, k, l}; }
@@ -697,6 +730,10 @@ int main(int argc, char** argv) {
                 candidateNames[candidate], attemptStats.worstTurnBack, locStr(attemptStats.worstTurnBackLoc).c_str(),
                 attemptStats.nGateFailures, attemptStats.nGateFailures ? (" (worst at " + locStr(attemptStats.worstNGateLoc) + ")").c_str() : "",
                 wall);
+    std::printf("  its 2(b) worst |dT| %.3f K at %s; 2(c) frozen lower %zu, upper %zu, integrator failures %zu; "
+                "criterion 1 |sum Y - 1| %.2e, elements %.2e after projection\n",
+                attemptStats.worstDT2b, locStr(attemptStats.worstDT2bLoc).c_str(), attemptStats.frozenLower,
+                attemptStats.frozenUpper, attemptStats.integratorFailures, attemptStats.worstSum, attemptStats.worstProjected);
     if (turnBackOk && nGateOk) {
       chosen = candidate;
       table = std::move(attemptTable);
@@ -735,6 +772,7 @@ int main(int argc, char** argv) {
                 stats.branchTimeSumMs / static_cast<double>(stats.branchCount), stats.branchTimeWorstMs);
 
   const bool allGatesPass = gate2a && gate2b && gate2c && criterion1;
+  if (nodeReport) std::fclose(nodeReport);
 
   char text[1536];
   const std::time_t now = std::time(nullptr);

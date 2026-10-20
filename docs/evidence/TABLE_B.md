@@ -170,6 +170,34 @@ The first small table (300 nodes, 14 October) failed every gate, and the failure
   - h2o2_highT (TM-4513, OH from Ruscic 2002, 1 bar): **worst |ΔT| 1.79 K** (1,500 K reactants, O/F 2, 20 MPa), bar 3 K. By reactant temperature: worst 0.76 K at 300 K, 1.79 K at 1,500 K, 0.33 K at 3,000 K; 4 cases above 1 K. Worst mole-fraction difference 2.4e-4 (H).
   - **The OH decision's effect**, beside, not judged: the same file with TM-4513's OH, worst +7.42 K (300 K reactants, O/F 12, 20 MPa), mean +5.4 K at 300 K reactants, and X_OH off by up to 1.03e-2. The file as committed in acab338 (TM-4513's OH, read at 1 atm): worst +5.95 K. GRI's h2o2.yaml: worst +6.13 K (the two errors partly cancel in both).
 
+## The small table rebuilt on h2o2_highT: the gate table (20 October 2026, about 17:45 CDT)
+
+The same small axes as on 14 October, now with the command recorded: `crucible_build_manifold_table <out> 2 2 0 0,0.3 6 5 1e-3 30 2 ../tools/mechanisms/h2o2_highT.yaml` (f_H 0, 0.056, 0.112 = f_st, 0.556, 1; Z_N 0 and 0.3; η 0 to 1 in 6; ln ρ over 1e-3 to 30 kg/m³ in 5: 300 nodes, 7 s per candidate on 2 threads). The 14 October command was not recorded, so its ρ range may differ. Output: `table_b/small_highT_2026-10-20.txt`, per node `table_b/small_highT_nodes_2026-10-20.csv`.
+
+**Two builder changes, neither touching a gate.**
+- It now prints gates 2(b), 2(c) and criterion 1 for every candidate. Before, it printed them only for the last one tried (the O2 consumed), the worst on the rich side. `CRUCIBLE_TABLE_B_NODE_REPORT=<path>` writes one row per node and candidate.
+- Criterion 1's sum is checked with the inert species at their exact values (N2 = Z_N, Ar 0). The table stores only the reacting species and the runtime rebuilds the inert ones from Z_N, so the integration's own N2 is not what is stored. It drifts by about rtol: every one of the 16 nodes with |Σ Y − 1| above 1e-12 (up to 7.7e-11) was at Z_N 0.3 (`table_b/small_highT_before_inert_fix_2026-10-20.txt`).
+
+| Gate (as written) | Y_H2O | Y_H2O + Y_HO2 + Y_H2O2 | The O2 consumed | 14 October (h2o2.yaml, as reported) |
+|---|---|---|---|---|
+| 2(a) worst turn-back (bar 1e-9) | 5.78e-2 | 5.35e-2 | 2.15e6 | 2.05e5, 2.05e5, 2.67e6 |
+| 2(a) N-gate failures (bar 0) | 25 | 25 | 27 | 26 to 27 |
+| 2(b) worst \|ΔT\| (bar 3 K) | 64.9 K | 64.9 K | 593 K | 503 K |
+| 2(c) integrator failures (bar 0) | 40 | 40 | 42 | 39 |
+| 2(c) frozen branches, lower and upper (reported) | 8, 13 | 8, 13 | 6, 6 | 2 of 11 |
+| Criterion 1, \|Σ Y − 1\| and elements after projection (bar 1e-12) | 2.2e-16, 2.5e-16 | 4.4e-16, 2.5e-16 | 2.2e-16, 2.5e-16 | 3.6e-11, 2.8e-16 |
+| Nodes outside the thermo range | 0 | 0 | 1 | 146 |
+
+The table is not written: gates 2(a), 2(b) and 2(c) fail for every candidate. The thermo ceiling was one cause, not the main one. Nodes outside the range fell from 146 to 0, and the worst Y_H2O turn-back from 2e5 to 0.058, but the failures that remain are where Y_H2O's node report puts them (120 nodes at f_H 0 and 1 are degenerate by design):
+
+- **2(c), integrator failures (40): CVODES flags −3 (error test) and −4 (corrector convergence) at t = 0, at the dense end.** By ρ: 18 at 30 kg/m³, 17 at 2.28 and 5 at 0.17. By f_H: 20 at f_st, 15 at 0.056 and 5 at 0.556. By η: 17 at η = 0, the rest at 0.2 to 0.8. A rerun at atol 1e-20 instead of the stated 1e-30 still has 38, so the tolerance is not the cause (measured; the edit was reverted).
+  - Inferred, not yet measured: these are the lower branches that start from the frozen high-T* composition at about 200 K, where a dense radical pool recombines in picoseconds. It is a defect of the builder's start or integration, not of the manifold's physics. The next step is to tag the failing branch and print its start state and the first right-hand side.
+- **2(a), turn-back (25 nodes above 1e-9; worst 5.8% of the span).** 17 are at f_H 0.556 (O/F 0.8; η 0.2 to 1) and 8 at f_st (η 0.4 to 1). The N gate fails at f_H 0.556, η 0.6 to 1 (23) and f_H 0.056, η 1 (2). These are hot or very rich states, where water and the radical pool exchange, so a single linear-in-Y variable is not monotone. That is physics, not the ceiling (inferred, as the handoff expected).
+- **2(b) (Y_H2O): 2 nodes above 3 K, both at f_H 0.556, η 0.6, ρ 1e-3** (32 and 65 K). There the lower branch reaches c_eq while hydrogen recombination has not finished, so c has stopped describing the state. On the O2 consumed it is 593 K at the same node, because at O/F 0.8 the O2 is gone long before the end.
+- **No node of this small table lies in the C1 range** (O/F 4 to 6, f_H 0.143 to 0.2), which criterion 2(c) names. Its f_H nodes are at 0.112 and 0.556. Whether the gates pass where C1 and the RL10 run is still unmeasured.
+
+**For the Director (a design question, not settled here):** the hot and very rich failures of 2(a) are a property of linear-in-Y progress variables. The options are to state the table's domain (f_H and η ranges) with everything outside sent to CVODES, as *Outside the table* already does for the thermo range, or to choose a different progress variable. The 2(c) defect is engineering and is fixed first, then a small table with f_H nodes inside O/F 4 to 6 measures the C1 range.
+
 ## The runtime, stated before its code (14 October 2026, about 01:20 CDT)
 
 - **Why the corners cannot be read at the cell's c** (*derived*). Lean of stoichiometric, c_cp = 9 Y_H (all the hydrogen as water), so it rises with f_H. In cold burnt gas, c_eq is close to c_cp. A cell at its own c_eq, between f_H nodes f_1 < f < f_2, then has c above c_cp(f_1): the leaner corner's whole curve ends below the cell's c. The rich side is the mirror image. So *Y is interpolated linearly in c at each corner* would extrapolate at the nozzle exit and in the cooled wall layer, which are the places the table is for.
