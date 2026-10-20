@@ -150,41 +150,38 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 14 October, 02:15 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 20 October, about 18:50 CDT; extra session 17:10 to 20:00)
 
-- **RL10A-3-3A tier 0 prediction committed** (`docs/validation/RL10A33A_PREDICTION.md`). No measured performance has been read; none may be until tier 1 is committed.
-- **AMR step A done** (`docs/evidence/AMR.md`, *Results*): the explicit-geometry `Mesh` with `Mesh::coarsened`. 0(a), 0(b) and 0(c) pass; 0(d) fails as written (closure 1.9e-14 to 8.1e-14 at levels 1 to 3, from the direct formulas). Also the wall functions' y+ (`Flow::wallYPlus()`) and `chamber_study`'s end-of-run fix.
-- **AMR step B1 done** (`docs/evidence/AMR.md`, *Step B1: results*; `core/amr.*`, ctest `amr_subcycling_verification`). Berger-Colella subcycling with refluxing; every level's kernels run over the whole level, and non-active cells are filled from below before each stage; inviscid only.
-  - **1(a) and 1(b) pass.** Quiescent RL10 chamber on three levels: |u|/a0 at most 2.0e-13, each level at its own mesh's single-level value. 0(d)'s closure fix is not needed.
-  - **3(a).** The reflection passes (3.4e-4 on 768 columns, falling). The order, 1.59 and 1.53 against 1.8, fails as written. A uniform control without AMR gives 1.63 and 1.50 on the same pulse (minmod at the peak), and the AMR's difference is a flat 0.55 of the uniform mesh's.
-  - **3(b).** L1, the orders and the shock place pass. The pressure peak behind the interface (5.5e-3 to 1.4e-3 of the jump, against 1e-3) fails as written. It is a wave the shock sheds as it leaves the fine level: its peak is about 6e-3 of the jump at every resolution, while its integral falls as h. Composite conservation holds to 5e-15.
-  - **Both failures stand as written.** The record gives the reading a later amendment could judge (the ratio to the uniform runs' own error). Whether to amend is the Director's call; nothing is applied.
-- **AMR criterion 2 on B1, pattern fixed** (`docs/evidence/AMR.md`, *Step B1: criterion 2 results*; `tests/amr_budget.cpp`, run as `crucible_amr_budget 8e-3 4` with `CRUCIBLE_EQ_TABLE`, about 15 min). C1 `eqtt` with resolved walls, 32 x 6 plus one level, to 8 ms. The driver gained viscous registers, owned-cell boundary and source accounting, and the igniter region from the finest level. Single-level bits, B1's values and ctest (9 of 12; `spray_verification`'s (b) fails the same before and after) are unchanged.
-  - **Budgets met against 1e-12:** mass 1.3e-14, energy 2.7e-15, momentum 9.3e-16.
-  - **Not met as written:** ten times the single level's at 8 ms, for mass (6.0e-15) and momentum (1.1e-16). The errors are rounding walks that change sign, alike over the run (largest 1.96e-14 against 1.51e-14 for mass). A step C reading is recorded: the largest over the run against ten times the single level's largest.
-  - **Not met as written:** the igniter, 1.4e-14 relative against 1e-14. The test first judged 1e-14 J and now judges the relative form. A compensated sum is planned before step C.
-  - **Observed:** light-off passes Table A's 3500 K top on the AMR (coarse cells in the convergent section, up to 3524 K, at 0.34 ms), not on uniform 32 x 6 or 64 x 12. The counted Cantera fallback handles it; criterion 4 judges the solution.
-- **RL10 development chamber** (`docs/evidence/RL10_DEV.md`, development only, pre-vaporized). Settled thrust in 3.3 min (uniform rings) and 5.9 min (stretched) on 4 threads; the stretched mesh binds in the throat's wall row. The implicit-time rule provisionally says no implicit step on this mesh. With AMR the target y+ decides it (300: about 1.7 h projected; 956: under 35 min), to be measured in AMR step D.
-- **Table A for any pair: design and criteria** (`docs/evidence/TABLE_A_PAIRS.md`, nothing built). Diffusion moves elements up to 0.056 off the two-stream line in CH4/O2 flames, so the design is an exact element-potential solve seeded from a Bilger-f table, on `gri30_highT.yaml`.
-- **AMR step B2 code committed, checks running** (`docs/evidence/AMR.md`, *Step B2: setup* and *what was built*; commit 7d28c17).
-  - **What it is:** restricted loops over N_k, the listed faces, react over N_1, and the temperature-guess reset (in B1 too). `Amr::setRestricted(false)` selects B1.
-  - **Smoke only so far:** 3(b) on 1 thread is cmp-identical between B2 and B1 with the reset, and B1's printed values are unchanged.
-  - **The five checks are queued on backhouse:**
-    - tmux `inquiry2_b2` (ours), script `/home/greff/crucible_b2/b2_checks.sh`;
-    - trees `/home/greff/crucible_b2pre` (9fdab9b, the reference) and `/home/greff/crucible_b2` (B2);
-    - each job waits for a 1-minute load under 24 (worker rule 16); it was 44 to 47 at 02:05;
-    - progress is in `b2out/queue.log`, the comparisons go to `b2out/summary.txt`, and `b2out/done` marks the end;
-    - about 1.5 h of running once the load allows.
-  - **After the checks:** record *Step B2: results* and judge 3(c). The results are the cmp verdicts; check 2 against the recorded B1 values and against the 9fdab9b tree's own runs on backhouse; and the wall times, with the load.
-  - **Process note:** one cmake build and two 4 s 3(b) smoke runs ran on the Mac outside slot.py on 14 October (worker rule 3).
-- **The igniter's compensated sum is committed but not yet run** (`docs/evidence/AMR.md`, *Before step C*; setup bcd944f, code 9294985).
-  - Its three checks are queued behind B2's: tmux `inquiry2_ig`, script `/home/greff/crucible_b2/b2_ig.sh`. It waits for `b2out/done`, then builds `/home/greff/crucible_b2ig`; `crucible_b2ig/igout/done` marks the end, and `igout/summary.txt` holds the comparisons.
-  - If B2's checks force a fix in `core/flow.*` or `core/amr.*`, rebuild `ig.tar` from the fixed files before this queue starts.
-- **For the spray worker:** inquiry2 has no pending or planned edits in `core/medium.*`, so a lean λ and D entry point there will not conflict. AMR step B2 edits `core/flow.*`, `core/transport.cpp`, `core/amr.*` and `adapters/reacting_flow.cpp` (react's cell list). The sub-300 K transport-fit finding is noted for any medium work.
-- **`main` not fast-forwarded.** `worktree-inquiry2` is 18 commits ahead of `main` (e18c710) and contains it. `main` is checked out in the main checkout, and the worktree guard refuses commands aimed there. Fast-forward from the main checkout: `git merge --ff-only worktree-inquiry2`.
-- **Next for inquiry2:**
-  - B2's results and 3(c), then a compensated sum for the igniter's delivered energy before step C;
-  - then Table A pairs step A, and the engine-spec schema for the blind-prediction database.
+- **Lever 3, the hot pocket (`docs/evidence/COST.md`, the one-cell budget's paragraphs; evidence in `docs/evidence/cost/`).** It replaces item 0's budget part below; item 0's remedy and S7 parts follow from the result here.
+  - **Built and registered:** the readout first (383e8e0, authored 17:15:27 CDT); then the probe, `Flow::setBudgetProbe` (b6c6ea2, read-only, bit-identical history with it on and off). The driver's `CRUCIBLE_BUDGET=<t0>:<i0>:<i1>:<j0>:<j1>` writes `<prefix>_budget.csv`; `cost/budget_read.py` gives the readout and `cost/budget_block.py` the block's excess and T.
+  - **Results (bc06b6b), all measured:** closure to 5e-15. The registered readout on i 0, j 0 to 2 is mixed: inviscid 70.8%, turbulent 21.8%, molecular 7.4%. Where the excess starts, i 0, j 4 takes 37.9% of its supply beyond both cells' range through the i 0 / i 1 face, which is the registered numerical signature.
+  - **Inferred cause:** T_face = p/(ρ R(Y)) from ρ, p and Y limited separately at composition jumps.
+  - **Remedy:** `Definition::temperatureReconstruction` reconstructs T in place of ρ, with face ρ = p/(R(Y_face) T_face). It is off by default, and the driver's `CRUCIBLE_RECONSTRUCT_T=1` sets it. With it off, the history is identical but for the timing columns. **Measured (840b97f): it fails the check.** T_max reaches 3,462 K at 2.5 ms, with no fallbacks; the pocket forms in the same zone about 0.1 ms later, and the block's supply beyond the range is not removed. Where this run's pocket starts, the readout is 77% turbulent: by the registration, the Sc_t 0.7 / Pr_t 0.9 mismatch.
+  - **The face enthalpy bound (04c557c): fails, and runs hotter than the baseline.** `Definition::boundedFaceEnthalpy` (driver `CRUCIBLE_BOUND_H=1`): T_max 3,474 K at 1.0 ms (baseline 3,388 K), 3,505 K with 4,668 fallbacks at 1.5 ms; 3,450 K crossed at 0.870 ms. Its hot layer, b +1.4 to +1.6 MJ/kg, lies against the H2 stream's edge, beside cells at −0.4 to −1.4 MJ/kg across the f_H jump. With Pr_t = Sc_t = 0.7 as well (a diagnostic), the same. Both were stopped early to free slots. Reading (inferred): bounding h does not bound b.
+  - **Running (Mac, started 18:43 CDT): the bound judged on b itself** (`Flow::setBoundedExcess`, driver `CRUCIBLE_BOUND_B=1`; flags off, history identical but for the timing columns). `/tmp/inq2b/bx/` (`lowB.log`, `lowB_budget.csv`, `done`). Read it with `cost/budget_beyond.py <csv> 2.2e-3 <t1>` and `cost/budget_read.py` where any pocket starts. Changing Pr_t or Sc_t is a model choice for the Director, not a fix.
+  - Result at the last handoff commit: still running (T_max 1,998 K at 0.4 ms, normal).
+  - **Runs (Mac `/tmp/inq2b/`):**
+    - the baseline, `low/` (`low.log`, `low_budget.csv`): crossed 3,450 K at 2.3035 ms; T_max 3,627 K at 2.4 ms, 9,174 fallbacks by 2.45 ms;
+    - temperature reconstruction, `fix/` (`lowT.log`, `lowT_budget.csv`);
+    - the enthalpy bound, `bound/` (to 1.5 ms), the bound with Pr_t 0.7, `prt/` (to 1.2 ms), and the excess bound, `bx/` (the tree it was built from in `bx/src`);
+    - the fast ctest with the flag on by default, `suiteT/` (a copy of the tree with the default flipped).
+  - **Known, not investigated:** the Mascotte driver with average-from 0 segfaults after writing the stations, with or without the probe. Use average-from 1 for smokes.
+- **AMR B2's five checks and the igniter's three: results not collected.** Backhouse refused SSH on port 22 all session, though Tailscale shows it active.
+  - The queues are tmux `inquiry2_b2` (`/home/greff/crucible_b2/b2out/`: `summary.txt`, `done`) and `inquiry2_ig` (`/home/greff/crucible_b2ig/igout/`: `summary.txt`, `done`).
+  - Then record AMR.md *Step B2: results* (the cmp verdicts; check 2 against B1's recorded values and the 9fdab9b tree's own runs; wall times with the load), judge 3(c), and record the igniter's checks (AMR.md *Before step C*).
+- **AMR step C: not started.** It waits on B2's results.
+- **Rebased onto `main` e297140 at about 18:20 CDT; `main` not yet fast-forwarded.** inquiry2's 28 commits since 71a3f2c (from 13 October on) had never reached `main`. Two conflicts, both in `tests/chamber_study.cpp`: `main`'s `CRUCIBLE_MECHANISM` kept, with inquiry2's CEA line and the `rl10dev` chamber added. Every ID changed; `docs/evidence/inquiry2_rebase_map.txt` maps the earlier IDs the docs cite to the current ones, and the pre-registered documents keep their original IDs. The worktree guard refuses commands aimed at the main checkout, and `main` is checked out there. From the main checkout, when its tracked tree is clean: `git merge --ff-only worktree-inquiry2`, then the fast tests on `main`.
+  - Fast ctest on the rebased tree (`docs/evidence/inquiry2_rebase_ctest.txt`): 7 of 11 pass, with the same failing check lines as before the rebase: `amr_verification` 0(d), `amr_subcycling_verification` 3(a)'s order and 3(b)'s peak as recorded, `transport_verification`'s radial order (1.218, 1.444), and `spray_verification` S0(b) (1,245 against 1e3 J/kg).
+- **Held from the Director:**
+  - Penn State GO2/GH2 single element (NTRS 20050207576 / 20050209932) is the next validation case after the RL10 contour.
+  - The blind engine-set spec scraper drops outcome columns (Isp, thrust, c*) at ingest.
+  - Spray subcycling is inquiry's lane.
+- **Earlier, still standing:**
+  - RL10A-3-3A tier 0 is committed (`docs/validation/RL10A33A_PREDICTION.md`); no measured performance may be read until tier 1 is committed.
+  - AMR steps A and B1 are done, with 0(d), 3(a)'s order, 3(b)'s peak, criterion 2's ten-times and the igniter (before its compensated sum) failing as written (AMR.md); amending them is the Director's call.
+  - The RL10 development chamber (`RL10_DEV.md`) and Table A for any pair (`TABLE_A_PAIRS.md`, design only).
+  - inquiry2 has no pending edits in `core/medium.*`.
+- **Next for inquiry2:** read the excess-bound run (`bx/`). If it holds T_max at about 3,400 K or below to 2.5 ms and removes the supply beyond the range, run the fast ctest with it on (it needs the excess's coefficients, so its default is a case-level setting) and propose it to the Director; then the S7 decision (COST.md, item 0). If it fails too, the registered readout at its pocket decides between a numerical cause still open and the Sc_t/Pr_t mismatch (a model choice). Then B2's results, 3(c), the igniter's checks, and AMR step C; then Table A pairs step A and the engine-spec schema for the blind-prediction database.
 
 ## Exact next steps (in order)
 
