@@ -1,18 +1,18 @@
-# Fast ctest (ctest -LE slow) on worktree-inquiry2 rebased onto main 44e7585, Mac, 20 October 2026, about 19:40 CDT, under load.
-# The sorted FAIL lines are identical to the run on the branch rebased onto e297140 (measured: comparison of the sorted FAIL lines).
- 1/11 Test  #1: core_verification ................   Passed   92.34 sec
- 2/11 Test  #2: wall_function_verification .......   Passed    0.35 sec
- 3/11 Test  #4: amr_verification .................***Failed    0.14 sec
- 4/11 Test  #5: amr_subcycling_verification ......***Failed  238.37 sec
- 5/11 Test  #6: thermo_cea_verification ..........   Passed   93.03 sec
- 6/11 Test  #7: reaction_verification ............   Passed    2.21 sec
- 7/11 Test  #8: transport_verification ...........***Failed  486.06 sec
- 8/11 Test  #9: turbulence_verification ..........   Passed   74.54 sec
- 9/11 Test #11: wall_function_threads ............   Passed    0.47 sec
-10/11 Test #13: spray_verification ...............***Failed   54.55 sec
-11/11 Test #14: mixture_verification .............   Passed    2.77 sec
+# Fast ctest (ctest -LE slow) on worktree-inquiry2 rebased onto main 953ef93 (core/medium.cpp resolved keeping both ca403ff's tHigh guard and the viscous step's divided enthalpy coefficients), Mac, 20 October 2026, 21:58 to 22:05 CDT.
+# The sorted FAIL lines (leading spaces stripped) are identical to the run on the branch rebased onto 44e7585 and to those before the earlier rebases (measured: diff of the sorted lines). mixture_verification, with main's guard unit check 1b, passes.
+ 1/11 Test  #1: core_verification ................   Passed   34.36 sec
+ 2/11 Test  #2: wall_function_verification .......   Passed    0.22 sec
+ 3/11 Test  #4: amr_verification .................***Failed    0.12 sec
+ 4/11 Test  #5: amr_subcycling_verification ......***Failed   48.72 sec
+ 5/11 Test  #6: thermo_cea_verification ..........   Passed   41.01 sec
+ 6/11 Test  #7: reaction_verification ............   Passed    1.05 sec
+ 7/11 Test  #8: transport_verification ...........***Failed  221.20 sec
+ 8/11 Test  #9: turbulence_verification ..........   Passed   51.00 sec
+ 9/11 Test #11: wall_function_threads ............   Passed    0.32 sec
+10/11 Test #13: spray_verification ...............***Failed   19.73 sec
+11/11 Test #14: mixture_verification .............   Passed    1.87 sec
 64% tests passed, 4 tests failed out of 11
-Total Test time (real) = 1044.85 sec
+Total Test time (real) = 419.61 sec
 # FAIL lines (sorted):
 (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
 128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.657e-03 (limit 0.001)  FAIL
@@ -22,10 +22,10 @@ Total Test time (real) = 1044.85 sec
 FAIL: 1 failure(s)
 FAILED (3 failures)
 FAILED (5 failures)
-The following tests FAILED:
 level 1 (300 x 32) closure, relative to the faces                          1.912e-14 (limit 1e-14)  FAIL
 level 2 (600 x 64) closure, relative to the faces                          3.938e-14 (limit 1e-14)  FAIL
 level 3 (1200 x 128) closure, relative to the faces                        8.132e-14 (limit 1e-14)  FAIL
 observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
 observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
 radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL
+The following tests FAILED:
