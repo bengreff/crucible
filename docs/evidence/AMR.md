@@ -418,6 +418,22 @@ The code follows the setup's regions (`Flow::setRegions`, the lists `within_`, `
 - **The reaction counters count the cells a level steps.** Table cells, clamped and fallbacks cover N_1 in B2 and the whole level in B1, so B2 prints smaller counts. The clipped-energy sum is the same in both modes, because a non-active cell's entry is zeroed by the copy. The dumps hold no counters.
 - **The step's first `stableDt` reads stale ghosts.** With turbulence, `Amr::step` forms the step size after refreshing N_g and forming the eddy viscosity over N_{g-1}. These use the ghosts as the last step left them, and outside N_1 they differ between the modes, because B1's second half-source and `react` also covered them. The step size is taken over A, whose gradients read N_1 only, so it is the same in both modes. The ghosts are filled and recomputed before any stage reads them.
 
+## Step B2: results (run 14 October on backhouse, collected 20 October)
+
+The checks ran on backhouse from 03:15 to 05:01 CDT on 14 October, on 4 threads, before its reboot on 16 October; SSH was down until 20 October, so they were collected then. Trees: the build before B2 at 544acc7 (B2's setup, B1's code), and B2 at 89b034d. Evidence on backhouse in `/home/greff/crucible_b2/b2out/` (`summary.txt`, `queue.log`, the suite, budget and ctest logs, the dumps). All values measured.
+- **1. Single-level bits: met.** C1 `eqtt` 64 x 12 to 1 ms: the state dump, the history, the mesh and all eleven field files are `cmp`-identical before and after B2; the logs differ only at byte 884, the wall time. ctest: the same 5 of 14 tests fail before and after (`amr_verification` 0(d), `amr_subcycling_verification`, `transport_verification`, the pipe's 1,500 s timeout, `spray_verification`), and the 17 sorted FAIL lines are identical.
+- **2. B1 with the reset: rounding-level differences only, as expected.**
+  - 3(a) and 3(b): every printed value is the same in the build before B2, in B1 with the reset and in the B1 results above (for example 3(a)'s orders 1.591 and 1.529, 3(b)'s judged pressures 5.458e-3, 3.657e-3 and 1.384e-3).
+  - 1(b): largest |u - u0| / a0 on levels 0 to 2 is 6.460e-16, 5.595e-16 and 3.529e-16 before, 4.354e-16, 5.190e-16 and 5.422e-16 with the reset (the B1 results: 5.9e-16, 6.3e-16, 5.1e-16); |p / p0 - 1| is unchanged at 4.441e-16, 3.331e-16 and 3.331e-16. Limit 1e-10 and 1e-12: met in all three.
+  - 1(a): largest |u| / a0 on levels 0 to 2 is 2.681e-14, 7.810e-14 and 2.172e-13 before, 2.639e-14, 7.809e-14 and 2.145e-13 with the reset; |p / p0 - 1| is 2.665e-15, 8.438e-15 and 2.176e-14 in both. Met.
+  - Criterion 2's case to 8 ms (the build before, then B1 with the reset): mass 1.086e-14 and 9.350e-15, energy 6.008e-16 and 2.403e-15, momentum 8.559e-16 and 9.337e-16, igniter |E / 0.5 J - 1| 1.354e-14 and 1.421e-14. The verdicts are those of *Step B1: criterion 2 results*: the three absolute bounds met, the ten-times comparisons met for energy and not met as written for mass and momentum, the igniter not met as written. c* 2474.44 m/s, vacuum thrust 1677.93 N, outlet 0.400053 kg/s and 67,813 base steps are identical to the recorded values, and so is the single level (2477.43 m/s, 1681.83 N, 0.400000 kg/s, 67,624 steps).
+  - The recorded B1 values (Mac) and these (backhouse, a different compiler and library) also differ in the last digits; the printed integrals agree.
+- **3. B2 against B1, bit for bit: met.** The active-cell dumps (every level's conserved state, partial densities, k and omega, the base step count and the composite budget) are `cmp`-identical on 1(a), 1(b), 3(a) at 192, 384 and 768 columns, 3(b) at 64, 128 and 256 columns, and criterion 2's case to 8 ms. Every printed value in the suite and budget logs is the same but the wall times.
+- **4. 3(c): met.** B2 with ghost width 3 against width 2: `cmp`-identical dumps on 3(a) at all three resolutions and 3(b) at all three.
+- **5. Printed, not judged.**
+  - Width 4 against width 3 on criterion 2's case to 1 ms: `cmp`-identical dumps.
+  - Wall times, B1 with the reset against B2, on a shared machine (load 20 to 23 on 28 threads, with `ctest_pre` running beside the B2 runs from 03:29): 1(b) 31.6 s against 3.4 s; 1(a) 74.8 s against 25.1 s; 3(a) at 192, 384 and 768 columns 4.1, 12.4 and 176.4 s against 2.0, 6.1 and 20.6 s; criterion 2's case to 8 ms 465.6 s against 222.9 s (the single level 38.8 and 42.9 s beside them). The loads were not controlled, so these are an indication, not criterion 5(a)'s measurement. B2's criterion 2 run is still 5.2 times the single level's wall time.
+
 ## Before step C: the igniter's compensated sum (recorded 14 October, before its code)
 
 Criterion 2 on B1 found the delivered igniter energy 1.4e-14 relative from 0.5 J, against 1e-14 (*Step B1: criterion 2 results*). The compensated sum planned there:
@@ -434,6 +450,15 @@ Criterion 2 on B1 found the delivered igniter energy 1.4e-14 relative from 0.5 J
   1. Criterion 2's case to 0.5 ms (the igniter fires from 0.2 to 0.4 ms), on B2. Judged: |E / 0.5 J - 1| at most 1e-14 on the AMR. Printed: the single level's value.
   2. The state does not move. That run's dump is `cmp`-identical to the build before over everything except its last 8 bytes, the budget's igniter entry.
   3. Single-level bits: the C1 chamber, `eqtt` 64 x 12 to 1 ms, has a `cmp`-identical state dump. The history prints the igniter energy to 7 digits; any change there is listed.
+
+## Before step C: the igniter's results (run 14 October on backhouse, collected 20 October)
+
+Run from 05:02 to 05:04 CDT on 14 October, on 4 threads, the build before at 89b034d (B2) and after at 720cce7. Evidence on backhouse in `/home/greff/crucible_b2ig/igout/`. All values measured.
+1. **Met.** Criterion 2's case to 0.5 ms on B2: |E / 0.5 J - 1| is 1.332e-15 (limit 1e-14), against 1.421e-14 before; the delivered energy is 0.499999999999999 J (0.499999999999993 J before). The single level's |E - 0.5 J| falls from 4.996e-16 J to 0. The AMR's mass, energy and momentum errors at 0.5 ms are the same before and after (6.40e-16, 2.19e-15, 2.25e-16), as are the base steps (4,053, none redone).
+2. **Met.** The two dumps are `cmp`-identical over their first 57,408 bytes and differ only in the last 8, the igniter entry.
+3. **Met.** The C1 `eqtt` 64 x 12 state dump, history and mesh at 1 ms are `cmp`-identical to B2's single-level run (`c1_post` in *Step B2: results*); the history's igniter column did not change.
+
+With criterion 2's igniter now met, criterion 2's remaining failures as written are the ten-times comparisons for mass and momentum (*Step B1: criterion 2 results*); amending them is the Director's call. Step C can start.
 
 ## Deviations from the plan's text
 
