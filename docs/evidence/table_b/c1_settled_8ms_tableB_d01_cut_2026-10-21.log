@@ -1,0 +1,60 @@
+mechanism: ../tools/mechanisms/h2o2_highT.yaml
+Table B /tmp/tbs/c1r11_s.bin: Table B built 2026-10-20 23:58 CDT by crucible_build_manifold_table from ../tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 3 nodes {0.142857,0.166667,0.200000} as given, Z_N {0.000000,0.300000}, eta 11 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 594 nodes in 15 s on 2 threads; node element error 5.77e-10 raw, 3.57e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE
+mesh 32x6: dz 5.208 mm, throat station 16 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 8 at z 0.0443 m
+chemistry fr; igniter 50 J over 1 ms from 0.2 ms
+t 0.500 ms  p_inj 1.5009 MPa  outlet 0.1547 kg/s  F_vac 627.2 N  steps 2917  wall 8 s  step 1.115e-07 s set by cell (16, 2), convective 3.588e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 1545408 cell updates, table 72.5427%; no H or O 0.7972%; outside the axes 11.7176%; frozen reach 0.1697%; off the curve in s (above the blended s_eq) 0.0033%; off the curve in s (below the blended start) 12.7093%; dY above dY_max 1.7907%; the lower branch's induction part (phi_N below 0.3) 0.2695%
+t 1.000 ms  p_inj 2.7967 MPa  outlet 0.3244 kg/s  F_vac 1402.2 N  steps 7457  wall 14 s  step 1.176e-07 s set by cell (16, 5), convective 3.401e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2566848 cell updates, table 99.9992%; frozen reach 0.0008%
+t 1.500 ms  p_inj 3.1557 MPa  outlet 0.3763 kg/s  F_vac 1584.4 N  steps 11715  wall 19 s  step 1.192e-07 s set by cell (16, 5), convective 3.356e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2404416 cell updates, table 100.0000%
+t 2.000 ms  p_inj 3.2647 MPa  outlet 0.3931 kg/s  F_vac 1639.0 N  steps 15965  wall 23 s  step 1.197e-07 s set by cell (16, 5), convective 3.343e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 2.500 ms  p_inj 3.2972 MPa  outlet 0.3979 kg/s  F_vac 1655.5 N  steps 20215  wall 28 s  step 1.198e-07 s set by cell (16, 5), convective 3.339e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 3.000 ms  p_inj 3.3070 MPa  outlet 0.3994 kg/s  F_vac 1660.5 N  steps 24465  wall 32 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 3.500 ms  p_inj 3.3100 MPa  outlet 0.3998 kg/s  F_vac 1662.0 N  steps 28715  wall 36 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 4.000 ms  p_inj 3.3109 MPa  outlet 0.3999 kg/s  F_vac 1662.4 N  steps 32965  wall 41 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 4.500 ms  p_inj 3.3111 MPa  outlet 0.4000 kg/s  F_vac 1662.6 N  steps 37215  wall 45 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 5.000 ms  p_inj 3.3112 MPa  outlet 0.4000 kg/s  F_vac 1662.6 N  steps 41465  wall 50 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 5.500 ms  p_inj 3.3112 MPa  outlet 0.4000 kg/s  F_vac 1662.6 N  steps 45715  wall 54 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 6.000 ms  p_inj 3.3112 MPa  outlet 0.4000 kg/s  F_vac 1662.6 N  steps 49965  wall 58 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 6.500 ms  p_inj 3.3112 MPa  outlet 0.4000 kg/s  F_vac 1662.6 N  steps 54215  wall 63 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 7.000 ms  p_inj 3.3112 MPa  outlet 0.4000 kg/s  F_vac 1662.6 N  steps 58465  wall 67 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 7.500 ms  p_inj 3.3112 MPa  outlet 0.4000 kg/s  F_vac 1662.6 N  steps 62715  wall 71 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+t 8.000 ms  p_inj 3.3112 MPa  outlet 0.4000 kg/s  F_vac 1662.6 N  steps 66965  wall 76 s  step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 100.0000%
+
+end 8.000 ms after 66965 steps (62511 replans), wall 76 s
+budgets: mass -1.23e-12  energy -5.33e-12
+cost: 5.892 us of wall time per cell update on 2 threads, 9.5 s per simulated ms over the run
+step limit after 1 ms (3501 samples): mean step 1.197e-07 s; set in the wall row 100.0%, the axis row 0.0%, upstream of the throat 0.0%, at it (its two columns) 100.0%, downstream 0.0%; diffusive rate above convective 0.0%; last: step 1.198e-07 s set by cell (16, 5), convective 3.338e+06 and diffusive 0.000e+00 per s
+reaction wall 54.8 s (72.3% of the run), 4.258 us per cell update
+  Table B over the run: 37716672 cell updates, table 98.8749%; no H or O 0.0327%; outside the axes 0.4801%; frozen reach 0.0070%; off the curve in s (above the blended s_eq) 0.0001%; off the curve in s (below the blended start) 0.5208%; dY above dY_max 0.0734%; the lower branch's induction part (phi_N below 0.3) 0.0110%
+  Table B: largest max|dY| of a placed point it stepped 9.987e-03; its updates placed at w < 1 (in part by s) 0
+  Table B chamber, over the run: 10607814 cell updates, table 98.9786%; no H or O 0.0028%; outside the axes 0.1504%; frozen reach 0.0000%; off the curve in s (above the blended s_eq) 0.0002%; off the curve in s (below the blended start) 0.7094%; dY above dY_max 0.1337%; the lower branch's induction part (phi_N below 0.3) 0.0250%
+  Table B convergent, over the run: 8250522 cell updates, table 98.9543%; no H or O 0.0082%; outside the axes 0.3647%; frozen reach 0.0320%; off the curve in s (above the blended s_eq) 0.0000%; off the curve in s (below the blended start) 0.5773%; dY above dY_max 0.0455%; the lower branch's induction part (phi_N below 0.3) 0.0180%
+  Table B divergent, over the run: 18858336 cell updates, table 98.7819%; no H or O 0.0602%; outside the axes 0.7161%; frozen reach 0.0000%; off the curve in s (above the blended s_eq) 0.0001%; off the curve in s (below the blended start) 0.3899%; dY above dY_max 0.0516%; the lower branch's induction part (phi_N below 0.3) 0.0002%
+  Table B chamber, the last ms: 1350000 cell updates, table 100.0000%
+  Table B convergent, the last ms: 1050000 cell updates, table 100.0000%
+  Table B divergent, the last ms: 2400000 cell updates, table 100.0000%
+  Table B, the last ms: frozen-corner refusals by the refusing corner's weight: below 1e-30 0; 1e-30 to 1e-12 0; 1e-12 to 1e-6 0; 1e-6 to 1e-2 0; above 1e-2 0
+  Table B, the last ms: 0 cells took any fallback; the most:
+drift over last 1 ms: outlet mass flow 9.14e-08, injector pressure 7.48e-08, vacuum thrust 7.57e-08
+chamber end: static 3.13472 MPa, equilibrium stagnation p0 3.15132 MPa; injector face 3.31123 MPa
+simulated: mdot out 0.400000 kg/s (supply 0.400000), c* 2475.04 m/s, vacuum thrust 1662.61 N, vacuum Isp 423.85 s
+1-D ideal rocket at p0 (../tools/mechanisms/h2o2_highT.yaml thermo): Tc 3347.9 K, c* 2428.74 m/s, Isp_vac shifting 435.90 s, frozen 419.21 s, gamma 1.2072
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2437.38 m/s, Isp_vac shifting 429.02 s, frozen 412.54 s, F_vac 1682.91 N
+simulated/predicted - 1: c* +1.5450%, Isp_vac (shifting) -1.2062%

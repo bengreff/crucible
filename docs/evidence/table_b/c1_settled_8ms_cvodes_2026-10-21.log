@@ -1,0 +1,33 @@
+mechanism: ../tools/mechanisms/h2o2_highT.yaml
+mesh 32x6: dz 5.208 mm, throat station 16 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 8 at z 0.0443 m
+chemistry fr; igniter 50 J over 1 ms from 0.2 ms
+t 0.500 ms  p_inj 1.5017 MPa  outlet 0.1546 kg/s  F_vac 627.5 N  steps 2918  wall 43 s  step 1.114e-07 s set by cell (16, 2), convective 3.590e+06 and diffusive 0.000e+00 per s
+t 1.000 ms  p_inj 2.7987 MPa  outlet 0.3242 kg/s  F_vac 1402.0 N  steps 7462  wall 122 s  step 1.175e-07 s set by cell (16, 5), convective 3.403e+06 and diffusive 0.000e+00 per s
+t 1.500 ms  p_inj 3.1594 MPa  outlet 0.3764 kg/s  F_vac 1586.4 N  steps 11725  wall 192 s  step 1.191e-07 s set by cell (16, 5), convective 3.359e+06 and diffusive 0.000e+00 per s
+t 2.000 ms  p_inj 3.2675 MPa  outlet 0.3933 kg/s  F_vac 1640.9 N  steps 15975  wall 261 s  step 1.195e-07 s set by cell (16, 5), convective 3.347e+06 and diffusive 0.000e+00 per s
+t 2.500 ms  p_inj 3.2994 MPa  outlet 0.3980 kg/s  F_vac 1657.2 N  steps 20225  wall 326 s  step 1.197e-07 s set by cell (16, 5), convective 3.343e+06 and diffusive 0.000e+00 per s
+t 3.000 ms  p_inj 3.3088 MPa  outlet 0.3994 kg/s  F_vac 1662.0 N  steps 24475  wall 391 s  step 1.197e-07 s set by cell (16, 5), convective 3.342e+06 and diffusive 0.000e+00 per s
+t 3.500 ms  p_inj 3.3116 MPa  outlet 0.3998 kg/s  F_vac 1663.5 N  steps 28725  wall 453 s  step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+t 4.000 ms  p_inj 3.3124 MPa  outlet 0.3999 kg/s  F_vac 1663.9 N  steps 32975  wall 512 s  step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+t 4.500 ms  p_inj 3.3127 MPa  outlet 0.4000 kg/s  F_vac 1664.0 N  steps 37225  wall 576 s  step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+t 5.000 ms  p_inj 3.3127 MPa  outlet 0.4000 kg/s  F_vac 1664.0 N  steps 41475  wall 637 s  step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+t 5.500 ms  p_inj 3.3128 MPa  outlet 0.4000 kg/s  F_vac 1664.0 N  steps 45725  wall 688 s  step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+t 6.000 ms  p_inj 3.3128 MPa  outlet 0.4000 kg/s  F_vac 1664.1 N  steps 49975  wall 738 s  step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+t 6.500 ms  p_inj 3.3128 MPa  outlet 0.4000 kg/s  F_vac 1664.1 N  steps 54225  wall 788 s  step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+t 7.000 ms  p_inj 3.3128 MPa  outlet 0.4000 kg/s  F_vac 1664.1 N  steps 58475  wall 838 s  step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+t 7.500 ms  p_inj 3.3128 MPa  outlet 0.4000 kg/s  F_vac 1664.1 N  steps 62725  wall 888 s  step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+t 8.000 ms  p_inj 3.3128 MPa  outlet 0.4000 kg/s  F_vac 1664.1 N  steps 66975  wall 937 s  step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+
+end 8.000 ms after 66975 steps (62527 replans), wall 937 s
+budgets: mass -1.83e-13  energy 2.55e-12
+cost: 72.844 us of wall time per cell update on 2 threads, 117.1 s per simulated ms over the run
+step limit after 1 ms (3501 samples): mean step 1.196e-07 s; set in the wall row 100.0%, the axis row 0.0%, upstream of the throat 0.0%, at it (its two columns) 100.0%, downstream 0.0%; diffusive rate above convective 0.0%; last: step 1.197e-07 s set by cell (16, 5), convective 3.341e+06 and diffusive 0.000e+00 per s
+reaction wall 913.4 s (97.5% of the run), 71.034 us per cell update
+drift over last 1 ms: outlet mass flow 7.89e-08, injector pressure 6.38e-08, vacuum thrust 8.46e-08
+chamber end: static 3.13667 MPa, equilibrium stagnation p0 3.15326 MPa; injector face 3.31277 MPa
+simulated: mdot out 0.400000 kg/s (supply 0.400000), c* 2476.56 m/s, vacuum thrust 1664.05 N, vacuum Isp 424.22 s
+1-D ideal rocket at p0 (../tools/mechanisms/h2o2_highT.yaml thermo): Tc 3348.0 K, c* 2428.75 m/s, Isp_vac shifting 435.90 s, frozen 419.21 s, gamma 1.2072
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2437.40 m/s, Isp_vac shifting 429.02 s, frozen 412.54 s, F_vac 1682.91 N
+simulated/predicted - 1: c* +1.6069%, Isp_vac (shifting) -1.1205%

@@ -940,6 +940,26 @@ Command, from `build/`: `CRUCIBLE_MECHANISM=../tools/mechanisms/h2o2_highT.yaml 
 - **What is not covered:** the RL10's own range (O/F, pressure, the LOX spray's cold mixing). Its own node set is built and these checks rerun there before the tier-1 central case uses it.
 - **Still open as written:** R1's τ bar, and the build's turn-back, integrator and N-gate failures (not reached by C1).
 
+### R3 at a settled state: both C1 runs to 8 ms (21 October 2026, about 01:06 CDT)
+
+The Director's brief of 21 October asked for the 0.2% comparison at a settled state (thrust drift under 1e-4 per ms), not just at the same time. Both runs were repeated to 8 ms with the same table, mesh, igniter and threads, detached through the slot limiter (measured; `table_b/c1_settled_8ms_cvodes_2026-10-21.log` and `..._tableB_d01_cut_...`):
+
+| | Table B | CVODES | Difference | Bar |
+|---|---|---|---|---|
+| c* | 2475.04 m/s | 2476.56 | −0.061% | 0.2%: pass |
+| Isp_vac | 423.85 s | 424.22 | −0.087% | 0.2%: pass |
+| F_vac | 1662.61 N | 1664.05 | −0.087% | 0.2%: pass |
+| injector face | 3.31123 MPa | 3.31277 | −0.047% | (reported) |
+| chamber-end p0 | 3.15132 MPa | 3.15326 | −0.062% | (reported) |
+| drift over the last ms, thrust | 7.6e-8 | 8.5e-8 | | 1e-4: both settled |
+
+- **The fallback over the last ms:** 100% table in the chamber, convergent and divergent, with 0 refusals. No cell took any fallback (bar 1% per region: pass).
+- **What settling changed:** c* is unchanged from 4 ms (−0.061%). Isp_vac and F_vac moved from −0.13% to −0.087%.
+  - The runs are deterministic: the 8 ms runs' progress rows to 4 ms equal the 4 ms runs' to every printed digit.
+  - At 4 ms the CVODES run's end summary (F_vac 1664.67 N) sat 0.05% above its own progress row (1663.9 N). Table B's matched its row (1662.42 against 1662.4).
+  - *Inferred:* about a third of the 4 ms thrust gap was the CVODES run's unsettled end, as the drift (1.6e-3) said then.
+- **Cost:** 76 s of wall time against 937 s (12.3 times); reaction 4.26 against 71.0 µs per cell update.
+
 ## Table B on the RL10's range: the ranges, the node set and the checks, stated before the build (21 October 2026, about 00:58 CDT)
 
 The Director's brief of 21 October: build Table B over the RL10's declared input ranges (its O/F band and pressure band, from the inputs only), with the transpired fraction's effect on the local mixture; recheck the gates there; run a C1-like check at RL10-like chamber conditions against CVODES with the same 0.2% bar. No measured RL10 value is read for any of it.
