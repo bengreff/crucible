@@ -1,0 +1,106 @@
+# Engine database, the outcome screen (21 October 2026, about 03:50 CDT)
+# Per family file (staging, /tmp/engine_db_staging/out/), then the merged engines.json. Redactions: none.
+
+== lox_lh2.json  sha256 4080eae0f38fbc8ff37c9f8622666fd94dc1c219832709ddab9167705a211487
+-- counts
+{"isp": 6, "thrust": 8, "c_star": 0, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 1, "mass_flow": 1, "efficiency": 0, "seconds": 10, "velocity_units": 0, "exit_pressure": 0}
+-- masked
+engines[0].operating_point.mixture_ratio_basis.note [seconds]: Table gives main-chamber (second-stage) mixture ratio; the overall engine O/F (including preburner-only flows) is stated elsewhere as # consistent.
+engines[0].outcome_pointers[0].locator [isp]: p.# SSME Highlights slide, row 'Specific impulse at altitude'
+engines[1].outcome_pointers[1].locator [thrust]: infobox, field 'thrust(Vac)'
+engines[2].operating_point.mixture_ratio_basis.note [thrust]: Not explicitly distinguished in source; gas-generator cycle so engine and main-chamber ratios differ somewhat (a separate throttled Ares V point of # MR at reduced thrust is mentioned but is a different operating point, not used here).
+engines[2].sources[0].citation [force_units]: J. Ryan, C. Mulkey, N. Raines, G. P. Saunders, 'An Overview of the A-# Subscale Diffuser Test Project,' presentation to the #th AIAA Aerodynamic Measurement Technology and Ground Testing Conference, # June #
+engines[2].outcome_pointers[0].locator [isp]: 'Design Overview' slide, 'Key Requirements' row 'Specific impulse'
+engines[2].outcome_pointers[1].locator [thrust]: 'Design Overview' slide, 'Key Requirements' row 'Vacuum Thrust'
+engines[3].propellants.oxidizer.locator [seconds]: Sec # ('LO# and LH# cryogens')
+engines[3].propellants.fuel.locator [seconds]: Sec #
+engines[3].cycle.type.locator [seconds]: Sec # ('employs a gas generator, two turbopumps')
+engines[3].cycle.turbine_exhaust.locator [seconds]: Sec # ('Roll control ... provided ... by vectoring the RS-#A hydrogen turbopump exhaust gases')
+engines[3].geometry.expansion_ratio.locator [seconds]: Sec # ('The engine has a # to # expansion ratio')
+engines[3].geometry.exit_diameter_m.note [isp,thrust]: Infobox field is not explicitly tied to a specific RS-#/RS-#A sub-variant (unlike the thrust/Isp fields, which are given per-variant); applied here with this caveat since RS-#A is the variant this record otherwise follows.
+engines[3].geometry.chamber_cooling.locator [seconds]: Sec # ('regeneratively cooled thrust chamber')
+engines[3].injector.type.locator [seconds]: Sec # ('The coaxial injector is derived from the Space Shuttle Main Engine (SSME)')
+engines[3].outcome_pointers[0].locator [isp,thrust,seconds]: Sec # sea-level thrust and vacuum Isp figures for RS-#A
+engines[3].outcome_pointers[1].locator [thrust,seconds]: Sec # sea-level thrust figure for RS-#A
+engines[3].flags[2].reason [isp,thrust]: Infobox 'diameter' field is not explicitly variant-specific (RS-# vs RS-#A) in its own citation, unlike the thrust/Isp fields in the same infobox.
+engines[4].outcome_pointers[0].locator [isp]: Table # row 'Specific impulse (vacuum)'
+engines[4].outcome_pointers[1].locator [thrust]: Table # row 'Total thrust (vacuum)'
+engines[4].outcome_pointers[2].locator [mass_flow]: Table # row 'Overall mass flow rate'
+
+== lox_kerosene.json  sha256 b5fdab0f0a0b97ab17cc3af572bdee22bc5d6e9fc4f4afd61b56ae62a4793e07
+-- counts
+{"isp": 3, "thrust": 1, "c_star": 1, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 3, "mass_flow": 1, "efficiency": 0, "seconds": 1, "velocity_units": 0, "exit_pressure": 0}
+-- masked
+engines[0].cycle.turbine_flow_fraction.note [mass_flow]: would require gas-generator and total engine mass flow, both outcome quantities; not computed from outcomes
+engines[0].temperatures.fuel_inlet_k.locator [thrust]: Sec. III, para #-# (worked thrust-correction example)
+engines[0].outcome_pointers[0].locator [c_star]: Sec. III, Fig. #-# (Nominal Engine Performance Values), row 'Characteristic velocity, Nozzle stagnation'
+engines[1].outcome_pointers[0].locator [isp]: Table # row 'Specific Impulse, Iv'
+engines[1].notes [seconds]: X-# technology-demonstrator engine; also checked a second NTRS report on chamber/nozzle fabrication, which added no further geometry values.
+engines[2].maker [force_units]: N.D. Kuznetsov SSTC (original engine); Aerojet (modification)
+engines[2].sources[0].citation [force_units]: J. Hulka, J.S. Forde, R.E. Werling (Aerojet); V.S. Anisimov, V.A. Kozlov, I.P. Kositsin (N.D. Kuznetsov SSTC), Modification and Verification Testing of a Russian NK-# Rocket Engine for Reusable and Restartable Applications, AIAA #-# #
+engines[2].outcome_pointers[0].locator [isp]: Table I, row 'Vacuum delivered specific impulse'
+engines[2].flags[0].reason [force_units]: AJ#-# is a US-modified (controls, valves, instrumentation) variant of the original Soviet NK-#; combustion hardware is stated to be unchanged, but the operating point recorded here is specific to Kistler K-# standard inlet conditions, not the original N-# application
+engines[3].outcome_pointers[0].locator [isp]: Table # row 'Specific impulse (Vacuum)'
+
+== lox_methane.json  sha256 20f8d0d8c9a43609c9844787e111d946b547f62272d5adc4db805795a7a4c4fa
+-- counts
+{"isp": 5, "thrust": 5, "c_star": 5, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 0, "mass_flow": 5, "efficiency": 4, "seconds": 3, "velocity_units": 0, "exit_pressure": 0}
+-- masked
+engines[0].operating_point.label [seconds]: Test A#E# long-duration sea-level firing (# s), low-expansion test nozzle configuration
+engines[0].outcome_pointers[0].locator [efficiency]: Table # column 'A#E#', row for energy-release efficiency (eta_ER)
+engines[0].outcome_pointers[1].locator [c_star,efficiency]: Table # column 'A#E#', row for c* efficiency (eta_C*)
+engines[0].outcome_pointers[2].locator [isp]: Table # column 'A#E#', row labelled predicted full-scale specific impulse (theoretical Isp x eta_ER), footnoted *#
+engines[1].operating_point.label [seconds]: UE# thrust-chamber-assembly firing test, # September # # s duration (design point attained)
+engines[1].outcome_pointers[0].locator [mass_flow]: Figure # flow-rate profiles (traces MO = oxidizer flow rate, MG = fuel flow rate) for the # Sept # firing
+engines[1].outcome_pointers[1].locator [isp,thrust]: flight-engine target-performance table in Sec. # (row 'Minimum Isp in vacuum' and row 'Thrust in vacuum')
+engines[1].flags[3].reason [isp,thrust]: the vacuum Isp/thrust target table (s#) is for the flight engine configuration (deployable nozzle extension, max diameter # mm), which is a different hardware configuration from the # mm-exit TCA/UE# test article this record's geometry describes; retained only as a secondary, lower-confidence pointer
+engines[2].propellants.oxidizer.locator [mass_flow]: Table # 'LO# flow rate' row header
+engines[2].propellants.fuel.locator [mass_flow]: Table # 'LCH# flow rate' row header
+engines[2].cycle.type.note [thrust]: RCS/ACS-class thruster fed from a propellant conditioning and feed system (PCFS) skid via regulators; no turbopump described anywhere in the source
+engines[2].operating_point.pressure_station.note [thrust]: PCAV is a named pressure tap; exact axial location not detailed in the extracted text, but such cavity taps on small RCE thrusters are typically close to the injector face
+engines[2].outcome_pointers[0].locator [isp]: Table # 'Overall Performance Characteristics', row 'Vacuum Specific Impulse'
+engines[2].outcome_pointers[1].locator [isp,c_star]: Figure # and Figure # (Isp,vac and c* plotted against mixture ratio, grouped by propellant temperature), nominal-temperature data points
+engines[2].outcome_pointers[2].locator [mass_flow]: Table # 'Total Engine Flow (including igniter)' and 'Main Injector Flow (excluding igniter)' sections, 'Total flow rate' rows
+engines[2].flags[0].reason [thrust]: only derivable from an outcome (thrust/flow); not derived; no printed or drawn throat/exit diameter found for the #:# altitude nozzle
+engines[3].geometry.chamber_length_m.note [seconds]: the source also gives a second length, Lb = # in (the straight/cylindrical barrel section); it is not fully clear from the extracted text whether Lc (used here) or Lb is the injector-face-to-throat length intended by the schema; flagged
+engines[3].outcome_pointers[0].locator [c_star]: Table I (rendered image), row labelled 'eta_C* (#)', Case # column (note #: estimate without heat loss to combustion chamber)
+engines[3].outcome_pointers[0].label [c_star,efficiency]: test, estimated c* efficiency
+engines[3].outcome_pointers[1].locator [mass_flow]: Table I (rendered image), row 'oxidizer flowrate/element', Case # column
+engines[3].flags[7].reason [c_star,efficiency]: Table I's c* efficiency row is explicitly noted by the source as 'estimates without heat loss to combustion chamber', i.e. itself a modelled/corrected quantity rather than a raw directly-measured efficiency
+
+== storable.json  sha256 59ebd03a0045c9c8a84d8a7902675880817e7bda32fd209c313d76a43b9c9674
+-- counts
+{"isp": 3, "thrust": 4, "c_star": 0, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 0, "mass_flow": 1, "efficiency": 0, "seconds": 0, "velocity_units": 0, "exit_pressure": 0}
+-- masked
+engines[0].geometry.throat_diameter_m.note [thrust,mass_flow]: no throat or exit diameter dimension found in any source opened; only derivable from thrust/mass flow, which is excluded
+engines[0].notes [thrust]: Possible blindness risk: source s# (AEDC lecture, sps#pdf) states this engine's chamber pressure and area ratio in the same sentence as a thrust figure; the thrust figure was read but not recorded here.
+engines[3].outcome_pointers[0].locator [isp]: engine summary table, 'Specific impulse' row
+engines[3].outcome_pointers[1].locator [isp]: engine summary table, 'Specific impulse sea level' row
+engines[3].outcome_pointers[2].locator [thrust]: engine summary table, 'Thrust' rows
+engines[4].outcome_pointers[0].locator [isp]: engine summary table, 'Specific impulse' row
+engines[4].outcome_pointers[1].locator [thrust]: engine summary table, 'Thrust' row
+
+== engines.json (merged)  sha256 c73b97f57e886a3e19e34217161dd919eafce2c837a399b554f376b0ca381389
+-- counts
+{"isp": 17, "thrust": 18, "c_star": 6, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 4, "mass_flow": 8, "efficiency": 4, "seconds": 14, "velocity_units": 0, "exit_pressure": 0}
+-- check
+18 engines, 0 errors
+id                               family        tier0_isp tier0_thrust tier1  missing for tier1
+rs25_block2a_npl                 lox_lh2       yes       yes          no     fuel_injection_k,oxidizer_injection_k
+j2_sa208_504                     lox_lh2       yes       yes          no     contraction_ratio,type,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+j2x_100pct_pl                    lox_lh2       yes       yes          no     contraction_ratio,type,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+rs68a_rated                      lox_lh2       no        no           no     mixture_ratio,contraction_ratio,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+vulcain2_rated                   lox_lh2       yes       yes          no     contraction_ratio,type,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+f1                               lox_kerosene  yes       yes          no     contraction_ratio,fuel_injection_k,chamber_length|L*
+fastrac_mc1_15to1                lox_kerosene  yes       no           no     throat_diameter_m,contraction_ratio,contour_type,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+nk33_aj26_58                     lox_kerosene  yes       no           no     throat_diameter_m,contraction_ratio,contour_type,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+rd170                            lox_kerosene  yes       no           no     throat_diameter_m,contraction_ratio,contour_type,type,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+le8                              lox_methane   yes       yes          no     contraction_ratio,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+lm10mira_tca_ue2                 lox_methane   yes       yes          no     contraction_ratio,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+aerojet_lox_lch4_rce_altitude_nozzle lox_methane   yes       no           no     throat_diameter_m
+cuip_psu_shear_coax_case1        lox_methane   no        no           no     expansion_ratio,contour_type
+sps_aj10_137                     storable      yes       no           no     throat_diameter_m,contraction_ratio,contour_type,type,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+lm_ascent_engine                 storable      yes       yes          no     contraction_ratio,contour_type,chamber_length|L*
+lm_descent_engine                storable      yes       yes          no     contraction_ratio,contour_type,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+lr87_aj_5                        storable      yes       no           no     throat_diameter_m,contraction_ratio,contour_type,type,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
+lr91_aj_5                        storable      yes       yes          no     contraction_ratio,contour_type,type,fuel_injection_k,oxidizer_injection_k,chamber_length|L*
