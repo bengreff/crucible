@@ -59,6 +59,22 @@ Each is varied alone about the central case, as protocol §4 requires; the devia
 - **The transpired H2:** declared, choice 3.
 - **The igniter's dimensions** are missing; the porous face (choice 3) covers the centre inside r_1.
 
+## The cup's resolution criterion (decision 5), stated before any tier-1 run (21 October 2026, about 02:10 CDT)
+
+The recess enters the central case as geometry (a cup) only if the tier-1 mesh resolves the cup (the plan's decision 5). The cup is the LOX slot's exit set back by the recess, 0.5 d_L = 1.77 mm at the central values. Its walls are the outer edges of the ring's two H2 slots. Its width runs from the inner H2 slot's inner edge to the outer H2 slot's outer edge: about 2.9 mm on ring 8 to 13.9 mm on ring 1 (derived, `tier1_setup.md`).
+
+**Criterion (engineering; the counts are *guessed* minima):**
+- The cup is resolved if, at the mesh's finest level, every ring's cup has at least **4 cells across its depth**, and at least **2 cells across each of its slots and post-tip walls**, so at least 10 across its width.
+- The mesh must also carry the cup's walls: cells set back behind the face plane, bounded by walls.
+- The reasoning:
+  - With 4 cells across the depth, the flow inside the cup has an axial development, not a one-cell buffer.
+  - With 2 cells across each slot and tip, the H2 streams and the post-tip wake between them stay distinct streams with edges.
+  - Fewer cells than this, and the cup is a sub-cell feature whose geometry the solution cannot carry.
+- **Verdict rule:** if any ring's cup fails either count, or the mesh cannot carry the walls, the cup is not resolved. Then decision 5's branch applies, dated before any run:
+  - the central case takes the recess through the SMD correlation alone;
+  - member 11b is not run;
+  - the missing cup is a declared limit, with its stated direction.
+
 ## The prediction (empty until the prediction commit)
 
 F_vac, Isp_vac (chamber and engine-inlet flow), nozzle stagnation and injector-face pressures, c*, and the hot-gas wall heat flow, each with its central value, judged band and quadrature sum (protocol §3 and §4), and the commit hash recorded before any comparison reads a measured value (§5).
