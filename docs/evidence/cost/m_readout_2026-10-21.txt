@@ -1,0 +1,56 @@
+cell i 0 j 0: t 1.600034 to 1.867221 ms, T 485 to 3043 K, b 3.036e+05 to 6.887e+06 J/kg (probe's excess 3.036e+05 to 6.887e+06), mass 6.203e-10 to 2.712e-10 kg
+  whole window: 474 intervals; beta change +6.583691e+06 J/kg (sum of mechanisms +6.583691e+06, residual -4.43e-07, worst interval 1.4e-12); k change +3.7045e+02 J/kg
+      outflow, enthalpy part       +3.400760e+06 J/kg  (49.9% of the positive)
+      outflow, mixture part        -6.915992e+04 J/kg
+      inflow, enthalpy part        +3.246287e+06 J/kg  (47.6% of the positive)
+      inflow, mixture part         +1.520177e+05 J/kg  (2.2% of the positive)
+      molecular diffusion          +1.463335e+04 J/kg  (0.2% of the positive)
+      turbulent diffusion          -1.332343e+05 J/kg
+      viscous work and unsplit     +5.433535e+02 J/kg  (0.0% of the positive)
+      V dp                         -2.815660e+04 J/kg
+      spray exchange               +0.000000e+00 J/kg
+      sources that should be zero  +0.000000e+00 J/kg
+      outflow share of the positive 49.9%, inflow share 49.9%
+      per face: above inflow +3.3983e+06, high z outflow +3.3316e+06
+  local maximum over its 2 named face neighbours first at 1.631796 ms
+  local-maximum intervals (L): 43 intervals; beta change +9.546103e+05 J/kg (sum of mechanisms +9.546103e+05, residual -2.95e-07, worst interval 1.4e-12)
+      outflow, enthalpy part       +2.031559e+06 J/kg  (99.3% of the positive)
+      outflow, mixture part        -8.708024e+03 J/kg
+      inflow, enthalpy part        -1.219928e+05 J/kg
+      inflow, mixture part         +1.486578e+04 J/kg  (0.7% of the positive)
+      molecular diffusion          -1.578900e+05 J/kg
+      turbulent diffusion          -7.868640e+05 J/kg
+      viscous work and unsplit     +1.649206e+02 J/kg  (0.0% of the positive)
+      V dp                         -1.652447e+04 J/kg
+      spray exchange               +0.000000e+00 J/kg
+      sources that should be zero  +0.000000e+00 J/kg
+      outflow share of the positive 99.3%, inflow share 0.7%
+      per face: above inflow -1.0713e+05, high z outflow +2.0229e+06
+cell i 1 j 0: t 1.600034 to 1.867221 ms, T 563 to 3193 K, b 2.977e+05 to 4.15e+06 J/kg (probe's excess 2.977e+05 to 4.15e+06), mass 5.767e-10 to 3.325e-10 kg
+  whole window: 474 intervals; beta change +3.853229e+06 J/kg (sum of mechanisms +3.853229e+06, residual +2.15e-07, worst interval 3.3e-12); k change +5.0812e+02 J/kg
+      outflow, enthalpy part       +4.462473e+06 J/kg  (56.5% of the positive)
+      outflow, mixture part        -1.583248e+05 J/kg
+      inflow, enthalpy part        +3.307967e+06 J/kg  (41.9% of the positive)
+      inflow, mixture part         +1.270203e+05 J/kg  (1.6% of the positive)
+      molecular diffusion          -4.055910e+05 J/kg
+      turbulent diffusion          -3.418932e+06 J/kg
+      viscous work and unsplit     -8.013944e+03 J/kg
+      V dp                         -5.336997e+04 J/kg
+      spray exchange               +0.000000e+00 J/kg
+      sources that should be zero  +0.000000e+00 J/kg
+      outflow share of the positive 56.5%, inflow share 43.5%
+      per face: above inflow +9.9347e+05, high z outflow +4.3041e+06, low z inflow +2.4415e+06
+cell i 0 j 1: t 1.600034 to 1.867221 ms, T 541 to 3224 K, b 4.56e+05 to 5.164e+06 J/kg (probe's excess 4.56e+05 to 5.164e+06), mass 1.726e-09 to 9.449e-10 kg
+  whole window: 474 intervals; beta change +4.708335e+06 J/kg (sum of mechanisms +4.708335e+06, residual -2.01e-07, worst interval 2.6e-12); k change +4.8503e+02 J/kg
+      outflow, enthalpy part       +6.886083e+06 J/kg  (97.4% of the positive)
+      outflow, mixture part        -5.518870e+04 J/kg
+      inflow, enthalpy part        -1.314026e+05 J/kg
+      inflow, mixture part         +1.813712e+05 J/kg  (2.6% of the positive)
+      molecular diffusion          -2.815515e+05 J/kg
+      turbulent diffusion          -1.861350e+06 J/kg
+      viscous work and unsplit     +5.900997e+02 J/kg  (0.0% of the positive)
+      V dp                         -3.021661e+04 J/kg
+      spray exchange               +0.000000e+00 J/kg
+      sources that should be zero  +0.000000e+00 J/kg
+      outflow share of the positive 97.4%, inflow share 2.6%
+      per face: above inflow +4.9969e+04, below outflow -3.6981e+05, high z outflow +7.2007e+06

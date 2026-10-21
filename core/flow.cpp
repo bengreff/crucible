@@ -379,6 +379,8 @@ Flow::Flow(Definition d,Mesh mesh):definition_(d),mesh_(std::move(mesh)),medium_
     slopesZ_.resize(count); primitives_.resize(count); radialLow_.resize(count); radialHigh_.resize(count); pressureSource_.resize(count);
     for(auto* v:{&species_,&speciesStage_,&speciesNext_,&speciesRhs_}) v->resize(count*ns_);
     for(auto* v:{&fractions_,&fractionSlopesZ_,&fractionsLow_,&fractionsHigh_}) v->resize(count*nw_);
+    if(d.extremumBoundedEnthalpy)
+        for(auto* v:{&cellStaticEnthalpy_,&cellExcess_,&enthalpySlopesZ_,&enthalpyLow_,&enthalpyHigh_}) v->resize(count);
     for(auto* v:{&turbulence_,&turbulenceStage_,&turbulenceNext_,&turbulenceRhs_,&turbulenceStart_}) v->resize(count*nt_);
     temperature_.assign(count,d.totalTemperature); sound_.resize(count);
     axialFlux_.resize(static_cast<std::size_t>(d.nz+1)*d.nr);axialTransported_.resize(axialFlux_.size()*nw_);
@@ -700,6 +702,10 @@ void Flow::refresh(const std::vector<Conserved>& state,const std::vector<double>
         auto props=medium_.properties(t,y);
         temperature_[q]=t;sound_[q]=std::sqrt((props.cv+props.r)/props.cv*props.r*t);
         primitives_[q]={u[0],u[1]/u[0],u[2]/u[0],u[0]*props.r*t};
+        if(definition_.extremumBoundedEnthalpy) {
+            cellStaticEnthalpy_[q]=props.e+props.r*t;
+            cellExcess_[q]=boundMeasure(primitives_[q],props.e+k,y);
+        }
     });
 }
 Conserved Flow::reconstructionValues(std::size_t q) const {
@@ -729,6 +735,34 @@ void Flow::boundEnthalpy(Primitive& w,Thermal& t,double* y,std::size_t q,std::si
     w=primitives_[q];
     std::copy_n(fractions_.data()+q*nw_,nw_,y);
     t=faceThermal(w,y);
+}
+bool Flow::excessExtremum(std::size_t q) const {
+    const auto& m=mesh_;
+    const int i=static_cast<int>(q/m.nr),j=static_cast<int>(q%m.nr);
+    const double b=cellExcess_[q];
+    bool above=true,below=true;
+    auto compare=[&](int a,int c){const double n=cellExcess_[m.index(a,c)];above=above && b>n;below=below && b<n;};
+    if(i>0) compare(i-1,j);
+    if(i<m.nz-1) compare(i+1,j);
+    if(j>0) compare(i,j-1);
+    if(j<m.nr-1) compare(i,j+1);
+    return above || below;
+}
+// Newton on h(T) = e(T, y) + R T with the bracket of Medium::temperature, from the reconstructed T.
+void Flow::enthalpyFace(Primitive& w,double h,double* y) const {
+    normalise(y,ns_,y);
+    const double gasR=medium_.gasConstant(y);
+    double lo=0,hi=std::numeric_limits<double>::infinity(),t=w.p/(w.rho*gasR);
+    if(!(t>0) || !std::isfinite(t)) t=300;
+    for(int n=0;n<100;++n) {
+        auto props=medium_.properties(t,y);
+        const double f=props.e+gasR*t-h;
+        double next=t-f/(props.cv+gasR);
+        if(std::abs(next-t)<=1e-13*t) { if(next>0) w.rho=w.p/(gasR*next); return; }
+        if(f>0) hi=t; else lo=t;
+        if(!(next>lo && next<hi)) next=std::isfinite(hi)?0.5*(lo+hi):2*t;
+        t=next;
+    }
 }
 // Face thermodynamics from reconstructed (rho, p), mass fractions and (with turbulence) k; y is
 // clipped and normalised in place. The face energy includes k, so the flux carries rho k in E.
@@ -1013,6 +1047,30 @@ void Flow::radialProfiles(int i,int lo,int hi) {
             fractionsLow_[q*nw_+k]=lowValue;fractionsHigh_[q*nw_+k]=highValue;
         }
     }
+    // extremumBoundedEnthalpy: h's radial face values, profiled as density (r^2 curvature on the axis row, limited
+    // centroid slopes inside, the limited one-sided slope at the wall), flat where the cell's excess is an extremum.
+    if(definition_.extremumBoundedEnthalpy)
+        for(int j=lo;j<hi;++j) {
+            auto q=m.index(i,j);const auto& cell=m.cells[q];
+            auto h=[&](int b){return cellStaticEnthalpy_[m.index(i,b)];};
+            auto centroidSlope=[&](int a,int b){return (h(b)-h(a))/(m.cells[m.index(i,b)].r-m.cells[m.index(i,a)].r);};
+            double c=h(j),lowValue=c,highValue=c;
+            if(definition_.secondOrder && !excessExtremum(q)) {
+                if(j==0) {
+                    if(m.nr>=3) {
+                        auto moment=[&](int b){return m.cells[m.index(i,b)].radialSecondMoment;};
+                        highValue+=minmod((h(1)-c)/(moment(1)-moment(0)),(h(2)-h(1))/(moment(2)-moment(1)))
+                                   *(m.radialFaceSecondMoment(i,1)-cell.radialSecondMoment);
+                    }
+                } else {
+                    double low=m.radialFaceRadius(i,j)-cell.r,high=m.radialFaceRadius(i,j+1)-cell.r,slope=0;
+                    if(j<m.nr-1) slope=minmod(centroidSlope(j-1,j),centroidSlope(j,j+1));
+                    else if(m.nr>=3) slope=minmod(centroidSlope(j-1,j),centroidSlope(j-2,j-1));
+                    lowValue+=slope*low;highValue+=slope*high;
+                }
+            }
+            enthalpyLow_[q]=lowValue;enthalpyHigh_[q]=highValue;
+        }
 }
 // Limited axial slopes of column i. Boundary columns have no outer neighbour. A zero slope there
 // makes wall, inlet and outlet face states first-order (measured: wall-row entropy error order
@@ -1025,6 +1083,7 @@ void Flow::axialSlopes(int i,int lo,int hi) {
         for(int j=lo;j<hi;++j) {
             auto q=m.index(i,j);slopesZ_[q]={};
             std::fill_n(fractionSlopesZ_.begin()+static_cast<std::ptrdiff_t>(q*nw_),nw_,0.0);
+            if(definition_.extremumBoundedEnthalpy) enthalpySlopesZ_[q]=0;
         }
         return;
     }
@@ -1037,6 +1096,10 @@ void Flow::axialSlopes(int i,int lo,int hi) {
             double yc=fractions_[q*nw_+k];
             fractionSlopesZ_[q*nw_+k]=std::clamp(sign*minmod(yc-fractions_[n1*nw_+k],fractions_[n1*nw_+k]-fractions_[n2*nw_+k]),-yc,yc);
         }
+        if(definition_.extremumBoundedEnthalpy) {
+            const auto& h=cellStaticEnthalpy_;
+            enthalpySlopesZ_[q]=excessExtremum(q)?0.0:sign*minmod(h[q]-h[n1],h[n1]-h[n2]);
+        }
     };
     for(int j=lo;j<hi;++j) {
         if(i==0) { oneSided(m.index(0,j),m.index(1,j),m.index(2,j),-1);continue; }
@@ -1047,6 +1110,10 @@ void Flow::axialSlopes(int i,int lo,int hi) {
         for(int k=0;k<4;++k) slopesZ_[q][k]=minmod(c[k]-l[k],r[k]-c[k]);
         for(std::size_t k=0;k<nw_;++k)
             fractionSlopesZ_[q*nw_+k]=minmod(fractions_[q*nw_+k]-fractions_[ql*nw_+k],fractions_[qr*nw_+k]-fractions_[q*nw_+k]);
+        if(definition_.extremumBoundedEnthalpy) {
+            const auto& h=cellStaticEnthalpy_;
+            enthalpySlopesZ_[q]=excessExtremum(q)?0.0:minmod(h[q]-h[ql],h[qr]-h[q]);
+        }
     }
 }
 // Species follow the mass flux with the upwind face composition (Larrouturou, JCP 95, 1991):
@@ -1087,6 +1154,10 @@ void Flow::axialFace(int i,int j,double time,std::vector<double>& yl,std::vector
     // Inflow at the reservoir composition; a transmissive inlet (UniformDuct, ShockTube) passes the
     // interior k and omega.
     if(i==0) { l=inlet(r);std::copy(inletComposition_.begin(),inletComposition_.end(),yl.begin());std::copy(yr.begin()+ns_,yr.end(),yl.begin()+ns_); }
+    if(d.extremumBoundedEnthalpy && i>0 && i<m.nz) {
+        enthalpyFace(l,cellStaticEnthalpy_[il]+0.5*enthalpySlopesZ_[il],yl.data());
+        enthalpyFace(r,cellStaticEnthalpy_[ir]-0.5*enthalpySlopesZ_[ir],yr.data());
+    }
     Thermal tl=faceThermal(l,yl.data());
     if(i==m.nz) { bool ambientInflow=false;r=outlet(l,yl.data(),primitives_[il],ambientInflow);yr=ambientInflow?ambient_:yl; }
     Thermal tr=faceThermal(r,yr.data());
@@ -1107,6 +1178,7 @@ void Flow::radialFace(int i,int j,std::vector<double>& yl,std::vector<double>& y
     Primitive r=l;
     if(j==m.nr) { r=reflect(l,nz,nr);yr=yl; }
     else { r=radialLow_[ir];std::copy_n(fractionsLow_.begin()+static_cast<std::ptrdiff_t>(ir*nw_),nw_,yr.begin());toFace(r,yr.data()); }
+    if(definition_.extremumBoundedEnthalpy && j<m.nr) { enthalpyFace(l,enthalpyHigh_[il],yl.data());enthalpyFace(r,enthalpyLow_[ir],yr.data()); }
     Thermal tl=faceThermal(l,yl.data()),tr=faceThermal(r,yr.data());
     if(j<m.nr) { boundEnthalpy(l,tl,yl.data(),il,ir);boundEnthalpy(r,tr,yr.data(),ir,il); }
     auto& flux=radialFlux_[f];

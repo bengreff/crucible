@@ -430,6 +430,11 @@ int main(int argc, char** argv) {
     d.radialStretching = std::atof(stretching);
     std::printf("radial stretching %g\n", d.radialStretching);
   }
+  // COST.md lever 3, check x3: Definition::extremumBoundedEnthalpy.
+  if (std::getenv("CRUCIBLE_EXTREMUM_H")) {
+    d.extremumBoundedEnthalpy = true;
+    std::printf("extremum-bounded face enthalpy\n");
+  }
 
   Flow flow(d);
   if (start) {

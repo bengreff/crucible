@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -26,6 +27,7 @@ int main(int argc,char** argv) {
     std::printf("nz,nr,time_s,steps,compute_s,mdot_out_rel_err,mdot_in_rel_err,entropy_L1,entropy_wall_L1,entropy_axis_L1,enthalpy_L1,exit_mach,exit_plane_thrust_N,device_thrust_N,cf_over_quasi1d_minus_1,mass_res,energy_res,momentum_res\n");
     for(int level=0;level<levels;++level) {
         Definition d;d.nz=base<<level;d.nr=d.nz*3/20;d.secondOrder=!first;
+        d.extremumBoundedEnthalpy=std::getenv("CRUCIBLE_EXTREMUM_H")!=nullptr; // COST.md lever 3, check x3
         Flow flow(d);auto start=std::chrono::steady_clock::now();
         for(double end:times) {flow.advanceTo(end);
         double seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();

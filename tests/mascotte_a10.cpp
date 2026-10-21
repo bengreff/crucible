@@ -15,7 +15,8 @@
 // the mixing line (Flow::setBoundedExcess); CRUCIBLE_PRANDTL_T overrides the turbulent Prandtl
 // number (a diagnostic: Pr_t = Sc_t makes turbulent transport carry the excess enthalpy as one scalar);
 // CRUCIBLE_DELTA_H sets Definition::Turbulence::consistentFlux (the turbulent fluxes from the two cells'
-// differences of Y_k and h); CRUCIBLE_UNITY_LEWIS sets Definition::unityLewis (a discriminator, with it).
+// differences of Y_k and h); CRUCIBLE_UNITY_LEWIS sets Definition::unityLewis (a discriminator, with it);
+// CRUCIBLE_EXTREMUM_H sets Definition::extremumBoundedEnthalpy, its extremum test on the excess above the mixing line.
 // Usage: crucible_mascotte_a10 <size> <nz> <nr> <end s> <average from s> <threads> <prefix> <table|none>
 //                             [parcels per second] [table audit interval]
 //   size: blob (Reitz's blob, KH-RT atomises), or rr:<SMD um>:<q>:<core length mm> (Rosin-Rammler
@@ -125,6 +126,7 @@ int main(int argc, char** argv) {
     if (const char* prt = std::getenv("CRUCIBLE_PRANDTL_T")) d.turbulence.prandtl = std::atof(prt);
     if (std::getenv("CRUCIBLE_DELTA_H")) d.turbulence.consistentFlux = true;
     if (std::getenv("CRUCIBLE_UNITY_LEWIS")) d.unityLewis = true;
+    if (std::getenv("CRUCIBLE_EXTREMUM_H")) d.extremumBoundedEnthalpy = true;
     Supply s;
     s.innerRadius = kAnnulusInner;
     s.outerRadius = kAnnulusOuter;
@@ -295,9 +297,10 @@ int main(int argc, char** argv) {
       }
       std::fflush(budget);
     };
-    // CRUCIBLE_BOUND_B: the bound judges the excess above the mixing line (Flow::setBoundedExcess), from the
-    // first step with injected LOX (h_LOX is the spray's injected energy per kilogram); h before.
-    bool excessBound = !std::getenv("CRUCIBLE_BOUND_B");
+    // CRUCIBLE_BOUND_B (and CRUCIBLE_EXTREMUM_H's extremum test): the excess above the mixing line
+    // (Flow::setBoundedExcess), from the first step with injected LOX (h_LOX is the spray's injected energy per
+    // kilogram); h before.
+    bool excessBound = !std::getenv("CRUCIBLE_BOUND_B") && !std::getenv("CRUCIBLE_EXTREMUM_H");
     while (flow.time() < endTime) {
       if (!excessBound && spray.ledger().injectedMass > 0) {
         const double hLox = spray.ledger().injectedEnergy / spray.ledger().injectedMass;
