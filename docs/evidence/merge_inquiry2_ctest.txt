@@ -1,0 +1,31 @@
+# Fast ctest (ctest -LE slow) on main after the merge of worktree-inquiry2 (755bf30, a clean merge, no conflicts), Mac, 20 October 2026, about 22:55 to 23:25 CDT.
+# Pass and fail sets are those of inquiry2_rebase_ctest.txt, and the sorted FAIL lines (from --rerun-failed --output-on-failure, leading spaces stripped) are identical to them (measured: diff of the sorted lines).
+1/11 Test  #1: core_verification ................   Passed   35.89 sec
+2/11 Test  #2: wall_function_verification .......   Passed    0.48 sec
+3/11 Test  #4: amr_verification .................***Failed    0.15 sec
+4/11 Test  #5: amr_subcycling_verification ......***Failed   48.22 sec
+5/11 Test  #6: thermo_cea_verification ..........   Passed   40.66 sec
+6/11 Test  #7: reaction_verification ............   Passed    1.03 sec
+7/11 Test  #8: transport_verification ...........***Failed  219.16 sec
+8/11 Test  #9: turbulence_verification ..........   Passed   50.83 sec
+9/11 Test #11: wall_function_threads ............   Passed    0.30 sec
+10/11 Test #13: spray_verification ...............***Failed   19.85 sec
+11/11 Test #14: mixture_verification .............   Passed    1.86 sec
+64% tests passed, 4 tests failed out of 11
+Total Test time (real) = 418.43 sec
+# FAIL lines (sorted):
+(b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.657e-03 (limit 0.001)  FAIL
+256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.384e-03 (limit 0.001)  FAIL
+4b. radial momentum: observed order (two finest grids)     1.444e+00 (limit 1.8e+00)  FAIL
+64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.458e-03 (limit 0.001)  FAIL
+FAIL: 1 failure(s)
+FAILED (3 failures)
+FAILED (5 failures)
+level 1 (300 x 32) closure, relative to the faces                          1.912e-14 (limit 1e-14)  FAIL
+level 2 (600 x 64) closure, relative to the faces                          3.938e-14 (limit 1e-14)  FAIL
+level 3 (1200 x 128) closure, relative to the faces                        8.132e-14 (limit 1e-14)  FAIL
+observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL
+The following tests FAILED:
