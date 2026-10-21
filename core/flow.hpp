@@ -137,6 +137,11 @@ struct Definition {
         // corrected one, mu_t carries D^ic, and the corrected k diffusion's non-divergence part enters E
         // (Measurements::correctionEnergy).
         bool propertyCorrections{false};
+        // The turbulent fluxes from the two cells' differences of Y_k and h along the line of centres:
+        // j_t = -(mu_t / Sc_t) dY_k/dn and the turbulent energy flux -(mu_t / Pr_t) dh/dn +
+        // (1 - Sc_t / Pr_t) sum_k h_k j_t,k on interior faces, so that the species and conduction parts
+        // agree by construction (COST.md, lever 3; off: mu_t / Sc_t added to D_km, cp mu_t / Pr_t grad T).
+        bool consistentFlux{false};
     };
     Turbulence turbulence;
     [[nodiscard]] double span() const;  // axial length of the domain
@@ -418,7 +423,7 @@ private:
     // Per worker: face mass fractions (left, right), the stage's admissibility and smallest stable step,
     // and the transport scratch (Medium::transport's work, the wall's diffusion coefficients, the face
     // mass fractions and species enthalpies).
-    struct TransportScratch { std::vector<double> work, diffusion, face, enthalpy, gradient; };
+    struct TransportScratch { std::vector<double> work, diffusion, face, enthalpy, gradient, turbulent; };
     std::vector<std::vector<double>> faceFractions_;
     std::vector<TransportScratch> transportScratch_;
     std::vector<char> workerOk_;
@@ -559,6 +564,7 @@ private:
     // and sound the speed of sound for D^ic's M_t.
     struct SourceCoefficients { double strain2{}, strain{}, crossGradient{}, nu{}, inverseDistance{}, crossSource{}, sound{1}; };
     std::vector<double> eddy_, eddyConductivity_, eddyDiffusion_, wallDistance_, wallOmega_;
+    std::vector<double> staticEnthalpy_, heatCapacity_;  // per cell, h and cp at its T and Y (consistentFlux)
     // Property corrections: the unit vector away from the nearest wall; per cell the fields psi =
     // sqrt(rho) / mu, rho k, sqrt(rho) omega and mu omega (stride 4, gradient fields 3 + ns_ + nt_ on);
     // rho_w and mu_w at the no-slip wall cells; S_n / mu, F1 and whether S_n is floored; the inner and

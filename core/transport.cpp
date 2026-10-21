@@ -146,6 +146,7 @@ void Flow::prepareTransport() {
     const bool chamber=definition_.experiment==Case::Chamber;
     if(nt_) {
         eddy_.assign(count,0);eddyConductivity_.assign(count,0);eddyDiffusion_.assign(count*2,0);
+        if(definition_.turbulence.consistentFlux) { staticEnthalpy_.assign(count,0);heatCapacity_.assign(count,0); }
         wallOmega_.assign(count,0);sources_.resize(count);
         // The cells next to a no-slip wall: the side wall's, then the injector plate's not already listed.
         wallCells_.clear();
@@ -308,6 +309,7 @@ void Flow::eddyViscosity(bool withSources,int depth) {
         }
         auto props=medium_.properties(temperature_[q],y);
         eddy_[q]=mut;eddyConductivity_[q]=(props.cv+props.r)*mut/tu.prandtl;
+        if(tu.consistentFlux) { staticEnthalpy_[q]=props.e+props.r*temperature_[q];heatCapacity_[q]=props.cv+props.r; }
         eddyDiffusion_[2*q]=(b.f1*sigmaK1+(1-b.f1)*sigmaK2)*mut;
         eddyDiffusion_[2*q+1]=(b.f1*sigmaW1+(1-b.f1)*sigmaW2)*mut;
         if(withSources) sources_[q]={strain2,strain,cross,nu,inverse,crossSource,sound_[q]};
@@ -396,6 +398,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
     // to tn, and with the property corrections the inner and outer k and omega fluxes to hn; s is the
     // worker's scratch. With parts (the budget probe), the flux's parts in the order of Flow::FaceTerm from
     // kViscousWork to kTurbulentTrackedDiffusion, per unit area, then 2 ns_ of scratch.
+    const bool consistent=nt_ && d.turbulence.consistentFlux;
     auto faceFlux=[&](std::size_t a,std::size_t b,const Neighbour* wall,double nz,double nr,double rf,bool axis,
                       double* jn,double* tn,double* hn,TransportScratch& s,double* parts=nullptr) {
         const bool boundary=wall!=nullptr;
@@ -427,7 +430,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
             muT=noSlip?0:mean(eddy_[a],boundary?0:eddy_[b]);
             double k=noSlip?0:mean(rhoK(a),boundary?0:rhoK(b));
             tzz+=muT*(2*uzz-2.0/3*div)-2.0/3*k;trr+=muT*(2*urr-2.0/3*div)-2.0/3*k;tzr+=muT*(uzr+urz);
-            eddyLambda=noSlip?0:mean(eddyConductivity_[a],boundary?0:eddyConductivity_[b]);
+            eddyLambda=noSlip || (consistent && !boundary)?0:mean(eddyConductivity_[a],boundary?0:eddyConductivity_[b]);
             lambda+=eddyLambda;
             if(!(boundary && d.wallSlip)) for(std::size_t t=0;t<nt_;++t) {
                 double gz,gr;gradient(3+ns_+t,gz,gr);
@@ -465,7 +468,61 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
         } else {
             if(nt_) heat+=tn[0];  // k is part of E
             if(parts && nt_) parts[3]=tn[0];
-            if(ns_>1) {
+            // The probe's species parts: the molecular and turbulent fluxes, each with its own share of the correction.
+            auto bookSpecies=[&]() {
+                double molecular=0,turbulent=0;
+                for(std::size_t k=0;k<ns_;++k) { molecular+=parts[np+k];turbulent+=parts[np+ns_+k]; }
+                for(std::size_t k=0;k<ns_;++k) {
+                    const double jm=parts[np+k]-s.face[k]*molecular,jt=parts[np+ns_+k]-s.face[k]*turbulent;
+                    parts[4]+=s.enthalpy[k]*jm;parts[5]+=s.enthalpy[k]*jt;
+                    parts[6]+=probe_.weights[k]*jm;parts[7]+=probe_.weights[k]*jt;
+                }
+            };
+            if(consistent) {
+                // Definition::Turbulence::consistentFlux: Y_k and h differenced between the two cells along
+                // the line of centres (in r^2 across the first face off the axis), the rest of each normal
+                // derivative from the mean cell gradients along s = n - (e.n) e, as gradient() composes it;
+                // the tangential part of grad Y_k from the X_k gradients at the face composition, and of
+                // grad h as cp grad T + sum_k h_k grad Y_k.
+                const auto& tu=d.turbulence;
+                const double en=ez*nz+er*nr,sz=nz-en*ez,sr=nr-en*er;
+                auto along=[&](double va,double vb) {
+                    return en*(axis?2*rf*(vb-va)/(m.cells[b].radialSecondMoment-m.cells[a].radialSecondMoment)*er:(vb-va)/len);
+                };
+                auto across=[&](std::size_t f) {
+                    const double* ga=&gradients_[(a*nf+f)*2];const double* gb=&gradients_[(b*nf+f)*2];
+                    return 0.5*((ga[0]+gb[0])*sz+(ga[1]+gb[1])*sr);
+                };
+                double dh=along(staticEnthalpy_[a],staticEnthalpy_[b])+0.5*(heatCapacity_[a]+heatCapacity_[b])*across(2);
+                double turbulentSpecies=0;
+                if(ns_>1) {
+                    auto& yFace=s.face;auto& jt=s.turbulent;
+                    double rho=0.5*(primitives_[a].rho+primitives_[b].rho),moles=0,mixed=0,molecularSum=0,turbulentSum=0;
+                    for(std::size_t k=0;k<ns_;++k) { yFace[k]=0.5*(fractions_[a*nw_+k]+fractions_[b*nw_+k]);moles+=yFace[k]/sp[k].molarMass; }
+                    for(std::size_t k=0;k<ns_;++k) mixed+=sp[k].molarMass*moles*across(3+k);
+                    medium_.speciesEnthalpies(0.5*(temperature_[a]+temperature_[b]),s.enthalpy.data());
+                    for(std::size_t k=0;k<ns_;++k) {
+                        double gz,gr;gradient(3+k,gz,gr);
+                        jn[k]=-rho*sp[k].molarMass*moles*0.5*(diffusion_[a*ns_+k]+diffusion_[b*ns_+k])*(gz*nz+gr*nr);
+                        molecularSum+=jn[k];
+                        const double tangential=sp[k].molarMass*moles*across(3+k)-yFace[k]*mixed;
+                        jt[k]=-muT/tu.schmidt*(along(fractions_[a*nw_+k],fractions_[b*nw_+k])+tangential);
+                        turbulentSum+=jt[k];
+                        dh+=s.enthalpy[k]*tangential;
+                        if(parts) { parts[np+k]=jn[k];parts[np+ns_+k]=jt[k]; }
+                    }
+                    for(std::size_t k=0;k<ns_;++k) {
+                        jn[k]-=yFace[k]*molecularSum;jt[k]-=yFace[k]*turbulentSum;
+                        heat+=s.enthalpy[k]*jn[k];turbulentSpecies+=s.enthalpy[k]*jt[k];jn[k]+=jt[k];
+                    }
+                    if(parts) bookSpecies();
+                }
+                // The turbulent conduction: the part of -(mu_t / Pr_t) dh/dn + (1 - Sc_t / Pr_t) sum h_k j_t
+                // that is not species enthalpy.
+                const double turbulentHeat=-muT/tu.prandtl*dh-tu.schmidt/tu.prandtl*turbulentSpecies;
+                heat+=turbulentHeat+turbulentSpecies;
+                if(parts) parts[2]=turbulentHeat;
+            } else if(ns_>1) {
                 auto& yFace=s.face;
                 double rho=0.5*(primitives_[a].rho+primitives_[b].rho),moles=0,sum=0;
                 for(std::size_t k=0;k<ns_;++k) { yFace[k]=0.5*(fractions_[a*nw_+k]+fractions_[b*nw_+k]);moles+=yFace[k]/sp[k].molarMass; }
@@ -479,16 +536,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
                 }
                 medium_.speciesEnthalpies(0.5*(temperature_[a]+temperature_[b]),s.enthalpy.data());
                 for(std::size_t k=0;k<ns_;++k) { jn[k]-=yFace[k]*sum;heat+=s.enthalpy[k]*jn[k]; }
-                if(parts) {
-                    // The molecular and turbulent fluxes, each with its own share of the correction.
-                    double molecular=0,turbulent=0;
-                    for(std::size_t k=0;k<ns_;++k) { molecular+=parts[np+k];turbulent+=parts[np+ns_+k]; }
-                    for(std::size_t k=0;k<ns_;++k) {
-                        const double jm=parts[np+k]-yFace[k]*molecular,jt=parts[np+ns_+k]-yFace[k]*turbulent;
-                        parts[4]+=s.enthalpy[k]*jm;parts[5]+=s.enthalpy[k]*jt;
-                        parts[6]+=probe_.weights[k]*jm;parts[7]+=probe_.weights[k]*jt;
-                    }
-                }
+                if(parts) bookSpecies();
             }
         }
         if(parts) parts[0]=-(fz*uz+fr*ur);
