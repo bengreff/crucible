@@ -815,6 +815,33 @@ Command, from `build/`: `CRUCIBLE_MECHANISM=../tools/mechanisms/h2o2_highT.yaml 
 - The face cells' Z_N over the last ms is 2e-92 to 8e-70 (the purged N2's remnant; measured on the samples, columns 0 to 11 all below 1.4e-46). So any cell inside the Z_N 0 to 0.3 cell gives its Z_N 0.3 corners a weight of that size. The rule `corners[q].w > 0` then refuses the cell if any of them is frozen on the placed branch.
 - *Inferred, not yet checked on the mid-step states:* the face cells after the inflow are placed on the lower branch near η 0.6. There the frozen corner (f_H 1/6, Z_N 0.3, η 0.6) has a weight of about 1e-70 and refuses them.
 
+## The bar set, the face mechanism measured, and the corner drop and the Δη 0.1 table, stated before their code (21 October 2026, about 00:10 CDT)
+
+**The Director's decision (A) on 67c9053:** the bar for Table B against the CVODES run is **0.2% on c*, Isp_vac and F_vac**. The table approximates a known answer (the finite-rate integration it replaces), so its error must sit well below the physics uncertainty the RL10 band tests. The steady fallback bar stays 1% of updates in each region over the last ms. The remedy is the one stated under R3: check the face mechanism, drop corners weighted below 1e-12 if it is confirmed, rebuild at Δη 0.1, rerun C1. If Δη 0.1 is not enough, measure the interpolation error against the spacing before going finer.
+
+**The face mechanism, measured** (`table_b/c1_torch50_highT_tableB_live_refusals_2026-10-21.log`): the runtime's `Placement` now records, for a frozen-corner refusal, the heaviest frozen corner of nonzero weight on the placed branch, its weight and its node. The adapter counts them by decade and by node, and the chamber study prints them over the last ms. The run is otherwise the same: c*, Isp, thrust and the outlet flow match the timed run's to every printed digit.
+- Over the last ms, **119,963 frozen-corner refusals, every one with its refusing corner's weight below 1e-30**; none from 1e-30 up.
+- **Every one refused by the same node: f_H 1/6, Z_N 0.3, η 0.6, ρ 4.757 kg/m³.**
+- So the inferred mechanism holds: a frozen Z_N 0.3 corner at the purge remnant's weight (Z_N about 1e-70) refuses the face cells.
+
+**The corner drop (engineering).** In the runtime's corner set, a corner whose multilinear weight is below 1e-12 is dropped: it is not checked (refused, flagged or frozen), not blended (s_eq, span, the N ends, N(u), Y(u), λ), and the kept weights are divided by their sum.
+- *Derived:* the dropped weights sum to ε ≤ 16 × 1e-12. Every blended Y and the blend's element fractions move by at most about ε. At the face cells ε is about 1e-70.
+- The blend's elements stay the cell's to within ε. R2(c)'s bar (1e-12 relative) is remeasured, not changed.
+- The replay's own placement (`n_rule`) takes the same drop, so R1 still compares like with like.
+
+**The Δη 0.1 table, built** (measured; `table_b/c1r11_s_2026-10-21.txt`, nodes `table_b/c1r11_s_nodes_2026-10-21.csv`): `CRUCIBLE_TABLE_B_CANDIDATES=3 CRUCIBLE_TABLE_B_FH_NODES=0.142857,0.166667,0.2 CRUCIBLE_TABLE_B_WRITE_ANYWAY=1 crucible_build_manifold_table <out> 0 0 0 0,0.3 11 9 1e-3 80 2 ../tools/mechanisms/h2o2_highT.yaml`. That is 11 η nodes in place of 6, with every other axis as before: 594 nodes in 15 s on 2 threads.
+- E2 at the eighth points: 2.09 K and 7.08e-3, the same as the Δη 0.2 table's (both worst at η 0.4, a node of both). Pass.
+- Still failing as written: the turn-back is now 7.3e-7 of the span, at a new node (f_H 1/7, Z_N 0.3, η 0.1, ρ 4.1e-3). There are 5 integrator failures against 2, and 10 N-gate failures against 8. Where they sit is reported below, and whether C1's cells reach them is measured by the live run's causes.
+
+**Checks, with bars, before the code:**
+- **R1 and R2** rerun on the CVODES run's samples with the Δη 0.1 table and the drop: the same bars as before.
+- **The interpolation error, static** (new; measured, not barred): on the CVODES run's samples of the last ms (chamber and convergent, every 50th), which hold their own equilibrium to 1e-4 J/(kg K), the blend's upper-branch equilibrium Ȳ_1(0) at the cell's corners, its T at the cell's e and ρ, against Cantera's `equilibrateUV`. This is the table's own error at the cell, free of the flow. It is measured on both tables, so the error against Δη is measured, not assumed.
+  - *Inferred:* it goes as Δη², about 4 times smaller at 0.1.
+- **R3, C1 live** with the Δη 0.1 table and the drop, against the same CVODES run. **Bars: c*, Isp_vac and F_vac within 0.2%; the fallback under 1% of updates in each region over the last ms.**
+  - Reported beside it, not barred: the same run on the Δη 0.2 table with the drop, to separate the two changes; and the live states' own-equilibrium check as under R3.
+  - *Expected (inferred):* the face fallback goes to zero on both tables. On the Δη 0.1 table, if the chord's error falls as Δη², the chamber's −23 K becomes about −6 K and c*'s −0.60% about −0.15%, near the bar.
+- **If R3 fails on the 0.1 table,** the static error is measured against Δη (0.2, 0.1, 0.05) and against Δ ln ρ before a finer table is chosen.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
