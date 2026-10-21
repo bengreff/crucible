@@ -1,0 +1,19 @@
+E0 replay: 541 samples, 541 inside the axes with usable corners (unweighted; fallback_rate.py weights by steps and applies the gates)
+  off the curve (lower above the blended s_eq; upper above the blended s_eq): 541
+The N placement (unweighted): 0 placements with Illinois unconverged after 60 iterations
+  table (upper; w 1): 541
+  Illinois iterations of the placed cells with w > 0: 1: 541;
+  dY of the placed point, (upper; w 1): 541 cells, median 2.111e-10, 95% 5.935e-04, 99% 8.474e-04, max 8.514e-04
+R1 (the runtime's placement against the replay's): 0 kinds of disagreement; worst |tau| difference 6.295e-09 over 541 samples placed by both on the same branch
+R2 (the step at the cell) on 1 placed samples: (a) dt 0 not bit for bit in 0; (b) dt 1 s against the blended equilibrium, max |dY| 0.000e+00; (c) elements after 1e-6 s, worst relative 1.332e-16; (d) w 1, re-placed after 1e-6 s, worst |dtau| 1.776e-15 (0 not re-placed on the same branch); w < 1: worst |dtau| 0.000e+00 over 0
+  the 1e-6 s step's cause: table: 1
+  (e) on the cells placed at w 1 (0 at w < 1 left out: (d) measures their re-placement)
+  (e) dt 1e-08 s: two halves against one step, worst |du| / max(u) 6.395e-09, max |dY| 1.094e-13 (at branch 1, u 3.048896e-04 to 2.667078e-04 in one step and 2.667078e-04 in two, 1 sub-steps in one, sample eta 0.5676, T 3324.9 K)
+  (e) dt 1e-07 s: two halves against one step, worst |du| / max(u) 3.631e-06, max |dY| 1.861e-11 (at branch 1, u 3.048896e-04 to 7.999553e-05 in one step and 7.999524e-05 in two, 1 sub-steps in one, sample eta 0.5676, T 3324.9 K)
+  (e) dt 1e-06 s: two halves against one step, worst |du| / max(u) 1.522e-04, max |dY| 4.663e-15 (at branch 1, u 3.048896e-04 to 4.713454e-10 in one step and 4.712736e-10 in two, 1 sub-steps in one, sample eta 0.5676, T 3324.9 K)
+  (e) dt 1e-05 s: two halves against one step, worst |du| / max(u) 0.000e+00, max |dY| 0.000e+00 (at branch 0, u 0.000000e+00 to 0.000000e+00 in one step and 0.000000e+00 in two, 0 sub-steps in one, sample eta 0.0000, T 0.0 K)
+s_cell against Cantera's entropy_mass on 6 samples: worst |difference| 7.276e-12 J/(kg K)
+own s_eq (equilibrateUV) on 541 samples: s_eq_own - blended lower s_eq: min 10.490, 5% 10.529, median 12.864, 95% 12.912, max 12.948 J/(kg K); s_eq_own - s_cell: min 4.488e-02, median 0.156, max 0.159
+the samples against their own equilibrium (equilibrateUV at their e and rho): T_cell - T_own min -23.14, 5% -23.07, median -22.97, 95% -12.57, max -12.53 K; max |Y_cell - Y_own| median 3.270e-03, 95% 3.285e-03, max 3.295e-03
+E4, the runtime (one thread): e from T (the timing's own input, not the runtime's) 18.9 ns; place 1304.1 ns; advance over 1e-7 s 2676.0 ns per cell, each including e
+E4 (one thread, 541 cells): s_cell 82.8 ns per cell; s_cell with the branch rule (16 corners, both branches) 238.5 ns per cell; s_cell with the N placement 1294.2 ns per cell (Illinois on the whole branch), 2352.5 with the replay's monotone check (sink 0)

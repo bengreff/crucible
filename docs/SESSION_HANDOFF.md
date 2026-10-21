@@ -2,6 +2,63 @@
 
 20 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (20 October, about 23:55 CDT; night run, READY TO CLEAR)
+
+The Director's brief (night run to about 05:30), after the decisions on 69bb304:
+- (1) The N placement replaces the nearer-branch rule.
+- (2) The 1% bar is a steady-state bar; the start is reported apart; the two axis extensions only if each takes under 30 min.
+- (3) E4's 5% bar is for the entropy.
+- In order: (a) merge inquiry2's branch; (b) state the runtime's step, code it behind the reaction adapter, and agree the per-cell entropy method in `core/medium.*` with inquiry2 through this file; (c) C1 with Table B live against CVODES.
+- Ben's held note: plan the RL10 pre-registration and the ensemble's run budget.
+
+Results are in TABLE_B.md, *The runtime measured* (under *The runtime's step on the placed point*). Commits 755bf30 to fa51719.
+
+1. **(a) The merge (755bf30):** `git merge worktree-inquiry2`, clean, no conflicts.
+   - The fast ctest after it (57d4601, `docs/evidence/merge_inquiry2_ctest.txt`): 7 pass. The same 4 fail as inquiry2's rebase baseline (amr, amr_subcycling, transport, spray), and the sorted FAIL lines are identical to it (measured: diff).
+   - The fast ctest again after the runtime (38838d7): the same 7 pass and the same 4 fail. The sorted FAIL lines are identical to 57d4601's (measured: diff; `docs/evidence/table_b/runtime_ctest_2026-10-20.txt`).
+2. **(b) The runtime, stated (34fabc6) and coded (38838d7):** `core/manifold_runtime.*` (no Cantera), `ReactingFlow::useManifoldTable` with CVODES for every refused cell, counted by cause. `crucible_chamber_study fr` reads `CRUCIBLE_MANIFOLD_TABLE` and prints the causes every 0.5 ms, by region, and by cell over the last ms.
+   - **R2 passes** (a) to (d). (e), one step against two halves at w = 1: max |ΔY| 7.5e-7 at 1e-7 s.
+   - **R1 passes** on the cause (0 disagreements on 357,366 samples). **It fails its τ bar as written:** 1.24e-8 against 1e-9. *Inferred:* inside the two Illinois solves' own tolerance (1e-12 × N, where N is flat in τ); Y moves under 1e-8.
+   - **E4:** place 1,379 ns, advance 2,560 ns per cell on one thread. The entropy is 74 ns (passes the 5%).
+3. **(c) C1 live against CVODES (h2o2_highT, 32x6, to 4 ms, 2 threads; measured):**
+   - c* 2461.82 against 2476.61 m/s (**−0.60%**); Isp_vac 423.08 against 424.43 s (−0.32%); F_vac 1659.60 against 1664.67 N (−0.30%).
+   - **The guessed 0.3% bar fails on all three.** The injector pressure is 0.4% low, steady from 2 ms on, so the gap is not the start transient.
+   - **The stated fail diagnostic, measured:** the live chamber cells are 12.5 to 23 K colder than their own Cantera equilibrium at their e and ρ (median −23.0 K, max |ΔY| 3.3e-3), the convergent cells 13 to 44 K. *Derived:* 23 K is about −0.34% of c* through √T alone. *Inferred:* the blend is linear in η between nodes 0.2 apart, and the dissociated share is convex in T, so the chord is too dissociated and the cell too cold.
+   - **Wall: march 69 s against 451 s (6.5 times); reaction 9.87 against 67.5 µs per cell update.**
+   - Table B's share: 72.96% in the start (to 0.5 ms), 99.96% from 0.5 to 1 ms, 95.99% over the run.
+4. **The steady fallback fails the 1% bar:** over the last ms chamber 6.57%, convergent 2.98%, divergent 0%. All of it is one cause, "frozen corner on the branch".
+   - Measured location: the face column (i = 0), at exactly one update per step (34% of its updates), and column 1 at about 8%.
+   - The face cells' end-of-step states replay as table on the upper branch. So it is the mid-step state (*inferred*: after the flow step's fresh propellant).
+   - The face cells' Z_N is 1e-92 to 1e-70, the purge's remnant. The table's only frozen lower-branch nodes are at f_H 1/6, Z_N 0.3, η 0.6.
+   - *Inferred, unchecked:* a Z_N 0.3 corner at weight about 1e-70 refuses the cell by `corners[q].w > 0`.
+5. **RL10 tier 1: the ensemble plan (fa51719, `docs/validation/rl10a33a/tier1_ensemble_plan.md`).** It was written before any tier-1 run and before any measured value was read, and it holds no predicted number.
+   - The central case, 26 one-at-a-time deviations (the model options are members, judged on the protocol §4 envelope), and one cold-start check.
+   - **Budget (*derived*): 14 to 200 run-hours on 4 threads.** Wall time is about 5 h to about 3 days with about 7 runs at once (Mac 2, backhouse 5); the grid member sets it.
+   - The y+ target and the spray's cost set the range. Both are measured before any member runs.
+6. **Decision 2's axis extensions: not done tonight.** The steady face fallback came first. The η node at the 200 K floor needs a non-uniform η layout in the builder, judged over 30 min. The Z_N extension does not touch the face fallback (that is the Z_N 0.3 corner itself).
+
+**For inquiry2 (the per-cell entropy, to agree before it goes into `core/medium.*`):** proposed `double Medium::entropy(double t, double rho, const double* y, double pRef) const`. It returns the mixture's specific entropy [J/(kg K)]: s = Σ_k (Y_k/W_k) R (s°_k(T)/R − ln(p_k/pRef)), with p_k = ρ (Y_k/W_k) R T.
+- s°_k is NASA-7, with the same constant-cp continuation above `tHigh` as the energy evaluators (s° gains cp(tHigh) ln(T/tHigh)).
+- Species with Y_k ≤ 0 contribute nothing.
+- It matches Cantera's `entropy_mass` to 1.8e-11 J/(kg K) on 3,800 samples.
+- Until you agree, it lives as `ManifoldRuntime::entropy(const Medium&, ...)` in `core/manifold_runtime.cpp`, which reads `Species` read-only. Say yes, or give the form you want, in this file. `core/medium.*`, `core/flow.*`, `core/amr.*`, `core/transport.*` and `contour.*` were not touched.
+
+**For the Director:**
+- (a) R3's bar (0.3%, guessed) fails: c* is −0.60%. The measured diagnostic is above. Should the bar for Table B against CVODES be set by the RL10 band's needs instead? Inferred: a c* error of 0.6% is small against a prediction band but not negligible.
+- (b) The RL10 plan's five open items (its last section). Proposed: Table B a member only if it passes its gates; SST with and without the corrections a member; the transpired fraction 5 to 15%; warm starts with one cold-start check; member 6 carried from tier 0.
+
+**Next, in order:**
+1. **The face fallback.** Check the mechanism on the refused updates: the refusing corner's node and weight, from the runtime's Placement. If it is the 1e-70 weight, the stated fix is engineering: drop corners whose weight is below 1e-12 from the blend and renormalise the rest. Their share of any Y is under 1e-12. State it in TABLE_B.md before the code, rerun C1 live, and hold the steady bar at 1% in every region.
+2. **The c* gap.** The stated remedy is the spacing, not tuning. Rebuild the C1-range table at Δη 0.1 (11 η nodes, then 0.05 if needed; the 324-node build took 8 s), replay the live states' own-equilibrium check on it (T_cell − T_own; *inferred*: about 4 times smaller per halving), then rerun C1 live. Bar: c*, Isp and thrust within 0.3% of CVODES, or the Director's bar from (a).
+3. The Z_N extension for the start (decision 2), if under 30 min.
+4. **Files not in git:**
+   - `/tmp/tbs/c1r_s.bin`: the C1-range s table;
+   - `/tmp/c1s/`: the CVODES run's samples;
+   - `/tmp/e0/`: the replay's outputs;
+   - `/tmp/c1b/`, `/tmp/c1b2/`, `/tmp/c1b3/`: the live runs and the live states' replay;
+   - `/tmp/own/`: the own-equilibrium check.
+   - The commands are in TABLE_B.md.
+
 ## Stopped at (20 October, about 23:15 CDT; night run after /clear, READY TO CLEAR at about 100k)
 
 The Director's brief (night run to about 05:30): code the entropy-based Table B as stated (E0 to E5, nodes clustered toward equilibrium, the nearer-branch rule with its reject count), build it in O/F 4 to 6 and 1 to 10 MPa, rerun C1 on h2o2_highT, and measure the fallback by region (chamber, convergent, divergent). Pass: the gates as written and a nozzle fallback under 1% of updates; if the nozzle fails, measure why before changing anything. Ben: straight line to RL10.

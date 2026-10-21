@@ -683,7 +683,7 @@ The same samples, table and joins as above; the replay's `n_rule` column (`table
   - the η spacing at the reactants' 200 K floor: the cold propellant.
 - Whether the 1% bar covers the start transient, and so whether these axes are extended, is the Director's.
 
-## The runtime's step on the placed point, stated before its code (21 October 2026, about 00:05 CDT)
+## The runtime's step on the placed point, stated before its code (20 October 2026, about 23:10 CDT)
 
 **The Director's decisions on 69bb304 (night brief, 20 October):**
 1. The N placement replaces the nearer-branch rule. The replay keeps both, for comparison.
@@ -732,6 +732,88 @@ The same samples, table and joins as above; the replay's `n_rule` column (`table
     - The chamber's cells sit on the blended equilibrium of a table at Δη 0.2 and Δ ln ρ 1.4, where the placed ΔY was a median 3.3e-3 (lower branch) and 8.4e-4 (upper). If that is a temperature error of order 10 K at 3,350 K, c* moves by about 0.15%.
     - The wall time is 40 to 90 s, against 451 s.
   - **Bar (*guessed*): c*, Isp and thrust within 0.3% of the CVODES run.** A fail is measured before anything changes: the table's Y at the cells against their own Cantera equilibrium. The remedy would be the η and ln ρ spacing, not tuning.
+
+### The runtime measured: R2 passes, R1 passes but for its τ bar, C1 live fails the 0.3% bar, and a steady fallback at the face fails the 1% bar (20 October 2026, about 23:50 CDT)
+
+Coded as stated: `core/manifold_runtime.*`, `ReactingFlow::useManifoldTable`, and `crucible_chamber_study fr` with `CRUCIBLE_MANIFOLD_TABLE` (it checks the table's mechanism against the run's). The replay (`tools/table_b_branch_rule.cpp`) runs the runtime beside its own placement. Evidence:
+- `table_b/r1r2_torch50_c1r_s_2026-10-20.txt`: R1, R2 and E4 on the CVODES run's samples.
+- `table_b/c1_torch50_highT_tableB_live_2026-10-20.log`: C1 live, the timed run.
+- `table_b/c1_torch50_highT_tableB_live_cells_2026-10-20.log`: the same run again, with the counts by region and by cell. Its c*, Isp, thrust, drifts and counts match the timed run's to every printed digit. Its wall time (113 s) is not a measure, since the fast ctest ran beside it.
+
+The diagnostic below: the live run's samples (`states_live_TY.csv`) filtered to the last ms by region, every 50th kept, then `CRUCIBLE_E0_OWN_EQ_EVERY=1` on the replay. Cantera's `equilibrateUV` takes about 0.5 s a sample here (*measured*: 541 in 4 min), so the check is not run on every sample.
+
+Command, from `build/`: `CRUCIBLE_MECHANISM=../tools/mechanisms/h2o2_highT.yaml CRUCIBLE_MANIFOLD_TABLE=/tmp/tbs/c1r_s.bin ./crucible_chamber_study fr 32 6 4e-3 2 <prefix> 50 1e-3`. The replay: `CRUCIBLE_E0_OWN_EQ_EVERY=0 ./crucible_table_b_branch_rule /tmp/tbs/c1r_s.bin ../tools/mechanisms/h2o2_highT.yaml /tmp/c1s/states_torch50_TY.csv <out>`. The own-equilibrium check, every 20th sample by default, takes most of its time otherwise.
+
+**R1, the runtime's placement against the replay's** (357,366 CVODES samples placed by both on the same branch; measured):
+- The same cause on every sample: **pass.**
+- τ within 1e-9: **fail as written,** worst 1.24e-8. The worst samples are on the upper branch at τ 1.019 to 1.034, all at w = 1.
+  - *Inferred:* both codes solve N to 1e-12 × N_cell by Illinois, from different brackets, and N is flat in τ near equilibrium. So 1e-8 in τ is inside the solves' own tolerance, and the bar was set below what that tolerance gives. Y moves by less than 1e-8 for it.
+- On the live run's own states: the runtime adds its own cause (frozen corner on the branch), which the replay does not have. Worst |Δτ| 3.5e-7.
+
+**R2, the step at the cell** (7,148 placed samples, every 50th; measured):
+- (a) Δt = 0 returns the placed Ȳ bit for bit: **pass.** Two fixes to the check itself, not to the runtime. The samples' Y are printed to 10 digits and sum to 1 only within 1.0e-10, so y0 is normalised first. The cell is then placed again on that y0.
+- (b) Δt = 1 s returns the blended equilibrium: max |ΔY| 0, **pass.**
+- (c) The elements after 1e-6 s: worst relative 8.3e-16, **pass.**
+- (d) At w = 1, placed again after 1e-6 s: worst |Δτ| 3.1e-12, all on the same branch, **pass.**
+  - At w < 1 (1 sample): |Δτ| 1.56e-3. As stated, a step there is not idempotent. C1 live had 51 such updates in 18.5 million.
+- (e) At w = 1, one step of Δt against two of Δt/2, max |ΔY|:
+
+  | Δt | 1e-8 s | 1e-7 s | 1e-6 s | 1e-5 s |
+  |---|---|---|---|---|
+  | max \|ΔY\| | 3.3e-9 | 7.5e-7 | 1.45e-5 | 3.7e-5 |
+
+  C1's step is 1.2e-7 s, so the step's own splitting error is of order 1e-6 in Y per step (*derived* from the row).
+- s_cell against Cantera's `entropy_mass`: 1.8e-11 J/(kg K) at worst.
+
+**E4, the runtime on one thread** (measured):
+- place: 1,379 ns per cell;
+- advance over 1e-7 s: 2,560 ns per cell;
+- each includes e from T (15 ns), which the timing needs and the runtime does not.
+- The entropy alone is 74 ns per cell, so it passes E4's 5% (decision 3). The placement's cost is recorded as measured.
+
+**R3, C1 with Table B live, against the CVODES run** (h2o2_highT, 32x6, `fr`, the 50 J torch, to 4 ms, 2 threads; measured):
+
+| | CVODES | Table B live | Table B / CVODES − 1 |
+|---|---|---|---|
+| c* [m/s] | 2476.61 | 2461.82 | −0.60% |
+| Isp_vac [s] | 424.43 | 423.08 | −0.32% |
+| F_vac [N] | 1664.67 | 1659.60 | −0.30% |
+| Injector face [MPa] | 3.31243 | 3.29957 | −0.39% |
+| Chamber-end equilibrium p0 [MPa] | 3.15291 | 3.13453 | −0.58% |
+| Outlet mass flow [kg/s] | 0.399948 | 0.400005 | +0.01% |
+| F_vac drift over the last ms | 1.58e-3 | 5.14e-3 | |
+| March wall [s] | 451 | 69 | 6.5 times faster |
+| Reaction [µs per cell update] | 67.5 | 9.87 | 6.8 times faster |
+
+- **The 0.3% bar (*guessed*): fail.** c* is −0.60%. Isp (−0.32%) and thrust (−0.30%) are just past the bar.
+- The injector pressure against CVODES at each printed time: −0.54% (0.5 ms), −0.08% (1 ms), −0.34%, −0.40%, −0.39%, −0.40%, −0.40% and −0.39% (4 ms).
+  - So the deficit is steady at 0.4% from 2 ms on. It is not the start transient, though neither run is settled by the protocol's 0.1% rule.
+- **The stated fail diagnostic: the live cells against their own Cantera equilibrium** (`equilibrateUV` at each sample's e and ρ, every 50th sample of the last ms; `table_b/c1_live_own_eq_{chamber,convergent}_2026-10-20.txt`; measured):
+
+  | Last ms | Samples | T_cell − T_own (min; median; max) | max \|Y_cell − Y_own\| (median; max) | s_eq,own − s_cell (median) |
+  |---|---|---|---|---|
+  | Chamber (i ≤ 8) | 541 | −23.1; −23.0; −12.5 K | 3.27e-3; 3.30e-3 | 0.156 J/(kg K) |
+  | Convergent (8 < i < 16) | 420 | −44.1; −23.3; −13.0 K | 3.32e-3; 6.08e-3 | 0.161 J/(kg K) |
+
+  - So the chamber on the table is 12.5 to 23 K colder than its own equilibrium (the convergent section 13 to 44 K), against an expected order of 10 K. *Derived:* c* goes about as √T at a fixed molar mass, so 23 K at 3,350 K is about −0.34%. The rest of the −0.60% is the composition, not split out.
+  - The CVODES run's chamber cells hold their own equilibrium to under 1e-4 J/(kg K) (*E0, E4 and E5 measured*). So the gap is the table's blended equilibrium, not the flow.
+  - *Inferred cause:* the equilibrium Y is curved in η between nodes 0.2 apart, and the blend is linear. The dissociated share grows faster than linearly with T, so the chord holds too much of it, which leaves the cell colder at its fixed e. That is the stated remedy's direction: the η spacing (and ln ρ), not tuning.
+- The wall time (69 s) is inside the expected 40 to 90 s. The end-of-run analysis takes another 156 s outside the march (measured from the files' times); the chamber study's own post-processing, not Table B's.
+- **Table B's share of cell updates** (CVODES takes the rest, by cause):
+  - **The start, to 0.5 ms: 72.96%**, by the start's causes in *The N placement measured* (the purge above the Z_N axis, cold propellant below the 200 K floor, the ignition front, frozen reach).
+  - 0.5 to 1 ms: 99.96%.
+  - From 1 ms the frozen-corner cause grows and holds: 1.46% (1 to 1.5 ms), 1.94%, 2.41%, 2.48%, 2.50%, and 2.50% (3.5 to 4 ms).
+  - Over the run: 95.99%.
+- **The last ms, by region: chamber 93.43%, convergent 97.02%, divergent 100%.** All the fallback is one cause, frozen corner on the branch. **The steady bar (1%) fails in the chamber (6.57%) and the convergent section (2.98%).** It passes in the divergent section.
+
+**Where the steady fallback sits** (measured, then inferred):
+- By cell over the last ms, 84 cells take any fallback.
+  - The face column (i = 0) takes 8,500 of its 25,000 updates in every row: 34%, and exactly one update per step (8,500 steps in the last ms).
+  - Column 1 takes 1,894 to 1,971 (about 8%).
+- The face cells' end-of-step states (the samples) replay as table on the upper branch, at 3,354 K, η 0.574 and ρ 1.37 kg/m³. So the fallback is on a state the samples do not hold. *Inferred:* it is the second half-step's state, after the flow step brings in fresh propellant, once per step.
+- The table's frozen lower-branch nodes are all at f_H 1/6, Z_N 0.3 and η 0.6, at every ρ. Its frozen upper-branch nodes are at η 0.2.
+- The face cells' Z_N over the last ms is 2e-92 to 8e-70 (the purged N2's remnant; measured on the samples, columns 0 to 11 all below 1.4e-46). So any cell inside the Z_N 0 to 0.3 cell gives its Z_N 0.3 corners a weight of that size. The rule `corners[q].w > 0` then refuses the cell if any of them is frozen on the placed branch.
+- *Inferred, not yet checked on the mid-step states:* the face cells after the inflow are placed on the lower branch near η 0.6. There the frozen corner (f_H 1/6, Z_N 0.3, η 0.6) has a weight of about 1e-70 and refuses them.
 
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 

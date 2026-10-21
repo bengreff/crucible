@@ -451,6 +451,7 @@ int main(int argc, char** argv) {
   double worstSCheck = 0;
   long checked = 0, inside = 0;
   std::vector<std::array<double, 3>> ownEq;  // (s_eq_own - s_eq_lower blend, s_eq_own - s_cell, xi_lower)
+  std::vector<std::array<double, 2>> ownT;   // (T_cell - T_own, max |Y_cell - Y_own| over the species)
   for (std::size_t n = 0; n < samples.size(); ++n) {
     const auto& s = samples[n];
     std::array<Corner, 16> corners;
@@ -481,6 +482,9 @@ int main(int argc, char** argv) {
       gas->equilibrate("UV");
       sOwn = gas->entropy_mass();
       ownEq.push_back({sOwn - rule.b[0].sEq, sOwn - sCell, rule.b[0].xi});
+      double dYOwn = 0;
+      for (std::size_t k = 0; k < nsAll; ++k) dYOwn = std::max(dYOwn, std::fabs(s.y[k] - gas->massFraction(k)));
+      ownT.push_back({s.T - gas->temperature(), dYOwn});
     }
     std::fprintf(out, "%s,%d,%.12e,%.12e,%.6e,%.6e,%.6e,%.12e,%.6e,%.6e,%.6e,", rule.cause.c_str(), rule.branch, sCell,
                  rule.b[0].sEq, rule.b[0].span, rule.b[0].xi, rule.b[0].dY, rule.b[1].sEq, rule.b[1].span, rule.b[1].xi,
@@ -616,6 +620,13 @@ int main(int argc, char** argv) {
     std::printf("own s_eq (equilibrateUV) on %zu samples: s_eq_own - blended lower s_eq: min %.3f, 5%% %.3f, median %.3f, 95%% %.3f, max %.3f J/(kg K); "
                 "s_eq_own - s_cell: min %.3e, median %.3f, max %.3f\n",
                 ownEq.size(), a.front(), pct(a, 0.05), pct(a, 0.5), pct(a, 0.95), a.back(), b.front(), pct(b, 0.5), b.back());
+    std::vector<double> dt, dy;
+    for (const auto& v : ownT) { dt.push_back(v[0]); dy.push_back(v[1]); }
+    std::sort(dt.begin(), dt.end());
+    std::sort(dy.begin(), dy.end());
+    std::printf("the samples against their own equilibrium (equilibrateUV at their e and rho): T_cell - T_own min %.2f, 5%% %.2f, median %.2f, 95%% %.2f, max %.2f K; "
+                "max |Y_cell - Y_own| median %.3e, 95%% %.3e, max %.3e\n",
+                dt.front(), pct(dt, 0.05), pct(dt, 0.5), pct(dt, 0.95), dt.back(), pct(dy, 0.5), pct(dy, 0.95), dy.back());
   }
 
   // E4: s per cell, and the whole rule per cell (s, the 16 corners, both branches), on one thread, over the
