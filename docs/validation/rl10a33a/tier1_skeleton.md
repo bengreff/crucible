@@ -15,8 +15,8 @@ Status: skeleton written 20 October 2026, about 18:00 CDT, before any tier-1 run
 | Setting | To be fixed as | Source |
 |---|---|---|
 | Mechanism and thermo | `tools/mechanisms/h2o2_highT.yaml` (TM-4513 to 6,000 K, OH from Ruscic 2002, 1 bar standard state) | TABLE_B.md; CEA check worst 1.79 K |
-| Chemistry | Table A to 6,000 K (equilibrium), unless Table B passes its gates before the prediction commit | TABLE_A.md *To 6,000 K* (passes); TABLE_B.md (gates fail, 20 October) |
-| Turbulence and wall | SST with the Hasan-Pecnik corrections; wall functions; uniform wall temperature per §4 | WALL_FUNCTIONS.md |
+| Chemistry | Table B (the plan's decision 1, 21 October, about 01:48: it passed its gates under the split fallback bar); Table A to 6,000 K (equilibrium) is member 15 | TABLE_A.md *To 6,000 K* (passes); TABLE_B.md |
+| Turbulence and wall | SST with the Hasan-Pecnik corrections; wall functions; the chamber wall at §4's temperature, the injector face at the transpired H2's 199.67 K, and the supply turbulence's length scale 0.07 D_h at the slots (the plan's decisions 7 and 8, 21 October, about 02:35) | WALL_FUNCTIONS.md, `tier1_ensemble_plan.md` |
 | LOX | liquid parcels; SMD central and bracket per SPRAY.md (Burick), evaluated at the element dimensions below | SPRAY.md; protocol §4 |
 | Grid | adaptive resolution; settled quantities at two resolutions (finest level halved), Richardson estimate joins the band | protocol §4 |
 | Start and settling | "valves open, ignite"; settled when F_vac, injector-face pressure and outlet mass flow each drift < 0.1% over 1 ms | protocol §3 |

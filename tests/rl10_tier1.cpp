@@ -2,7 +2,8 @@
 // to G7 stated before this code). It builds the case's Definition: the PCHIP wall shared with rl10dev
 // (tests/rl10_geometry.hpp), the face of choice 1 (8 rings, each a LOX slot between two post-tip walls and two
 // H2 slots, the slots at the elements' own flow areas) and of choice 3 (10% of the H2 transpired at a uniform
-// mass flux over the face outside the rings' cups), the supply turbulence at 5% and a pitch length scale, and the
+// mass flux over the face outside the rings' cups), the supply turbulence at 5% with a length scale of 0.07
+// hydraulic diameters at the slots and a pitch on the porous face (the plan, 21 October, about 02:40), and the
 // LOX as Rosin-Rammler drops from Burick's curve at the rings' group over Porcheron's core length (G8). It
 // reports the layout, the flows and the injection numbers, maps each supply onto candidate meshes by Flow's
 // ring-centre rule, constructs Flow and Spray on each, and exits before any step. No measured value is read.
@@ -16,6 +17,7 @@
 //   CRUCIBLE_T1_OUTER_RING   (R_c - r_8) / p, central 0.5 (bracket 0.5 to 1)
 //   CRUCIBLE_T1_INNER_RING   pitch (r_1 = r_8 - 7p, central) or clearance (r_1 = 27 D_a / 2 pi)
 //   CRUCIBLE_T1_TRANSPIRED   transpired share of the fuel, central 0.10
+//   CRUCIBLE_T1_SLOT_LENGTH  the supply turbulence's length scale at the slots / their hydraulic diameter, central 0.07
 //   CRUCIBLE_T1_FACE_PRESSURE  G4's nominal face pressure [Pa], 2.8e6 (our development runs', not a measurement)
 //   CRUCIBLE_RADIAL_STRETCHING  Definition::radialStretching, 0
 #include <algorithm>
@@ -124,6 +126,7 @@ int main(int argc, char** argv) {
     const std::string innerRule = std::getenv("CRUCIBLE_T1_INNER_RING") ? std::getenv("CRUCIBLE_T1_INNER_RING") : "pitch";
     if (innerRule != "pitch" && innerRule != "clearance") throw std::invalid_argument("CRUCIBLE_T1_INNER_RING: pitch or clearance");
     const double transpired = env("CRUCIBLE_T1_TRANSPIRED", 0.10);
+    const double slotLength = env("CRUCIBLE_T1_SLOT_LENGTH", 0.07);
     const double faceP = env("CRUCIBLE_T1_FACE_PRESSURE", 2.8e6);
     const double stretching = env("CRUCIBLE_RADIAL_STRETCHING", 0);
     const double dO = dL + 2 * t, dA = dO + 2 * h;
@@ -264,19 +267,21 @@ int main(int argc, char** argv) {
           fmt("transpired %.6f of the fuel at %.6f kg/(m2 s) on every porous band (spread %.3g); ring O/F %.5f",
               sweepSum / fuel, flux, fluxSpread, (kOxidizer / kRings) / ((fuel - sweep) / kRings)));
 
-    // G4: the injection numbers at the nominal face pressure, and each stream's viscosity ratio from L = p.
+    // G4: the injection numbers at the nominal face pressure, and each stream's viscosity ratio from its length scale:
+    // slotLength times the hydraulic diameter 2 (r_o - r_i) at a slot or band, one pitch on the porous face.
     const double rhoG = faceP / (medium.gasConstant(h2.data()) * kFuelT);
     std::vector<double> diffusion(medium.size()), work;
     const double muG = medium.transport(kFuelT, faceP, h2.data(), diffusion.data(), work).viscosity;
     const double ringOF = (kOxidizer / kRings) / ((fuel - sweep) / kRings);
     std::printf("\nG4 (reported) at a nominal %.3g MPa face pressure, H2 at %.2f K: rho_H2 %.4f kg/m3, mu %.4g Pa s; "
                 "LOX at %.2f K: rho_L %.2f kg/m3\n", faceP * 1e-6, kFuelT, rhoG, muG, kOxidizerT, rhoL);
-    for (Stream& s : streams) {
+    auto turbulence = [&](Stream& s) {
       s.velocity = s.massFlow / (rhoG * s.area());
+      const double length = s.porous ? pitch : slotLength * 2 * (s.outer - s.inner);
       const double k = 1.5 * std::pow(kIntensity * s.velocity, 2);
-      const double omega = std::sqrt(k) / (std::pow(kCmu, 0.25) * pitch);
-      s.ratio = rhoG * k / (omega * muG);
-    }
+      s.ratio = rhoG * k / (std::sqrt(k) / (std::pow(kCmu, 0.25) * length) * muG);
+    };
+    for (Stream& s : streams) turbulence(s);
     for (int i = 0; i < kRings; ++i) {
       const double vL = (kOxidizer / kRings) / (rhoL * aL);
       const double vG = ((fuel - sweep) / kRings) / (rhoG * aH);
@@ -284,9 +289,15 @@ int main(int argc, char** argv) {
       std::printf("  ring %d: V_L %.4f m/s, V_H2 %.3f m/s, J %.3f, (V_g - V_L) / (V_L MR) %.3f\n", i + 1, vL, vG, j,
                   (vG - vL) / (vL * ringOF));
     }
-    const auto slot = std::find_if(streams.begin(), streams.end(), [](const Stream& s) { return !s.porous; });
-    std::printf("  transpired: %.4f m/s; viscosity ratios from I %.2f and L = p: slots %.4g, porous %.4g\n",
-                flux / rhoG, kIntensity, slot->ratio, streams[0].ratio);
+    double slotLo = 1e300, slotHi = 0, wLo = 1e300, wHi = 0;  // every porous band has the same velocity and L
+    for (const Stream& s : streams) {
+      if (s.porous) continue;
+      slotLo = std::min(slotLo, s.ratio), slotHi = std::max(slotHi, s.ratio);
+      wLo = std::min(wLo, s.outer - s.inner), wHi = std::max(wHi, s.outer - s.inner);
+    }
+    std::printf("  transpired: %.4f m/s; viscosity ratios from I %.2f: slots %.4g to %.4g (L = %.3f D_h, %.4f to %.4f mm), "
+                "porous %.4g (L = p, %.4f mm)\n", flux / rhoG, kIntensity, slotLo, slotHi, slotLength,
+                slotLength * 2 * wLo * 1e3, slotLength * 2 * wHi * 1e3, streams[0].ratio, pitch * 1e3);
 
     // G8: the LOX drop size from Burick's curve at each ring's group, and the core length (tier1_setup.md,
     // *The LOX drop size and its release*). Every ring carries the same flows through the same areas.
@@ -331,7 +342,7 @@ int main(int argc, char** argv) {
       d.ambientTemperature = kAmbientT;
       d.radialStretching = stretching;
       d.transport = fits;
-      d.wallTemperature = kWallT;
+      d.wallTemperature = kWallT;  // the face's own 199.67 K (the plan, 21 October) waits on a per-segment wall temperature
       d.turbulence.enabled = true;
       d.turbulence.wallFunctions = true;
       d.turbulence.propertyCorrections = true;
@@ -359,9 +370,7 @@ int main(int argc, char** argv) {
       if (merged) {  // each ring's two H2 slots as one band across its cup, at the slots' flow
         for (int i = 0; i < kRings; ++i) {
           Stream s{"H2 band", rings[i].h2InInner, rings[i].h2OutOuter, (fuel - sweep) / kRings};
-          s.velocity = s.massFlow / (rhoG * s.area());
-          const double k = 1.5 * std::pow(kIntensity * s.velocity, 2);
-          s.ratio = rhoG * k / (std::sqrt(k) / (std::pow(kCmu, 0.25) * pitch) * muG);
+          turbulence(s);
           d.supplies.push_back(supply(s));
         }
         std::sort(d.supplies.begin(), d.supplies.end(),

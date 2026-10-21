@@ -118,7 +118,12 @@ The cup is not resolved (G7), so the plan's decision 5 branch applies:
 
 ## Findings for the Director and inquiry2 (not decided here)
 
-1. **The face inlet: a DECISION NEEDED for the Director.** Choice 1's slots cannot be carried at an affordable mesh (G5, G6). The options:
+*Decided 21 October 2026, about 02:35 CDT, before any tier-1 run (`tier1_ensemble_plan.md`, decisions 6 to 8):*
+- finding 1 is (a), with the interface spec in the handoff for inquiry2;
+- finding 2 is accepted: 0.07 D_h at the slots, wired into the driver, with its bracket as member 18;
+- finding 3: the face's wall is at the transpired H2's 199.67 K, and the adiabatic face is member 19.
+
+1. **The face inlet (decided 21 October: (a)).** Choice 1's slots cannot be carried at an affordable mesh (G5, G6). The options:
    - **(a)** A sub-cell ("open-area") supply in `core/flow` (inquiry2's lane).
      - A supply declares its true annulus.
      - Each face ring it overlaps takes the supply's mass, momentum and energy flux in proportion to the overlap, at the stream's own velocity (its true area), so the slot's mass flow and momentum and J are kept at any resolution.

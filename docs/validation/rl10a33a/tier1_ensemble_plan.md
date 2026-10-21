@@ -16,7 +16,7 @@ The predicted quantities are the protocol's §3 list: F_vac, Isp_vac (on the cha
 | 1 | Throat shape | PCHIP | sharp vertex (1) | protocol §4 |
 | 2 | Injector face station | −13.1 in | −13.4, −12.8 in (2) | protocol §4 |
 | 3 | Exit station | 46.0 in | 45.29, 46.40 in (2) | protocol §4 |
-| 4 | Hot-gas wall temperature | 567 K | 300, 834 K (2) | protocol §4 |
+| 4 | Hot-gas wall temperature | 567 K | 300, 834 K (2); the chamber wall only, the face is member 19 (21 Oct, about 02:35) | protocol §4 |
 | 5 | LOX SMD | SPRAY.md's central: Burick at the ring's group 5.03, SMD 447 μm (21 Oct, about 02:28; `tier1_setup.md`) | its bracket's ends (2): 263 and 581 μm, the scatter's stated width | protocol §4, SPRAY.md |
 | 6 | Injection temperatures | plenum values | ±0.1 R (0: carried from tier 0's sensitivity; decided 21 Oct) | protocol §4 |
 | 7 | Supply turbulence intensity | 5% | 2%, 10% (2) | protocol §4 |
@@ -31,8 +31,10 @@ The predicted quantities are the protocol's §3 list: F_vac, Isp_vac (on the cha
 | 15 | Chemistry | Table B (decided 21 Oct; it passed its gates under the split fallback bar, 21 Oct about 01:48) | Table A to 6,000 K, shifting equilibrium (1) | skeleton, TABLE_B.md |
 | 16 | SST property corrections | Hasan-Pecnik | none (1; decided 21 Oct) | WALL_FUNCTIONS.md |
 | 17 | Grid | the reported AMR grid | its finest level halved (1); the Richardson estimate is the member | protocol §4 |
+| 18 | Supply turbulence length scale at the slots | 0.07 D_h (inferred; one pitch on the porous face, unchanged) | 0.035, 0.14 D_h (2; guessed, ×/÷ 2; decided 21 Oct, about 02:35) | the Director's decision 7, below |
+| 19 | The injector face's wall | isothermal at the transpired H2's inlet temperature, 199.67 K (inferred) | adiabatic (1; decided 21 Oct, about 02:35) | the Director's decision 8, below |
 
-Count (derived): the central cold start and 27 deviations, one of them the grid run (with member 6 carried from tier 0), plus one cold-start check (below). Member 11b was added on 21 October with the Director's decision 5; it was 26 before. The wall functions' measured errors join the heat-flow band without a run (protocol §4). The skeleton's three modelling choices (annular rings, no swirl, a distributed transpiration) stay declared limits with stated directions, not members, since tier 1 cannot run their alternatives.
+Count (derived): the central cold start and 27 deviations, one of them the grid run (with member 6 carried from tier 0), plus one cold-start check (below). Member 11b was added on 21 October with the Director's decision 5; it was 26 before. *Dated note, 21 October 2026, about 02:35 CDT:* members 11 and 11b are not run (decision 5 applied, about 02:08), and members 18 and 19 add three runs (decisions 7 and 8), so the count is again 27 deviations: 26 warm and the grid run. The wall functions' measured errors join the heat-flow band without a run (protocol §4). The skeleton's three modelling choices (annular rings, no swirl, a distributed transpiration) stay declared limits with stated directions, not members, since tier 1 cannot run their alternatives.
 
 ## How a member runs (engineering, proposed)
 
@@ -72,6 +74,8 @@ Per run (derived from the rows):
 
 Total for the central case, the check, 26 warm members and the grid run (derived; 25 before member 11b): **15 to 200 run-hours on 4 threads, or up to 240 if the 9 re-meshed runs (members 2, 3, 11, 11b, 12, 13) start cold.** Concurrency: 2 runs at a time on the Mac (10 cores) and 5 on backhouse (28 threads, when it is back online), so about 7 at once. The grid member is the longest single run, so it sets the wall time: **about 5 hours at the low end** (one night), and **about 3 days at the high end**, with the other members done in about 18 to 28 hours beside it. Giving the grid member more threads on backhouse would shorten it; its scaling there is not measured.
 
+*Dated note, 21 October 2026, about 02:35 CDT (derived from the rows above):* the count is still 26 warm members and the grid run, so the total stays **15 to 200 run-hours**. The re-meshed runs are now 6 (members 2, 3, 12, 13), so the cold-start ceiling falls from about 240 to **about 230 run-hours**. Members 18 and 19 cost 0.35 to 4.4 h each per run, 1.1 to 13 run-hours together.
+
 What sets the range is the wall-function y+ target (300 against 956: a factor of 4) and the spray's cost (a factor of about 3). Both are measured before any member runs:
 - AMR criterion 6 and the wall functions' y+ question (AMR step D) give the gas-side cost.
 - The spray's ratio on the Mascotte setup (SPRAY.md's restated S6 trigger) gives the spray side.
@@ -96,6 +100,35 @@ Recorded before any tier-1 run and before any measured performance is read.
    - If the tier-1 mesh does not resolve the cup, the central case takes the SMD correlation alone, member 11b is not run, and the missing cup is a declared limit with its stated direction. That is decided and dated before any run.
 
 The budget's basis rows are on Table A. Table B's cost per cell update on RL10 is measured with the central case's cold start, when the budget is restated.
+
+## Decided (21 October 2026, about 02:35 CDT, the Director's brief on f29c38c)
+
+Recorded before any tier-1 run and before any measured performance is read. They answer `tier1_setup.md`'s three findings, and they close the face-inlet decision that was open.
+
+6. **The face inlet is (a): an open-area sub-cell supply in `core/flow`.**
+   - Each supply declares its true annulus. Each face ring it overlaps takes the supply's mass, momentum, energy and turbulence flux in proportion to the overlap, at the stream's own velocity on its true area.
+   - So each slot keeps its own mass flow, momentum and J at any mesh, and no cells are added.
+   - The rest of each ring's face is the post tips (wall, decision 8) and the LOX slot, where the liquid enters as parcels.
+   - It is inquiry2's lane (`core/flow.*`, `core/transport.cpp`, `core/amr.cpp`). The interface spec is in `docs/SESSION_HANDOFF.md` (21 October, about 02:35), for inquiry2 to code after S7 and AMR step C. The central case does not run before it lands.
+   - **Declared limit:** a ring's cell mixes its slots' streams within one cell, so the shear layers between the H2 slots, the tips and the LOX are not resolved at any affordable mesh (the setup's G5). Its direction is not inferred here. Mixing within the cell is immediate, which speeds it. But the H2's momentum is spread over the cell's height, so the gas the drops meet is slower, which slows their acceleration. The two oppose. The size falls with the face cell's height.
+7. **The supply turbulence's length scale is 0.07 D_h at the slots.**
+   - D_h is the annulus's hydraulic diameter, twice the slot's radial width. The value is the fully developed duct's standard estimate: Nikuradse's pipe mixing length at the centre, 0.14 R = 0.07 D. *Inferred* to hold at the slots' exit; there are no element-level data.
+   - The porous face keeps one pitch (protocol §4). Its inflow is 2.0 m/s, so its k is small either way.
+   - **Measured from the driver** at the nominal face state (`tier1_dry_run_length_2026-10-21.log`), the viscosity ratios are 137 to 2,520 at the slots and 524 on the porous face, against 46,000 at the slots with a pitch.
+   - **Wired into `crucible_rl10_tier1`** (`CRUCIBLE_T1_SLOT_LENGTH`, central 0.07). The dry run's output is unchanged apart from that line (measured: diff against `tier1_dry_run_g8_2026-10-21.log`).
+   - **The bracket is member 18: 0.035 and 0.14 D_h,** ×/÷ 2 (*guessed*). The area mean of Nikuradse's profile, 0.04 D (*derived*), lies inside it.
+     - It is cheap: two warm runs that change one Definition value and no geometry, 0.7 to 8.8 run-hours (*derived* from the budget's rows), 4 to 5% of the total.
+     - Both ends are dry-run (measured): slot ratios 68.5 to 1,260, and 274 to 5,039.
+   - Protocol §4's row (one pitch) needs the matching amendment, beside choice 1's (inquiry2's line, `tier1_skeleton.md`).
+8. **The injector face's wall is isothermal at the transpired H2's inlet temperature.**
+   - The porous Rigimesh face is transpiration-cooled, so its wall is set to the fuel injector plenum's 199.67 K (359.4 R; `tm107318_inputs_addendum.md`, protocol §2). This is *inferred*: the transpired H2 holds the face near its own temperature.
+   - Under decision 6 the face's wall share is the post tips. They lie between the LOX at 101 K and the H2 at 200 K, and are taken at the same value (inferred; each tip is 0.96 mm wide at the central t).
+   - The chamber wall stays at 567 K. Member 4 moves the chamber wall only.
+   - **The adiabatic face is member 19** (one warm run).
+   - Both need inquiry2's code (spec in the handoff):
+     - `Definition` has one `wallTemperature`;
+     - the wall functions refuse an adiabatic wall (`core/flow.cpp:107`: the adiabatic law is not implemented).
+   - Until then the dry run's Definition carries 567 K on every wall.
 
 ## Open, for the Director (as asked on 20 October; answered above on 21 October)
 
