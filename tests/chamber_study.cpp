@@ -39,8 +39,8 @@
 // The history carries the wall heat flow and the wall axial force in every run.
 // CRUCIBLE_STATE_SAMPLES=<path> (added 20 October 2026; docs/evidence/TABLE_B.md, "The fallback rate")
 // writes, at every 2 us sample, each cell's Table B coordinates (f_H, Z_N, eta with the cell's own
-// complete-combustion products, rho) and the flow steps since the last sample, for counting the run's
-// cell updates against a table's domain.
+// complete-combustion products, rho), its T and Y, and the flow steps since the last sample, for counting
+// the run's cell updates against a table's domain.
 // Writes <prefix>_history.csv (every 2 us), <prefix>_mesh.csv (stations) and <prefix>_field_<us>.csv
 // snapshots (<prefix>_field_<us>_failed.csv for the last state of a run that stopped); tools/chamber_plots.py
 // renders them.
@@ -478,7 +478,10 @@ int main(int argc, char** argv) {
   if (const char* path = std::getenv("CRUCIBLE_STATE_SAMPLES")) {
     stateSamples = std::fopen(path, "w");
     if (!stateSamples) throw std::runtime_error(std::string("cannot write ") + path);
-    std::fprintf(stateSamples, "t,steps,i,j,f_H,Z_N,eta,rho\n");
+    // T and every species' Y as well, so that a table's runtime rules can be replayed on the cell's own state.
+    std::fprintf(stateSamples, "t,steps,i,j,f_H,Z_N,eta,rho,T");
+    for (std::size_t k = 0; k < source.nSpecies(); ++k) std::fprintf(stateSamples, ",Y_%s", source.speciesName(k).c_str());
+    std::fprintf(stateSamples, "\n");
   }
   long stepsAtLastSample = 0;
   auto writeStates = [&]() {
@@ -507,8 +510,10 @@ int main(int argc, char** argv) {
         const double eLo = source.internalEnergy(200.0, w.rho, products.data()),
                      eHi = source.internalEnergy(6000.0, w.rho, products.data()),
                      e = source.internalEnergy(flow.temperature(q), w.rho, y.data());
-        std::fprintf(stateSamples, "%.6e,%ld,%d,%d,%.9e,%.9e,%.9e,%.9e\n", flow.time(), steps - stepsAtLastSample, i, j,
-                     z[eH] / (z[eH] + z[eO]), z[eN], (e - eLo) / (eHi - eLo), w.rho);
+        std::fprintf(stateSamples, "%.6e,%ld,%d,%d,%.9e,%.9e,%.9e,%.9e,%.9e", flow.time(), steps - stepsAtLastSample, i, j,
+                     z[eH] / (z[eH] + z[eO]), z[eN], (e - eLo) / (eHi - eLo), w.rho, flow.temperature(q));
+        for (double yk : y) std::fprintf(stateSamples, ",%.9e", yk);
+        std::fprintf(stateSamples, "\n");
       }
     stepsAtLastSample = steps;
   };
