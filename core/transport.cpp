@@ -494,7 +494,10 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
                     return 0.5*((ga[0]+gb[0])*sz+(ga[1]+gb[1])*sr);
                 };
                 double dh=along(staticEnthalpy_[a],staticEnthalpy_[b])+0.5*(heatCapacity_[a]+heatCapacity_[b])*across(2);
-                double turbulentSpecies=0;
+                double turbulentSpecies=0,molecularSpecies=0;
+                // Definition::unityLewis: every molecular diffusivity lambda / (rho cp), lambda here molecular
+                // (eddyLambda is zero on interior faces under consistentFlux).
+                const double unity=d.unityLewis?lambda/(0.5*(heatCapacity_[a]+heatCapacity_[b])):0;
                 if(ns_>1) {
                     auto& yFace=s.face;auto& jt=s.turbulent;
                     double rho=0.5*(primitives_[a].rho+primitives_[b].rho),moles=0,mixed=0,molecularSum=0,turbulentSum=0;
@@ -502,20 +505,31 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
                     for(std::size_t k=0;k<ns_;++k) mixed+=sp[k].molarMass*moles*across(3+k);
                     medium_.speciesEnthalpies(0.5*(temperature_[a]+temperature_[b]),s.enthalpy.data());
                     for(std::size_t k=0;k<ns_;++k) {
-                        double gz,gr;gradient(3+k,gz,gr);
-                        jn[k]=-rho*sp[k].molarMass*moles*0.5*(diffusion_[a*ns_+k]+diffusion_[b*ns_+k])*(gz*nz+gr*nr);
-                        molecularSum+=jn[k];
                         const double tangential=sp[k].molarMass*moles*across(3+k)-yFace[k]*mixed;
-                        jt[k]=-muT/tu.schmidt*(along(fractions_[a*nw_+k],fractions_[b*nw_+k])+tangential);
+                        const double normalY=along(fractions_[a*nw_+k],fractions_[b*nw_+k])+tangential;
+                        if(d.unityLewis) jn[k]=-unity*normalY;
+                        else {
+                            double gz,gr;gradient(3+k,gz,gr);
+                            jn[k]=-rho*sp[k].molarMass*moles*0.5*(diffusion_[a*ns_+k]+diffusion_[b*ns_+k])*(gz*nz+gr*nr);
+                        }
+                        molecularSum+=jn[k];
+                        jt[k]=-muT/tu.schmidt*normalY;
                         turbulentSum+=jt[k];
                         dh+=s.enthalpy[k]*tangential;
                         if(parts) { parts[np+k]=jn[k];parts[np+ns_+k]=jt[k]; }
                     }
                     for(std::size_t k=0;k<ns_;++k) {
                         jn[k]-=yFace[k]*molecularSum;jt[k]-=yFace[k]*turbulentSum;
-                        heat+=s.enthalpy[k]*jn[k];turbulentSpecies+=s.enthalpy[k]*jt[k];jn[k]+=jt[k];
+                        heat+=s.enthalpy[k]*jn[k];molecularSpecies+=s.enthalpy[k]*jn[k];
+                        turbulentSpecies+=s.enthalpy[k]*jt[k];jn[k]+=jt[k];
                     }
                     if(parts) bookSpecies();
+                }
+                if(d.unityLewis) {
+                    // The molecular energy flux -(lambda / cp) dh/dn in place of -lambda dT/dn + sum_k h_k j_k.
+                    const double molecularHeat=-unity*dh-molecularSpecies;
+                    heat+=lambda*normalGradientT+molecularHeat;
+                    if(parts) parts[1]=molecularHeat;
                 }
                 // The turbulent conduction: the part of -(mu_t / Pr_t) dh/dn + (1 - Sc_t / Pr_t) sum h_k j_t
                 // that is not species enthalpy.

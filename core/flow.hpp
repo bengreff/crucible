@@ -93,6 +93,10 @@ struct Definition {
     // wallTemperature, or adiabatic when it is zero. Supply rings exchange no diffusive flux; the
     // nozzle inlet and the outlet take a zero normal gradient (only tangential-gradient stress).
     TransportFits transport;
+    // A discriminator, not a model (COST.md, lever 3's backups): on interior faces every species'
+    // molecular flux -(lambda / cp) dY_k/dn and the molecular energy flux -(lambda / cp) dh/dn, both
+    // built as the turbulent ones under Turbulence::consistentFlux, which it requires.
+    bool unityLewis{false};
     bool wallSlip{false};
     double wallTemperature{0};
     // Subsonic outlet (Nozzle and Chamber). Zero: the boundary state takes backPressure, a pressure

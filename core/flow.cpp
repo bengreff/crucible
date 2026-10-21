@@ -62,6 +62,8 @@ std::vector<double> Definition::massFractions() const {
 }
 
 void Definition::validate() const {
+    if(unityLewis && !(turbulence.enabled && turbulence.consistentFlux && !transport.viscosity.empty()))
+        throw std::invalid_argument("Unity Lewis number needs transport and turbulence with the consistent turbulent fluxes.");
     if(nz<4 || nr<1 || static_cast<std::uint64_t>(nz)*nr>16000000)
         throw std::invalid_argument("Mesh must have at least 4 axial / 1 radial cells and at most 16 million cells.");
     for(double x:{length,inletRadius,throatRadius,exitRadius,totalPressure,totalTemperature,

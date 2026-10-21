@@ -15,7 +15,7 @@
 // the mixing line (Flow::setBoundedExcess); CRUCIBLE_PRANDTL_T overrides the turbulent Prandtl
 // number (a diagnostic: Pr_t = Sc_t makes turbulent transport carry the excess enthalpy as one scalar);
 // CRUCIBLE_DELTA_H sets Definition::Turbulence::consistentFlux (the turbulent fluxes from the two cells'
-// differences of Y_k and h).
+// differences of Y_k and h); CRUCIBLE_UNITY_LEWIS sets Definition::unityLewis (a discriminator, with it).
 // Usage: crucible_mascotte_a10 <size> <nz> <nr> <end s> <average from s> <threads> <prefix> <table|none>
 //                             [parcels per second] [table audit interval]
 //   size: blob (Reitz's blob, KH-RT atomises), or rr:<SMD um>:<q>:<core length mm> (Rosin-Rammler
@@ -124,6 +124,7 @@ int main(int argc, char** argv) {
     if (std::getenv("CRUCIBLE_BOUND_H") || std::getenv("CRUCIBLE_BOUND_B")) d.boundedFaceEnthalpy = true;
     if (const char* prt = std::getenv("CRUCIBLE_PRANDTL_T")) d.turbulence.prandtl = std::atof(prt);
     if (std::getenv("CRUCIBLE_DELTA_H")) d.turbulence.consistentFlux = true;
+    if (std::getenv("CRUCIBLE_UNITY_LEWIS")) d.unityLewis = true;
     Supply s;
     s.innerRadius = kAnnulusInner;
     s.outerRadius = kAnnulusOuter;
