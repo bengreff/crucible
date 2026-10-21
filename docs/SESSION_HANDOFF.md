@@ -415,7 +415,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:25 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT)
 
 - **Synced with `main`:** inquiry merged the branch (755bf30). inquiry2 fast-forwarded to `main` 67c9053 and committed on top (d79df48, 8aeacee, e20d6c6, 28fb979, cb9d9ff, 4dbb3f1 and this handoff). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`.
 - **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
