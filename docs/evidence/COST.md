@@ -253,3 +253,12 @@ A rerun of low with `CRUCIBLE_HOT_TRACE=3450` (e18c710; it reproduces the origin
 - Flag on breaks the 1e-12 tolerance in the −1 run, so x1 fails as registered. Flag off rises in both runs, so the check discriminates.
 - **The cause is in the test (inferred from the code, then measured by x1b below).** The duct's inflow takes `Definition::composition` (`core/flow.cpp:375`), which the test left at pure air. The −1 ramp has 2% helium at the inlet, so a variable-γ contact enters there. Its pressure waves, 200 times the +1 run's, cross the 0.3 m to the spot in about 1 ms and compress it. That moves h by about δp/ρ, the risk registered with x1.
 - **(x1b), registered before its run:** the same test, with the inflow composition set to the first cell's (`tests/mixture_tests.cpp` section 4, as corrected). Pass rule as x1. Expected (derived): the −1 run's |p/p0 − 1| falls to the +1 run's level, about 1e-5.
+
+**(x3), C1 eqtt 32×6: c* fails (measured; `xout/c1_off.log`, `c1_on.log` on backhouse).** Both runs settled (drift over the last ms 8e-8). Flag on against off:
+- c* 2,481.56 against 2,477.00 m/s: +1.84e-3, outside 1e-3.
+- Vacuum Isp 427.42 against 427.45 s: −7e-5.
+- Vacuum thrust 1,676.61 against 1,676.75 N: −8e-5.
+- Outlet mass flow 0.400000 kg/s in both, so the c* shift is a 0.18% higher chamber pressure.
+- Budgets: mass −6.7e-13 and energy 1.0e-11 (off: 1.0e-12 and −9.3e-13).
+- **Why it may be the grid and not a defect (derived).** (x) changes every interior face, not just the extremum cells. Face h comes from h's limited slope instead of from ρ's, which for one calorically perfect gas is temperature reconstruction. So at 32×6 the two runs are two second-order schemes with different truncation errors. The off run is itself +1.60% above the 2-D prediction at this grid (CHAMBER_C1.md: the coarse grid's known offset).
+- **(x3-C1b), registered before its run:** the same pair at 64×12 to 8 ms. It passes if the on/off c* difference is at most half its 32×6 value (≤ 9.2e-4, at least first-order shrinkage), and Isp and thrust stay within 1e-3. If not, the shift is (x)'s own, and adopting (x) is the Director's call with that number beside it.
