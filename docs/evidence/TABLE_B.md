@@ -1042,6 +1042,50 @@ It also has 24 integrator failures: 23 at ρ 80 on the lower branch, and one on 
 - **At the exit station,** every RL10 table meets a frozen corner on 3 to 6 of the 6 samples per f_H. Those cells would go to CVODES. This is for shifting-equilibrium states; the live nozzle's composition is finite-rate, so the live share is measured, not inferred from this.
 - **Inferred:** the Δη 0.05 table would remove most of the mid-nozzle's −21 K, but it brings the η 0.15 turn-back inside the band. So the 0.1 table is checked live first. The 0.05 table runs beside it to measure what the nozzle's −21 K costs in Isp_vac.
 
+### The C1-like check at RL10 conditions: the 0.2% bars pass; the chamber's fallback bar fails at the face column (21 October 2026, about 01:50 CDT)
+
+**The runs** (measured; `table_b/rl10dev_fr_76x8_cvodes_2026-10-21.log` and `..._tableB_rl10s_...`):
+- rl10dev, `fr`, 76 × 8, the 7 kJ igniter over 1 ms from 0.2 ms, to 20 ms on 2 threads.
+- Table B is the rl10_s table (Δη 0.1), with the drop and the induction cut.
+- Both runs pass 2,000 K at 0.222 ms (the history's T_max) and settle: thrust drift 1.2e-5 per ms on both.
+
+| | Table B | CVODES | Difference | Bar |
+|---|---|---|---|---|
+| c* | 2377.84 m/s | 2379.77 | −0.081% | 0.2%: pass |
+| Isp_vac | 462.90 s | 463.54 | −0.138% | 0.2%: pass |
+| F_vac | 75,866.4 N | 75,971.6 | −0.139% | 0.2%: pass |
+| injector face | 2.82490 MPa | 2.82724 | −0.083% | (reported) |
+| chamber-end p0 | 3.21374 MPa | 3.21635 | −0.081% | (reported) |
+| drift over the last ms, thrust | 1.23e-5 | 1.16e-5 | | 1e-4: both settled |
+
+- **Cost:** 290 s of wall time against 1,973 s (6.8 times); reaction 7.30 against 61.1 µs per cell update. The CVODES run shared the machine with more jobs, so the wall ratio is only indicative.
+- **Against C1, at settled states:**
+  - c* differs by −0.081% here against −0.061% on C1.
+  - Isp_vac by −0.138% against −0.087%.
+  - *Inferred:* the larger Isp gap is the nozzle's longer expansion (ε 61 against C1's 10) through the table's −21 K mid-nozzle error.
+
+**The fallback over the last ms:**
+- **The convergent and the divergent pass:** 100% table on 728,000 and 3,304,000 updates, with 0 frozen-corner refusals. So the exit station's frozen corners, met by the shifting-equilibrium samples above, are not met by the live finite-rate nozzle.
+- **The chamber fails the 1% bar:** 73.2% table.
+  - All of its fallback is 10 cells: the face column, cells (0, 0) to (0, 7), on every update, and (1, 0) and (1, 1) on 2,000 of 7,000.
+  - Rows 0 to 3 are "off the curve in s (below the blended start)". Rows 4 to 7 and the two column-1 cells are "dY above dY_max": the cell's composition lies more than 0.01 from the curve point it is placed at.
+  - Over the whole domain this is 1.4% of the last ms's updates (60,000 of 4,256,000).
+
+**The face column, measured** (the final fields; the two runs agree to 3 digits):
+- **Unburnt gas below a flame that stands in column 1.**
+  - Column 0 is at 248 K on the axis to 589 K at the wall, with Y_H2O 0.007 to 0.068.
+  - Column 1 is at 3,140 to 3,300 K.
+- **The pressure field around the flame:**
+  - The face column sits at 2.76 to 2.92 MPa.
+  - Column 1's axis cell sits at 3.90 MPa, moving at 307 m/s; column 2's axis cell at 2.89 MPa and 768 m/s.
+  - This is the development case's own inviscid premixed structure, in both runs. It is not chased here; the flow solver is inquiry2's lane.
+- **Mechanism (inferred):** these cells are numerical mixtures: fresh gas carrying a few percent of product from the flame column, cooled below the 300 K injection on the axis.
+  - A homogeneous reactor that starts from fresh gas never holds product at a lower temperature than its start. So the state's entropy lies below the branch's start (rows 0 to 3), or its composition lies off the curve (rows 4 to 7).
+  - They are off the manifold by construction. Routing them to CVODES is the design's fallback by cause, and it costs the result nothing.
+- **Why C1 passed:** C1's face column burns (3,385 K at cell (0, 3) from 0.284 ms), so its cells sit near equilibrium, on the upper branch. Here the flame stands one 19.8 mm column downstream.
+
+**Verdict as written:** the 0.2% bars pass on the RL10's range at O/F 5.055. The 1% fallback bar fails in the chamber, by the face column alone. So Table B has not passed on the RL10's range as written, and Table A stays central (decision 1) until the bar's reading is decided. The question goes to the Director in the handoff.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.

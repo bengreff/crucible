@@ -1,0 +1,131 @@
+[slot] waiting for a heavy-job slot / RAM (free 3.3 GB, need 3.0); waited 0s
+[slot] waiting for a heavy-job slot / RAM (free 4.3 GB, need 3.0); waited 60s
+[slot] waiting for a heavy-job slot / RAM (free 3.9 GB, need 3.0); waited 120s
+[slot] waiting for a heavy-job slot / RAM (free 4.0 GB, need 3.0); waited 180s
+[slot] waiting for a heavy-job slot / RAM (free 3.9 GB, need 3.0); waited 240s
+[slot] waiting for a heavy-job slot / RAM (free 3.9 GB, need 3.0); waited 300s
+[slot] waiting for a heavy-job slot / RAM (free 3.7 GB, need 3.0); waited 360s
+[slot] waiting for a heavy-job slot / RAM (free 4.7 GB, need 3.0); waited 420s
+[slot] waiting for a heavy-job slot / RAM (free 4.4 GB, need 3.0); waited 480s
+[slot] waiting for a heavy-job slot / RAM (free 4.6 GB, need 3.0); waited 540s
+[slot] waiting for a heavy-job slot / RAM (free 4.8 GB, need 3.0); waited 600s
+mechanism: ../tools/mechanisms/h2o2_highT.yaml
+chamber: RL10A-3-3A development (pre-vaporized H2/O2 at 300 K; development only, never the reported case): r_t 0.062738 m, chamber radius 0.130302 m, injector face at -13.2542 in (throat station 17 of 76), exit at 46.00 in, PCHIP R/r_t 0.1366, exit wall angle 10.054 deg, cone 20.086 deg, O/F 5.0550
+Table B /tmp/tbs/rl10_s.bin: Table B built 2026-10-21 01:00 CDT by crucible_build_manifold_table from ../tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes {0.133333,0.142857,0.153846,0.166667,0.181818} as given, Z_N {0.000000,0.300000}, eta 11 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 990 nodes in 19 s on 3 threads; node element error 5.78e-10 raw, 3.64e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE
+mesh 76x8: dz 19.803 mm, throat station 17 at z 0.3367 m (design 0.3367), r_t 0.06274 m, eps 61.0000, chamber-end column 3 at z 0.0693 m
+chemistry fr; igniter 7000 J over 1 ms from 0.2 ms
+t 0.500 ms  p_inj 0.3829 MPa  outlet 0.0000 kg/s  F_vac 18165.6 N  steps 851  wall 16 s  step 4.063e-07 s set by cell (17, 6), convective 9.846e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 1240320 cell updates, table 14.9209%; no H or O 47.6284%; outside the axes 32.2755%; frozen reach 1.6026%; off the curve in s (below the blended start) 2.1180%; dY above dY_max 1.4292%; the lower branch's induction part (phi_N below 0.3) 0.0253%
+t 1.000 ms  p_inj 0.9550 MPa  outlet 28.2849 kg/s  F_vac 34024.5 N  steps 2222  wall 37 s  step 4.032e-07 s set by cell (17, 6), convective 9.920e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2348096 cell updates, table 62.6306%; no H or O 4.1017%; outside the axes 28.7999%; frozen reach 1.6251%; off the curve in s (below the blended start) 1.3158%; dY above dY_max 1.0277%; the lower branch's induction part (phi_N below 0.3) 0.4993%
+t 1.500 ms  p_inj 1.4157 MPa  outlet 7.2456 kg/s  F_vac 42088.8 N  steps 3473  wall 45 s  step 4.150e-07 s set by cell (17, 6), convective 9.637e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2129216 cell updates, table 95.5682%; outside the axes 2.7939%; frozen reach 0.3158%; off the curve in s (below the blended start) 1.3158%; dY above dY_max 0.0064%
+t 2.000 ms  p_inj 1.7505 MPa  outlet 9.5933 kg/s  F_vac 50817.4 N  steps 4723  wall 52 s  step 4.190e-07 s set by cell (17, 6), convective 9.547e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.2795%; outside the axes 0.4047%; off the curve in s (below the blended start) 1.3158%
+t 2.500 ms  p_inj 1.9987 MPa  outlet 11.5685 kg/s  F_vac 57567.6 N  steps 5973  wall 59 s  step 4.217e-07 s set by cell (17, 6), convective 9.486e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.6842%; off the curve in s (below the blended start) 1.3158%
+t 3.000 ms  p_inj 2.1792 MPa  outlet 12.8997 kg/s  F_vac 62423.1 N  steps 7223  wall 65 s  step 4.233e-07 s set by cell (17, 6), convective 9.449e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.6842%; off the curve in s (below the blended start) 1.3158%
+t 3.500 ms  p_inj 2.3125 MPa  outlet 13.8739 kg/s  F_vac 65876.9 N  steps 8473  wall 71 s  step 4.246e-07 s set by cell (17, 6), convective 9.422e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.6842%; off the curve in s (below the blended start) 1.3158%
+t 4.000 ms  p_inj 2.4274 MPa  outlet 14.5975 kg/s  F_vac 69415.4 N  steps 9723  wall 76 s  step 4.257e-07 s set by cell (17, 6), convective 9.396e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.6842%; off the curve in s (below the blended start) 1.3158%
+t 4.500 ms  p_inj 2.6271 MPa  outlet 15.4339 kg/s  F_vac 74546.5 N  steps 10973  wall 82 s  step 4.257e-07 s set by cell (17, 6), convective 9.397e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.6842%; off the curve in s (below the blended start) 1.2828%; dY above dY_max 0.0329%
+t 5.000 ms  p_inj 2.9529 MPa  outlet 16.6836 kg/s  F_vac 81459.2 N  steps 12223  wall 88 s  step 4.250e-07 s set by cell (17, 6), convective 9.412e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.6211%; off the curve in s (below the blended start) 1.0356%; dY above dY_max 0.3433%
+t 5.500 ms  p_inj 3.1702 MPa  outlet 18.1865 kg/s  F_vac 83101.4 N  steps 13473  wall 95 s  step 4.284e-07 s set by cell (17, 6), convective 9.337e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5537%; off the curve in s (below the blended start) 0.6509%; dY above dY_max 0.7954%
+t 6.000 ms  p_inj 2.9662 MPa  outlet 17.8481 kg/s  F_vac 77934.8 N  steps 14723  wall 101 s  step 4.334e-07 s set by cell (17, 6), convective 9.230e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5848%; off the curve in s (below the blended start) 0.4831%; dY above dY_max 0.9320%
+t 6.500 ms  p_inj 2.7840 MPa  outlet 16.7865 kg/s  F_vac 74582.2 N  steps 15973  wall 108 s  step 4.343e-07 s set by cell (17, 6), convective 9.210e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6031%; dY above dY_max 0.8067%
+t 7.000 ms  p_inj 2.7682 MPa  outlet 16.4592 kg/s  F_vac 74958.2 N  steps 17223  wall 115 s  step 4.338e-07 s set by cell (17, 6), convective 9.221e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.8224%; dY above dY_max 0.5874%
+t 7.500 ms  p_inj 2.8392 MPa  outlet 16.6722 kg/s  F_vac 76565.0 N  steps 18473  wall 122 s  step 4.323e-07 s set by cell (17, 6), convective 9.254e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.8224%; dY above dY_max 0.5874%
+t 8.000 ms  p_inj 2.8793 MPa  outlet 16.9511 kg/s  F_vac 77044.0 N  steps 19723  wall 129 s  step 4.321e-07 s set by cell (17, 6), convective 9.256e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6706%; dY above dY_max 0.7391%
+t 8.500 ms  p_inj 2.8517 MPa  outlet 16.9112 kg/s  F_vac 76237.7 N  steps 20973  wall 136 s  step 4.328e-07 s set by cell (17, 6), convective 9.243e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 9.000 ms  p_inj 2.8151 MPa  outlet 16.7243 kg/s  F_vac 75540.1 N  steps 22223  wall 142 s  step 4.331e-07 s set by cell (17, 6), convective 9.237e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 9.500 ms  p_inj 2.8086 MPa  outlet 16.6391 kg/s  F_vac 75564.2 N  steps 23473  wall 149 s  step 4.329e-07 s set by cell (17, 6), convective 9.240e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6992%; dY above dY_max 0.7105%
+t 10.000 ms  p_inj 2.8234 MPa  outlet 16.6808 kg/s  F_vac 75921.8 N  steps 24723  wall 156 s  step 4.326e-07 s set by cell (17, 6), convective 9.247e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.7078%; dY above dY_max 0.7020%
+t 10.500 ms  p_inj 2.8343 MPa  outlet 16.7462 kg/s  F_vac 76086.6 N  steps 25973  wall 163 s  step 4.325e-07 s set by cell (17, 6), convective 9.248e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 11.000 ms  p_inj 2.8313 MPa  outlet 16.7528 kg/s  F_vac 75966.3 N  steps 27223  wall 170 s  step 4.326e-07 s set by cell (17, 6), convective 9.246e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 11.500 ms  p_inj 2.8236 MPa  outlet 16.7187 kg/s  F_vac 75809.4 N  steps 28473  wall 177 s  step 4.327e-07 s set by cell (17, 6), convective 9.244e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 12.000 ms  p_inj 2.8211 MPa  outlet 16.6964 kg/s  F_vac 75789.0 N  steps 29723  wall 184 s  step 4.327e-07 s set by cell (17, 6), convective 9.244e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 12.500 ms  p_inj 2.8238 MPa  outlet 16.7020 kg/s  F_vac 75860.8 N  steps 30973  wall 191 s  step 4.326e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 13.000 ms  p_inj 2.8265 MPa  outlet 16.7169 kg/s  F_vac 75908.7 N  steps 32223  wall 198 s  step 4.326e-07 s set by cell (17, 6), convective 9.246e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 13.500 ms  p_inj 2.8265 MPa  outlet 16.7211 kg/s  F_vac 75893.8 N  steps 33473  wall 206 s  step 4.326e-07 s set by cell (17, 6), convective 9.246e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 14.000 ms  p_inj 2.8249 MPa  outlet 16.7152 kg/s  F_vac 75859.6 N  steps 34723  wall 212 s  step 4.327e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 14.500 ms  p_inj 2.8241 MPa  outlet 16.7096 kg/s  F_vac 75849.3 N  steps 35973  wall 220 s  step 4.327e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 15.000 ms  p_inj 2.8245 MPa  outlet 16.7098 kg/s  F_vac 75862.1 N  steps 37223  wall 227 s  step 4.327e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 15.500 ms  p_inj 2.8252 MPa  outlet 16.7129 kg/s  F_vac 75874.2 N  steps 38473  wall 233 s  step 4.326e-07 s set by cell (17, 6), convective 9.246e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 16.000 ms  p_inj 2.8253 MPa  outlet 16.7143 kg/s  F_vac 75873.5 N  steps 39723  wall 239 s  step 4.326e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 16.500 ms  p_inj 2.8250 MPa  outlet 16.7134 kg/s  F_vac 75866.5 N  steps 40973  wall 245 s  step 4.326e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 17.000 ms  p_inj 2.8248 MPa  outlet 16.7121 kg/s  F_vac 75863.2 N  steps 42223  wall 251 s  step 4.327e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 17.500 ms  p_inj 2.8248 MPa  outlet 16.7120 kg/s  F_vac 75865.2 N  steps 43473  wall 258 s  step 4.326e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 18.000 ms  p_inj 2.8250 MPa  outlet 16.7125 kg/s  F_vac 75868.0 N  steps 44723  wall 264 s  step 4.326e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 18.500 ms  p_inj 2.8250 MPa  outlet 16.7129 kg/s  F_vac 75868.4 N  steps 45973  wall 270 s  step 4.326e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 19.000 ms  p_inj 2.8250 MPa  outlet 16.7128 kg/s  F_vac 75867.0 N  steps 47223  wall 277 s  step 4.326e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 19.500 ms  p_inj 2.8249 MPa  outlet 16.7125 kg/s  F_vac 75866.1 N  steps 48473  wall 283 s  step 4.326e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+t 20.000 ms  p_inj 2.8249 MPa  outlet 16.7125 kg/s  F_vac 75866.4 N  steps 49723  wall 290 s  step 4.326e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+  Table B since the last print: 2128000 cell updates, table 98.5902%; off the curve in s (below the blended start) 0.6579%; dY above dY_max 0.7519%
+
+end 20.000 ms after 49723 steps (39458 replans), wall 290 s
+budgets: mass 8.95e-15  energy 9.94e-13
+cost: 9.578 us of wall time per cell update on 2 threads, 14.5 s per simulated ms over the run
+step limit after 1 ms (9501 samples): mean step 4.302e-07 s; set in the wall row 0.0%, the axis row 0.0%, upstream of the throat 0.0%, at it (its two columns) 100.0%, downstream 0.0%; diffusive rate above convective 0.0%; last: step 4.326e-07 s set by cell (17, 6), convective 9.245e+05 and diffusive 0.000e+00 per s
+reaction wall 220.6 s (76.2% of the run), 7.296 us per cell update
+  Table B over the run: 84453632 cell updates, table 96.2892%; no H or O 0.8135%; outside the axes 1.3554%; frozen reach 0.0767%; off the curve in s (below the blended start) 0.8273%; dY above dY_max 0.6237%; the lower branch's induction part (phi_N below 0.3) 0.0143%
+  Table B: largest max|dY| of a placed point it stepped 1.000e-02; its updates placed at w < 1 (in part by s) 0
+  Table B chamber, over the run: 4444928 cell updates, table 73.1399%; no H or O 0.0022%; outside the axes 0.1469%; frozen reach 0.0002%; off the curve in s (below the blended start) 15.6228%; dY above dY_max 11.0824%; the lower branch's induction part (phi_N below 0.3) 0.0056%
+  Table B convergent, over the run: 14446016 cell updates, table 98.9583%; no H or O 0.0094%; outside the axes 0.9469%; frozen reach 0.0439%; off the curve in s (below the blended start) 0.0296%; dY above dY_max 0.0119%; the lower branch's induction part (phi_N below 0.3) 0.0001%
+  Table B divergent, over the run: 65562688 cell updates, table 97.2705%; no H or O 1.0457%; outside the axes 1.5273%; frozen reach 0.0891%; dY above dY_max 0.0494%; the lower branch's induction part (phi_N below 0.3) 0.0180%
+  Table B chamber, the last ms: 224000 cell updates, table 73.2143%; off the curve in s (below the blended start) 12.5000%; dY above dY_max 14.2857%
+  Table B convergent, the last ms: 728000 cell updates, table 100.0000%
+  Table B divergent, the last ms: 3304000 cell updates, table 100.0000%
+  Table B, the last ms: frozen-corner refusals by the refusing corner's weight: below 1e-30 0; 1e-30 to 1e-12 0; 1e-12 to 1e-6 0; 1e-6 to 1e-2 0; above 1e-2 0
+  Table B, the last ms: 10 cells took any fallback; the most:
+    cell (0, 7): 7000 of 7000 updates; dY above dY_max 7000
+    cell (0, 6): 7000 of 7000 updates; dY above dY_max 7000
+    cell (0, 5): 7000 of 7000 updates; dY above dY_max 7000
+    cell (0, 4): 7000 of 7000 updates; dY above dY_max 7000
+    cell (0, 3): 7000 of 7000 updates; off the curve in s (below the blended start) 7000
+    cell (0, 2): 7000 of 7000 updates; off the curve in s (below the blended start) 7000
+    cell (0, 1): 7000 of 7000 updates; off the curve in s (below the blended start) 7000
+    cell (0, 0): 7000 of 7000 updates; off the curve in s (below the blended start) 7000
+    cell (1, 1): 2000 of 7000 updates; dY above dY_max 2000
+    cell (1, 0): 2000 of 7000 updates; dY above dY_max 2000
+drift over last 1 ms: outlet mass flow 2.16e-05, injector pressure 2.04e-05, vacuum thrust 1.23e-05
+RL10A-3-3A development: every quantity below is a development quantity (pre-vaporized propellants at 300 K), never the reported case
+chamber end: static 3.10004 MPa, equilibrium stagnation p0 3.21374 MPa; injector face 2.82490 MPa
+simulated: mdot out 16.712458 kg/s (supply 16.712600), c* 2377.84 m/s, vacuum thrust 75866.36 N, vacuum Isp 462.90 s
+1-D ideal rocket at p0 (../tools/mechanisms/h2o2_highT.yaml thermo): Tc 3360.3 K, c* 2424.41 m/s, Isp_vac shifting 478.87 s, frozen 454.71 s, gamma 1.2067
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.97884 (R = 0.5000), lambda 0.98095
+predicted 2-D: c* 2476.82 m/s, Isp_vac shifting 470.08 s, frozen 446.32 s, F_vac 77042.43 N
+simulated/predicted - 1: c* -3.9962%, Isp_vac (shifting) -1.5265%
