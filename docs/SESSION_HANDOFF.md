@@ -2,6 +2,38 @@
 
 20 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (20 October, about 19:15 CDT; session after /clear, READY TO CLEAR)
+
+The Director's brief (after /clear, to about 20:00): (1) an exact Jacobian for the builder's integration, check pre-registered, then the reaction tests and C1; (2) the small Table B in O/F 4 to 6 and the RL10 pressure band with its gate table; (3) the fallback rate in a C1-like run, measured, then domain against progress variable by the Director's rule (a declared domain if under about 1% of cell updates). All three done; TABLE_B.md has every result under its stated check.
+
+1. **The analytic Jacobian (cdce5fc; TABLE_B.md, *The analytic Jacobian, stated before its code* and *Results*).** `ReactionStep` (the builder's integrator and the runtime's CVODES fallback) now uses Cantera's net-production derivatives plus T and the constant-volume energy (`Jacobian::Analytic` default; `DifferenceQuotient` kept as an option).
+   - **Check 1 (FD match) passes after a flagged restatement.**
+     - Found a Cantera 3.2 bug: `getNetProductionRates_ddT` is stale after a composition change at the same T and ρ. Fixed with `invalidateCache()`.
+     - Cantera's one-sided `rtol-delta` is set to 1e-7, not 1e-8 (round-off scan).
+     - The reference is Richardson central differences at 1e-5.
+     - Worst column 3.1e-7 (h2o2) and 4.4e-7 (highT), bar 1e-6.
+   - **Check 2 (the 23 cold dense-radical starts) failed with the Jacobian alone.** The mechanism was written down, then measured: CVODES's first step is 3e-7 to 2e-6 s against recombination times of 5e-14 to 2e-10 s, and its default 10 corrector failures stop short.
+     - Fixed with `CVodeSetMaxConvFails(40)`: 0 integrator failures, and the 6,000 K branch integrates.
+   - **Check 3 passes.** PaSR output is identical at 10 and 40 failures. Against the pre-Jacobian build, the PaSR integration errors move within their limits.
+   - **Check 4 passes.** C1 4 ms: c*, Isp and thrust identical to printed digits, injector pressure 0 difference. The reaction wall time is 19% slower, on a loaded machine.
+2. **O/F 4 to 6 and a declared 1 to 10 MPa band (b52679d): Y_H2O passes 2(a) and 2(b) (0.010 K).** 2(c)'s 2 failures are the builder's refusals at η 0.6, ρ 80 kg/m³ (about 200 MPa, outside the band). No RL10 measurement was read.
+3. **The fallback rate in C1 (e6d4378; TABLE_B.md, *The fallback rate: measured*): 47.97% of cell updates over the run, 41.21% over the last ms. Over 1%, so by the Director's rule the progress variable is reopened.**
+   - The steady part is entirely the divergent nozzle (columns 19 to 31, ρ < 0.28 kg/m³). Every failing corner there is Y_H2O's 2(a) turn-back, on the C1-range table's 83 low-density nodes (ρ ≤ 0.069). The chamber and convergent section are on the table at every update.
+   - **Proposed for the Director (a design choice, derived, not tested): the specific entropy as progress variable.** At fixed (u, ρ), dS/dt = Σ (r_f − r_r) R ln(r_f/r_r) / ρ ≥ 0, since all 29 reactions are reversible with reverse rates from Kc (checked). So 2(a) passes by construction at every density. Still to measure: the N gate near equilibrium, the cost per cell, and the span on weakly reacting branches.
+   - Tooling: the builder's `CRUCIBLE_TABLE_B_FH_NODES`, the chamber study's `CRUCIBLE_STATE_SAMPLES`, `tools/fallback_rate.py`, and `crucible_state_samples_eta` (re-expresses η in another mechanism's energies).
+   - The C1-range table command is in TABLE_B.md. The samples are in `/tmp/c1fb/states*.csv` (not in git, 32 MB).
+
+**Open findings:**
+- **C1 on h2o2_highT fails at igniter onset (0.206 ms), so the fallback run used h2o2.yaml (a flagged deviation).** Measured mechanism: the igniter drives a cell to 12,176 K (e 79.5 MJ/kg, mostly O and H). h2o2_highT's 1,000 to 6,000 K fits, extrapolated, turn cv negative above 10,630 K (OH), 11,340 K (O) and 12,140 K (H2O), so `Medium::temperature` cannot invert. GRI's fits extrapolate monotonically.
+  - Fix options (engineering): thermo above 6,000 K (TM-4513's 6,000 to 20,000 K range, or constant cp past the fit), or a gentler igniter deposit.
+  - `core/medium.*` is inquiry2's; coordinate there.
+- **h2o2.yaml's η scale:** its u(6,000 K) is extrapolated 8% high, so η from h2o2.yaml states reads up to 0.079 low. Any table lookup from an h2o2.yaml run must convert.
+
+**Next, in order:**
+1. The Director's call on the progress variable (entropy proposed).
+2. If entropy: state its checks in TABLE_B.md first (2(a) and the N gate on the small, O/F 4 to 6 and C1-range tables; the cost of s per cell). Add it as a builder candidate, then rerun the fallback measurement on the same samples (`python3 tools/fallback_rate.py /tmp/c1fb/states_highT.csv <nodes csv> <candidate>`).
+3. The h2o2_highT thermo above 6,000 K, so that C1 runs on the table's own mechanism.
+
 ## Stopped at (20 October, about 18:30 CDT; session after /clear, READY TO CLEAR at about 100k)
 
 The Director's brief (after /clear, session to about 20:00): (1) Table B: fix the 40 integrator failures first, then a small table in O/F 4 to 6 and the RL10's pressure band, then domain against progress variable (a declared domain with a CVODES fallback is acceptable if its rate in a C1-like run is measured and under about 1% of cell updates); (2) measure how much h2o2.yaml's 1-atm standard state moved earlier results, C1 at least; (3) declare three RL10 tier-1 modelling choices with expected effects.
