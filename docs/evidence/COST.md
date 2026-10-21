@@ -262,3 +262,12 @@ A rerun of low with `CRUCIBLE_HOT_TRACE=3450` (e18c710; it reproduces the origin
 - Budgets: mass −6.7e-13 and energy 1.0e-11 (off: 1.0e-12 and −9.3e-13).
 - **Why it may be the grid and not a defect (derived).** (x) changes every interior face, not just the extremum cells. Face h comes from h's limited slope instead of from ρ's, which for one calorically perfect gas is temperature reconstruction. So at 32×6 the two runs are two second-order schemes with different truncation errors. The off run is itself +1.60% above the 2-D prediction at this grid (CHAMBER_C1.md: the coarse grid's known offset).
 - **(x3-C1b), registered before its run:** the same pair at 64×12 to 8 ms. It passes if the on/off c* difference is at most half its 32×6 value (≤ 9.2e-4, at least first-order shrinkage), and Isp and thrust stay within 1e-3. If not, the shift is (x)'s own, and adopting (x) is the Director's call with that number beside it.
+
+**(x1b): passes (measured; `xout/x1b.log`).** With the flag the maximum cell h never rises in a step in either run (0 exactly). Without it, it rises 4.18e-5 (+1 ramp) and 3.44e-5 (−1 ramp). The −1 run's max |p/p0 − 1| fell from 2.46e-3 to 1.14e-5, as derived, which confirms the inlet contact as x1's cause.
+
+**(x3), the nozzle: passes (measured; `xout/conv_off.csv`, `conv_on.csv`).** Entropy L1, 40×6 / 80×12 / 160×24:
+- Flag off: 8.307e-4 / 2.016e-4 / 5.005e-5, orders 2.043 and 2.010.
+- Flag on: 1.096e-3 / 2.587e-4 / 6.312e-5, orders 2.083 and 2.035.
+- Wall-row order: 2.019 and 1.998 off; 2.069 and 2.024 on.
+
+The order is not lower, but the entropy error is 26% larger with the flag at each grid. The total-enthalpy L1 is 28% smaller (1.72e-5 against 2.37e-5 at 160×24). Mass flow agrees with the flag-off value to 1e-7.
