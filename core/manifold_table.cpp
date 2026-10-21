@@ -6,7 +6,7 @@
 
 namespace crucible {
 namespace {
-constexpr char kMagic[] = "CRUCIBLE manifold table 1\n";
+constexpr char kMagic[] = "CRUCIBLE manifold table 2\n";  // 2: per-point c, the reference pressure
 template <class T>
 void put(std::ofstream& o, const T& v) { o.write(reinterpret_cast<const char*>(&v), sizeof v); }
 template <class T>
@@ -48,6 +48,7 @@ void ManifoldTable::save(const std::string& path) const {
   put(o, nLnRho);
   put(o, lnRhoMin);
   put(o, lnRhoMax);
+  put(o, referencePressure);
   put(o, static_cast<std::uint64_t>(reactingSpecies.size()));
   for (const auto& s : reactingSpecies) putString(o, s);
   put(o, lowerGeometric);
@@ -65,7 +66,7 @@ ManifoldTable ManifoldTable::load(const std::string& path) {
   if (!in) throw std::runtime_error("Cannot read manifold table " + path);
   std::string magic(sizeof kMagic - 1, '\0');
   in.read(magic.data(), static_cast<std::streamsize>(magic.size()));
-  if (magic != kMagic) throw std::runtime_error(path + " is not a manifold table.");
+  if (magic != kMagic) throw std::runtime_error(path + " is not a manifold table of layout version 2.");
   ManifoldTable t;
   t.provenance = getString(in);
   t.fH = getVector<double>(in);
@@ -74,6 +75,7 @@ ManifoldTable ManifoldTable::load(const std::string& path) {
   t.nLnRho = get<int>(in);
   t.lnRhoMin = get<double>(in);
   t.lnRhoMax = get<double>(in);
+  t.referencePressure = get<double>(in);
   t.reactingSpecies.resize(get<std::uint64_t>(in));
   for (auto& s : t.reactingSpecies) s = getString(in);
   t.lowerGeometric = get<int>(in);

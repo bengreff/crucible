@@ -14,8 +14,9 @@
 // carries its thermo to 6,000 K), printed in the provenance; the builder refuses a mechanism in which
 // N2 reacts (checked directly on its reactions, not inferred).
 //
-// The progress variable is chosen from three linear-in-Y candidates in order (Y_H2O; Y_H2O + Y_HO2
-// + Y_H2O2; the O2 consumed), each tried as a full build: gate 2(a) (turn-back) and the N gate must
+// The progress variable is chosen from four candidates in order (Y_H2O; Y_H2O + Y_HO2 + Y_H2O2; the
+// O2 consumed; the specific entropy s, TABLE_B.md "The entropy candidate in the builder"), each tried
+// as a full build (CRUCIBLE_TABLE_B_CANDIDATES=<comma list> selects which, in that order): gate 2(a) (turn-back) and the N gate must
 // both pass on every node for the candidate to be accepted. This cannot be done cheaper by caching
 // one candidate-independent integration, because the stopping time of a branch's own CVODES
 // integration (|c - c_eq| <= 1e-6 of its span) is itself defined by the candidate's c; a second or
@@ -59,6 +60,8 @@
 #include "core/manifold_table.hpp"
 
 using namespace crucible;
+
+constexpr int kEntropy = 3;  // the specific entropy as progress variable
 
 namespace {
 
@@ -211,6 +214,15 @@ std::vector<double> lowerFractions(int geometric, int uniform) {
 
 struct NodeOutcome {
   double turnBack = 0;
+  // E2 (s only): the table's T and Y at the midpoints of neighbouring stored points against the
+  // trajectory's own state there; all midpoints, and those within a quarter of the span of s_eq.
+  bool hasE2 = false;
+  double e2DT = 0, e2DY = 0, e2DTLast = 0, e2DYLast = 0;
+  // The same, with the stored Y interpolated linearly in the distance sqrt(s_ref - s) instead of in s,
+  // checked at the distance midpoints (TABLE_B.md, "E2 measured").
+  double e2dDT = 0, e2dDY = 0, e2dDTLast = 0, e2dDYLast = 0;
+  double spanLower = 0, spanUpper = 0;  // E3: |c_eq - c_start| per branch
+  bool e2Failure = false;               // an integration to a midpoint threw (reported, not a 2(c) failure)
   bool nGateChecked = false, nGateOk = true;
   bool hasDT2bLower = false, hasDT2bUpper = false;
   double dT2bLower = 0, dT2bUpper = 0;
@@ -226,8 +238,8 @@ struct NodeOutcome {
 // Builds one node into `out` at `nodeIdx`. Everything that can throw (equilibration, integration)
 // is caught here: a failure leaves the node's stored data unfinished, which is fine because the
 // table is only written once gate 2(c) (zero integrator failures) has passed.
-NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step, const SpeciesTable& sp,
-                       int candidate, double maxThermoT, const std::vector<double>& sLower,
+NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step, Cantera::ThermoPhase& th,
+                       const SpeciesTable& sp, int candidate, double maxThermoT, const std::vector<double>& sLower,
                        double f, double z, double eta, double rho, double eLo, double eHi,
                        ManifoldTable& out, std::size_t nodeIdx) {
   NodeOutcome result;
@@ -241,20 +253,41 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
   auto temperatureAt = [&](double ee, const std::vector<double>& y) {
     return bisect([&](double t) { return energyAt(t, y) - ee; }, 100.0, 6000.0);
   };
-  auto progress = [&](const double* y) -> double {
+  // c at z = [T, Y...]. The entropy is Cantera's, the integrator's own thermo.
+  std::vector<double> mu(ns);
+  auto setState = [&](const double* z) {
+    th.setMassFractions_NoNorm(z + 1);
+    th.setState_TD(z[0], rho);
+  };
+  auto progress = [&](const double* z) -> double {
+    const double* y = z + 1;
     switch (candidate) {
       case 0: return y[sp.iH2O];
       case 1: return y[sp.iH2O] + y[sp.iHO2] + y[sp.iH2O2];
-      default: return zo - y[sp.iO2];
+      case 2: return zo - y[sp.iO2];
+      default: setState(z); return th.entropy_mass();
     }
   };
-  auto dcdt = [&](const double* dzdt) -> double {  // dzdt size ns+1, [0]=dT/dt
+  // dc/dt at z, dzdt = rates at z (size ns+1, [0] = dT/dt). For s, the Gibbs relation at fixed u and rho:
+  // ds/dt = -sum_k mu_k (dY_k/dt) / (W_k T).
+  auto dcdt = [&](const double* z, const double* dzdt) -> double {
     switch (candidate) {
       case 0: return dzdt[1 + sp.iH2O];
       case 1: return dzdt[1 + sp.iH2O] + dzdt[1 + sp.iHO2] + dzdt[1 + sp.iH2O2];
-      default: return -dzdt[1 + sp.iO2];
+      case 2: return -dzdt[1 + sp.iO2];
+      default: {
+        setState(z);
+        th.getChemPotentials(mu.data());
+        double sum = 0;
+        for (std::size_t q = 0; q < ns; ++q) sum += mu[q] * dzdt[1 + q] / sp.weight[q];
+        return -sum / z[0];
+      }
     }
   };
+  // The stored points' fractions of a branch's span: linear for the linear candidates; for s, uniform in
+  // the distance to equilibrium, which is quadratic in s (E2's node rule).
+  auto lowerFrac = [&](double xi) { return candidate == kEntropy ? 1 - (1 - xi) * (1 - xi) : xi; };
+  auto upperFrac = [&](double u) { return candidate == kEntropy ? u * u : u; };
 
   const int lowerCount = out.lowerPoints();
   const int upperCount = out.upperUniform;
@@ -276,6 +309,7 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
         for (std::size_t q = 0; q < ns; ++q)
           if (sp.reactingPosition[q] != kNotReacting) py[sp.reactingPosition[q]] = zstate[q + 1];
         out.lambda(nodeIdx, p) = 0.0;
+        out.c(nodeIdx, p) = 0.0;
       }
       return result;
     }
@@ -318,7 +352,7 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     // The shared equilibrium (both branches meet here).
     std::vector<double> zEq = zLower;
     source.equilibrateUV(rho, zEq.data());
-    const double cEq = progress(zEq.data() + 1);
+    const double cEq = progress(zEq.data());
     result.tEq = zEq[0];
     if (zEq[0] > maxThermoT) result.outside = true;
 
@@ -326,8 +360,8 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     std::vector<double> zUpper(ns + 1);
     zUpper[0] = temperatureAt(e, yComplete);
     std::copy(yComplete.begin(), yComplete.end(), zUpper.begin() + 1);
-    const double cCp = progress(zUpper.data() + 1);
-    const double c0 = progress(zLower.data() + 1);
+    const double cCp = progress(zUpper.data());
+    const double c0 = progress(zLower.data());
     node.c0 = c0;
     node.cEq = cEq;
     node.cCp = cCp;
@@ -337,25 +371,39 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     if (zLower[0] > maxThermoT || zUpper[0] > maxThermoT) result.outside = true;
 
     const double spanLower = std::fabs(cEq - c0), spanUpper = std::fabs(cCp - cEq);
-    const bool zeroSpanLower = spanLower < kZeroSpanTol, zeroSpanUpper = spanUpper < kZeroSpanTol;
+    result.spanLower = spanLower;
+    result.spanUpper = spanUpper;
+    // For s, a zero span is one below 1e-9 |s_eq| (E3's scale); for the linear candidates, 1e-12.
+    const double zeroSpanTol = candidate == kEntropy ? 1e-9 * std::fabs(cEq) : kZeroSpanTol;
+    const bool zeroSpanLower = spanLower < zeroSpanTol, zeroSpanUpper = spanUpper < zeroSpanTol;
     if (zeroSpanLower || zeroSpanUpper) result.zeroSpan = true;
 
     // Integrates one branch from zStart toward branchCEq, recording every internal step (with its
     // exact rate, hence lambda) until within kStopFrac of the span or the time horizon.
     auto runBranch = [&](const char* name, const std::vector<double>& zStart, double branchCEq, bool& frozenOut) {
       std::vector<RawStep> steps;
-      const double cStart = progress(zStart.data() + 1);
+      const double cStart = progress(zStart.data());
       const double span = std::fabs(branchCEq - cStart);
+      // An s-branch stops on composition (TABLE_B.md, "The entropy candidate in the builder"): within
+      // 1e-6 of the start's largest species distance from the equilibrium.
+      double yDistStart = 0;
+      for (std::size_t q = 0; q < ns; ++q) yDistStart = std::max(yDistStart, std::fabs(zStart[q + 1] - zEq[q + 1]));
+      auto closeEnough = [&](const double* zz, double c) {
+        if (candidate != kEntropy) return std::fabs(branchCEq - c) <= kStopFrac * span;
+        double d = 0;
+        for (std::size_t q = 0; q < ns; ++q) d = std::max(d, std::fabs(zz[q + 1] - zEq[q + 1]));
+        return d <= kStopFrac * yDistStart;
+      };
       std::vector<double> dzdt(ns + 1);
       auto withLambda = [&](const double* z, double t) {
         source.rates(rho, z, dzdt.data());
-        const double c = progress(z + 1);
+        const double c = progress(z);
         const double denom = branchCEq - c;
         RawStep s;
         s.t = t;
         s.T = z[0];
         s.c = c;
-        s.lambda = denom != 0.0 ? dcdt(dzdt.data()) / denom : 0.0;
+        s.lambda = denom != 0.0 ? dcdt(z, dzdt.data()) / denom : 0.0;
         s.y.assign(z + 1, z + 1 + ns);
         return s;
       };
@@ -366,7 +414,7 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
       try {
         step.follow(rho, z.data(), kTEnd, [&](double t, const double* zz) {
           steps.push_back(withLambda(zz, t));
-          const bool close = std::fabs(branchCEq - steps.back().c) <= kStopFrac * span;
+          const bool close = closeEnough(zz, steps.back().c);
           if (close) frozenOut = false;
           return !close;
         });
@@ -492,7 +540,8 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
       projErr = std::max(std::fabs(err[0]), std::fabs(err[1]));
     };
 
-    auto storePoint = [&](int p, std::vector<double> y, double lambdaVal) {
+    auto storePoint = [&](int p, std::vector<double> y, double lambdaVal, double cVal) {
+      out.c(nodeIdx, p) = cVal;
       double rawErr, projErr, sumErr;
       project(y, rawErr, projErr, sumErr);
       result.rawElementError = std::max(result.rawElementError, rawErr);
@@ -507,15 +556,15 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
 
     const double cReachLower = zeroSpanLower ? cEq : (lowerFrozen ? lowerSteps.back().c : cEq);
     for (int p = 0; p < lowerCount; ++p) {
-      if (zeroSpanLower) { storePoint(p, eqY, 0.0); continue; }
-      const double c = c0 + sLower[p] * (cReachLower - c0);
+      if (zeroSpanLower) { storePoint(p, eqY, 0.0, cEq); continue; }
+      const double c = c0 + lowerFrac(sLower[p]) * (cReachLower - c0);
       if (p == lowerCount - 1 && !lowerFrozen) {
-        storePoint(p, eqY, 0.0);  // lambda fixed below (copied from the point before)
+        storePoint(p, eqY, 0.0, cEq);  // lambda fixed below (copied from the point before)
       } else {
         std::vector<double> y;
         double lam;
         atC(lowerSteps, c, y, lam);
-        storePoint(p, y, lam);
+        storePoint(p, y, lam, c);
       }
     }
     if (!zeroSpanLower && !lowerFrozen) out.lambda(nodeIdx, lowerCount - 1) = out.lambda(nodeIdx, lowerCount - 2);
@@ -523,18 +572,104 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     const double cReachUpper = zeroSpanUpper ? cEq : (upperFrozen ? upperSteps.back().c : cEq);
     for (int p = 0; p < upperCount; ++p) {
       const int idx = lowerCount + p;
-      if (zeroSpanUpper) { storePoint(idx, eqY, 0.0); continue; }
-      const double c = cReachUpper + (upperCount > 1 ? static_cast<double>(p) / (upperCount - 1) : 1.0) * (cCp - cReachUpper);
+      if (zeroSpanUpper) { storePoint(idx, eqY, 0.0, cEq); continue; }
+      const double c = cReachUpper + upperFrac(upperCount > 1 ? static_cast<double>(p) / (upperCount - 1) : 1.0) * (cCp - cReachUpper);
       if (p == 0 && !upperFrozen) {
-        storePoint(idx, eqY, 0.0);  // lambda fixed below
+        storePoint(idx, eqY, 0.0, cEq);  // lambda fixed below
       } else {
         std::vector<double> y;
         double lam;
         atC(upperSteps, c, y, lam);
-        storePoint(idx, y, lam);
+        storePoint(idx, y, lam, c);
       }
     }
     if (!zeroSpanUpper && !upperFrozen) out.lambda(nodeIdx, lowerCount) = out.lambda(nodeIdx, lowerCount - 1);
+
+    // E2 (s only; TABLE_B.md, "The entropy candidate in the builder"): at the midpoint in s of every pair
+    // of neighbouring stored points on a branch, the table's state (the stored Y interpolated linearly in
+    // s, T from the node's e on that Y) against the trajectory's own state at the same s, found by
+    // integrating from the last internal step below it with an Illinois iteration on the time.
+    if (candidate == kEntropy) {
+      auto fullY = [&](int p) {
+        std::vector<double> y(ns, 0.0);
+        const double* py = out.pointY(nodeIdx, p);
+        for (std::size_t q = 0; q < ns; ++q)
+          y[q] = sp.reactingPosition[q] != kNotReacting ? py[sp.reactingPosition[q]] : (q == sp.idx.n2 ? zn : 0.0);
+        return y;
+      };
+      auto trajectoryAt = [&](const std::vector<RawStep>& steps, double sm, double tol, std::vector<double>& z) {
+        std::size_t i = 1;
+        while (i < steps.size() && steps[i].c < sm) ++i;
+        if (i >= steps.size()) i = steps.size() - 1;
+        const RawStep& a = steps[i - 1];
+        std::vector<double> za(ns + 1);
+        za[0] = a.T;
+        std::copy(a.y.begin(), a.y.end(), za.begin() + 1);
+        auto f = [&](double dt) {
+          z = za;
+          if (dt > 0) step.advance(rho, z.data(), dt);
+          return progress(z.data()) - sm;
+        };
+        double lo = 0, flo = a.c - sm, hi = steps[i].t - a.t, fhi = f(hi);
+        for (int grow = 0; fhi < 0 && grow < 20; ++grow) { lo = hi; flo = fhi; hi *= 2; fhi = f(hi); }
+        int side = 0;
+        for (int it = 0; it < 60; ++it) {
+          const double dt = (lo * fhi - hi * flo) / (fhi - flo);
+          const double fm = f(dt);
+          if (std::fabs(fm) <= tol) return;
+          if (fm < 0) { lo = dt; flo = fm; if (side == -1) fhi *= 0.5; side = -1; }
+          else { hi = dt; fhi = fm; if (side == 1) flo *= 0.5; side = 1; }
+        }
+      };
+      // sRef: the branch's last stored c (s_eq, or the reach of a frozen branch), for the distance.
+      auto checkBranch = [&](const std::vector<RawStep>& steps, int first, int count, double span, double sRef) {
+        if (steps.size() < 2) return;
+        auto compare = [&](double sm, const std::vector<double>& ym, double& dTOut, double& dYOut, double tol) {
+          std::vector<double> z;
+          trajectoryAt(steps, sm, tol, z);
+          dTOut = std::fabs(temperatureAt(e, ym) - z[0]);
+          dYOut = 0;
+          for (std::size_t q = 0; q < ns; ++q)
+            if (sp.reactingPosition[q] != kNotReacting) dYOut = std::max(dYOut, std::fabs(ym[q] - z[q + 1]));
+        };
+        for (int p = first; p + 1 < first + count; ++p) {
+          const double ca = out.c(nodeIdx, p), cb = out.c(nodeIdx, p + 1);
+          if (ca == cb) continue;
+          const double tol = std::max(1e-6 * std::fabs(cb - ca), 1e-11 * std::fabs(ca));
+          const auto ya = fullY(p), yb = fullY(p + 1);
+          std::vector<double> ym(ns);
+          double dT, dY;
+          // Linear in s, at the midpoint in s (as stated).
+          const double sm = 0.5 * (ca + cb);
+          for (std::size_t q = 0; q < ns; ++q) ym[q] = 0.5 * (ya[q] + yb[q]);
+          compare(sm, ym, dT, dY, tol);
+          result.e2DT = std::max(result.e2DT, dT);
+          result.e2DY = std::max(result.e2DY, dY);
+          if (std::fabs(cEq - sm) <= 0.25 * span) {
+            result.e2DTLast = std::max(result.e2DTLast, dT);
+            result.e2DYLast = std::max(result.e2DYLast, dY);
+          }
+          // Linear in the distance d = sqrt(sRef - s), at the midpoint in d (the same Y, the mean of the
+          // two points, now placed at s = sRef - d_m^2).
+          const double da = std::sqrt(std::max(sRef - ca, 0.0)), db = std::sqrt(std::max(sRef - cb, 0.0));
+          const double dm = 0.5 * (da + db), sd = sRef - dm * dm;
+          compare(sd, ym, dT, dY, tol);
+          result.e2dDT = std::max(result.e2dDT, dT);
+          result.e2dDY = std::max(result.e2dDY, dY);
+          if (std::fabs(cEq - sd) <= 0.25 * span) {
+            result.e2dDTLast = std::max(result.e2dDTLast, dT);
+            result.e2dDYLast = std::max(result.e2dDYLast, dY);
+          }
+        }
+      };
+      try {
+        result.hasE2 = true;
+        if (!zeroSpanLower) checkBranch(lowerSteps, 0, lowerCount, spanLower, out.c(nodeIdx, lowerCount - 1));
+        if (!zeroSpanUpper) checkBranch(upperSteps, lowerCount, upperCount, spanUpper, out.c(nodeIdx, lowerCount));
+      } catch (const std::exception&) {
+        result.e2Failure = true;
+      }
+    }
 
     // The N gate (03:10, 2a): N = sum Y_k/W_k strictly falls from c_a to c_cp along the stored
     // points. c_a is the first stored point past phi_N(c) = 0.5% of the lower branch's own fall.
@@ -607,7 +742,7 @@ int main(int argc, char** argv) {
   if (nodeReport)
     std::fprintf(nodeReport, "candidate,f_H,Z_N,eta,rho,T_eq,c0,c_eq,c_cp,degenerate,zero_span,outside,lower_frozen,upper_frozen,"
                              "integrator_failure,turn_back,n_gate_checked,n_gate_ok,dT_2b_lower,dT_2b_upper,raw_element_error,"
-                             "sum_error,failure\n");
+                             "sum_error,span_lower,span_upper,e2_dT,e2_dY,e2_dT_last_quarter,e2_dY_last_quarter,e2d_dT,e2d_dY,e2d_dT_last_quarter,e2d_dY_last_quarter,e2_failure,failure\n");
 
   refuseReactingN2(mechanism);
 
@@ -668,6 +803,13 @@ int main(int argc, char** argv) {
     std::array<std::size_t, 4> worstProjectedLoc{};
     std::size_t branchCount = 0;
     double branchTimeSumMs = 0, branchTimeWorstMs = 0;
+    // E2 and E3 (s only).
+    double e2DT = 0, e2DY = 0, e2DTLast = 0, e2DYLast = 0;
+    std::array<std::size_t, 4> e2DTLoc{}, e2DYLoc{};
+    double e2dDT = 0, e2dDY = 0, e2dDTLast = 0, e2dDYLast = 0;
+    std::array<std::size_t, 4> e2dDTLoc{}, e2dDYLoc{};
+    std::size_t e2Failures = 0;
+    double minSpanRatio = std::numeric_limits<double>::infinity();
   };
 
   auto buildAttempt = [&](int candidate, ThreadStats& merged) {
@@ -683,6 +825,8 @@ int main(int argc, char** argv) {
     auto run = [&]() {
       thermo::ReactionSource source(mechanism);
       thermo::ReactionStep step(source, 1e-10, 1e-30);
+      auto solution = Cantera::newSolution(mechanism, "", "none");  // the entropy candidate's thermo
+      Cantera::ThermoPhase* thermoPhase = solution->thermo().get();
       ThreadStats ts;
       for (std::size_t idx; (idx = next.fetch_add(1)) < totalNodes;) {
         std::size_t rem = idx;
@@ -693,18 +837,22 @@ int main(int argc, char** argv) {
         const std::size_t j = rem % nZN;
         const std::size_t i = rem / nZN;
         const double eta = table.eta(k), rho = std::exp(table.lnRho(l));
-        const auto r = buildNode(source, step, sp, candidate, maxT, sLower, table.fH[i], table.zN[j], eta, rho,
+        const auto r = buildNode(source, step, *thermoPhase, sp, candidate, maxT, sLower, table.fH[i], table.zN[j], eta, rho,
                                   table.eLo[table.fzIndex(i, j)], table.eHi[table.fzIndex(i, j)], table, idx);
         if (nodeReport) {
           std::string why = r.failure;
           for (char& ch : why) if (ch == ',' || ch == '\n' || ch == '"') ch = ' ';
           std::lock_guard<std::mutex> lock(report);
-          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%s\n",
+          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%.6e,%.6e,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s\n",
                        candidate, table.fH[i], table.zN[j], eta, rho, r.tEq, r.c0, r.cEq, r.cCp, r.degenerate, r.zeroSpan,
                        r.outside, r.lowerFrozen, r.upperFrozen, r.integratorFailure, r.turnBack, r.nGateChecked, r.nGateOk,
                        r.hasDT2bLower ? std::to_string(r.dT2bLower).c_str() : "",
                        r.hasDT2bUpper ? std::to_string(r.dT2bUpper).c_str() : "", r.rawElementError, r.sumError,
-                       why.c_str());
+                       r.spanLower, r.spanUpper, r.hasE2 ? std::to_string(r.e2DT).c_str() : "",
+                       r.hasE2 ? std::to_string(r.e2DY).c_str() : "", r.hasE2 ? std::to_string(r.e2DTLast).c_str() : "",
+                       r.hasE2 ? std::to_string(r.e2DYLast).c_str() : "", r.hasE2 ? std::to_string(r.e2dDT).c_str() : "",
+                       r.hasE2 ? std::to_string(r.e2dDY).c_str() : "", r.hasE2 ? std::to_string(r.e2dDTLast).c_str() : "",
+                       r.hasE2 ? std::to_string(r.e2dDYLast).c_str() : "", r.e2Failure, why.c_str());
         }
         if (r.turnBack > ts.worstTurnBack) { ts.worstTurnBack = r.turnBack; ts.worstTurnBackLoc = {i, j, k, l}; }
         if (r.nGateChecked && !r.nGateOk) { ++ts.nGateFailures; ts.worstNGateLoc = {i, j, k, l}; }
@@ -722,6 +870,20 @@ int main(int argc, char** argv) {
         ts.branchCount += static_cast<std::size_t>(r.branchesIntegrated);
         ts.branchTimeSumMs += r.branchTimeSumMs;
         ts.branchTimeWorstMs = std::max(ts.branchTimeWorstMs, r.branchTimeWorstMs);
+        if (r.hasE2) {
+          if (r.e2DT > ts.e2DT) { ts.e2DT = r.e2DT; ts.e2DTLoc = {i, j, k, l}; }
+          if (r.e2DY > ts.e2DY) { ts.e2DY = r.e2DY; ts.e2DYLoc = {i, j, k, l}; }
+          ts.e2DTLast = std::max(ts.e2DTLast, r.e2DTLast);
+          ts.e2DYLast = std::max(ts.e2DYLast, r.e2DYLast);
+          if (r.e2dDT > ts.e2dDT) { ts.e2dDT = r.e2dDT; ts.e2dDTLoc = {i, j, k, l}; }
+          if (r.e2dDY > ts.e2dDY) { ts.e2dDY = r.e2dDY; ts.e2dDYLoc = {i, j, k, l}; }
+          ts.e2dDTLast = std::max(ts.e2dDTLast, r.e2dDTLast);
+          ts.e2dDYLast = std::max(ts.e2dDYLast, r.e2dDYLast);
+          ts.e2Failures += r.e2Failure;
+          const double sEq = std::fabs(r.cEq);
+          for (double span : {r.spanLower, r.spanUpper})
+            if (span >= 1e-9 * sEq) ts.minSpanRatio = std::min(ts.minSpanRatio, span / sEq);
+        }
       }
       std::lock_guard<std::mutex> lock(report);
       if (ts.worstTurnBack > merged.worstTurnBack) { merged.worstTurnBack = ts.worstTurnBack; merged.worstTurnBackLoc = ts.worstTurnBackLoc; }
@@ -740,6 +902,16 @@ int main(int argc, char** argv) {
       merged.branchCount += ts.branchCount;
       merged.branchTimeSumMs += ts.branchTimeSumMs;
       merged.branchTimeWorstMs = std::max(merged.branchTimeWorstMs, ts.branchTimeWorstMs);
+      if (ts.e2DT > merged.e2DT) { merged.e2DT = ts.e2DT; merged.e2DTLoc = ts.e2DTLoc; }
+      if (ts.e2DY > merged.e2DY) { merged.e2DY = ts.e2DY; merged.e2DYLoc = ts.e2DYLoc; }
+      merged.e2DTLast = std::max(merged.e2DTLast, ts.e2DTLast);
+      merged.e2DYLast = std::max(merged.e2DYLast, ts.e2DYLast);
+      if (ts.e2dDT > merged.e2dDT) { merged.e2dDT = ts.e2dDT; merged.e2dDTLoc = ts.e2dDTLoc; }
+      if (ts.e2dDY > merged.e2dDY) { merged.e2dDY = ts.e2dDY; merged.e2dDYLoc = ts.e2dDYLoc; }
+      merged.e2dDTLast = std::max(merged.e2dDTLast, ts.e2dDTLast);
+      merged.e2dDYLast = std::max(merged.e2dDYLast, ts.e2dDYLast);
+      merged.e2Failures += ts.e2Failures;
+      merged.minSpanRatio = std::min(merged.minSpanRatio, ts.minSpanRatio);
     };
     for (int w = 0; w < threads; ++w) pool.emplace_back(run);
     for (auto& t : pool) t.join();
@@ -754,12 +926,19 @@ int main(int argc, char** argv) {
     return std::string(buf);
   };
 
-  const char* candidateNames[3] = {"Y_H2O", "Y_H2O + Y_HO2 + Y_H2O2", "the O2 consumed"};
+  const char* candidateNames[4] = {"Y_H2O", "Y_H2O + Y_HO2 + Y_H2O2", "the O2 consumed", "the specific entropy"};
+  std::vector<int> candidates = {0, 1, 2, 3};
+  if (const char* list = std::getenv("CRUCIBLE_TABLE_B_CANDIDATES")) {
+    candidates.clear();
+    for (double v : parseList(list)) candidates.push_back(static_cast<int>(v));
+    for (int c : candidates)
+      if (c < 0 || c > 3) throw std::runtime_error("CRUCIBLE_TABLE_B_CANDIDATES: no candidate " + std::to_string(c));
+  }
   int chosen = -1;
   ManifoldTable table;
   ThreadStats stats;
   double buildWall = 0;
-  for (int candidate = 0; candidate < 3; ++candidate) {
+  for (int candidate : candidates) {
     ThreadStats attemptStats;
     auto [attemptTable, wall] = buildAttempt(candidate, attemptStats);
     const bool turnBackOk = attemptStats.worstTurnBack <= kTurnBackGate;
@@ -772,6 +951,18 @@ int main(int argc, char** argv) {
                 "criterion 1 |sum Y - 1| %.2e, elements %.2e after projection\n",
                 attemptStats.worstDT2b, locStr(attemptStats.worstDT2bLoc).c_str(), attemptStats.frozenLower,
                 attemptStats.frozenUpper, attemptStats.integratorFailures, attemptStats.worstSum, attemptStats.worstProjected);
+    if (candidate == kEntropy) {
+      std::printf("  E2 (midpoints, bars 3 K and dY 0.01): worst |dT| %.4f K at %s, worst max|dY| %.3e at %s; "
+                  "last quarter of the span |dT| %.4f K, max|dY| %.3e; %zu midpoint integration failures\n",
+                  attemptStats.e2DT, locStr(attemptStats.e2DTLoc).c_str(), attemptStats.e2DY,
+                  locStr(attemptStats.e2DYLoc).c_str(), attemptStats.e2DTLast, attemptStats.e2DYLast, attemptStats.e2Failures);
+      std::printf("  E2 linear in the distance sqrt(s_ref - s), at the distance midpoints: worst |dT| %.4f K at %s, worst "
+                  "max|dY| %.3e at %s; last quarter |dT| %.4f K, max|dY| %.3e\n",
+                  attemptStats.e2dDT, locStr(attemptStats.e2dDTLoc).c_str(), attemptStats.e2dDY,
+                  locStr(attemptStats.e2dDYLoc).c_str(), attemptStats.e2dDTLast, attemptStats.e2dDYLast);
+      std::printf("  E3 (span against 1e-9 |s_eq|): %zu nodes with a branch under it (stored as zero span); smallest "
+                  "span above it %.3e |s_eq|\n", attemptStats.zeroSpanCount, attemptStats.minSpanRatio);
+    }
     if (turnBackOk && nGateOk) {
       chosen = candidate;
       table = std::move(attemptTable);
@@ -779,7 +970,7 @@ int main(int argc, char** argv) {
       buildWall = wall;
       break;
     }
-    if (candidate == 2) {
+    if (candidate == candidates.back()) {
       table = std::move(attemptTable);
       stats = attemptStats;
       buildWall = wall;
@@ -831,10 +1022,14 @@ int main(int argc, char** argv) {
                 "%zu nodes in %.0f s on %d threads; node element error %.2e raw, %.2e after projection, |sum Y - 1| %.2e; "
                 "gates: 2a %s, 2b %s, 2c %s, criterion 1 %s%s",
                 date, mechanism.c_str(), Cantera::version().c_str(), nFH, fHStr.c_str(), zStr.c_str(), nEta, nLnRho,
-                rhoMin, rhoMax, chosen >= 0 ? candidateNames[chosen] : candidateNames[2], totalNodes, buildWall, threads,
+                rhoMin, rhoMax, chosen >= 0 ? candidateNames[chosen] : candidateNames[candidates.back()], totalNodes, buildWall, threads,
                 stats.worstRaw, stats.worstProjected, stats.worstSum, gate2a ? "pass" : "FAIL", gate2b ? "pass" : "FAIL",
                 gate2c ? "pass" : "FAIL", criterion1 ? "pass" : "FAIL", allGatesPass ? "" : " -- GATE FAILURE");
   table.provenance = text;
+  {
+    auto solution = Cantera::newSolution(mechanism, "", "none");
+    table.referencePressure = solution->thermo()->refPressure();
+  }
   std::printf("%s\n", text);
 
   if (!allGatesPass && !writeAnyway) {
