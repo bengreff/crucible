@@ -511,6 +511,18 @@ The capped nodes are f_H 1/7 at η 0.8 and f_H 0.2 at η 0.6, both Z_N 0, at eve
 - Where the recorded interval is not positive, the first trial step comes from the rate there: (s_target − s_a)/(ds/dt), with ds/dt = λ (s_eq − s_a). The bracket then grows by doubling, up to 100 times.
 - A search that still fails throws, and the node is counted as an E2 failure; it is never stored.
 
+### The search seeded from the rate measured; the remaining failures sit at s's integration noise floor; a counted fallback to the raw steps, stated before its code (20 October 2026, 22:40 CDT)
+
+**Measured.** The nodes at the cap are gone from both tables: none at the cap, at most 15 points added. The eighth points are at worst 1.98 K and ΔY 3.4e-3 (O/F 4 to 6), and 2.09 K and ΔY 7.1e-3 (C1 range).
+
+Two E2 searches fail in each table, with CVODES flag −3, at f_H 1/6 and 0.2, Z_N 0.3, η 0.2, ρ 80.
+- **The mechanism (measured on f_H 0.2):** the node's upper branch is frozen, with a span of 0.0029 J/(kg K) (2e-7 of s). Its last raw steps sit at t of about 1.6e14 s, with λ of 1.7e-16 /s, and differ in s by less than CVODES's reproducibility of s there (rtol 1e-10 of Y).
+- So re-integrating from one raw step over the recorded interval falls short of the next raw step's s. The bracket then doubles until the integration fails at 6.2e14 s.
+- The T change along the whole of such a branch is a small fraction of a kelvin (*inferred* from its span), so E2 there tests the noise, not the curve.
+
+**The fix.** If a search fails (no convergence, or a CVODES failure), the trajectory's state at the target comes from the two bracketing raw steps, interpolated linearly in s. Those are CVODES internal steps, the source of the stored points themselves.
+- Each such fallback is counted and reported: the number, the nodes, and the largest span among their branches. It is not an E2 pass on its own: the report shows where E2 was not independent.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
