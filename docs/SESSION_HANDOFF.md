@@ -1,6 +1,46 @@
 # Session handoff
 
-20 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
+21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
+
+## Stopped at (21 October, about 01:00 CDT; night run, READY TO CLEAR)
+
+**The Director's brief on 67c9053** (night to about 05:30):
+- **(A)** Table B's bar is 0.2% on c*, Isp_vac and F_vac against the CVODES run. Check the face mechanism, drop corners below 1e-12, rebuild at Δη 0.1, rerun C1 against 0.2% and the 1% steady fallback. If 0.1 is not enough, measure the error against spacing before going finer.
+- **(B)** Five decisions on the RL10 plan, to record.
+
+Commits 385d116, 3b7b120, 28fb9e9. The results are in TABLE_B.md, the three sections from *The bar set, the face mechanism measured* on.
+
+1. **The face mechanism, measured and fixed (385d116, 28fb9e9).** All 119,963 last-ms frozen-corner refusals came from one Z_N 0.3 node at a weight below 1e-30.
+   - With corners below 1e-12 dropped: 0 refusals, and 100% table in every region over the last ms, on both tables.
+2. **The Δη 0.2 table with the drop fails the 0.2% bar:** c* −0.57%, Isp and F_vac −0.42%.
+   - Static interpolation error at the cells: −23.4 K on the 0.2 table against −8.3 K on the 0.1 (a ratio of 2.8, not 4; *derived:* about 3 K does not fall with Δη).
+3. **The Δη 0.1 table with the drop alone never lit the face.** Measured mechanism: mixed front cells on the lower branch below φ_N 0.3 carry their own intermediates (H2O2, HO2, OH, H), which set their rate. The curve does not carry them, and the table's march misses CVODES by means of 11 to 606 K over 1.2 µs there (at most 2.8 K from 0.3 up).
+   - The 0.2 table escaped only because its hotter blended start sent those states to CVODES.
+   - **Stated cut, then coded:** below φ_N 0.3 on the lower branch is a new cause, `Induction`, sent to CVODES. Measured steady cost: 0 of about 96,000 last-ms samples.
+4. **R3 passes on the Δη 0.1 table with the drop and the cut (28fb9e9):**
+   - c* −0.061%, Isp_vac −0.134%, F_vac −0.135%, injector face −0.047%.
+   - 0% fallback in every region over the last ms.
+   - The face lights at 0.282 to 0.284 ms, as under CVODES.
+   - 60 s against 451 s of wall time.
+   - R1: 0 cause disagreements, τ 8.7e-9 (past the 1e-9 bar as before). R2 (a) to (d) pass.
+   - The cut on the 0.2 table changes nothing in the steady result.
+5. **The RL10 plan (3b7b120):** the five decisions recorded, with member 11b (the recess through the SMD correlation only) and 27 deviations. Budget: 15 to 200 run-hours, up to 240 if the re-meshed members start cold.
+   - Dated note: Table B passed on C1, not yet on the RL10's own range.
+6. **Fast ctest after 28fb9e9:** the same 7 pass and the same 4 fail (amr, amr_subcycling, transport, spray). The sorted FAIL lines are identical to 38838d7's (measured: diff; `docs/evidence/table_b/induction_cut_ctest_2026-10-21.txt`).
+
+**Next, in order:**
+1. **Table B on the RL10's range.** Build its node set at Δη 0.1: f_H at the RL10's O/F band, ρ over its chamber pressure band and the nozzle's expansion, Z_N 0. Check the build's gates. When a tier-1 RL10 run exists, replay R1, R2 and the horizon bins on its samples. Until it passes there, Table A stays central (decision 1).
+   - The liquid LOX's cold states (below the 200 K floor) go to CVODES as "outside the axes". Measure their share.
+2. **`tier1_skeleton.md`:** state the cup's resolution criterion (cells across its depth and width) before any tier-1 run (decision 5).
+3. **R1's τ bar** (1e-9, guessed) is passed by 8.7e-9. *Inferred:* inside the Illinois tolerance (1e-12 × N, with N flat in τ), and Y moves under 1e-8. Restate it as engineering, or tighten the solve.
+4. The build's open gates on the C1 table: the turn-back (7.3e-7), 5 integrator failures and 10 N-gate failures. C1 never reaches them (measured: no refused, flagged or frozen corner over the run).
+5. The per-cell entropy agreement with inquiry2 (below, unchanged).
+
+**Files not in git** (the commands are in TABLE_B.md):
+- `/tmp/tbs/c1r11_s.bin`: the passing Δη 0.1 table, rebuilt in 15 s;
+- `/tmp/c1e1`, `/tmp/c1e2`: the cut runs and their state samples;
+- `/tmp/c1d1`, `/tmp/c1d2`: the drop runs;
+- `/tmp/stat`: the static and horizon replays.
 
 ## Stopped at (20 October, about 23:55 CDT; night run, READY TO CLEAR)
 
