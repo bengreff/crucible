@@ -449,6 +449,25 @@ The small table with s (`table_b/small_s_2026-10-20.txt`): E2 fails at 142 of 18
 - **2(a) on the small table: one node over the bar, by round-off (measured):** a fall of 1.1e-11 J/(kg K) (1.7 ulp of s = 28,769 J/(kg K)) on an upper branch of span 0.007 J/(kg K), at f_H 0.556 (O/F 0.8), Z_N 0.3, η 0.2, ρ 30. That is not a second-law turn-back. The 1e-9 bar is below s's round-off for spans under about 0.1 J/(kg K). It is reported, not re-barred; the node is outside O/F 4 to 6.
 - The N gate fails at 26 nodes (f_H 0.556: 23; 0.056: 3; mostly η ≥ 0.6), outside O/F 4 to 6, as with Y_H2O. 2(b) passes (0.015 K), 2(c) has 0 integrator failures, and E3 finds 30 nodes with a branch under 1e-9 |s_eq| (stored as zero span).
 
+### E2 in the distance measured, the mechanism, and per-node refinement, stated before its code (20 October 2026, 22:45 CDT)
+
+**Measured.** On the small table, interpolating in d = √(s_ref − s) at the d-midpoints gives a worst |ΔT| of 25.9 K (f_H 0.056, η 1, ρ 0.013) and a worst ΔY of 0.030. 117 of 180 nodes fail, against 142 when linear in s. Median 4.1 K, 90% 10.6 K.
+
+A per-pair dump (`CRUCIBLE_TABLE_B_E2_DUMP`) on f_H 0.056, Z_N 0, 6 η by 3 ρ:
+- **The stored points are right.** Each matches the trajectory at its own s to 0.010 K at worst. The error is the curve bending between points, not the points themselves.
+- **(i) The lower branch's last two or three gaps at high η.** At η 1, ρ 1e-3, T goes 2,523, 2,509, 2,573, 2,677 K over ξ 0.94 to 1. *Inferred:* the shuffle reactions equilibrate first, then three-body recombination raises T by about 170 K while s gains under 1% of its span. This is the slow approach that a nozzle samples. The worst gap is 19.4 K at the d-midpoint.
+- **(ii) The upper branch's 8 gaps,** each about 400 K of T at η 1: 2 to 7 K.
+
+**Why uniform refinement is a poor fix (*inferred*).** Linear interpolation errs as the square of the gap. A uniform fix sized to the worst node needs about 2.5 times the lower uniform points everywhere, for a bend whose place moves with (η, ρ).
+
+**The change (engineering, bars unchanged).**
+- **Per-node refinement.** After the 40 base points, each gap on a branch whose d-midpoint fails 3 K or ΔY 0.01 gets a new point: the trajectory's own state at that d-midpoint. That state comes from CVODES with the Illinois iteration, projected onto the node's elements, with λ from the rates there. This repeats until every gap passes, or the node holds 400 points; a node at the cap fails E2 and is reported.
+- **The independent check.** The midpoints are now the refinement criterion, so E2 is re-measured where it was not used: at the quarter points of every final gap (d at 1/4 and 3/4), against the same bars, over every gap and over the last quarter of the span. The report also gives the points added (median and maximum per node) and the nodes at the cap.
+- **Layout version 3.** Each node carries its first point, its point count and its lower branch's count. The base 40 points keep the common ξ.
+  - The runtime takes the cell's ξ from one square root on the corners' blended s_eq and spans: ξ = 1 − √((s̄_eq − s_cell)/s̄pan). Every stored point satisfies s = s_eq − span (1 − ξ)² on its own corner, so this ξ is exact for the blend.
+  - Each corner's segment then comes from its own search in d: 16 searches of up to 400 points, about 9 comparisons each (*inferred*: under 1 µs against the 155 µs cell update).
+- **The N gate runs on the final points.**
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
