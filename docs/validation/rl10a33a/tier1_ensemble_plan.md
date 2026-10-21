@@ -17,7 +17,7 @@ The predicted quantities are the protocol's §3 list: F_vac, Isp_vac (on the cha
 | 2 | Injector face station | −13.1 in | −13.4, −12.8 in (2) | protocol §4 |
 | 3 | Exit station | 46.0 in | 45.29, 46.40 in (2) | protocol §4 |
 | 4 | Hot-gas wall temperature | 567 K | 300, 834 K (2) | protocol §4 |
-| 5 | LOX SMD | SPRAY.md's central | its bracket's ends (2) | protocol §4, SPRAY.md |
+| 5 | LOX SMD | SPRAY.md's central: Burick at the ring's group 5.03, SMD 447 μm (21 Oct, about 02:28; `tier1_setup.md`) | its bracket's ends (2): 263 and 581 μm, the scatter's stated width | protocol §4, SPRAY.md |
 | 6 | Injection temperatures | plenum values | ±0.1 R (0: carried from tier 0's sensitivity; decided 21 Oct) | protocol §4 |
 | 7 | Supply turbulence intensity | 5% | 2%, 10% (2) | protocol §4 |
 | 8 | LOX post inner diameter d_L | 3.54 mm | 2.62, 4.78 mm (2) | skeleton |

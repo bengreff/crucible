@@ -2,7 +2,7 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Stopped at (21 October, about 02:20 CDT; night run, continuing on the dry-run build)
+## Stopped at (21 October, about 02:30 CDT; night run, READY TO CLEAR)
 
 **The Director's brief on 30483ac:**
 - the fallback bar is (b), split;
@@ -11,7 +11,7 @@
 - (2) read the four queued jobs;
 - (3) the tier-1 central case's setup as a dry-run build.
 
-Commits 5b4679f, 316a719 (the merge), 03cf8b4, 64bab89, 0b4542e, and the TABLE_B commit after them.
+Commits 5b4679f, 316a719 (the merge), 03cf8b4, 64bab89, 0b4542e, fc6ede3 (the four jobs in TABLE_B, after the Director's cv562 note), e4574e1 and c3a402e (the dry run's drop size and members).
 
 1. **The split bar (5b4679f):** recorded in TABLE_B.md (*The fallback bar split*) and the RL10 plan. C1 and the RL10 check both pass under it. Table B is the central case's chemistry.
 2. **The merge (316a719):** clean, from the main checkout.
@@ -28,6 +28,16 @@ Commits 5b4679f, 316a719 (the merge), 03cf8b4, 64bab89, 0b4542e, and the TABLE_B
    - **G5 and G6:** `Flow` refuses choice 1's true slots below 1,280 rings, and the slots need over 5,120 rings to meet 5%. The merged bands pass at 1192 × 128, but with J at 5 to 34% of the elements'.
    - **G7 fails,** so decision 5's branch is applied, dated before any run (plan 0b4542e). Burick's curve has no recess term, so members 11 and 11b are not run either; the recess's effect is a declared limit (c* and Isp low).
 
+5. **The dry run continued (e4574e1 rule, then c3a402e results; `tier1_setup.md`, from *The LOX drop size*):**
+   - **G8, the LOX drop size.** Mascotte's Burick rule is applied at the ring's group of 5.03, inside Burick's data. D̄/D_L is 0.148, q 3.207, so the **SMD is 447 μm**. Member 5's ends are 263 and 581 μm: the scatter's stated width, ×1.3 and /1.7, since three markers near group 5 cannot bound a band. Porcheron's core length is 6.84 mm. `Spray` now builds Rosin-Rammler injectors with these values.
+   - **All ten geometry and flow members** (8, 9, 10, 12, 13, 14) were dry-run at 1192 × 128. G2, G3 and G8 pass, and G6 passes for the merged layout.
+   - **Two rules were stated after the member runs and before any run** (engineering, resolved here, reversible):
+     - (1) r_1 is the smallest radius at which ring 1 holds its slots and the rings clear each other. It binds for d_L 4.78 mm, t 0.37 d_L, h 0.80 d_L and r_8 = R_c − p; the central case is unchanged.
+     - (2) Burick's curve continues past its table at Mascotte's slope. This is needed only at h 0.09 d_L (group 17.0, extrapolated and flagged).
+   - **Seen:**
+     - Member 10 spans J 0.18 to 29. With merged bands at h 0.09, J at the mesh is 0.8 to 6% of the elements' value: the face-inlet decision's sharpest case.
+     - Burick's reading wobbles at groups 4.5 to 5.6 (digitisation noise), so members 9 and 14 move the SMD by under 4%.
+
 **DECISION NEEDED (the Director): the face inlet for choice 1.** Recommended: **(a)**, an open-area sub-cell supply in `core/flow` (inquiry2's lane). It keeps each slot's mass flow, momentum and J at any mesh, and the rest of each ring's face is wall. The alternatives:
 - (b) merged bands, with J at 5 to 34% as a declared limit;
 - (c) resolved slots, unaffordable.
@@ -37,8 +47,9 @@ The details are in `tier1_setup.md`, *Findings*. Also there, both engineering:
 - the face's wall temperature: a per-segment value or an adiabatic face is needed.
 
 **Next (straight line to RL10), while the decision is open:**
-- the LOX SMD central and bracket from Burick's Fig. 38 at group 5.03 (an input, not an outcome);
-- then the tier-1 run definition (settling, AMR tags) once inquiry2's corner fix and the inlet land.
+- date the supply turbulence's length scale (finding 2, 0.07 D_h at the slots) and wire it into the driver;
+- then the tier-1 run definition (settling, AMR tags, parcel rate) once inquiry2's corner fix and the inlet land;
+- the dry run is otherwise complete for every member the environment covers. Members 2, 3, 4, 7, 15 and 16 each change one Definition value and no geometry.
 
 S7/Mascotte is still held behind inquiry2's corner fix.
 
