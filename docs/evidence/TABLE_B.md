@@ -481,6 +481,17 @@ This is the second fix of this bug to fail, so the mechanism is written down abo
 
 **The change (engineering, bars unchanged).** A gap is refined if any of its three interior points (d at 1/4, 1/2 and 3/4) fails 3 K or ΔY 0.01. The new point goes at the worst of the three, with the trajectory's own state there. The independent check moves to the eighth points (1/8, 3/8, 5/8, 7/8) of every final gap. The cap and the report are otherwise unchanged.
 
+### Three-point refinement measured; the eighth points exceed by sampling; a refinement target under the bar, stated before its code (20 October 2026, 22:24 CDT)
+
+**Measured** on the small table (`table_b/small_s_refined3_2026-10-20.txt`):
+- Refinement adds a median of 1 point per node and at most 10. None reaches the cap. The final 1/4, 1/2 and 3/4 points are at worst 2.994 K and ΔY 8.8e-3.
+- The independent eighth points: 6 of 24,100 checks are over a bar, at worst 3.19 K. ΔY is at worst 9.6e-3, under its bar. 4 are on the upper branch and 2 on the lower.
+- **The mechanism (measured from the dump):** in each of the 6 gaps, the three samples sat just under 3 K. The error profile across the gap is smooth (for example 0.67, 1.98, 3.19, 1.48 K at the eighths) and peaks between two samples, up to 6.7% above the highest sample. This is not a new bend. A refinement that stops exactly at the bar will always be exceeded by a finer check of its own gaps.
+
+**The change (engineering; E2's bars unchanged at 3 K and 0.01).**
+- The refinement's target is 2/3 of the bars: 2 K and ΔY 0.0067. The eighth-point check stays at the full bars.
+- The margin covers a smooth profile's peak between samples (measured at up to 6.7% here). 2/3 leaves room for sharper profiles than these; that factor is *guessed*.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
