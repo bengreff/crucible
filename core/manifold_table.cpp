@@ -6,7 +6,7 @@
 
 namespace crucible {
 namespace {
-constexpr char kMagic[] = "CRUCIBLE manifold table 2\n";  // 2: per-point c, the reference pressure
+constexpr char kMagic[] = "CRUCIBLE manifold table 3\n";  // 2: per-point c, the reference pressure; 3: points per node
 template <class T>
 void put(std::ofstream& o, const T& v) { o.write(reinterpret_cast<const char*>(&v), sizeof v); }
 template <class T>
@@ -66,7 +66,7 @@ ManifoldTable ManifoldTable::load(const std::string& path) {
   if (!in) throw std::runtime_error("Cannot read manifold table " + path);
   std::string magic(sizeof kMagic - 1, '\0');
   in.read(magic.data(), static_cast<std::streamsize>(magic.size()));
-  if (magic != kMagic) throw std::runtime_error(path + " is not a manifold table of layout version 2.");
+  if (magic != kMagic) throw std::runtime_error(path + " is not a manifold table of layout version 3.");
   ManifoldTable t;
   t.provenance = getString(in);
   t.fH = getVector<double>(in);
@@ -89,8 +89,12 @@ ManifoldTable ManifoldTable::load(const std::string& path) {
                                   static_cast<std::size_t>(t.nLnRho);
   if (!in || t.fH.empty() || t.zN.empty() || t.nEta < 1 || t.nLnRho < 1 || t.reactingSpecies.empty() ||
       t.eLo.size() != t.fH.size() * t.zN.size() || t.eHi.size() != t.eLo.size() || t.nodes.size() != totalNodes ||
-      t.points.size() != totalNodes * static_cast<std::size_t>(t.pointsPerNode()) * t.pointWidth())
+      t.points.size() % t.pointWidth() != 0)
     throw std::runtime_error(path + " is truncated or inconsistent.");
+  for (const auto& n : t.nodes)
+    if (n.lowerCount > n.pointCount ||
+        (static_cast<std::size_t>(n.firstPoint) + n.pointCount) * t.pointWidth() > t.points.size())
+      throw std::runtime_error(path + " has a node whose points lie outside the table.");
   return t;
 }
 

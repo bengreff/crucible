@@ -72,6 +72,8 @@ constexpr double kTurnBackGate = 1e-9;    // above this, a turn-back fails gate 
 constexpr double kZeroSpanTol = 1e-12;    // |c_eq - c_start| below this: the branch is a point
 constexpr double kPhiA = 0.005;           // c_a: the lower branch's 0.5% fall in N
 constexpr double kDTGate2b = 3.0;         // K, gate 2(b)
+constexpr double kE2DT = 3.0, kE2DY = 0.01;  // E2's bars (TABLE_B.md, "The specific entropy's checks")
+constexpr std::size_t kMaxPointsPerNode = 400;  // the refinement's cap (TABLE_B.md, "per-node refinement")
 constexpr std::size_t kNotReacting = std::numeric_limits<std::size_t>::max();
 
 struct Indices { std::size_t h2, o2, h2o, n2; double hInWater; };
@@ -194,9 +196,25 @@ void refuseReactingN2(const std::string& mechanism) {
 }
 
 // One raw CVODES step of a branch, kept only transiently while the node is built.
+// CRUCIBLE_TABLE_B_E2_DUMP=<path>: one line per E2 pair (a diagnostic, TABLE_B.md "E2 measured").
+std::FILE* gE2Dump = nullptr;
+std::mutex gE2DumpLock;
+
 struct RawStep {
   double t = 0, T = 0, c = 0, lambda = 0;
   std::vector<double> y;  // full species, size ns
+};
+
+// A stored point while a node is built: full species (projected), lambda, c.
+struct CurvePoint {
+  std::vector<double> y;
+  double lambda = 0, c = 0;
+};
+
+// A node's final points in the table's per-point layout, and its lower branch's count.
+struct NodeCurve {
+  std::vector<double> points;
+  std::uint32_t lowerCount = 0;
 };
 
 // The s fractions, identical for every node and every build (TABLE_B.md, "The runtime": "every node
@@ -214,13 +232,14 @@ std::vector<double> lowerFractions(int geometric, int uniform) {
 
 struct NodeOutcome {
   double turnBack = 0;
-  // E2 (s only): the table's T and Y at the midpoints of neighbouring stored points against the
-  // trajectory's own state there; all midpoints, and those within a quarter of the span of s_eq.
-  bool hasE2 = false;
-  double e2DT = 0, e2DY = 0, e2DTLast = 0, e2DYLast = 0;
-  // The same, with the stored Y interpolated linearly in the distance sqrt(s_ref - s) instead of in s,
-  // checked at the distance midpoints (TABLE_B.md, "E2 measured").
-  double e2dDT = 0, e2dDY = 0, e2dDTLast = 0, e2dDYLast = 0;
+  bool hasE2 = false;  // E2 (s only): the table's T and Y between stored points against the trajectory
+  // E2 after refinement: the final gaps' d-midpoints (the refinement criterion, so under the bars
+  // unless the node hit the cap) and the independent quarter points, over every gap and the last
+  // quarter of the span; the points the refinement added.
+  double e2MidDT = 0, e2MidDY = 0;
+  double e2QDT = 0, e2QDY = 0, e2QDTLast = 0, e2QDYLast = 0;
+  std::size_t addedPoints = 0;
+  bool e2Capped = false;
   double spanLower = 0, spanUpper = 0;  // E3: |c_eq - c_start| per branch
   bool e2Failure = false;               // an integration to a midpoint threw (reported, not a 2(c) failure)
   bool nGateChecked = false, nGateOk = true;
@@ -241,7 +260,7 @@ struct NodeOutcome {
 NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step, Cantera::ThermoPhase& th,
                        const SpeciesTable& sp, int candidate, double maxThermoT, const std::vector<double>& sLower,
                        double f, double z, double eta, double rho, double eLo, double eHi,
-                       ManifoldTable& out, std::size_t nodeIdx) {
+                       ManifoldTable& out, std::size_t nodeIdx, NodeCurve& curve) {
   NodeOutcome result;
   const std::size_t ns = sp.ns;
   ManifoldTable::Node& node = out.nodes[nodeIdx];
@@ -291,6 +310,38 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
 
   const int lowerCount = out.lowerPoints();
   const int upperCount = out.upperUniform;
+  // The node's points after refinement; empty until then, when the base points are the curve.
+  std::vector<CurvePoint> lowerPts, upperPts;
+  bool refined = false;
+  auto fullY = [&](int p) {
+    std::vector<double> y(ns, 0.0);
+    const double* py = out.pointY(nodeIdx, p);
+    for (std::size_t q = 0; q < ns; ++q)
+      y[q] = sp.reactingPosition[q] != kNotReacting ? py[sp.reactingPosition[q]] : (q == sp.idx.n2 ? zn : 0.0);
+    return y;
+  };
+  auto basePoint = [&](int p) { return CurvePoint{fullY(p), out.lambda(nodeIdx, p), out.c(nodeIdx, p)}; };
+  auto writeCurve = [&]() {
+    if (!refined) {
+      lowerPts.clear();
+      upperPts.clear();
+      for (int p = 0; p < lowerCount; ++p) lowerPts.push_back(basePoint(p));
+      for (int p = lowerCount; p < lowerCount + upperCount; ++p) upperPts.push_back(basePoint(p));
+    }
+    const std::size_t width = out.pointWidth();
+    curve.lowerCount = static_cast<std::uint32_t>(lowerPts.size());
+    curve.points.assign((lowerPts.size() + upperPts.size()) * width, 0.0);
+    std::size_t at = 0;
+    for (const auto* list : {&lowerPts, &upperPts})
+      for (const auto& pt : *list) {
+        double* dst = curve.points.data() + at * width;
+        for (std::size_t q = 0; q < ns; ++q)
+          if (sp.reactingPosition[q] != kNotReacting) dst[sp.reactingPosition[q]] = pt.y[q];
+        dst[out.reactingSpecies.size()] = pt.lambda;
+        dst[out.reactingSpecies.size() + 1] = pt.c;
+        ++at;
+      }
+  };
 
   try {
     if (f == 0.0 || f == 1.0) {
@@ -304,13 +355,14 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
       node.c0 = node.cEq = node.cCp = 0.0;
       node.flags = ManifoldTable::kDegenerate | (result.outside ? ManifoldTable::kOutside : 0u);
       result.degenerate = true;
-      for (int p = 0; p < out.pointsPerNode(); ++p) {
+      for (int p = 0; p < out.basePointsPerNode(); ++p) {
         double* py = out.pointY(nodeIdx, p);
         for (std::size_t q = 0; q < ns; ++q)
           if (sp.reactingPosition[q] != kNotReacting) py[sp.reactingPosition[q]] = zstate[q + 1];
         out.lambda(nodeIdx, p) = 0.0;
         out.c(nodeIdx, p) = 0.0;
       }
+      writeCurve();
       return result;
     }
 
@@ -585,18 +637,16 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     }
     if (!zeroSpanUpper && !upperFrozen) out.lambda(nodeIdx, lowerCount) = out.lambda(nodeIdx, lowerCount - 1);
 
-    // E2 (s only; TABLE_B.md, "The entropy candidate in the builder"): at the midpoint in s of every pair
-    // of neighbouring stored points on a branch, the table's state (the stored Y interpolated linearly in
-    // s, T from the node's e on that Y) against the trajectory's own state at the same s, found by
-    // integrating from the last internal step below it with an Illinois iteration on the time.
+    // E2 and per-node refinement (s only; TABLE_B.md, "per-node refinement"). The stored Y are
+    // interpolated linearly in the distance d = sqrt(s_ref - s), s_ref the branch's last point (s_eq, or
+    // a frozen branch's reach). Each gap whose d-midpoint differs from the trajectory's own state there
+    // by over 3 K or 0.01 in Y gets that state as a new point, until every gap passes or the node holds
+    // kMaxPointsPerNode points; then the final gaps are checked at their quarter points, which the
+    // refinement did not use.
+    for (int p = 0; p < lowerCount; ++p) lowerPts.push_back(basePoint(p));
+    for (int p = lowerCount; p < lowerCount + upperCount; ++p) upperPts.push_back(basePoint(p));
+    refined = true;
     if (candidate == kEntropy) {
-      auto fullY = [&](int p) {
-        std::vector<double> y(ns, 0.0);
-        const double* py = out.pointY(nodeIdx, p);
-        for (std::size_t q = 0; q < ns; ++q)
-          y[q] = sp.reactingPosition[q] != kNotReacting ? py[sp.reactingPosition[q]] : (q == sp.idx.n2 ? zn : 0.0);
-        return y;
-      };
       auto trajectoryAt = [&](const std::vector<RawStep>& steps, double sm, double tol, std::vector<double>& z) {
         std::size_t i = 1;
         while (i < steps.size() && steps[i].c < sm) ++i;
@@ -621,51 +671,79 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
           else { hi = dt; fhi = fm; if (side == 1) flo *= 0.5; side = 1; }
         }
       };
-      // sRef: the branch's last stored c (s_eq, or the reach of a frozen branch), for the distance.
-      auto checkBranch = [&](const std::vector<RawStep>& steps, int first, int count, double span, double sRef) {
+      auto differ = [&](const std::vector<double>& y, const std::vector<double>& z, double& dT, double& dY) {
+        dT = std::fabs(temperatureAt(e, y) - z[0]);
+        dY = 0;
+        for (std::size_t q = 0; q < ns; ++q)
+          if (sp.reactingPosition[q] != kNotReacting) dY = std::max(dY, std::fabs(y[q] - z[q + 1]));
+      };
+      std::vector<double> rates(ns + 1);
+      std::size_t total = lowerPts.size() + upperPts.size();
+      auto refine = [&](std::vector<CurvePoint>& pts, const std::vector<RawStep>& steps, double span, double sRef,
+                        int branch) {
         if (steps.size() < 2) return;
-        auto compare = [&](double sm, const std::vector<double>& ym, double& dTOut, double& dYOut, double tol) {
-          std::vector<double> z;
-          trajectoryAt(steps, sm, tol, z);
-          dTOut = std::fabs(temperatureAt(e, ym) - z[0]);
-          dYOut = 0;
-          for (std::size_t q = 0; q < ns; ++q)
-            if (sp.reactingPosition[q] != kNotReacting) dYOut = std::max(dYOut, std::fabs(ym[q] - z[q + 1]));
-        };
-        for (int p = first; p + 1 < first + count; ++p) {
-          const double ca = out.c(nodeIdx, p), cb = out.c(nodeIdx, p + 1);
-          if (ca == cb) continue;
-          const double tol = std::max(1e-6 * std::fabs(cb - ca), 1e-11 * std::fabs(ca));
-          const auto ya = fullY(p), yb = fullY(p + 1);
-          std::vector<double> ym(ns);
+        auto dist = [&](double c) { return std::sqrt(std::max(sRef - c, 0.0)); };
+        auto tolOf = [&](double ca, double cb) { return std::max(1e-6 * std::fabs(cb - ca), 1e-11 * std::fabs(ca)); };
+        std::vector<double> z, ym(ns);
+        for (std::size_t i = 0; i + 1 < pts.size();) {
+          const double ca = pts[i].c, cb = pts[i + 1].c;
+          if (ca == cb) { ++i; continue; }
+          const double dm = 0.5 * (dist(ca) + dist(cb)), sd = sRef - dm * dm;
+          for (std::size_t q = 0; q < ns; ++q) ym[q] = 0.5 * (pts[i].y[q] + pts[i + 1].y[q]);
+          trajectoryAt(steps, sd, tolOf(ca, cb), z);
           double dT, dY;
-          // Linear in s, at the midpoint in s (as stated).
-          const double sm = 0.5 * (ca + cb);
-          for (std::size_t q = 0; q < ns; ++q) ym[q] = 0.5 * (ya[q] + yb[q]);
-          compare(sm, ym, dT, dY, tol);
-          result.e2DT = std::max(result.e2DT, dT);
-          result.e2DY = std::max(result.e2DY, dY);
-          if (std::fabs(cEq - sm) <= 0.25 * span) {
-            result.e2DTLast = std::max(result.e2DTLast, dT);
-            result.e2DYLast = std::max(result.e2DYLast, dY);
+          differ(ym, z, dT, dY);
+          const bool fails = dT > kE2DT || dY > kE2DY;
+          if (fails && total < kMaxPointsPerNode) {
+            CurvePoint n;
+            n.y.assign(z.begin() + 1, z.end());
+            double rawErr, projErr, sumErr;
+            project(n.y, rawErr, projErr, sumErr);
+            result.rawElementError = std::max(result.rawElementError, rawErr);
+            result.projectedElementError = std::max(result.projectedElementError, projErr);
+            result.sumError = std::max(result.sumError, sumErr);
+            n.c = progress(z.data());
+            source.rates(rho, z.data(), rates.data());
+            n.lambda = cEq != n.c ? dcdt(z.data(), rates.data()) / (cEq - n.c) : 0.0;
+            pts.insert(pts.begin() + static_cast<std::ptrdiff_t>(i) + 1, std::move(n));
+            ++total;
+            ++result.addedPoints;
+            continue;  // the left half is checked next
           }
-          // Linear in the distance d = sqrt(sRef - s), at the midpoint in d (the same Y, the mean of the
-          // two points, now placed at s = sRef - d_m^2).
-          const double da = std::sqrt(std::max(sRef - ca, 0.0)), db = std::sqrt(std::max(sRef - cb, 0.0));
-          const double dm = 0.5 * (da + db), sd = sRef - dm * dm;
-          compare(sd, ym, dT, dY, tol);
-          result.e2dDT = std::max(result.e2dDT, dT);
-          result.e2dDY = std::max(result.e2dDY, dY);
-          if (std::fabs(cEq - sd) <= 0.25 * span) {
-            result.e2dDTLast = std::max(result.e2dDTLast, dT);
-            result.e2dDYLast = std::max(result.e2dDYLast, dY);
+          if (fails) result.e2Capped = true;
+          result.e2MidDT = std::max(result.e2MidDT, dT);
+          result.e2MidDY = std::max(result.e2MidDY, dY);
+          ++i;
+        }
+        // The independent check: the quarter points of every final gap.
+        for (std::size_t i = 0; i + 1 < pts.size(); ++i) {
+          const double ca = pts[i].c, cb = pts[i + 1].c;
+          if (ca == cb) continue;
+          const double da = dist(ca), db = dist(cb);
+          for (const double w : {0.25, 0.75}) {
+            const double dq = da + w * (db - da), sq = sRef - dq * dq;
+            for (std::size_t q = 0; q < ns; ++q) ym[q] = pts[i].y[q] + w * (pts[i + 1].y[q] - pts[i].y[q]);
+            trajectoryAt(steps, sq, tolOf(ca, cb), z);
+            double dT, dY;
+            differ(ym, z, dT, dY);
+            result.e2QDT = std::max(result.e2QDT, dT);
+            result.e2QDY = std::max(result.e2QDY, dY);
+            if (std::fabs(cEq - sq) <= 0.25 * span) {
+              result.e2QDTLast = std::max(result.e2QDTLast, dT);
+              result.e2QDYLast = std::max(result.e2QDYLast, dY);
+            }
+            if (gE2Dump) {
+              std::lock_guard<std::mutex> lock(gE2DumpLock);
+              std::fprintf(gE2Dump, "%.5f,%.4f,%.5f,%.6e,%d,%zu,%.4f,%.9e,%.9e,%.9e,%.4f,%.4f,%.3e\n", f, zn, eta, rho,
+                           branch, i, w, ca, cb, sRef, temperatureAt(e, pts[i].y), dT, dY);
+            }
           }
         }
       };
       try {
         result.hasE2 = true;
-        if (!zeroSpanLower) checkBranch(lowerSteps, 0, lowerCount, spanLower, out.c(nodeIdx, lowerCount - 1));
-        if (!zeroSpanUpper) checkBranch(upperSteps, lowerCount, upperCount, spanUpper, out.c(nodeIdx, lowerCount));
+        if (!zeroSpanLower) refine(lowerPts, lowerSteps, spanLower, lowerPts.back().c, 0);
+        if (!zeroSpanUpper) refine(upperPts, upperSteps, spanUpper, upperPts.front().c, 1);
       } catch (const std::exception&) {
         result.e2Failure = true;
       }
@@ -674,24 +752,26 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     // The N gate (03:10, 2a): N = sum Y_k/W_k strictly falls from c_a to c_cp along the stored
     // points. c_a is the first stored point past phi_N(c) = 0.5% of the lower branch's own fall.
     if (!result.degenerate) {
+      const int finalLower = static_cast<int>(lowerPts.size());
+      const int finalCount = finalLower + static_cast<int>(upperPts.size());
       auto nAt = [&](int p) {
-        const double* py = out.pointY(nodeIdx, p);
+        const auto& y = p < finalLower ? lowerPts[p].y : upperPts[p - finalLower].y;
         double m = 0;
         for (std::size_t q = 0; q < ns; ++q)
-          if (sp.reactingPosition[q] != kNotReacting) m += py[sp.reactingPosition[q]] / sp.weight[q];
+          if (sp.reactingPosition[q] != kNotReacting) m += y[q] / sp.weight[q];
         return m;
       };
-      const double n0 = nAt(0), neq = nAt(lowerCount - 1);
-      int idxA = lowerCount;  // no portion to check if the fall never reaches 0.5%
+      const double n0 = nAt(0), neq = nAt(finalLower - 1);
+      int idxA = finalLower;  // no portion to check if the fall never reaches 0.5%
       if (std::fabs(n0 - neq) > 1e-15) {
-        for (int p = 0; p < lowerCount; ++p) {
+        for (int p = 0; p < finalLower; ++p) {
           const double phi = (n0 - nAt(p)) / (n0 - neq);
           if (phi >= kPhiA) { idxA = p; break; }
         }
       }
       result.nGateChecked = true;
       bool ok = true;
-      for (int p = idxA; p + 1 < out.pointsPerNode(); ++p) {
+      for (int p = idxA; p + 1 < finalCount; ++p) {
         const double na = nAt(p), nb = nAt(p + 1);
         if (!(nb < na + 1e-13 * std::max(1.0, std::fabs(na)))) { ok = false; break; }
       }
@@ -700,7 +780,9 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
   } catch (const std::exception& ex) {
     result.integratorFailure = true;
     result.failure = ex.what();
+    refined = false;
   }
+  writeCurve();
   return result;
 }
 
@@ -737,12 +819,16 @@ int main(int argc, char** argv) {
   const std::string mechanism = argc == 12 ? argv[11] : "h2o2.yaml";
   const bool writeAnyway = std::getenv("CRUCIBLE_TABLE_B_WRITE_ANYWAY") != nullptr;
   const char* nodeReportPath = std::getenv("CRUCIBLE_TABLE_B_NODE_REPORT");
+  if (const char* dump = std::getenv("CRUCIBLE_TABLE_B_E2_DUMP")) {
+    gE2Dump = std::fopen(dump, "w");
+    std::fprintf(gE2Dump, "f_H,Z_N,eta,rho,branch,gap,w,c_a,c_b,s_ref,T_a,dT_quarter,dY_quarter\n");
+  }
   std::FILE* nodeReport = nodeReportPath ? std::fopen(nodeReportPath, "w") : nullptr;
   if (nodeReportPath && !nodeReport) throw std::runtime_error(std::string("cannot write ") + nodeReportPath);
   if (nodeReport)
     std::fprintf(nodeReport, "candidate,f_H,Z_N,eta,rho,T_eq,c0,c_eq,c_cp,degenerate,zero_span,outside,lower_frozen,upper_frozen,"
                              "integrator_failure,turn_back,n_gate_checked,n_gate_ok,dT_2b_lower,dT_2b_upper,raw_element_error,"
-                             "sum_error,span_lower,span_upper,e2_dT,e2_dY,e2_dT_last_quarter,e2_dY_last_quarter,e2d_dT,e2d_dY,e2d_dT_last_quarter,e2d_dY_last_quarter,e2_failure,failure\n");
+                             "sum_error,span_lower,span_upper,e2q_dT,e2q_dY,e2q_dT_last_quarter,e2q_dY_last_quarter,e2_mid_dT,e2_mid_dY,added_points,e2_capped,e2_failure,failure\n");
 
   refuseReactingN2(mechanism);
 
@@ -804,11 +890,10 @@ int main(int argc, char** argv) {
     std::size_t branchCount = 0;
     double branchTimeSumMs = 0, branchTimeWorstMs = 0;
     // E2 and E3 (s only).
-    double e2DT = 0, e2DY = 0, e2DTLast = 0, e2DYLast = 0;
-    std::array<std::size_t, 4> e2DTLoc{}, e2DYLoc{};
-    double e2dDT = 0, e2dDY = 0, e2dDTLast = 0, e2dDYLast = 0;
-    std::array<std::size_t, 4> e2dDTLoc{}, e2dDYLoc{};
-    std::size_t e2Failures = 0;
+    double e2QDT = 0, e2QDY = 0, e2QDTLast = 0, e2QDYLast = 0, e2MidDT = 0, e2MidDY = 0;
+    std::array<std::size_t, 4> e2QDTLoc{}, e2QDYLoc{};
+    std::vector<std::size_t> added;  // per node with E2
+    std::size_t e2Failures = 0, e2Capped = 0;
     double minSpanRatio = std::numeric_limits<double>::infinity();
   };
 
@@ -816,7 +901,16 @@ int main(int argc, char** argv) {
     ManifoldTable table = axes;
     table.provenance.clear();
     table.nodes.assign(totalNodes, ManifoldTable::Node{});
-    table.points.assign(totalNodes * static_cast<std::size_t>(table.pointsPerNode()) * table.pointWidth(), 0.0);
+    // The base points are built in a fixed layout; each node's final (refined) points go to curves[node]
+    // and are assembled into the variable layout after the build.
+    const auto base = static_cast<std::uint32_t>(table.basePointsPerNode());
+    for (std::size_t n = 0; n < totalNodes; ++n) {
+      table.nodes[n].firstPoint = static_cast<std::uint32_t>(n) * base;
+      table.nodes[n].pointCount = base;
+      table.nodes[n].lowerCount = static_cast<std::uint32_t>(table.lowerPoints());
+    }
+    table.points.assign(totalNodes * base * table.pointWidth(), 0.0);
+    std::vector<NodeCurve> curves(totalNodes);
 
     std::atomic<std::size_t> next{0};
     std::mutex report;
@@ -838,21 +932,21 @@ int main(int argc, char** argv) {
         const std::size_t i = rem / nZN;
         const double eta = table.eta(k), rho = std::exp(table.lnRho(l));
         const auto r = buildNode(source, step, *thermoPhase, sp, candidate, maxT, sLower, table.fH[i], table.zN[j], eta, rho,
-                                  table.eLo[table.fzIndex(i, j)], table.eHi[table.fzIndex(i, j)], table, idx);
+                                  table.eLo[table.fzIndex(i, j)], table.eHi[table.fzIndex(i, j)], table, idx, curves[idx]);
         if (nodeReport) {
           std::string why = r.failure;
           for (char& ch : why) if (ch == ',' || ch == '\n' || ch == '"') ch = ' ';
           std::lock_guard<std::mutex> lock(report);
-          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%.6e,%.6e,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s\n",
+          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%.6e,%.6e,%s,%s,%s,%s,%s,%s,%zu,%d,%d,%s\n",
                        candidate, table.fH[i], table.zN[j], eta, rho, r.tEq, r.c0, r.cEq, r.cCp, r.degenerate, r.zeroSpan,
                        r.outside, r.lowerFrozen, r.upperFrozen, r.integratorFailure, r.turnBack, r.nGateChecked, r.nGateOk,
                        r.hasDT2bLower ? std::to_string(r.dT2bLower).c_str() : "",
                        r.hasDT2bUpper ? std::to_string(r.dT2bUpper).c_str() : "", r.rawElementError, r.sumError,
-                       r.spanLower, r.spanUpper, r.hasE2 ? std::to_string(r.e2DT).c_str() : "",
-                       r.hasE2 ? std::to_string(r.e2DY).c_str() : "", r.hasE2 ? std::to_string(r.e2DTLast).c_str() : "",
-                       r.hasE2 ? std::to_string(r.e2DYLast).c_str() : "", r.hasE2 ? std::to_string(r.e2dDT).c_str() : "",
-                       r.hasE2 ? std::to_string(r.e2dDY).c_str() : "", r.hasE2 ? std::to_string(r.e2dDTLast).c_str() : "",
-                       r.hasE2 ? std::to_string(r.e2dDYLast).c_str() : "", r.e2Failure, why.c_str());
+                       r.spanLower, r.spanUpper, r.hasE2 ? std::to_string(r.e2QDT).c_str() : "",
+                       r.hasE2 ? std::to_string(r.e2QDY).c_str() : "", r.hasE2 ? std::to_string(r.e2QDTLast).c_str() : "",
+                       r.hasE2 ? std::to_string(r.e2QDYLast).c_str() : "", r.hasE2 ? std::to_string(r.e2MidDT).c_str() : "",
+                       r.hasE2 ? std::to_string(r.e2MidDY).c_str() : "", r.addedPoints, r.e2Capped, r.e2Failure,
+                       why.c_str());
         }
         if (r.turnBack > ts.worstTurnBack) { ts.worstTurnBack = r.turnBack; ts.worstTurnBackLoc = {i, j, k, l}; }
         if (r.nGateChecked && !r.nGateOk) { ++ts.nGateFailures; ts.worstNGateLoc = {i, j, k, l}; }
@@ -871,14 +965,14 @@ int main(int argc, char** argv) {
         ts.branchTimeSumMs += r.branchTimeSumMs;
         ts.branchTimeWorstMs = std::max(ts.branchTimeWorstMs, r.branchTimeWorstMs);
         if (r.hasE2) {
-          if (r.e2DT > ts.e2DT) { ts.e2DT = r.e2DT; ts.e2DTLoc = {i, j, k, l}; }
-          if (r.e2DY > ts.e2DY) { ts.e2DY = r.e2DY; ts.e2DYLoc = {i, j, k, l}; }
-          ts.e2DTLast = std::max(ts.e2DTLast, r.e2DTLast);
-          ts.e2DYLast = std::max(ts.e2DYLast, r.e2DYLast);
-          if (r.e2dDT > ts.e2dDT) { ts.e2dDT = r.e2dDT; ts.e2dDTLoc = {i, j, k, l}; }
-          if (r.e2dDY > ts.e2dDY) { ts.e2dDY = r.e2dDY; ts.e2dDYLoc = {i, j, k, l}; }
-          ts.e2dDTLast = std::max(ts.e2dDTLast, r.e2dDTLast);
-          ts.e2dDYLast = std::max(ts.e2dDYLast, r.e2dDYLast);
+          if (r.e2QDT > ts.e2QDT) { ts.e2QDT = r.e2QDT; ts.e2QDTLoc = {i, j, k, l}; }
+          if (r.e2QDY > ts.e2QDY) { ts.e2QDY = r.e2QDY; ts.e2QDYLoc = {i, j, k, l}; }
+          ts.e2QDTLast = std::max(ts.e2QDTLast, r.e2QDTLast);
+          ts.e2QDYLast = std::max(ts.e2QDYLast, r.e2QDYLast);
+          ts.e2MidDT = std::max(ts.e2MidDT, r.e2MidDT);
+          ts.e2MidDY = std::max(ts.e2MidDY, r.e2MidDY);
+          ts.added.push_back(r.addedPoints);
+          ts.e2Capped += r.e2Capped;
           ts.e2Failures += r.e2Failure;
           const double sEq = std::fabs(r.cEq);
           for (double span : {r.spanLower, r.spanUpper})
@@ -902,19 +996,30 @@ int main(int argc, char** argv) {
       merged.branchCount += ts.branchCount;
       merged.branchTimeSumMs += ts.branchTimeSumMs;
       merged.branchTimeWorstMs = std::max(merged.branchTimeWorstMs, ts.branchTimeWorstMs);
-      if (ts.e2DT > merged.e2DT) { merged.e2DT = ts.e2DT; merged.e2DTLoc = ts.e2DTLoc; }
-      if (ts.e2DY > merged.e2DY) { merged.e2DY = ts.e2DY; merged.e2DYLoc = ts.e2DYLoc; }
-      merged.e2DTLast = std::max(merged.e2DTLast, ts.e2DTLast);
-      merged.e2DYLast = std::max(merged.e2DYLast, ts.e2DYLast);
-      if (ts.e2dDT > merged.e2dDT) { merged.e2dDT = ts.e2dDT; merged.e2dDTLoc = ts.e2dDTLoc; }
-      if (ts.e2dDY > merged.e2dDY) { merged.e2dDY = ts.e2dDY; merged.e2dDYLoc = ts.e2dDYLoc; }
-      merged.e2dDTLast = std::max(merged.e2dDTLast, ts.e2dDTLast);
-      merged.e2dDYLast = std::max(merged.e2dDYLast, ts.e2dDYLast);
+      if (ts.e2QDT > merged.e2QDT) { merged.e2QDT = ts.e2QDT; merged.e2QDTLoc = ts.e2QDTLoc; }
+      if (ts.e2QDY > merged.e2QDY) { merged.e2QDY = ts.e2QDY; merged.e2QDYLoc = ts.e2QDYLoc; }
+      merged.e2QDTLast = std::max(merged.e2QDTLast, ts.e2QDTLast);
+      merged.e2QDYLast = std::max(merged.e2QDYLast, ts.e2QDYLast);
+      merged.e2MidDT = std::max(merged.e2MidDT, ts.e2MidDT);
+      merged.e2MidDY = std::max(merged.e2MidDY, ts.e2MidDY);
+      merged.added.insert(merged.added.end(), ts.added.begin(), ts.added.end());
+      merged.e2Capped += ts.e2Capped;
       merged.e2Failures += ts.e2Failures;
       merged.minSpanRatio = std::min(merged.minSpanRatio, ts.minSpanRatio);
     };
     for (int w = 0; w < threads; ++w) pool.emplace_back(run);
     for (auto& t : pool) t.join();
+    // The variable layout (version 3): each node's final points, in node order.
+    std::size_t totalPoints = 0;
+    for (const auto& cv : curves) totalPoints += cv.points.size() / table.pointWidth();
+    table.points.clear();
+    table.points.reserve(totalPoints * table.pointWidth());
+    for (std::size_t n = 0; n < totalNodes; ++n) {
+      table.nodes[n].firstPoint = static_cast<std::uint32_t>(table.points.size() / table.pointWidth());
+      table.nodes[n].pointCount = static_cast<std::uint32_t>(curves[n].points.size() / table.pointWidth());
+      table.nodes[n].lowerCount = curves[n].lowerCount;
+      table.points.insert(table.points.end(), curves[n].points.begin(), curves[n].points.end());
+    }
     const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - clock0).count();
     return std::make_pair(std::move(table), wall);
   };
@@ -952,14 +1057,23 @@ int main(int argc, char** argv) {
                 attemptStats.worstDT2b, locStr(attemptStats.worstDT2bLoc).c_str(), attemptStats.frozenLower,
                 attemptStats.frozenUpper, attemptStats.integratorFailures, attemptStats.worstSum, attemptStats.worstProjected);
     if (candidate == kEntropy) {
-      std::printf("  E2 (midpoints, bars 3 K and dY 0.01): worst |dT| %.4f K at %s, worst max|dY| %.3e at %s; "
-                  "last quarter of the span |dT| %.4f K, max|dY| %.3e; %zu midpoint integration failures\n",
-                  attemptStats.e2DT, locStr(attemptStats.e2DTLoc).c_str(), attemptStats.e2DY,
-                  locStr(attemptStats.e2DYLoc).c_str(), attemptStats.e2DTLast, attemptStats.e2DYLast, attemptStats.e2Failures);
-      std::printf("  E2 linear in the distance sqrt(s_ref - s), at the distance midpoints: worst |dT| %.4f K at %s, worst "
-                  "max|dY| %.3e at %s; last quarter |dT| %.4f K, max|dY| %.3e\n",
-                  attemptStats.e2dDT, locStr(attemptStats.e2dDTLoc).c_str(), attemptStats.e2dDY,
-                  locStr(attemptStats.e2dDYLoc).c_str(), attemptStats.e2dDTLast, attemptStats.e2dDYLast);
+      auto added = attemptStats.added;
+      std::sort(added.begin(), added.end());
+      const std::size_t medianAdded = added.empty() ? 0 : added[added.size() / 2];
+      const std::size_t maxAdded = added.empty() ? 0 : added.back();
+      std::printf("  E2 refinement (linear in sqrt(s_ref - s), d-midpoints to 3 K and dY 0.01, cap %zu points): points added "
+                  "per node median %zu, max %zu; %zu nodes at the cap; final midpoints worst |dT| %.4f K, max|dY| %.3e; "
+                  "%zu integration failures\n",
+                  kMaxPointsPerNode, medianAdded, maxAdded, attemptStats.e2Capped, attemptStats.e2MidDT,
+                  attemptStats.e2MidDY, attemptStats.e2Failures);
+      std::printf("  E2 at the quarter points (independent of the refinement; bars 3 K and dY 0.01): worst |dT| %.4f K at "
+                  "%s, worst max|dY| %.3e at %s; last quarter of the span |dT| %.4f K, max|dY| %.3e: %s\n",
+                  attemptStats.e2QDT, locStr(attemptStats.e2QDTLoc).c_str(), attemptStats.e2QDY,
+                  locStr(attemptStats.e2QDYLoc).c_str(), attemptStats.e2QDTLast, attemptStats.e2QDYLast,
+                  attemptStats.e2QDT <= kE2DT && attemptStats.e2QDY <= kE2DY && attemptStats.e2Capped == 0 &&
+                          attemptStats.e2Failures == 0
+                      ? "pass"
+                      : "FAIL");
       std::printf("  E3 (span against 1e-9 |s_eq|): %zu nodes with a branch under it (stored as zero span); smallest "
                   "span above it %.3e |s_eq|\n", attemptStats.zeroSpanCount, attemptStats.minSpanRatio);
     }

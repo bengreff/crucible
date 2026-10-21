@@ -41,9 +41,11 @@ struct ManifoldTable {
   // upperUniform points on the upper branch, uniform in c from c_eq to c_cp. For the specific entropy
   // (candidate 3), whose distance to equilibrium is quadratic, both branches rise to s_eq and the
   // same slots sit at s_eq - span (1 - xi)^2 (TABLE_B.md, "The entropy candidate in the builder").
+  // These are the base points; for s, a node may add refinement points between them (layout version 3,
+  // TABLE_B.md, "per-node refinement"), so a node's own count is Node::pointCount.
   int lowerGeometric{12}, lowerUniform{18}, upperUniform{9};
   [[nodiscard]] int lowerPoints() const { return 1 + lowerGeometric + lowerUniform; }
-  [[nodiscard]] int pointsPerNode() const { return lowerPoints() + upperUniform; }
+  [[nodiscard]] int basePointsPerNode() const { return lowerPoints() + upperUniform; }
 
   enum Flag : std::uint32_t {
     kFrozen = 1u << 0,      // a branch had not reached equilibrium by 1e15 s
@@ -57,6 +59,9 @@ struct ManifoldTable {
     double c0{}, cEq{}, cCp{};
     std::uint32_t flags{};
     std::int32_t progressVariable{};  // the candidate used (0: Y_H2O, 1: Y_H2O+HO2+H2O2, 2: O2 consumed, 3: s)
+    // The node's points: [firstPoint, firstPoint + pointCount) in points, the first lowerCount on the
+    // lower branch (its start to c_eq), the rest on the upper (c_eq to c_cp).
+    std::uint32_t firstPoint{}, pointCount{}, lowerCount{};
   };
   std::vector<Node> nodes;  // size fH.size() * zN.size() * nEta * nLnRho, ln rho fastest
 
@@ -65,9 +70,8 @@ struct ManifoldTable {
   std::vector<double> eLo, eHi;
 
   // Per point: the reacting species' Y (reactingSpecies.size() values), then lambda =
-  // (dc/dt)/(c_eq - c), then c itself (layout version 2; for the specific entropy, c is not a sum of
-  // the stored Y). Flat: (node index * pointsPerNode() + point) * pointWidth() + [0 .. size-1] = Y,
-  // [size] = lambda, [size + 1] = c.
+  // (dc/dt)/(c_eq - c), then c itself (for the specific entropy, c is not a sum of the stored Y).
+  // Flat: (Node::firstPoint + point) * pointWidth() + [0 .. size-1] = Y, [size] = lambda, [size + 1] = c.
   std::vector<double> points;
 
   // The mechanism's thermo reference pressure [Pa], so that a runtime evaluation of the specific
@@ -86,7 +90,7 @@ struct ManifoldTable {
   }
   [[nodiscard]] std::size_t pointWidth() const { return reactingSpecies.size() + 2; }
   [[nodiscard]] std::size_t pointOffset(std::size_t node, int point) const {
-    return (node * static_cast<std::size_t>(pointsPerNode()) + static_cast<std::size_t>(point)) * pointWidth();
+    return (static_cast<std::size_t>(nodes[node].firstPoint) + static_cast<std::size_t>(point)) * pointWidth();
   }
   [[nodiscard]] double* pointY(std::size_t node, int point) { return points.data() + pointOffset(node, point); }
   [[nodiscard]] const double* pointY(std::size_t node, int point) const { return points.data() + pointOffset(node, point); }
