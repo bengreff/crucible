@@ -2,6 +2,81 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (21 October, about 02:50 CDT; night run, READY TO CLEAR)
+
+**The Director's brief on f29c38c:** three decisions, recorded in the plan (`tier1_ensemble_plan.md`, *Decided ... about 02:35*, decisions 6 to 8; commit 60b1c23):
+- **(6) The face inlet is (a),** the open-area sub-cell supply in `core/flow`. It is inquiry2's lane, so the interface spec is below, for inquiry2 to code next session, after S7 and AMR step C.
+- **(7) The supply turbulence's length scale is 0.07 D_h at the slots** (inferred, the fully developed duct's estimate), with one pitch on the porous face. Its bracket, 0.035 to 0.14 D_h (guessed), is member 18: two warm runs, 4 to 5% of the budget, so it counts as cheap.
+- **(8) The face's wall is at the transpired H2's 199.67 K** (inferred), and the adiabatic face is member 19.
+
+**Done:**
+1. **The length scale is wired into `crucible_rl10_tier1`** (`CRUCIBLE_T1_SLOT_LENGTH`, central 0.07; 60b1c23).
+   - Measured: slot viscosity ratios 137 to 2,520 (68.5 to 1,260 and 274 to 5,039 at the bracket's ends), against 46,000 at a pitch. The porous face stays at 524.
+   - The dry run's output is line for line the G8 log's apart from that line (measured: diff; `tier1_dry_run_length_2026-10-21.log`).
+   - The ratios are the same at 2 and 4 MPa (measured). ρu is the fixed mass flux, so the nominal face pressure sets no tier-1 input (derived).
+2. **The count:** members 11 and 11b are not run, and members 18 and 19 add 3 runs. So there are again 27 deviations, and the budget stays 15 to 200 run-hours. The cold-start ceiling falls to about 230, since 6 runs are re-meshed, not 9 (derived).
+3. **The run definition, drafted** (`docs/validation/rl10a33a/tier1_run_definition.md`): what is fixed, what is proposed (start, end, quantities, mesh and a face tag, parcel rate, threads, warm start), and what it waits on.
+   - **Found while drafting:** `Amr` refuses the wall functions and the SST property corrections (`core/amr.cpp:25-26`), and tier 1 needs both. That is inquiry2's AMR line, and it is now listed as a blocker before any tier-1 run.
+   - **Proposed:** the face's heat flow is printed apart and is not part of the hot-gas wall's heat flow. *Inferred:* protocol §3's quantity is the jacket's heat, and the face is transpiration-cooled.
+4. **The RL10 table's build is now in the repo** (`docs/evidence/table_b/build_rl10_table.sh`; it was only in `/tmp/rl10s/build.sh`).
+   - Rebuilt at about 02:43 (16 s), its data after the provenance header is byte-identical to `/tmp/tbs/rl10_s.bin`, the table the RL10 checks used (measured: SHA-256 `14f7af12…a404` for both).
+   - The headers differ only in the build time, the seconds and the mechanism's absolute path. So the prediction commit hashes the data, not the file.
+
+### For inquiry2: the face inlet (a) and the face's wall, interface spec (21 October, about 02:40; to code after S7 and AMR step C)
+
+This is a proposed interface. inquiry2 owns `core/flow.*`, `core/transport.cpp` and `core/amr.cpp`, and may change its shape, but should keep the properties and the gates.
+
+**1. The open-area supply (decision 6).**
+- **The switch:** `Definition::openAreaSupplies{false}`.
+  - False keeps today's ring-centre rule unchanged, so every existing case stays byte-identical.
+  - True applies the rule below to every supply of a Chamber.
+- **The geometry.** Face ring j has node radii [ρ_j, ρ_{j+1}] at the face station.
+  - Supply s's share of it is a_sj = π (min(r_o, ρ_{j+1})² − max(r_i, ρ_j)²), or 0 if negative.
+  - Its fraction is φ_sj = a_sj / `axialArea(0, j)`, which is the full annulus (`core/flow.cpp:193-196`).
+  - Σ_j a_sj = π (r_o² − r_i²) exactly. So `supplyArea_[s]` becomes the true area at any mesh.
+- **The flux.** g_s = ṁ_s opening(t) / A_true, as at `core/flow.cpp:1076` but with the true area. Ring j's face flux is the sum of:
+  - φ_sj × `supplyFace(s, g_s, ring j's interior state)` over every supply s;
+  - (1 − Σ_s φ_sj) × the plate's flux (`core/flow.cpp:1080-1083`, pressure only).
+  This holds for the conserved, species (g_s Y_s), ρk and ρω fluxes. So each slot's mass flow and velocity (g_s / ρ at the face), and hence its momentum flux and J, are its own at any mesh. Choking and the characteristic stay per supply, against ring j's interior, as today.
+- **A zero-flow supply is a closed port:** pressure only, with no shear, heat or species flux. `massFlow` 0 is already accepted (`core/flow.cpp:126`), and `supplyFace` returns exactly this at g = 0.
+  - The driver declares each LOX slot as one.
+  - So the liquid's share of the face is not a 199.67 K wall; the parcels carry its momentum and heat (inferred).
+- **Refusals under the switch:** drop "holds no ring centre", and test "supplies overlap" on the true annuli.
+- **The wall share.** Ring j's wall share is w_j = 1 − Σ_s φ_sj; in tier 1 that is the post tips. The plate's viscous fluxes on ring j (resolved, or the wall law's τ_w and q_w) are multiplied by w_j.
+  - Today a ring is all supply or all plate (`plateWallFace_`, `core/transport.cpp:155-173`; the wall distance's `plate`, `core/flow.cpp:445-447`).
+  - *Proposed (inquiry2's call):* ring j counts as plate, for the wall distance and for the wall functions' prescribed first cell, only if w_j ≥ 1/2. This reduces to today's rule when slots align with rings. Elsewhere the cell's k and ω are solved, and its wall share passes w_j times the law's τ_w and q_w.
+- **AMR:** each level computes its own φ from its own face rings, in place of the parent's supply (`core/amr.cpp:34-40`).
+  - A coarse face area is the sum of its children's (`core/flow.cpp:248`), so a coarse a_sj is too, and the face's reflux balances.
+
+**2. The face's wall temperature (decision 8).**
+- **The field:** `Definition::plateTemperature`, a `std::optional<double>`.
+  - Empty: the plate takes `wallTemperature`, today's behaviour.
+  - Zero: adiabatic.
+  - Positive: isothermal at that value.
+  - Tier 1 sets 199.67 K (`kFuelT` in the driver), and member 19 sets 0.
+- **Where it is read:** every wall read of `d.wallTemperature` takes the plate's value on plate faces. That is `core/transport.cpp:217-220` (ν_w, and the corrections' wall density and viscosity), 237, 467 and 761 (the wall law's T_w).
+- **Member 19 also needs the wall functions on an adiabatic plate.** `core/flow.cpp:107-108` refuses it today ("the adiabatic law is not implemented"). The law's adiabatic form (q_w 0, T_w the recovery temperature) is inquiry2's to take from Nichols and Nelson and check (WALL_FUNCTIONS.md). Only member 19 needs it.
+
+**3. Gates (proposed, stated before the code):**
+- **F1, switch off:** the fast ctest's 7 pass and 4 fail, with sorted FAIL lines identical; rl10dev's short run byte-identical (`cmp`), as at 03cf8b4.
+- **F2, switch on, supplies aligned with ring nodes** (every φ 0 or 1): identical to the switch off, to rounding.
+- **F3, switch on, tier 1's layout** at 149 × 16, at 1192 × 128 and on AMR (149 × 16 with 3 levels):
+  - each supply's face mass flow over a step equals ṁ_s opening(t) to 1e-12;
+  - its face velocity equals ṁ_s / (ρ A_true) to 1e-12 on every ring it touches, so J is the element's own.
+  - This is the driver's G6 rerun with (a).
+- **F4, AMR:** the face's mass, momentum and energy fluxes summed over a coarse ring's children equal the coarse ring's, to 1e-12.
+- **F5, the plate temperature:** empty and set equal to `wallTemperature` are byte-identical. At 0 (with the adiabatic law in place), the plate's q_w is 0 to rounding on every plate face.
+
+**Also on inquiry2's line before any tier-1 run:**
+- AMR carrying the wall functions and the property corrections (`core/amr.cpp:25-26`);
+- AMR steps C and D;
+- protocol §4's two amendments (choice 1's face, and decision 7's length scale).
+
+**Next (straight line to RL10):**
+1. inquiry2: S7, AMR step C, then this spec, then AMR with the wall functions.
+2. Here, once (a) lands: set the switch, the LOX ports and `plateTemperature` in `crucible_rl10_tier1`, rerun G5 and G6 as F3, then code the run mode from `tier1_run_definition.md`.
+3. Before the central cold start: rebuild the RL10 table with `build_rl10_table.sh` and record its data hash; measure the spray's cost on S7 and the gas-side cost on AMR (criterion 6); restate the budget.
+
 ## Stopped at (21 October, about 02:30 CDT; night run, READY TO CLEAR)
 
 **The Director's brief on 30483ac:**
@@ -38,13 +113,7 @@ Commits 5b4679f, 316a719 (the merge), 03cf8b4, 64bab89, 0b4542e, fc6ede3 (the fo
      - Member 10 spans J 0.18 to 29. With merged bands at h 0.09, J at the mesh is 0.8 to 6% of the elements' value: the face-inlet decision's sharpest case.
      - Burick's reading wobbles at groups 4.5 to 5.6 (digitisation noise), so members 9 and 14 move the SMD by under 4%.
 
-**DECISION NEEDED (the Director): the face inlet for choice 1.** Recommended: **(a)**, an open-area sub-cell supply in `core/flow` (inquiry2's lane). It keeps each slot's mass flow, momentum and J at any mesh, and the rest of each ring's face is wall. The alternatives:
-- (b) merged bands, with J at 5 to 34% as a declared limit;
-- (c) resolved slots, unaffordable.
-
-The details are in `tier1_setup.md`, *Findings*. Also there, both engineering:
-- the supply turbulence's length scale: a pitch gives slot viscosity ratios of 46,000, and 0.07 D_h is proposed;
-- the face's wall temperature: a per-segment value or an adiabatic face is needed.
+**The face inlet:** decided by the Director after this stop, (a) (the 02:40 section above; the plan's decision 6).
 
 **Next (straight line to RL10), while the decision is open:**
 - date the supply turbulence's length scale (finding 2, 0.07 D_h at the slots) and wire it into the driver;
