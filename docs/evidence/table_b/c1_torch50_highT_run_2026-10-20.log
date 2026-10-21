@@ -1,0 +1,22 @@
+mechanism: ../tools/mechanisms/h2o2_highT.yaml
+mesh 32x6: dz 5.208 mm, throat station 16 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 8 at z 0.0443 m
+chemistry fr; igniter 50 J over 1 ms from 0.2 ms
+t 0.500 ms  p_inj 1.5017 MPa  outlet 0.1546 kg/s  F_vac 627.5 N  steps 2918  wall 32 s
+t 1.000 ms  p_inj 2.7987 MPa  outlet 0.3242 kg/s  F_vac 1402.0 N  steps 7462  wall 94 s
+t 1.500 ms  p_inj 3.1594 MPa  outlet 0.3764 kg/s  F_vac 1586.4 N  steps 11725  wall 149 s
+t 2.000 ms  p_inj 3.2675 MPa  outlet 0.3933 kg/s  F_vac 1640.9 N  steps 15975  wall 201 s
+t 2.500 ms  p_inj 3.2994 MPa  outlet 0.3980 kg/s  F_vac 1657.2 N  steps 20225  wall 252 s
+t 3.000 ms  p_inj 3.3088 MPa  outlet 0.3994 kg/s  F_vac 1662.0 N  steps 24475  wall 302 s
+t 3.500 ms  p_inj 3.3116 MPa  outlet 0.3998 kg/s  F_vac 1663.5 N  steps 28725  wall 358 s
+t 4.000 ms  p_inj 3.3124 MPa  outlet 0.3999 kg/s  F_vac 1663.9 N  steps 32975  wall 451 s
+
+end 4.000 ms after 32976 steps (30508 replans), wall 451 s
+budgets: mass 1.16e-13  energy 4.87e-12
+reaction wall 427.6 s (94.8% of the run), 67.532 us per cell update
+drift over last 1 ms: outlet mass flow 1.34e-03, injector pressure 1.09e-03, vacuum thrust 1.58e-03
+chamber end: static 3.13632 MPa, equilibrium stagnation p0 3.15291 MPa; injector face 3.31243 MPa
+simulated: mdot out 0.399948 kg/s (supply 0.400000), c* 2476.61 m/s, vacuum thrust 1664.67 N, vacuum Isp 424.43 s
+1-D ideal rocket at p0 (../tools/mechanisms/h2o2_highT.yaml thermo): Tc 3348.0 K, c* 2428.75 m/s, Isp_vac shifting 435.90 s, frozen 419.21 s, gamma 1.2072
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2437.39 m/s, Isp_vac shifting 429.02 s, frozen 412.54 s, F_vac 1682.69 N
+simulated/predicted - 1: c* +1.6089%, Isp_vac (shifting) -1.0712%

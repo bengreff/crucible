@@ -1,0 +1,53 @@
+table: 324 nodes, 11 failing a gate; axes  f_H [0.1429, 0.2] (3)  Z_N [0, 0.3] (2)  eta [0, 1] (6)  rho [0.001, 80] (9)
+E0 replay joined (n_rule); 0 samples the domain hands to the table were outside the replay's own domain
+whole run: 6331392 cell updates, fallback 189179 = 2.988% (over 1%)
+  Z_N above the axis: 1.269%
+  E0: off the curve in s (below the blended start; w 0): 1.265%
+  E0: dY above dY_max (lower; w 1): 0.150%
+  a corner failed a gate: 0.093%
+  no H or O (pure N2): 0.092%
+  E0: frozen reach: 0.051%
+  E0: dY above dY_max (lower; w 0): 0.043%
+  eta above the axis: 0.019%
+  E0: off the curve in s (above the blended s_eq; w 0): 0.005%
+  E0: dY above dY_max (lower; w between): 0.002%
+whole run, columns 0 to 8 (chamber): 1780704 cell updates, fallback 51053 = 2.867% (over 1%)
+  E0: off the curve in s (below the blended start; w 0): 1.945%
+  Z_N above the axis: 0.346%
+  a corner failed a gate: 0.330%
+  E0: dY above dY_max (lower; w 1): 0.129%
+  eta above the axis: 0.066%
+  E0: dY above dY_max (lower; w 0): 0.040%
+  E0: dY above dY_max (lower; w between): 0.006%
+  no H or O (pure N2): 0.004%
+  E0: frozen reach: 0.001%
+whole run, columns 9 to 15 (convergent): 1384992 cell updates, fallback 38623 = 2.789% (over 1%)
+  E0: off the curve in s (below the blended start; w 0): 1.401%
+  Z_N above the axis: 1.038%
+  E0: frozen reach: 0.194%
+  E0: dY above dY_max (lower; w 0): 0.093%
+  E0: dY above dY_max (lower; w 1): 0.026%
+  no H or O (pure N2): 0.020%
+  E0: off the curve in s (above the blended s_eq; w 0): 0.016%
+whole run, columns 16 on (divergent): 3165696 cell updates, fallback 99503 = 3.143% (over 1%)
+  Z_N above the axis: 1.890%
+  E0: off the curve in s (below the blended start; w 0): 0.824%
+  E0: dY above dY_max (lower; w 1): 0.215%
+  no H or O (pure N2): 0.173%
+  E0: dY above dY_max (lower; w 0): 0.023%
+  E0: frozen reach: 0.016%
+  E0: off the curve in s (above the blended s_eq; w 0): 0.003%
+  E0: dY above dY_max (lower; w between): 0.001%
+last ms: 1632192 cell updates, fallback 0 = 0.000% (under 1%)
+last ms, columns 0 to 8 (chamber): 459054 cell updates, fallback 0 = 0.000% (under 1%)
+last ms, columns 9 to 15 (convergent): 357042 cell updates, fallback 0 = 0.000% (under 1%)
+last ms, columns 16 on (divergent): 816096 cell updates, fallback 0 = 0.000% (under 1%)
+by 0.5 ms window (fallback share of the window's cell updates, per region):
+  0.0 to 0.5 ms: all 33.763%; columns 0 to 8 (chamber) 32.400%; columns 9 to 15 (convergent) 31.515%; columns 16 on (divergent) 35.514%
+  0.5 to 1.0 ms: all 0.002%; columns 0 to 8 (chamber) 0.000%; columns 9 to 15 (convergent) 0.000%; columns 16 on (divergent) 0.004%
+  1.0 to 1.5 ms: all 0.000%; columns 0 to 8 (chamber) 0.000%; columns 9 to 15 (convergent) 0.000%; columns 16 on (divergent) 0.000%
+  1.5 to 2.0 ms: all 0.000%; columns 0 to 8 (chamber) 0.000%; columns 9 to 15 (convergent) 0.000%; columns 16 on (divergent) 0.000%
+  2.0 to 2.5 ms: all 0.000%; columns 0 to 8 (chamber) 0.000%; columns 9 to 15 (convergent) 0.000%; columns 16 on (divergent) 0.000%
+  2.5 to 3.0 ms: all 0.000%; columns 0 to 8 (chamber) 0.000%; columns 9 to 15 (convergent) 0.000%; columns 16 on (divergent) 0.000%
+  3.0 to 3.5 ms: all 0.000%; columns 0 to 8 (chamber) 0.000%; columns 9 to 15 (convergent) 0.000%; columns 16 on (divergent) 0.000%
+  3.5 to 4.0 ms: all 0.000%; columns 0 to 8 (chamber) 0.000%; columns 9 to 15 (convergent) 0.000%; columns 16 on (divergent) 0.000%

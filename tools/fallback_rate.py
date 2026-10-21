@@ -16,12 +16,14 @@ so the rate is a lower bound. Each sample is weighted by its steps, over the who
 With the chamber-end column, the regions are the chamber (columns up to it), the convergent (to the throat)
 and the divergent (from the throat on). With an E0 replay CSV (crucible_table_b_branch_rule, one row per
 sample in the same order), a cell update the domain hands to the table is also counted as a fallback if the
-specific entropy's branch rule rejects it (TABLE_B.md, E0 and E5), by its cause.
+specific entropy's branch rule rejects it (TABLE_B.md, E0 and E5), by its cause; E0_COLUMN=n_rule joins the
+N placement's column instead of the nearer-branch rule's (e0).
 """
 import bisect
 import csv
 import itertools
 import math
+import os
 import sys
 from collections import Counter
 
@@ -34,8 +36,11 @@ def main():
     throat = int(sys.argv[4]) if len(sys.argv) > 4 else None
     chamber_end = int(sys.argv[5]) if len(sys.argv) > 5 else None
     e0_rows = csv.reader(open(sys.argv[6])) if len(sys.argv) > 6 else None
+    # E0_COLUMN: the replay's column to join, e0 (the nearer-branch rule) or n_rule (the N placement).
+    e0_col = 0
+    replay_domain = {"no H or O", "outside the axes", "a corner was refused", "a corner flagged outside or degenerate"}
     if e0_rows is not None:
-        next(e0_rows)
+        e0_col = next(e0_rows).index(os.environ.get("E0_COLUMN", "e0"))
     failed = {}
     for row in csv.DictReader(open(report_path)):
         if row["candidate"] != candidate:
@@ -82,15 +87,15 @@ def main():
         f = float(row["f_H"]) if row["f_H"] not in ("nan", "-nan") else math.nan
         cause = classify(f, float(row["Z_N"]), float(row["eta"]), float(row["rho"]))
         if e0_rows is not None:
-            e0 = next(e0_rows)[0]
+            e0 = next(e0_rows)[e0_col]
             if cause == "table":
                 if not e0.startswith("table"):
                     # The replay's own domain (axes, refused or flagged corners) disagrees with the report's.
-                    mismatch += 0 if e0.startswith(("off the curve", "a tie", "dY above")) else 1
+                    mismatch += 1 if e0 in replay_domain else 0
                     cause = f"E0: {e0}"
         rows.append((t, int(row["steps"]), cause, int(row["i"])))
     if e0_rows is not None:
-        print(f"E0 replay joined; {mismatch} samples the domain hands to the table were outside the replay's own domain")
+        print(f"E0 replay joined ({os.environ.get('E0_COLUMN', 'e0')}); {mismatch} samples the domain hands to the table were outside the replay's own domain")
     regions = [("", lambda i: True)]
     if throat is not None and chamber_end is not None:
         regions += [(f", columns 0 to {chamber_end} (chamber)", lambda i: i <= chamber_end),
@@ -112,6 +117,18 @@ def main():
         for cause, w in weight.most_common():
             if cause != "table":
                 print(f"  {cause}: {100 * w / total:.3f}%")
+    # The fallback share by 0.5 ms window and region: where in the run the fallback sits.
+    print("by 0.5 ms window (fallback share of the window's cell updates, per region):")
+    for k in range(math.ceil(end / 5e-4 - 1e-9)):
+        line = []
+        for where, inside in regions:
+            total = fallback = 0
+            for t, steps, cause, i in rows:
+                if k * 5e-4 < t <= (k + 1) * 5e-4 and inside(i):
+                    total += steps
+                    fallback += steps if cause != "table" else 0
+            line.append(f"{where.strip(', ') or 'all'} {100 * fallback / total:.3f}%" if total else "")
+        print(f"  {k * 0.5:.1f} to {(k + 1) * 0.5:.1f} ms: " + "; ".join(line))
 
 
 if __name__ == "__main__":

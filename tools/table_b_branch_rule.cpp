@@ -10,8 +10,13 @@
 //     the blend of the 16, and max_k |dY_k| against the cell's reacting species;
 //   - the nearer branch by that max|dY|; CVODES, by cause, if s_cell is on neither curve, on an exact tie,
 //     or if the nearer branch's max|dY| is above dY_max = 0.01.
+// And the rule that replaces it (TABLE_B.md, "The cell placed by its moles per kilogram"): N = sum Y_k / W_k
+// of the cell against the blended curve's N, tau from 0 (start) to 1 (equilibrium or reach) on the lower
+// branch and 1 to 2 (complete combustion) on the upper; phi_N, the 02:59 weight w, the branch from N, tau_N by
+// Illinois, s* = (1 - w) s_cell + w s(tau_N) for w < 1, and the same dY_max on the placed point's Y.
 // One output row per sample, in the samples' order, for tools/fallback_rate.py to join (it applies the
-// domain: the axes and the gates). Also E4: s per cell and the whole rule per cell, timed on one thread.
+// domain: the axes and the gates; E0_COLUMN picks the rule). Also E4: s per cell and each rule per cell,
+// timed on one thread.
 // CRUCIBLE_E0_OWN_EQ_EVERY = N (default 20; 0 for none): every N-th sample inside the axes also gets its own
 // s_eq from Cantera's equilibrateUV, for E0's stated measurement of the blend's s_eq against the cell's.
 //
@@ -83,32 +88,33 @@ Branch branchOf(const ManifoldTable& t, std::size_t node, int b) {
   return br;
 }
 
-// The corner's Y (reacting species) at u = 1 - xi on branch br: its s is s_ref - span u^2, bracketed by a
-// search in c (monotone), and interpolated linearly in d = sqrt(s_ref - s) between the bracket.
-void cornerY(const ManifoldTable& t, std::size_t node, const Branch& br, double u, double* out) {
-  const std::size_t ns = t.reactingSpecies.size();
+// The bracket of u = 1 - xi on branch br of one corner: its s is s_ref - span u^2, bracketed by a search in c
+// (monotone), and interpolated linearly in d = sqrt(s_ref - s) between the bracket's points a and b.
+struct Bracket { int a, b; double th; };
+Bracket cornerBracket(const ManifoldTable& t, std::size_t node, const Branch& br, double u) {
   const int p0 = static_cast<int>(br.first);
-  if (br.span <= 0 || br.count < 2) {
-    const double* y = t.pointY(node, p0);
-    std::copy(y, y + ns, out);
-    return;
-  }
+  if (br.span <= 0 || br.count < 2) return {p0, p0, 0.0};
   const double sTarget = br.sRef - br.span * u * u;
   // Points ordered by increasing d: the lower branch is stored from its start (largest d) to s_ref.
-  auto cAt = [&](std::size_t q) { return t.c(node, br.ascending ? p0 + static_cast<int>(br.count - 1 - q) : p0 + static_cast<int>(q)); };
-  auto yAt = [&](std::size_t q) { return t.pointY(node, br.ascending ? p0 + static_cast<int>(br.count - 1 - q) : p0 + static_cast<int>(q)); };
+  auto at = [&](std::size_t q) { return br.ascending ? p0 + static_cast<int>(br.count - 1 - q) : p0 + static_cast<int>(q); };
   // In d order, s falls; find q with s(q) >= sTarget >= s(q + 1).
   std::size_t lo = 0, hi = br.count - 1;
   while (hi - lo > 1) {
     const std::size_t mid = (lo + hi) / 2;
-    (cAt(mid) >= sTarget ? lo : hi) = mid;
+    (t.c(node, at(mid)) >= sTarget ? lo : hi) = mid;
   }
-  const double dLo = std::sqrt(std::max(br.sRef - cAt(lo), 0.0)), dHi = std::sqrt(std::max(br.sRef - cAt(hi), 0.0));
+  const double dLo = std::sqrt(std::max(br.sRef - t.c(node, at(lo)), 0.0)), dHi = std::sqrt(std::max(br.sRef - t.c(node, at(hi)), 0.0));
   const double d = std::sqrt(br.span) * u;
-  const double th = dHi > dLo ? std::clamp((d - dLo) / (dHi - dLo), 0.0, 1.0) : 0.0;
-  const double* a = yAt(lo);
-  const double* b = yAt(hi);
-  for (std::size_t k = 0; k < ns; ++k) out[k] = a[k] + th * (b[k] - a[k]);
+  return {at(lo), at(hi), dHi > dLo ? std::clamp((d - dLo) / (dHi - dLo), 0.0, 1.0) : 0.0};
+}
+
+// The corner's Y (reacting species) at u on branch br.
+void cornerY(const ManifoldTable& t, std::size_t node, const Branch& br, double u, double* out) {
+  const std::size_t ns = t.reactingSpecies.size();
+  const Bracket k = cornerBracket(t, node, br, u);
+  const double* a = t.pointY(node, k.a);
+  const double* b = t.pointY(node, k.b);
+  for (std::size_t q = 0; q < ns; ++q) out[q] = a[q] + k.th * (b[q] - a[q]);
 }
 
 struct BranchResult { bool on{}; double sEq{}, span{}, xi{}, dY{}; const char* off{""}; };
@@ -188,6 +194,145 @@ Rule applyRule(const ManifoldTable& t, const std::array<Corner, 16>& corners, do
   return rule;
 }
 
+// The N placement (TABLE_B.md, "The cell placed by its moles per kilogram"). nPt: N of every stored point's
+// reacting species, by global point index; N is linear in Y, so a corner's N at u is the bracket's
+// interpolation of it, and the blend's N is the weights' sum.
+constexpr double kNTol = 1e-12;
+struct NRule { std::string cause; int branch{-1}; double phi{NAN}, w{NAN}, tau{NAN}, dY{NAN}, gap{NAN}; int iterations{}; };
+
+struct Blend {
+  const ManifoldTable& t;
+  const std::vector<double>& nPt;
+  const std::array<Corner, 16>& corners;
+  std::array<Branch, 16> br[2];
+  double sEq[2]{}, span[2]{};
+  Blend(const ManifoldTable& tab, const std::vector<double>& n, const std::array<Corner, 16>& c) : t(tab), nPt(n), corners(c) {
+    for (int b = 0; b < 2; ++b)
+      for (int q = 0; q < 16; ++q) {
+        br[b][q] = branchOf(t, corners[q].node, b);
+        sEq[b] += corners[q].w * br[b][q].sRef;
+        span[b] += corners[q].w * br[b][q].span;
+      }
+  }
+  // u on branch b: the lower branch's tau is 1 - u, the upper's 1 + u.
+  [[nodiscard]] double n(int b, double u) const {
+    double v = 0;
+    for (int q = 0; q < 16; ++q) {
+      if (corners[q].w == 0) continue;
+      const Bracket k = cornerBracket(t, corners[q].node, br[b][q], u);
+      const std::size_t f = t.nodes[corners[q].node].firstPoint;
+      v += corners[q].w * (nPt[f + k.a] + k.th * (nPt[f + k.b] - nPt[f + k.a]));
+    }
+    return v;
+  }
+  // N at a branch's end, read from its stored end point: u = 0 is s_ref, u = 1 the far end.
+  [[nodiscard]] double nEnd(int b, int u) const {
+    double v = 0;
+    for (int q = 0; q < 16; ++q) {
+      const auto& n = t.nodes[corners[q].node];
+      const std::uint32_t p = b == 0 ? (u == 1 ? 0 : n.lowerCount - 1) : (u == 0 ? n.lowerCount : n.pointCount - 1);
+      v += corners[q].w * nPt[n.firstPoint + p];
+    }
+    return v;
+  }
+  void y(int b, double u, std::vector<double>& yc, std::vector<double>& yb) const {
+    std::fill(yb.begin(), yb.end(), 0.0);
+    for (int q = 0; q < 16; ++q) {
+      if (corners[q].w == 0) continue;
+      cornerY(t, corners[q].node, br[b][q], u, yc.data());
+      for (std::size_t k = 0; k < yb.size(); ++k) yb[k] += corners[q].w * yc[k];
+    }
+  }
+};
+
+// The base tau values (the builder's slots): lower, xi = 0, 12 geometric 1e-9..0.1, 18 uniform to 1; upper,
+// 1 + j/8 for its 9 points.
+std::vector<double> baseTau(const ManifoldTable& t, int b) {
+  std::vector<double> v;
+  if (b == 0) {
+    v.push_back(0.0);
+    for (int g = 1; g <= t.lowerGeometric; ++g)
+      v.push_back(1e-9 * std::pow(0.1 / 1e-9, t.lowerGeometric > 1 ? static_cast<double>(g - 1) / (t.lowerGeometric - 1) : 1.0));
+    for (int u = 1; u <= t.lowerUniform; ++u) v.push_back(0.1 + 0.9 * static_cast<double>(u) / t.lowerUniform);
+  } else {
+    for (int j = 0; j < t.upperUniform; ++j) v.push_back(1.0 + static_cast<double>(j) / (t.upperUniform - 1));
+  }
+  return v;
+}
+
+// check: sample the blend's N at the base tau values, report a rise as its own cause and bracket tau_N there
+// (the replay); without it, Illinois runs on the whole branch (the runtime's cost, for E4).
+NRule placeByN(const Blend& bl, const std::vector<double>& wR, double sCell, const double* yCell, bool check,
+               const std::vector<double>* tauBase, std::vector<double>& yc, std::vector<double>& yb) {
+  const std::size_t ns = wR.size();
+  NRule r;
+  double nCell = 0;
+  for (std::size_t k = 0; k < ns; ++k) nCell += yCell[k] / wR[k];
+  const double n0 = bl.nEnd(0, 1), nLoEnd = bl.nEnd(0, 0), nUpEnd = bl.nEnd(1, 0), nCp = bl.nEnd(1, 1);
+  r.gap = (nLoEnd - nUpEnd) / nLoEnd;
+  if (!(n0 > nLoEnd)) { r.cause = "no fall in N"; return r; }
+  r.phi = (n0 - nCell) / (n0 - nLoEnd);
+  r.w = std::clamp((r.phi - 0.005) / 0.005, 0.0, 1.0);
+  const char* wClass = r.w == 0 ? "w 0" : (r.w < 1 ? "w between" : "w 1");
+  int b = 0;
+  double tauN = NAN;
+  if (r.w > 0) {
+    if (nCell >= nLoEnd) b = 0;
+    else if (nCell <= nUpEnd) b = 1;
+    else { r.cause = "frozen reach"; return r; }
+    if (b == 1 && nCell < nCp) { r.cause = "N below the blended N_cp"; return r; }
+    auto tauOf = [&](double u) { return b == 0 ? 1 - u : 1 + u; };
+    auto uOf = [&](double tau) { return b == 0 ? 1 - tau : tau - 1; };
+    auto f = [&](double tau) { return bl.n(b, uOf(tau)) - nCell; };
+    double a = tauOf(1.0 * (b == 0)), c = tauOf(1.0 * (b == 1)), fa = (b == 0 ? n0 : nUpEnd) - nCell, fc = (b == 0 ? nLoEnd : nCp) - nCell;
+    if (check) {
+      const auto& g = tauBase[b];
+      std::vector<double> ng(g.size());
+      for (std::size_t j = 0; j < g.size(); ++j) ng[j] = f(g[j]) + nCell;
+      std::size_t start = 0;
+      if (b == 0) {
+        while (start < g.size() && n0 - ng[start] < 0.005 * (n0 - nLoEnd)) ++start;
+        start = start > 0 ? start - 1 : 0;
+      }
+      for (std::size_t j = start + (b == 0 ? 1 : 0); j + 1 < g.size(); ++j)
+        if (ng[j + 1] > ng[j] + kNTol * ng[j]) { r.cause = "blended N not monotone"; return r; }
+      std::size_t j = start;
+      while (j + 1 < g.size() - 1 && ng[j + 1] > nCell) ++j;
+      a = g[j]; c = g[j + 1]; fa = ng[j] - nCell; fc = ng[j + 1] - nCell;
+    }
+    // Illinois on [a, c], fa >= 0 >= fc.
+    const double tol = kNTol * nCell;
+    if (std::fabs(fa) <= tol) tauN = a;
+    else if (std::fabs(fc) <= tol) tauN = c;
+    else {
+      for (r.iterations = 1; r.iterations <= 60; ++r.iterations) {
+        tauN = c - fc * (c - a) / (fc - fa);
+        const double fn = f(tauN);
+        if (std::fabs(fn) <= tol) break;
+        if (fn * fc < 0) { a = c; fa = fc; } else fa /= 2;
+        c = tauN; fc = fn;
+      }
+    }
+  }
+  double u;  // the placed point's u on branch b
+  if (r.w == 1) {
+    u = b == 0 ? 1 - tauN : tauN - 1;
+  } else {
+    const double sStar = r.w == 0 ? sCell : (1 - r.w) * sCell + r.w * (bl.sEq[0] - bl.span[0] * (1 - tauN) * (1 - tauN));
+    if (sStar > bl.sEq[0]) { r.cause = std::string("off the curve in s (above the blended s_eq; ") + wClass + ")"; return r; }
+    if (!(bl.span[0] > 0) || sStar < bl.sEq[0] - bl.span[0]) { r.cause = std::string("off the curve in s (below the blended start; ") + wClass + ")"; return r; }
+    u = std::sqrt((bl.sEq[0] - sStar) / bl.span[0]);
+  }
+  r.branch = b;
+  r.tau = b == 0 ? 1 - u : 1 + u;
+  bl.y(b, u, yc, yb);
+  r.dY = 0;
+  for (std::size_t k = 0; k < ns; ++k) r.dY = std::max(r.dY, std::fabs(yb[k] - yCell[k]));
+  const std::string where = std::string(b == 0 ? "lower; " : "upper; ") + wClass;
+  r.cause = r.dY > kDYMax ? "dY above dY_max (" + where + ")" : "table (" + where + ")";
+  return r;
+}
+
 std::vector<std::string> split(const std::string& line) {
   std::vector<std::string> c;
   std::stringstream s(line);
@@ -237,6 +382,15 @@ int main(int argc, char** argv) {
     if (q == nsAll) throw std::runtime_error("Reacting species " + table.reactingSpecies[k] + " is not in the mechanism.");
     reactingCol[k] = q;
   }
+  // N per stored point (reacting species), and the reacting species' molar masses.
+  std::vector<double> wR(ns);
+  for (std::size_t k = 0; k < ns; ++k) wR[k] = species[reactingCol[k]].molarMass;
+  std::vector<double> nPt(table.points.size() / table.pointWidth());
+  for (std::size_t p = 0; p < nPt.size(); ++p) {
+    const double* y = table.points.data() + p * table.pointWidth();
+    for (std::size_t k = 0; k < ns; ++k) nPt[p] += y[k] / wR[k];
+  }
+  const std::vector<double> tauBase[2] = {baseTau(table, 0), baseTau(table, 1)};
   long ownEvery = 20;
   if (const char* e = std::getenv("CRUCIBLE_E0_OWN_EQ_EVERY")) ownEvery = std::atol(e);
 
@@ -254,9 +408,14 @@ int main(int argc, char** argv) {
 
   std::FILE* out = std::fopen(argv[4], "w");
   if (!out) throw std::runtime_error(std::string("Cannot write ") + argv[4]);
-  std::fprintf(out, "e0,branch,s_cell,s_eq_lower,span_lower,xi_lower,dY_lower,s_eq_upper,span_upper,xi_upper,dY_upper,s_eq_own\n");
+  std::fprintf(out, "e0,branch,s_cell,s_eq_lower,span_lower,xi_lower,dY_lower,s_eq_upper,span_upper,xi_upper,dY_upper,s_eq_own,n_rule,n_branch,phi_N,w,tau,dY_n\n");
   std::vector<double> yc(ns), yb(ns), yr(ns);
-  std::map<std::string, long> count;
+  std::map<std::string, long> count, countN;
+  long unconverged = 0;
+  std::map<int, long> iterationCount;
+  std::vector<double> reachGap;
+  long reachWithFrozen = 0;
+  std::map<std::string, std::vector<double>> dYByClass;
   double worstSCheck = 0;
   long checked = 0, inside = 0;
   std::vector<std::array<double, 3>> ownEq;  // (s_eq_own - s_eq_lower blend, s_eq_own - s_cell, xi_lower)
@@ -266,7 +425,7 @@ int main(int argc, char** argv) {
     const std::string domain = cornersOf(table, s.fH, s.zN, s.eta, s.rho, corners);
     if (!domain.empty()) {
       ++count["(domain) " + domain];
-      std::fprintf(out, "%s,-1,,,,,,,,,,\n", domain.c_str());
+      std::fprintf(out, "%s,-1,,,,,,,,,,,%s,-1,,,,\n", domain.c_str(), domain.c_str());
       continue;
     }
     ++inside;
@@ -289,13 +448,42 @@ int main(int argc, char** argv) {
     std::fprintf(out, "%s,%d,%.12e,%.12e,%.6e,%.6e,%.6e,%.12e,%.6e,%.6e,%.6e,", rule.cause.c_str(), rule.branch, sCell,
                  rule.b[0].sEq, rule.b[0].span, rule.b[0].xi, rule.b[0].dY, rule.b[1].sEq, rule.b[1].span, rule.b[1].xi,
                  rule.b[1].dY);
-    if (std::isfinite(sOwn)) std::fprintf(out, "%.12e\n", sOwn); else std::fprintf(out, "\n");
+    if (std::isfinite(sOwn)) std::fprintf(out, "%.12e,", sOwn); else std::fprintf(out, ",");
+    const Blend blend(table, nPt, corners);
+    const NRule nr = placeByN(blend, wR, sCell, yr.data(), true, tauBase, yc, yb);
+    ++countN[nr.cause];
+    if (nr.iterations > 60) ++unconverged;
+    if (nr.w > 0 && nr.branch >= 0) ++iterationCount[nr.iterations];
+    if (nr.cause == "frozen reach") {
+      reachGap.push_back(nr.gap);
+      bool frozen = false;
+      for (const auto& c : corners) frozen |= c.w > 0 && (table.nodes[c.node].flags & ManifoldTable::kFrozen);
+      reachWithFrozen += frozen;
+    }
+    if (nr.branch >= 0) dYByClass[nr.cause.substr(nr.cause.find('(') + 1)].push_back(nr.dY);
+    std::fprintf(out, "%s,%d,%.6e,%.6e,%.9e,%.6e\n", nr.cause.c_str(), nr.branch, nr.phi, nr.w, nr.tau, nr.dY);
   }
   std::fclose(out);
 
   std::printf("E0 replay: %zu samples, %ld inside the axes with usable corners (unweighted; fallback_rate.py weights by steps and applies the gates)\n",
               samples.size(), inside);
   for (const auto& [cause, k] : count) std::printf("  %s: %ld\n", cause.c_str(), k);
+  std::printf("The N placement (unweighted): %ld placements with Illinois unconverged after 60 iterations\n", unconverged);
+  for (const auto& [cause, k] : countN) std::printf("  %s: %ld\n", cause.c_str(), k);
+  if (!reachGap.empty()) {
+    std::sort(reachGap.begin(), reachGap.end());
+    std::printf("  frozen reach: (N_lo(1) - N_up(1)) / N_lo(1) min %.3e, median %.3e, max %.3e; %ld of %zu with a frozen corner of nonzero weight\n",
+                reachGap.front(), reachGap[reachGap.size() / 2], reachGap.back(), reachWithFrozen, reachGap.size());
+  }
+  std::printf("  Illinois iterations of the placed cells with w > 0:");
+  for (const auto& [it, k] : iterationCount) std::printf(" %d: %ld;", it, k);
+  std::printf("\n");
+  for (auto& [cls, v] : dYByClass) {
+    std::sort(v.begin(), v.end());
+    auto pct = [&](double p) { return v[static_cast<std::size_t>(p * (v.size() - 1))]; };
+    std::printf("  dY of the placed point, (%s: %zu cells, median %.3e, 95%% %.3e, 99%% %.3e, max %.3e\n", cls.c_str(), v.size(),
+                pct(0.5), pct(0.95), pct(0.99), v.back());
+  }
   std::printf("s_cell against Cantera's entropy_mass on %ld samples: worst |difference| %.3e J/(kg K)\n", checked, worstSCheck);
   if (!ownEq.empty()) {
     std::vector<double> a, b;
@@ -342,8 +530,19 @@ int main(int argc, char** argv) {
       for (std::size_t k = 0; k < ns; ++k) yr[k] = s.y[reactingCol[k]];
       return static_cast<double>(applyRule(table, insideCorners[q], sc, yr.data(), yc, yb).branch);
     });
-    std::printf("E4 (one thread, %zu cells): s_cell %.1f ns per cell; s_cell with the branch rule (16 corners, both branches) %.1f ns per cell (sink %g)\n",
-                insideIdx.size(), nsS, nsRule, sink > 0 ? 1.0 : 0.0);
+    auto nTime = [&](bool check) {
+      return timeIt([&](std::size_t q) {
+        const auto& s = samples[insideIdx[q]];
+        const double sc = cellEntropy(species, s.T, s.rho, s.y.data(), table.referencePressure);
+        for (std::size_t k = 0; k < ns; ++k) yr[k] = s.y[reactingCol[k]];
+        const Blend blend(table, nPt, insideCorners[q]);
+        return static_cast<double>(placeByN(blend, wR, sc, yr.data(), check, tauBase, yc, yb).branch);
+      });
+    };
+    const double nsN = nTime(false), nsNCheck = nTime(true);
+    std::printf("E4 (one thread, %zu cells): s_cell %.1f ns per cell; s_cell with the branch rule (16 corners, both branches) %.1f ns per cell; "
+                "s_cell with the N placement %.1f ns per cell (Illinois on the whole branch), %.1f with the replay's monotone check (sink %g)\n",
+                insideIdx.size(), nsS, nsRule, nsN, nsNCheck, sink > 0 ? 1.0 : 0.0);
   }
   return 0;
 }

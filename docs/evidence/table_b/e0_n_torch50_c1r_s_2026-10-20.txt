@@ -1,0 +1,27 @@
+E0 replay: 384192 samples, 368183 inside the axes with usable corners (unweighted; fallback_rate.py weights by steps and applies the gates)
+  (domain) no H or O: 1639
+  (domain) outside the axes: 14370
+  dY above dY_max: 1298
+  off the curve (lower above the blended s_eq; upper above the blended s_eq): 327463
+  off the curve (lower above the blended s_eq; upper below the blended start): 59
+  off the curve (lower below the blended start; upper below the blended start): 9539
+  table (lower branch): 29628
+  table (upper branch): 196
+The N placement (unweighted): 0 placements with Illinois unconverged after 60 iterations
+  dY above dY_max (lower; w 0): 328
+  dY above dY_max (lower; w 1): 713
+  dY above dY_max (lower; w between): 9
+  frozen reach: 185
+  off the curve in s (above the blended s_eq; w 0): 43
+  off the curve in s (below the blended start; w 0): 9539
+  table (lower; w 0): 4
+  table (lower; w 1): 166634
+  table (upper; w 1): 190728
+  frozen reach: (N_lo(1) - N_up(1)) / N_lo(1) min 3.164e-07, median 1.254e-03, max 1.525e-02; 185 of 185 with a frozen corner of nonzero weight
+  Illinois iterations of the placed cells with w > 0: 1: 224404; 2: 249; 3: 130788; 4: 1918; 5: 2; 6: 721; 9: 2;
+  dY of the placed point, (lower; w 0): 332 cells, median 1.503e-01, 95% 3.629e-01, 99% 3.957e-01, max 4.058e-01
+  dY of the placed point, (lower; w 1): 167347 cells, median 3.344e-03, 95% 4.971e-03, 99% 5.727e-03, max 4.285e-01
+  dY of the placed point, (lower; w between): 9 cells, median 3.263e-01, 95% 3.931e-01, 99% 3.931e-01, max 4.015e-01
+  dY of the placed point, (upper; w 1): 190728 cells, median 8.412e-04, 95% 1.845e-03, 99% 1.992e-03, max 2.221e-03
+s_cell against Cantera's entropy_mass on 3800 samples: worst |difference| 1.819e-11 J/(kg K)
+E4 (one thread, 368183 cells): s_cell 71.4 ns per cell; s_cell with the branch rule (16 corners, both branches) 247.9 ns per cell; s_cell with the N placement 1254.9 ns per cell (Illinois on the whole branch), 5050.7 with the replay's monotone check (sink 1)

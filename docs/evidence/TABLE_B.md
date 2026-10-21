@@ -619,6 +619,70 @@ The 19:25 branch rule was stated as engineering, and it fails E0 by the predicte
 - The nearer-branch rule's result stays in the replay's output, for comparison.
 - *Expected (inferred, not a bar):* the chamber's equilibrium cells land at τ near 1. Their ΔY is then the blend's interpolation error in Y_eq at this table's spacing (Δη 0.2, Δ ln ρ 1.4), which may be near 0.01. A fail there is the axes' coarseness, not the placement. It is reported against the table's spacing, not tuned.
 
+### The N placement measured: from 0.5 ms on, under the bar in every region; the start fails it (20 October 2026, about 23:10 CDT)
+
+The same samples, table and joins as above; the replay's `n_rule` column (`table_b/e0_n_torch50_c1r_s_2026-10-20.txt`, `table_b/e5_n_torch50_c1r_s_2026-10-20.txt`; the run's log is `table_b/c1_torch50_highT_run_2026-10-20.log`).
+
+**E5 with the N placement** (the domain plus the placement's rejects):
+
+| Share of the region's cell updates | Whole run | 0 to 0.5 ms | 0.5 to 1 ms | Each 0.5 ms window from 1 to 4 ms | Last ms |
+|---|---|---|---|---|---|
+| Chamber | 2.867% | 32.400% | 0.000% | 0.000% | **0.000%** |
+| Convergent | 2.789% | 31.515% | 0.000% | 0.000% | **0.000%** |
+| Divergent | 3.143% | 35.514% | 0.004% | 0.000% | **0.000%** |
+| All | 2.988% | 33.763% | 0.002% | 0.000% | **0.000%** |
+
+- **Against the Director's 1% bar:** from 0.5 ms to the end the nozzle is at 0.004% at worst, and 0 from 1 ms on. So the burning engine passes, in every region.
+- **The whole run fails, in every region,** and the fallback is all in the first 0.5 ms: the purge, the cold propellant and the ignition.
+- The divergent's whole-run 3.143% splits into: the domain 2.082% (Z_N above the axis 1.890%, pure N2 0.173%, η 0.019%), and the placement's rejects 1.061%.
+
+**The placement, unweighted** (368,183 samples inside the axes):
+- 357,366 on the table (97.06%): 166,634 on the lower branch at w 1, 190,728 on the upper at w 1, and 4 on the lower at w 0.
+- Not one sample in "no fall in N", "N below the blended N_cp" or "blended N not monotone".
+- Illinois converges in 1 to 3 iterations for 99.3% of the searched cells, at most 9; none ran to 60.
+- **The placed point's ΔY:**
+  - upper branch, w 1: median 8.4e-4, max 2.2e-3;
+  - lower branch, w 1: median 3.3e-3, 99% 5.7e-3. The expectation stated above (near 0.01, from the axes' spacing) is measured lower.
+- The nearer-branch rule's result is unchanged in the same file, for comparison: 29,824 on the table.
+
+**The rejects, each measured** (unweighted count; whole-run share of the divergent's updates):
+- **Off the curve in s, below the blended start, at w 0** (9,539; 0.824%). *Measured:*
+  - The cells are cold propellant before ignition: t 0.022 to 0.29 ms, T 126 to 465 K (median 250 K), η 0.59 to 0.78, Z_N median 0.002.
+  - φ_N is −0.56 to −0.02 (median −0.11): the cell has more moles than the blended start. Its s is 2 to 2,412 J/(kg K) below the start (median 1,423).
+  - The corners at f_H 1/7 and 1/6, Z_N 0 and η 0.6 start from the frozen family, not from the reactants. Their energy is below the reactants' at 200 K, so the builder's rule applies. Their start's N is 0.936 to 0.980 of the reactants', so it is partly burnt. At η 0.8 every start is the reactants (1.000).
+  - So between η 0.6 and 0.8 the blended start is partly burnt, while the cell is still pure reactants. The cell is on neither side of the curve, and that is the axis's coarseness at the reactants' 200 K floor.
+- **ΔY above ΔY_max, lower branch, w 1** (713; 0.215%):
+  - The ignition front: t 0.222 to 0.306 ms, T 649 to 3,136 K, φ_N 0.01 to 0.999 (median 0.34), ΔY median 0.070.
+  - *Inferred:* these are burning cells whose gas is a mixture of burnt and unburnt, off any one homogeneous reactor's path (probe 4's case).
+- **ΔY above ΔY_max, lower branch, w 0** (328; 0.023%):
+  - Before ignition: t 0.074 to 0.29 ms, T 294 to 2,061 K, Z_N median 0.22 (the purge's edge), ΔY median 0.15.
+  - Not measured further.
+- **Frozen reach** (185; 0.016%):
+  - t 0.27 to 0.76 ms, T 2,881 to 3,579 K, φ_N 1.00 to 1.045.
+  - Each has a frozen corner of nonzero weight: f_H 1/6, Z_N 0.3, η 0.6, whose lower branch from the reactants does not ignite by 1e15 s.
+  - The gap (N̄_lo(1) − N̄_up(1))/N̄_lo(1) is 3e-7 to 1.5e-2 (median 1.3e-3). That is the 03:10 cause, as designed.
+
+**E4 for the placement** (one thread, the machine at a load of about 2; `table_b/e0_n_...`):
+
+| Per cell | ns |
+|---|---|
+| s_cell | 71 |
+| s_cell and the nearer-branch rule | 248 |
+| s_cell and the N placement, the runtime's form (each branch end read from its stored point, Illinois on the whole branch) | **1,255** |
+| The same with the replay's monotone check (N̄ at the 40 base τ, and Illinois in their bracket) | 5,051 |
+
+- The first version evaluated the four branch ends by the search, and cost 2,021 ns. Its outcomes were identical, sample for sample, by cause count.
+- **Against the step:** C1's step outside the reaction is 3.70 µs per cell update. So the placement is 17% (*inferred*, on both threads) to 34% (on one) of it. E4's bar was stated for s, which passes at 1% to 2%. Applied to the whole placement, the 5% bar fails.
+- **Against what it replaces:** CVODES costs 67.5 µs per cell update, 54 times the placement.
+- **Against criterion 6, as E4 states for an overrun:** with the placement in place of CVODES, the step would be about 4.3 to 5.0 µs per cell update. C1 to 4 ms would then take about 27 to 31 s of wall, against 451 s now (*inferred*). This leaves out the update after the placement (the step in s and Y read at the new s, about one more blend of Y) and the fallback cells' CVODES.
+
+**What this leaves.**
+- The N placement replaces the nearer-branch rule. The steady engine is on the table: the chamber and convergent near equilibrium, the freezing nozzle on both branches.
+- The start's 0 to 0.5 ms fails the bar, by four named causes, of which the largest two are the axes:
+  - Z_N above 0.3: the purged ambient N2;
+  - the η spacing at the reactants' 200 K floor: the cold propellant.
+- Whether the 1% bar covers the start transient, and so whether these axes are extended, is the Director's.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
