@@ -9,8 +9,12 @@ namespace crucible {
 
 namespace {
 constexpr double kDYMax = 0.01;
+// The lower branch's induction part: below this fraction of its fall in N, a cell is not on the table
+// (TABLE_B.md, "the induction cut"; measured from the table's march against CVODES on C1's front cells).
+constexpr double kPhiInduction = 0.3;
 constexpr double kNTol = 1e-12;
 constexpr double kArgonMax = 1e-12;
+constexpr double kCornerDrop = 1e-12;
 constexpr std::size_t kNone = static_cast<std::size_t>(-1);
 
 // s°/R of one species (NASA-7), with the constant-cp continuation above tHigh.
@@ -88,10 +92,18 @@ Cause cornersOf(const ManifoldTable& t, double fH, double zN, double eta, double
   if (!bracket(t.zN, zN, jj, fj) || !bracket(t.fH, fH, ii, fi) || !bracketUniform(0.0, 1.0, t.nEta, eta, kk, fk) ||
       !bracketUniform(t.lnRhoMin, t.lnRhoMax, t.nLnRho, std::log(rho), ll, fl))
     return Cause::OutsideAxes;
+  // A corner weighted below kCornerDrop is dropped: not checked, not blended, the kept weights renormalised
+  // (TABLE_B.md, "The bar set, the face mechanism measured, and the corner drop").
+  double kept = 0;
   for (int q = 0; q < 16; ++q) {
     const int a = q >> 3 & 1, b = q >> 2 & 1, e = q >> 1 & 1, r = q & 1;
     const double w = (a ? fi : 1 - fi) * (b ? fj : 1 - fj) * (e ? fk : 1 - fk) * (r ? fl : 1 - fl);
-    c[q] = {t.nodeIndex(ii + a, jj + b, kk + e, ll + r), w};
+    c[q] = {t.nodeIndex(ii + a, jj + b, kk + e, ll + r), w < kCornerDrop ? 0.0 : w};
+    kept += c[q].w;
+  }
+  for (int q = 0; q < 16; ++q) {
+    c[q].w /= kept;
+    if (c[q].w == 0) continue;
     const auto& n = t.nodes[c[q].node];
     if (n.pointCount == 0 || n.lowerCount == 0 || n.lowerCount >= n.pointCount) return Cause::CornerRefused;
     if (n.flags & (ManifoldTable::kOutside | ManifoldTable::kDegenerate)) return Cause::CornerFlagged;
@@ -104,11 +116,12 @@ struct Blend {
   const ManifoldTable& t;
   const std::vector<double>& nPt;
   const std::array<Corner, 16>& corners;
-  std::array<Branch, 16> br[2];
+  std::array<Branch, 16> br[2]{};
   double sEq[2]{}, span[2]{};
   Blend(const ManifoldTable& tab, const std::vector<double>& n, const std::array<Corner, 16>& c) : t(tab), nPt(n), corners(c) {
     for (int b = 0; b < 2; ++b)
       for (int q = 0; q < 16; ++q) {
+        if (corners[q].w == 0) continue;
         br[b][q] = branchOf(t, corners[q].node, b);
         sEq[b] += corners[q].w * br[b][q].sRef;
         span[b] += corners[q].w * br[b][q].span;
@@ -128,6 +141,7 @@ struct Blend {
   [[nodiscard]] double nEnd(int b, int u) const {
     double v = 0;
     for (int q = 0; q < 16; ++q) {
+      if (corners[q].w == 0) continue;
       const auto& n = t.nodes[corners[q].node];
       const std::uint32_t p = b == 0 ? (u == 1 ? 0 : n.lowerCount - 1) : (u == 0 ? n.lowerCount : n.pointCount - 1);
       v += corners[q].w * nPt[n.firstPoint + p];
@@ -177,6 +191,7 @@ const char* ManifoldRuntime::causeName(Cause c) {
     case Cause::OffCurveAboveSEq: return "off the curve in s (above the blended s_eq)";
     case Cause::OffCurveBelowStart: return "off the curve in s (below the blended start)";
     case Cause::DYAboveMax: return "dY above dY_max";
+    case Cause::Induction: return "the lower branch's induction part (phi_N below 0.3)";
     case Cause::FrozenCorner: return "frozen corner on the branch";
     case Cause::NoRate: return "no rate at a corner";
     case Cause::Count: break;
@@ -333,8 +348,13 @@ ManifoldRuntime::Placement ManifoldRuntime::place(double e, double rho, double t
   r.dY = 0;
   for (std::size_t k = 0; k < ns; ++k) r.dY = std::max(r.dY, std::fabs(work.yb[k] - work.yr[k]));
   if (r.dY > kDYMax) { r.cause = Cause::DYAboveMax; return r; }
+  if (b == 0 && r.phi < kPhiInduction) { r.cause = Cause::Induction; return r; }
   for (int q = 0; q < 16; ++q)
-    if (corners[q].w > 0 && bl.br[b][q].frozen) { r.cause = Cause::FrozenCorner; return r; }
+    if (corners[q].w > 0 && bl.br[b][q].frozen && corners[q].w > r.frozenW) {
+      r.cause = Cause::FrozenCorner;
+      r.frozenW = corners[q].w;
+      r.frozenNode = corners[q].node;
+    }
   return r;
 }
 

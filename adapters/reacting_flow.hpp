@@ -50,6 +50,10 @@ class ReactingFlow {
     long manifoldPartial = 0;
     // The same counts per cell: [q * Cause::Count + cause], q the flow's cell index (zeroed if the cell count changes).
     std::vector<long> manifoldCellCauses;
+    // FrozenCorner updates by the weight of the heaviest refusing corner, by decade: below 1e-30, to 1e-12, to
+    // 1e-6, to 1e-2, and above; and by that corner's table node (sized to the table's nodes).
+    std::array<long, 5> manifoldFrozenWeight{};
+    std::vector<long> manifoldFrozenNode;
   };
   // Sets the flow's thread count (Flow::setThreads), whose pool then runs the reaction loops too;
   // it must not change while this object lives.

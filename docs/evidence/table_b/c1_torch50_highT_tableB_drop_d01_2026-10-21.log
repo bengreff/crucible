@@ -1,0 +1,50 @@
+mechanism: ../tools/mechanisms/h2o2_highT.yaml
+Table B /tmp/tbs/c1r11_s.bin: Table B built 2026-10-20 23:58 CDT by crucible_build_manifold_table from ../tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 3 nodes {0.142857,0.166667,0.200000} as given, Z_N {0.000000,0.300000}, eta 11 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 594 nodes in 15 s on 2 threads; node element error 5.77e-10 raw, 3.57e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE
+mesh 32x6: dz 5.208 mm, throat station 16 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 8 at z 0.0443 m
+chemistry fr; igniter 50 J over 1 ms from 0.2 ms
+t 0.500 ms  p_inj 0.9996 MPa  outlet 0.1075 kg/s  F_vac 777.6 N  steps 2555  wall 8 s  step 1.150e-07 s set by cell (16, 3), convective 3.478e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 1305984 cell updates, table 56.0734%; no H or O 0.9433%; outside the axes 14.1302%; frozen reach 0.0182%; off the curve in s (above the blended s_eq) 0.0038%; off the curve in s (below the blended start) 25.2613%; dY above dY_max 3.5609%; frozen corner on the branch 0.0089%
+t 1.000 ms  p_inj 2.1977 MPa  outlet 0.2685 kg/s  F_vac 1450.6 N  steps 7101  wall 14 s  step 1.170e-07 s set by cell (16, 5), convective 3.418e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2570304 cell updates, table 97.2892%; frozen reach 0.0001%; off the curve in s (below the blended start) 1.7206%; dY above dY_max 0.9902%
+t 1.500 ms  p_inj 2.5251 MPa  outlet 0.3248 kg/s  F_vac 1428.3 N  steps 11415  wall 23 s  step 1.185e-07 s set by cell (16, 5), convective 3.375e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2436672 cell updates, table 97.2424%; off the curve in s (below the blended start) 1.2849%; dY above dY_max 1.4727%
+t 2.000 ms  p_inj 2.6275 MPa  outlet 0.3517 kg/s  F_vac 1251.3 N  steps 15665  wall 34 s  step 1.186e-07 s set by cell (16, 5), convective 3.374e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 97.2297%; off the curve in s (below the blended start) 1.3484%; dY above dY_max 1.4218%
+t 2.500 ms  p_inj 2.6241 MPa  outlet 0.3799 kg/s  F_vac 1024.9 N  steps 19915  wall 44 s  step 1.188e-07 s set by cell (16, 5), convective 3.366e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 97.2448%; off the curve in s (below the blended start) 1.2636%; dY above dY_max 1.4916%
+t 3.000 ms  p_inj 2.6559 MPa  outlet 0.4098 kg/s  F_vac 927.3 N  steps 24165  wall 53 s  step 1.194e-07 s set by cell (16, 5), convective 3.349e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 97.2479%; off the curve in s (below the blended start) 1.2100%; dY above dY_max 1.5422%
+t 3.500 ms  p_inj 2.7798 MPa  outlet 0.4307 kg/s  F_vac 1048.4 N  steps 28415  wall 64 s  step 1.198e-07 s set by cell (16, 5), convective 3.339e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 97.2550%; off the curve in s (below the blended start) 1.2804%; dY above dY_max 1.4646%
+t 4.000 ms  p_inj 2.9380 MPa  outlet 0.4391 kg/s  F_vac 1369.6 N  steps 32665  wall 72 s  step 1.200e-07 s set by cell (16, 5), convective 3.332e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 97.2750%; off the curve in s (below the blended start) 1.3308%; dY above dY_max 1.3942%
+
+end 4.000 ms after 32665 steps (30050 replans), wall 72 s
+budgets: mass -1.06e-13  energy -2.55e-12
+cost: 11.537 us of wall time per cell update on 2 threads, 18.1 s per simulated ms over the run
+step limit after 1 ms (1501 samples): mean step 1.197e-07 s; set in the wall row 100.0%, the axis row 0.0%, upstream of the throat 0.0%, at it (its two columns) 100.0%, downstream 0.0%; diffusive rate above convective 0.0%; last: step 1.200e-07 s set by cell (16, 5), convective 3.332e+06 and diffusive 0.000e+00 per s
+reaction wall 56.5 s (78.1% of the run), 9.007 us per cell update
+  Table B over the run: 18312960 cell updates, table 94.3183%; no H or O 0.0673%; outside the axes 1.0077%; frozen reach 0.0013%; off the curve in s (above the blended s_eq) 0.0003%; off the curve in s (below the blended start) 3.0571%; dY above dY_max 1.5475%; frozen corner on the branch 0.0006%
+  Table B: largest max|dY| of a placed point it stepped 1.000e-02; its updates placed at w < 1 (in part by s) 18971
+  Table B chamber, over the run: 5150520 cell updates, table 88.1781%; no H or O 0.0057%; outside the axes 0.3167%; frozen reach 0.0001%; off the curve in s (above the blended s_eq) 0.0005%; off the curve in s (below the blended start) 6.4334%; dY above dY_max 5.0633%; frozen corner on the branch 0.0023%
+  Table B convergent, over the run: 4005960 cell updates, table 97.5063%; no H or O 0.0170%; outside the axes 0.7514%; frozen reach 0.0058%; off the curve in s (above the blended s_eq) 0.0001%; off the curve in s (below the blended start) 1.4433%; dY above dY_max 0.2761%
+  Table B divergent, over the run: 9156480 cell updates, table 96.3774%; no H or O 0.1239%; outside the axes 1.5085%; frozen reach 0.0000%; off the curve in s (above the blended s_eq) 0.0002%; off the curve in s (below the blended start) 1.8639%; dY above dY_max 0.1260%
+  Table B chamber, the last ms: 1350000 cell updates, table 90.2755%; off the curve in s (below the blended start) 4.6421%; dY above dY_max 5.0824%
+  Table B convergent, the last ms: 1050000 cell updates, table 100.0000%
+  Table B divergent, the last ms: 2400000 cell updates, table 100.0000%
+  Table B, the last ms: frozen-corner refusals by the refusing corner's weight: below 1e-30 0; 1e-30 to 1e-12 0; 1e-12 to 1e-6 0; 1e-6 to 1e-2 0; above 1e-2 0
+  Table B, the last ms: 6 cells took any fallback; the most:
+    cell (0, 4): 25000 of 25000 updates; dY above dY_max 25000
+    cell (0, 3): 25000 of 25000 updates; dY above dY_max 25000
+    cell (0, 2): 25000 of 25000 updates; off the curve in s (below the blended start) 12669; dY above dY_max 12331
+    cell (0, 1): 25000 of 25000 updates; off the curve in s (below the blended start) 25000
+    cell (0, 0): 25000 of 25000 updates; off the curve in s (below the blended start) 25000
+    cell (1, 0): 6281 of 25000 updates; dY above dY_max 6281
+drift over last 1 ms: outlet mass flow 1.96e-01, injector pressure 1.79e-01, vacuum thrust 1.22e+00
+chamber end: static 3.19231 MPa, equilibrium stagnation p0 3.20797 MPa; injector face 2.93798 MPa
+simulated: mdot out 0.439127 kg/s (supply 0.400000), c* 2295.04 m/s, vacuum thrust 1369.63 N, vacuum Isp 318.05 s
+1-D ideal rocket at p0 (../tools/mechanisms/h2o2_highT.yaml thermo): Tc 3349.8 K, c* 2429.07 m/s, Isp_vac shifting 435.93 s, frozen 419.31 s, gamma 1.2071
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2437.72 m/s, Isp_vac shifting 429.05 s, frozen 412.63 s, F_vac 1847.65 N
+simulated/predicted - 1: c* -5.8527%, Isp_vac (shifting) -25.8718%

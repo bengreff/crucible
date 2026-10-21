@@ -489,6 +489,8 @@ int main(int argc, char** argv) {
   // Per cell, at the first print from 1 ms before the end: the last ms's fallback by region and by cell.
   std::vector<long> cellCausesAtWindow;
   bool cellWindowSet = false;
+  std::array<long, 5> frozenWeightAtWindow{};
+  std::vector<long> frozenNodeAtWindow;
   auto printCauses = [&](const std::array<long, kCauses>& since, const char* label) {
     long total = 0;
     for (long v : since) total += v;
@@ -795,6 +797,8 @@ int main(int argc, char** argv) {
           causesAtPrint = reacting.stats().manifoldCauses;
           if (!cellWindowSet && flow.time() >= end - 1e-3 - 1e-9) {
             cellCausesAtWindow = reacting.stats().manifoldCellCauses;
+            frozenWeightAtWindow = reacting.stats().manifoldFrozenWeight;
+            frozenNodeAtWindow = reacting.stats().manifoldFrozenNode;
             cellWindowSet = true;
           }
         }
@@ -925,6 +929,21 @@ int main(int argc, char** argv) {
           }
         }
         if (cellWindowSet) {
+          // The frozen-corner refusals over the last ms: the heaviest refusing corner's weight by decade, and its node.
+          const auto& fw = st.manifoldFrozenWeight;
+          std::printf("  Table B, the last ms: frozen-corner refusals by the refusing corner's weight: below 1e-30 %ld; "
+                      "1e-30 to 1e-12 %ld; 1e-12 to 1e-6 %ld; 1e-6 to 1e-2 %ld; above 1e-2 %ld\n",
+                      fw[0] - frozenWeightAtWindow[0], fw[1] - frozenWeightAtWindow[1], fw[2] - frozenWeightAtWindow[2],
+                      fw[3] - frozenWeightAtWindow[3], fw[4] - frozenWeightAtWindow[4]);
+          const auto& fn = st.manifoldFrozenNode;
+          const std::size_t nz = manifold.zN.size(), ne = static_cast<std::size_t>(manifold.nEta), nl = static_cast<std::size_t>(manifold.nLnRho);
+          for (std::size_t n = 0; n < fn.size() && n < frozenNodeAtWindow.size(); ++n) {
+            const long v = fn[n] - frozenNodeAtWindow[n];
+            if (!v) continue;
+            const std::size_t l = n % nl, k = n / nl % ne, j = n / (nl * ne) % nz, i = n / (nl * ne * nz);
+            std::printf("    refusing node f_H %.5f Z_N %.4f eta %.3f rho %.4e: %ld\n", manifold.fH[i], manifold.zN[j],
+                        manifold.eta(k), std::exp(manifold.lnRho(l)), v);
+          }
           std::vector<std::pair<long, std::size_t>> worst;
           for (std::size_t q = 0; q < flow.state().size(); ++q) {
             long fb = 0;

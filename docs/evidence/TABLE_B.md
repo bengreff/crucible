@@ -842,6 +842,104 @@ Command, from `build/`: `CRUCIBLE_MECHANISM=../tools/mechanisms/h2o2_highT.yaml 
   - *Expected (inferred):* the face fallback goes to zero on both tables. On the Δη 0.1 table, if the chord's error falls as Δη², the chamber's −23 K becomes about −6 K and c*'s −0.60% about −0.15%, near the bar.
 - **If R3 fails on the 0.1 table,** the static error is measured against Δη (0.2, 0.1, 0.05) and against Δ ln ρ before a finer table is chosen.
 
+### R3 measured on both tables with the drop: the face refusal gone, the 0.2 table short of the 0.2% bar, the 0.1 table not lit; and the induction cut stated before its code (21 October 2026, about 00:25 CDT)
+
+**R3 on the Δη 0.2 table with the drop** (measured; `table_b/c1_torch50_highT_tableB_drop_d02_2026-10-21.log`):
+- **The frozen-corner refusals are gone,** and over the last ms every region is 100% table (bar 1%: pass).
+- **c* 2462.44 m/s (−0.57%), Isp_vac 422.65 s (−0.42%), F_vac 1657.71 N (−0.42%): fails the 0.2% bar.**
+- Drift over the last ms: outlet flow 1.37e-3, injector pressure 1.11e-3, thrust 1.13e-3.
+- Reaction 4.61 µs per cell update (9.87 before the drop, 67.5 on CVODES).
+
+**R3 on the Δη 0.1 table with the drop** (measured; `table_b/c1_torch50_highT_tableB_drop_d01_2026-10-21.log`): **the face column never lit, so the run is not comparable.**
+- At 4 ms the face cell (0,3) is at 516 K with Y_O2 0.78, the injector face at 2.94 MPa (CVODES: 3.31 MPa), and thrust drifts 1.22 over the last ms.
+- The CVODES run and the 0.2 run both light the face cell at 0.27 to 0.28 ms. On the 0.1 table it peaks near 850 K at about 0.39 ms and falls back to 400 to 600 K.
+- Its c* (2295) and Isp (318) are printed in the log and mean nothing.
+
+**The static interpolation error** (measured; `table_b/static_d02_{ch,cv}_2026-10-21.txt`, `static_d01_{ch,cv}_...`; T_blend − T_own at the cell's e and ρ, on the CVODES run's last-ms samples):
+
+| | Δη 0.2 | Δη 0.1 |
+|---|---|---|
+| chamber (542 samples), median (range) | −23.36 K (−23.43 to −19.80) | −8.26 K (−8.27 to −7.54) |
+| chamber, max \|ΔY\| | 3.34e-3 | 1.13e-3 |
+| convergent (421 samples), median (range) | −24.08 K (−42.18 to −22.83) | −8.27 K (−8.78 to −7.16) |
+| convergent, max \|ΔY\| | 5.94e-3 | 1.27e-3 |
+
+- The error falls by 2.8, not the inferred 4.
+- *Derived:* if the error is a Δη² + b, then b is about 3 K. That part does not fall with Δη; *inferred*, it is the ln ρ or f_H chord.
+- *Inferred:* −8.3 K is about −0.12% of c* through √T, before the composition's share.
+
+**The light-off mechanism, measured** (the replay's new `CRUCIBLE_E0_STEP_PRINT=dt` and `CRUCIBLE_E0_STEP_HORIZON=H`: one runtime step of dt, then the table's own march to H in steps of dt, against CVODES (rtol 1e-8) from the cell's own T and Y at the same e and ρ).
+- **The face cell (0,3) itself is on CVODES throughout** the 0.1 run's light-off (0.370 to 0.470 ms): off the curve below the start, or dY above dY_max. Isolated, CVODES also leaves its states nearly unchanged (839 to 840 K over 10 µs).
+- **Its downstream neighbour (1,3) is on the table at small progress.** φ_N (the fraction of the lower branch's fall in N) is 0.04 to 0.19 there:
+
+  | State of (1,3) | Table, over 2 µs | CVODES, over 2 µs |
+  |---|---|---|
+  | 586.5 K, φ_N 0.042, OH 3.3e-3, H2O2 6.6e-3 | +0.0 K | +106 K |
+  | 1121 K, φ_N 0.186, H2O2 1.3e-2 | +19 K | to 3505 K |
+
+  The heat that lit the face never arrives.
+- **Binned by φ_N:** the table's march against CVODES over 1.2 µs, on the lower branch's table placements of the chamber (i ≤ 8), every 10 µs. Each cell gives the mean |ΔT|, max |ΔT| (n):
+
+  | φ_N | 0.1 table, 0.1 run's states, 0.25 to 0.6 ms | 0.1 table, CVODES run's states, 0.2 to 0.5 ms | 0.2 table, CVODES run's states |
+  |---|---|---|---|
+  | below 0.05 | 510, 3281 K (129) | 34, 64 K (12) | 6, 6 K (1) |
+  | 0.05 to 0.1 | 322, 3006 K (32) | (0) | (0) |
+  | 0.1 to 0.2 | 276, 2524 K (38) | 11, 18 K (3) | (0) |
+  | 0.2 to 0.3 | 606, 1549 K (4) | 0.5, 0.6 K (2) | (0) |
+  | 0.3 to 0.5 | 2.4, 12.6 K (14) | 1.0, 1.4 K (5) | 0.7, 1.3 K (5) |
+  | 0.5 to 0.9 | at most 0.7, 3.8 K (77) | at most 0.8, 4.0 K (34) | at most 2.0, 3.4 K (31) |
+  | 0.9 to 1 | 2.6, 9.5 K (585) | 2.8, 9.0 K (349) | 8.7, 31.4 K (219) |
+
+- **The mechanism.** The lower branch's early part is the homogeneous reactor's induction from the node's frozen start.
+  - A front cell is fresh propellant mixed by transport with products and intermediates. It has the curve's N and s but its own intermediate pool (H2O2, HO2, OH, H). That pool sets the rate there, and the one-dimensional curve does not carry it.
+  - The dY gate cannot see it, since those species sit near or below 0.01.
+  - Past φ_N about 0.3, the cell's rate agrees with the curve's: the state has relaxed onto it.
+  - The 0.2 table escaped by accident. Its blended start (with the hot η 0.8 node) sits higher in s, so these states fall below it and go to CVODES: it placed 1 such state where the 0.1 table placed 17.
+- The last bin also shows the chord near equilibrium: a mean of 8.7 K on the 0.2 table against 2.6 to 2.8 K on the 0.1.
+
+**The induction cut (engineering, stated before its code).**
+- A placement on the lower branch with **φ_N below 0.3 is not on the table.** Its cause is "the lower branch's induction part", checked after dY_max and before the frozen corner, and CVODES integrates it.
+- 0.3 is where the measured error falls: means of 11 to 606 K below it, at most 2.8 K from it.
+- *Measured cost at steady state:* 0 of about 96,000 last-ms samples per run (the CVODES run and the 0.2 live run) sit on the lower branch below φ_N 0.5, on either table.
+- The replay's own placement takes the same cut, so R1 compares like with like.
+
+**Checks, with bars, before the code:**
+- **R1 and R2** on the CVODES run's samples with the 0.1 table: the same bars as before.
+- **The horizon bins** rerun: no table placement below φ_N 0.3, by construction.
+- **R3, C1 live on the 0.1 table,** against the CVODES run. **Bars: c*, Isp_vac and F_vac within 0.2%; the fallback under 1% of updates in each region over the last ms.**
+  - Reported beside it: the 0.2 table with the cut.
+  - *Expected (inferred):* the face lights at 0.27 to 0.28 ms as in the CVODES run, and c* lands near −0.15% from the static −8 K.
+- **If R3 fails on the 0.1 table:** the static error is measured at Δη 0.05 and at half the Δ ln ρ before a finer table is chosen, as stated above.
+
+### R3 passes on the Δη 0.1 table with the drop and the induction cut (21 October 2026, about 00:45 CDT)
+
+**C1 live on the Δη 0.1 table with the drop and the cut** (measured; `table_b/c1_torch50_highT_tableB_cut_d01_2026-10-21.log`), against the CVODES run:
+
+| | Table B | CVODES | Difference | Bar |
+|---|---|---|---|---|
+| c* | 2475.09 m/s | 2476.61 | −0.061% | 0.2%: pass |
+| Isp_vac | 423.86 s | 424.43 | −0.134% | 0.2%: pass |
+| F_vac | 1662.42 N | 1664.67 | −0.135% | 0.2%: pass |
+| injector face | 3.31086 MPa | 3.31243 | −0.047% | (reported) |
+
+- **The fallback over the last ms:** 100% table in the chamber, convergent and divergent, with 0 frozen-corner refusals (bar 1% per region: pass).
+- **Over the whole run:** the induction cut took 0.051% of the chamber's updates, 0.037% of the convergent's and 0.0004% of the divergent's. No update met a refused, flagged or frozen corner, so the build's 5 integrator failures, 10 N-gate failures and the turn-back node are not reached by C1.
+- **The face cell (0,3) lights at 0.282 to 0.284 ms** (3385 K at 0.284 ms), the CVODES run's time.
+- **Drift over the last ms:** outlet flow 1.40e-3, injector pressure 1.15e-3, thrust 1.16e-3. The CVODES run is unsettled to the same order at 4 ms (thrust 1.6e-3), so the comparison is at the same time, not at a settled state.
+- **Cost:** 60 s of wall time on 2 threads (CVODES: 451 s); reaction 5.80 µs per cell update (CVODES: 67.5).
+
+**Beside it:** the Δη 0.2 table with the drop and the cut (`..._cut_d02_...`) prints c* 2462.44, F_vac 1657.71 and Isp 422.65. Those equal the run without the cut to every printed digit. So the cut changes only the start, and the 0.2 table's −0.57% is the chord's.
+- c*'s error falls by 9.4 from Δη 0.2 to 0.1, against 2.8 for the static T error (*inferred:* the static −8 K at the cells is not the whole account of c*; its composition share partly cancels).
+
+**R1 and R2 on the 0.1 table with the cut** (measured; `table_b/replay_r1r2_d01_cut_2026-10-21.txt`, the CVODES run's samples):
+- **R1:** 0 kinds of cause disagreement over 357,562 samples placed by both on the same branch, the new cause included (162 samples). The worst |τ| difference is 8.7e-9, past the stated 1e-9 as before (1.24e-8 on the 0.2 table).
+- **R2 (a) to (d) pass:** (b) 0; (c) 9.8e-13 relative; (d) 1.98e-11.
+- **R2 (e):** at dt 1e-8 s, two halves against one step give worst |du|/max(u) 1.04e-6 and max |dY| 8.4e-10.
+
+**Table B passes the Director's gates of 21 October on C1** with the Δη 0.1 table.
+- **What is not covered:** the RL10's own range (O/F, pressure, the LOX spray's cold mixing). Its own node set is built and these checks rerun there before the tier-1 central case uses it.
+- **Still open as written:** R1's τ bar, and the build's turn-back, integrator and N-gate failures (not reached by C1).
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.

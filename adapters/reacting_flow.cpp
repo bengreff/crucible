@@ -28,6 +28,8 @@ struct ReactingFlow::Worker {
   std::array<long, static_cast<std::size_t>(ManifoldRuntime::Cause::Count)> causes{};
   double snap = 0;
   long partial = 0;
+  std::array<long, 5> frozenWeight{};
+  std::vector<long> frozenNode;
   ManifoldRuntime::Work manifold;
   Worker(const std::string& mechanism, double rtol, double atol)
       : source(mechanism), step(source, rtol, atol), z(source.nSpecies() + 1), y(source.nSpecies()),
@@ -100,7 +102,11 @@ void ReactingFlow::useManifoldTable(const ManifoldTable& table) {
     unit[k] = 0;
   }
   manifold_ = std::make_unique<ManifoldRuntime>(table, flow_.medium(), std::move(elements));
-  for (auto& w : workers_) w->manifold = manifold_->work();
+  for (auto& w : workers_) {
+    w->manifold = manifold_->work();
+    w->frozenNode.assign(table.nodes.size(), 0);
+  }
+  stats_.manifoldFrozenNode.assign(table.nodes.size(), 0);
 }
 
 void ReactingFlow::useEquilibriumTable(const EquilibriumTable& table, long audit) {
@@ -207,6 +213,8 @@ void ReactingFlow::react(double dt) {
     w->mismatch = w->clipped = w->snap = 0;
     w->partial = 0;
     w->causes.fill(0);
+    w->frozenWeight.fill(0);
+    std::fill(w->frozenNode.begin(), w->frozenNode.end(), 0);
   }
   const std::size_t nt = manifold_ ? flow_.turbulence().size() / cells : 0;
   constexpr std::size_t kCauses = static_cast<std::size_t>(ManifoldRuntime::Cause::Count);
@@ -226,6 +234,11 @@ void ReactingFlow::react(double dt) {
         const auto placed = manifold_->advance(e, rho, flow_.temperature(q), y.data(), dt, worker.manifold);
         ++worker.causes[static_cast<std::size_t>(placed.cause)];
         ++stats_.manifoldCellCauses[q * kCauses + static_cast<std::size_t>(placed.cause)];  // one worker per cell
+        if (placed.cause == ManifoldRuntime::Cause::FrozenCorner) {
+          const double fw = placed.frozenW;
+          ++worker.frozenWeight[fw < 1e-30 ? 0 : fw < 1e-12 ? 1 : fw < 1e-6 ? 2 : fw < 1e-2 ? 3 : 4];
+          ++worker.frozenNode[placed.frozenNode];
+        }
         if (placed.cause == ManifoldRuntime::Cause::Table) {
           worker.snap = std::max(worker.snap, placed.dY);
           if (placed.w < 1) ++worker.partial;
@@ -258,6 +271,8 @@ void ReactingFlow::react(double dt) {
     for (std::size_t c = 0; c < w->causes.size(); ++c) stats_.manifoldCauses[c] += w->causes[c];
     stats_.manifoldMaxSnap = std::max(stats_.manifoldMaxSnap, w->snap);
     stats_.manifoldPartial += w->partial;
+    for (std::size_t c = 0; c < w->frozenWeight.size(); ++c) stats_.manifoldFrozenWeight[c] += w->frozenWeight[c];
+    for (std::size_t n = 0; n < w->frozenNode.size(); ++n) stats_.manifoldFrozenNode[n] += w->frozenNode[n];
   }
 }
 

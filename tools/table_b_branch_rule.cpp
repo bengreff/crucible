@@ -20,6 +20,7 @@
 // R1 and R2 (TABLE_B.md, "The runtime's step on the placed point"): the runtime's own placement
 // (core/manifold_runtime.*) on every sample, against this replay's (columns n_runtime, tau_runtime); and its step at
 // the cell on every CRUCIBLE_R2_EVERY-th sample it places (default 50).
+// CRUCIBLE_E0_STEP_PRINT = dt [s]: print each sample's placement and one runtime step of dt.
 // CRUCIBLE_E0_OWN_EQ_EVERY = N (default 20; 0 for none): every N-th sample inside the axes also gets its own
 // s_eq from Cantera's equilibrateUV, for E0's stated measurement of the blend's s_eq against the cell's.
 //
@@ -49,6 +50,8 @@ using crucible::Species;
 
 namespace {
 constexpr double kDYMax = 0.01;
+constexpr double kPhiInduction = 0.3;  // the runtime's induction cut (TABLE_B.md)
+constexpr double kCornerDrop = 1e-12;
 
 // s°/R of one species (NASA-7), with the constant-cp continuation above tHigh.
 double entropyOverR(const Species& s, double t) {
@@ -150,10 +153,18 @@ std::string cornersOf(const ManifoldTable& t, double fH, double zN, double eta, 
   if (!bracket(t.fH, fH, ii, fi)) return "outside the axes";
   if (!bracketUniform(0.0, 1.0, t.nEta, eta, kk, fk)) return "outside the axes";
   if (!bracketUniform(t.lnRhoMin, t.lnRhoMax, t.nLnRho, std::log(rho), ll, fl)) return "outside the axes";
+  // A corner weighted below kCornerDrop is dropped: not checked, not blended, the kept weights renormalised
+  // (TABLE_B.md, "The bar set, the face mechanism measured, and the corner drop").
+  double kept = 0;
   for (int q = 0; q < 16; ++q) {
     const int a = q >> 3 & 1, b = q >> 2 & 1, e = q >> 1 & 1, r = q & 1;
     const double w = (a ? fi : 1 - fi) * (b ? fj : 1 - fj) * (e ? fk : 1 - fk) * (r ? fl : 1 - fl);
-    c[q] = {t.nodeIndex(ii + a, jj + b, kk + e, ll + r), w};
+    c[q] = {t.nodeIndex(ii + a, jj + b, kk + e, ll + r), w < kCornerDrop ? 0.0 : w};
+    kept += c[q].w;
+  }
+  for (int q = 0; q < 16; ++q) {
+    c[q].w /= kept;
+    if (c[q].w == 0) continue;
     const auto& n = t.nodes[c[q].node];
     if (n.pointCount == 0 || n.lowerCount == 0 || n.lowerCount >= n.pointCount) return "a corner was refused";
     if (n.flags & (ManifoldTable::kOutside | ManifoldTable::kDegenerate)) return "a corner flagged outside or degenerate";
@@ -167,8 +178,9 @@ Rule applyRule(const ManifoldTable& t, const std::array<Corner, 16>& corners, do
   Rule rule;
   for (int b = 0; b < 2; ++b) {
     auto& r = rule.b[b];
-    std::array<Branch, 16> br;
+    std::array<Branch, 16> br{};
     for (int q = 0; q < 16; ++q) {
+      if (corners[q].w == 0) continue;
       br[q] = branchOf(t, corners[q].node, b);
       r.sEq += corners[q].w * br[q].sRef;
       r.span += corners[q].w * br[q].span;
@@ -208,11 +220,12 @@ struct Blend {
   const ManifoldTable& t;
   const std::vector<double>& nPt;
   const std::array<Corner, 16>& corners;
-  std::array<Branch, 16> br[2];
+  std::array<Branch, 16> br[2]{};
   double sEq[2]{}, span[2]{};
   Blend(const ManifoldTable& tab, const std::vector<double>& n, const std::array<Corner, 16>& c) : t(tab), nPt(n), corners(c) {
     for (int b = 0; b < 2; ++b)
       for (int q = 0; q < 16; ++q) {
+        if (corners[q].w == 0) continue;
         br[b][q] = branchOf(t, corners[q].node, b);
         sEq[b] += corners[q].w * br[b][q].sRef;
         span[b] += corners[q].w * br[b][q].span;
@@ -233,6 +246,7 @@ struct Blend {
   [[nodiscard]] double nEnd(int b, int u) const {
     double v = 0;
     for (int q = 0; q < 16; ++q) {
+      if (corners[q].w == 0) continue;
       const auto& n = t.nodes[corners[q].node];
       const std::uint32_t p = b == 0 ? (u == 1 ? 0 : n.lowerCount - 1) : (u == 0 ? n.lowerCount : n.pointCount - 1);
       v += corners[q].w * nPt[n.firstPoint + p];
@@ -333,7 +347,9 @@ NRule placeByN(const Blend& bl, const std::vector<double>& wR, double sCell, con
   r.dY = 0;
   for (std::size_t k = 0; k < ns; ++k) r.dY = std::max(r.dY, std::fabs(yb[k] - yCell[k]));
   const std::string where = std::string(b == 0 ? "lower; " : "upper; ") + wClass;
-  r.cause = r.dY > kDYMax ? "dY above dY_max (" + where + ")" : "table (" + where + ")";
+  r.cause = r.dY > kDYMax                    ? "dY above dY_max (" + where + ")"
+            : b == 0 && r.phi < kPhiInduction ? "the lower branch's induction part (" + where + ")"
+                                              : "table (" + where + ")";
   return r;
 }
 
@@ -424,6 +440,11 @@ int main(int argc, char** argv) {
   std::map<std::string, long> r2Causes;
   long r2Placed = 0;
   long ownEvery = 20;
+  double stepPrint = 0;
+  if (const char* e = std::getenv("CRUCIBLE_E0_STEP_PRINT")) stepPrint = std::atof(e);
+  double stepHorizon = 0;
+  if (const char* e = std::getenv("CRUCIBLE_E0_STEP_HORIZON")) stepHorizon = std::atof(e);
+  crucible::thermo::ReactionStep cvodes(source, 1e-8, 1e-14);
   if (const char* e = std::getenv("CRUCIBLE_E0_OWN_EQ_EVERY")) ownEvery = std::atol(e);
 
   struct Sample { double fH, zN, eta, rho, T; std::vector<double> y; };
@@ -452,12 +473,54 @@ int main(int argc, char** argv) {
   long checked = 0, inside = 0;
   std::vector<std::array<double, 3>> ownEq;  // (s_eq_own - s_eq_lower blend, s_eq_own - s_cell, xi_lower)
   std::vector<std::array<double, 2>> ownT;   // (T_cell - T_own, max |Y_cell - Y_own| over the species)
+  // The static interpolation error (TABLE_B.md, "The bar set, the face mechanism measured, and the corner drop"):
+  // the blend's upper-branch equilibrium at the cell's corners, its T at the cell's e and rho, against the own
+  // equilibrium: (T_blend - T_own, max |Y_blend - Y_own|).
+  std::vector<std::array<double, 2>> blendT;
+  std::vector<double> yEqBlend(ns), yFull(nsAll);
   for (std::size_t n = 0; n < samples.size(); ++n) {
     const auto& s = samples[n];
     std::array<Corner, 16> corners;
     const std::string domain = cornersOf(table, s.fH, s.zN, s.eta, s.rho, corners);
     const double eCell = medium.internalEnergy(s.T, s.y.data());
     const auto rp = runtime.place(eCell, s.rho, s.T, s.y.data(), rwork);
+    if (stepPrint > 0) {
+      // CRUCIBLE_E0_STEP_PRINT = dt [s]: each sample's placement and one runtime step of dt, for tracing cells.
+      auto y1 = s.y;
+      const auto st = runtime.advance(eCell, s.rho, s.T, y1.data(), stepPrint, rwork);
+      double dYs = 0;
+      for (std::size_t k = 0; k < nsAll; ++k) dYs = std::max(dYs, std::fabs(y1[k] - s.y[k]));
+      const auto co = runtime.coordinates(eCell, s.y.data(), rwork);
+      std::printf("step-print sample %zu: T %.1f eta %.4f rho %.4f f_H %.5f | %s branch %d phi %.4e w %.3f u %.6e -> %.6e in %d sub-steps, max|dY| of the step %.3e\n",
+                  n, s.T, co.eta, s.rho, co.fH, crucible::ManifoldRuntime::causeName(st.cause), rp.branch, rp.phi, rp.w, rp.u, st.u, st.substeps, dYs);
+      if (stepHorizon > 0) {
+        // CRUCIBLE_E0_STEP_HORIZON = H [s]: T after H from the table's march in steps of dt (stopping at its
+        // first fallback), and from CVODES at the same e and rho on the cell's own Y and on the table's placed Y.
+        auto ym = s.y;
+        double tm = s.T, reached = 0;
+        while (reached < stepHorizon * (1 - 1e-9)) {
+          const auto mst = runtime.advance(eCell, s.rho, tm, ym.data(), stepPrint, rwork);
+          if (mst.cause != RCause::Table) break;
+          tm = medium.temperature(eCell, ym.data(), tm);
+          reached += stepPrint;
+        }
+        std::vector<double> z(nsAll + 1);
+        z[0] = s.T;
+        std::copy(s.y.begin(), s.y.end(), z.begin() + 1);
+        cvodes.advance(s.rho, z.data(), stepHorizon);
+        const double tOwn = z[0];
+        auto yp = s.y;
+        double tPlaced = std::nan("");
+        if (runtime.advance(eCell, s.rho, s.T, yp.data(), 0.0, rwork).cause == RCause::Table) {
+          z[0] = medium.temperature(eCell, yp.data(), s.T);
+          std::copy(yp.begin(), yp.end(), z.begin() + 1);
+          cvodes.advance(s.rho, z.data(), stepHorizon);
+          tPlaced = z[0];
+        }
+        std::printf("step-horizon sample %zu: over %.3e s, T %.1f -> table march %.1f (for %.3e s), CVODES own Y %.1f, CVODES placed Y %.1f; first cause %s branch %d phi %.4e\n",
+                    n, stepHorizon, s.T, tm, reached, tOwn, tPlaced, crucible::ManifoldRuntime::causeName(st.cause), rp.branch, rp.phi);
+      }
+    }
     if (!domain.empty()) {
       ++count["(domain) " + domain];
       std::fprintf(out, "%s,-1,,,,,,,,,,,%s,-1,,,,,%s,\n", domain.c_str(), domain.c_str(), crucible::ManifoldRuntime::causeName(rp.cause));
@@ -485,6 +548,13 @@ int main(int argc, char** argv) {
       double dYOwn = 0;
       for (std::size_t k = 0; k < nsAll; ++k) dYOwn = std::max(dYOwn, std::fabs(s.y[k] - gas->massFraction(k)));
       ownT.push_back({s.T - gas->temperature(), dYOwn});
+      if (runtime.curve(eCell, s.rho, s.y.data(), 1, 0.0, yEqBlend.data(), rwork)) {
+        yFull = s.y;
+        for (std::size_t k = 0; k < ns; ++k) yFull[reactingCol[k]] = yEqBlend[k];
+        double dYB = 0;
+        for (std::size_t k = 0; k < nsAll; ++k) dYB = std::max(dYB, std::fabs(yFull[k] - gas->massFraction(k)));
+        blendT.push_back({medium.temperature(eCell, yFull.data(), s.T) - gas->temperature(), dYB});
+      }
     }
     std::fprintf(out, "%s,%d,%.12e,%.12e,%.6e,%.6e,%.6e,%.12e,%.6e,%.6e,%.6e,", rule.cause.c_str(), rule.branch, sCell,
                  rule.b[0].sEq, rule.b[0].span, rule.b[0].xi, rule.b[0].dY, rule.b[1].sEq, rule.b[1].span, rule.b[1].xi,
@@ -627,6 +697,15 @@ int main(int argc, char** argv) {
     std::printf("the samples against their own equilibrium (equilibrateUV at their e and rho): T_cell - T_own min %.2f, 5%% %.2f, median %.2f, 95%% %.2f, max %.2f K; "
                 "max |Y_cell - Y_own| median %.3e, 95%% %.3e, max %.3e\n",
                 dt.front(), pct(dt, 0.05), pct(dt, 0.5), pct(dt, 0.95), dt.back(), pct(dy, 0.5), pct(dy, 0.95), dy.back());
+    if (!blendT.empty()) {
+      std::vector<double> bt, by;
+      for (const auto& v : blendT) { bt.push_back(v[0]); by.push_back(v[1]); }
+      std::sort(bt.begin(), bt.end());
+      std::sort(by.begin(), by.end());
+      std::printf("the static interpolation error (the blend's upper-branch equilibrium at the cell's e and rho, against the own equilibrium) on %zu samples: "
+                  "T_blend - T_own min %.2f, 5%% %.2f, median %.2f, 95%% %.2f, max %.2f K; max |Y_blend - Y_own| median %.3e, 95%% %.3e, max %.3e\n",
+                  blendT.size(), bt.front(), pct(bt, 0.05), pct(bt, 0.5), pct(bt, 0.95), bt.back(), pct(by, 0.5), pct(by, 0.95), by.back());
+    }
   }
 
   // E4: s per cell, and the whole rule per cell (s, the 16 corners, both branches), on one thread, over the

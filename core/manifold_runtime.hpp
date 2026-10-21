@@ -32,6 +32,8 @@ class ManifoldRuntime {
     OffCurveAboveSEq,  // w < 1 and s* above the blended s_eq
     OffCurveBelowStart,
     DYAboveMax,        // the placed point's max |dY| above 0.01
+    Induction,         // on the lower branch below phi_N 0.3: its induction part, where a mixed cell's own
+                       // intermediates set the rate and the curve does not carry them
     FrozenCorner,      // a corner of nonzero weight whose placed branch is frozen
     NoRate,            // a corner of nonzero span whose lambda at the cell's u is not positive and finite
     Count
@@ -44,6 +46,9 @@ class ManifoldRuntime {
     double phi{}, w{}, tau{}, u{}, dY{};
     int iterations{};     // Illinois iterations for tau_N
     int substeps{};       // the step's sub-steps (advance only)
+    // FrozenCorner: the heaviest frozen corner of nonzero weight on the placed branch, its weight and node.
+    double frozenW{};
+    std::size_t frozenNode{};
   };
 
   // Per-thread scratch.
