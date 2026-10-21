@@ -28,8 +28,9 @@ def main():
         if row["candidate"] != candidate:
             continue
         key = tuple(float(row[c]) for c in ("f_H", "Z_N", "eta", "rho"))
-        bad = (float(row["turn_back"]) > 1e-9 or row["n_gate_ok"] != row["n_gate_checked"]
-               or float(row["dT_2b_lower"]) > 3 or float(row["dT_2b_upper"]) > 3
+        # 2(b) is blank where it was not evaluated (a zero-span branch), as the builder's gate reads it.
+        dT = [float(row[c]) if row[c] else 0.0 for c in ("dT_2b_lower", "dT_2b_upper")]
+        bad = (float(row["turn_back"]) > 1e-9 or row["n_gate_ok"] != row["n_gate_checked"] or max(dT) > 3
                or row["integrator_failure"] == "1" or row["outside"] == "1")
         failed[key] = bad
     axes = [sorted({k[a] for k in failed}) for a in range(4)]

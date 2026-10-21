@@ -1,0 +1,21 @@
+# python3 tools/fallback_rate.py <C1 fr 32x6 4 ms state samples, eta re-expressed in h2o2_highT energies> docs/evidence/table_b/c1range_highT_nodes_2026-10-20.csv 0
+# run: crucible_chamber_study fr 32 6 4e-3 2 <prefix> 300 on h2o2.yaml, analytic Jacobian (cdce5fc + state samples), 20 October 2026 18:50-19:06 CDT; 2,001 samples x 192 cells
+table: 324 nodes, 85 failing a gate; axes  f_H [0.1429, 0.2] (3)  Z_N [0, 0.3] (2)  eta [0, 1] (6)  rho [0.001, 80] (9)
+whole run: 6662784 cell updates, fallback 3195841 = 47.966% (over 1%)
+  a corner failed a gate: 41.861%
+  eta above the axis: 4.572%
+  Z_N above the axis: 1.445%
+  no H or O (pure N2): 0.088%
+last ms: 1632192 cell updates, fallback 672650 = 41.211% (over 1%)
+  a corner failed a gate: 41.211%
+
+# where (last ms; inline breakdown by axial column, density bracket and gate)
+last ms, failed-corner share by axial column i (throat at 16):
+0:0% 1:0% 2:0% 3:0% 4:0% 5:0% 6:0% 7:0% 8:0% 9:0% 10:0% 11:0% 12:0% 13:0% 14:0% 15:0% 16:0% 17:0% 18:19% 19:100% 20:100% 21:100% 22:100% 23:100% 24:100% 25:100% 26:100% 27:100% 28:100% 29:100% 30:100% 31:100%
+last ms, cell updates by rho bracket (share of all; share of that bracket with a failed corner):
+  (0.01681793, 0.06896976): 19.27% of updates, 100.0% failed corner
+  (0.06896976, 0.2828427): 21.94% of updates, 100.0% failed corner
+  (0.2828427, 1.159929): 15.04% of updates, 0.0% failed corner
+  (1.159929, 4.756828): 43.75% of updates, 0.0% failed corner
+last ms, failed corners by gate (a cell can count under several):
+  2a turn-back: 41.21% of updates

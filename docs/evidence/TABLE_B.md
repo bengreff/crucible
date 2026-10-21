@@ -351,10 +351,49 @@ The Director's rule: a declared domain with a CVODES fallback is acceptable if, 
   - From 0.28 to 19.5 kg/m³ (the band's interior) there is no 2(a) failure, as in the 0.3 to 80 table.
 - **2(b) passes in all candidates** (worst 1.05 K). **2(c)'s 2 failures** are the same two ρ 80 refusals as in the O/F 4 to 6 table.
 - **So no progress variable passes on the C1-range axes,** and the fallback rate is measured against Y_H2O, the declared one (candidate 0). A cell is counted as fallback if any of its 16 corners fails a gate.
-- **Deviation from the statement above (flagged).** The C1 run on h2o2_highT failed at 0.206 ms, as the igniter turned on: "Temperature iteration did not converge", in the flow's energy-to-temperature inversion (`/tmp/c1fb/fb_highT_failed.log`). C1 on h2o2.yaml passes the same point. That failure is an open finding, not fixed this session. The sampled run is therefore on h2o2.yaml.
+- **Deviation from the statement above (flagged).** The C1 run on h2o2_highT failed at 0.206 ms, as the igniter turned on: "Temperature iteration did not converge", in the flow's energy-to-temperature inversion (`/tmp/c1fb/fb_highT_failed.log`). C1 on h2o2.yaml passes the same point. That failure is an open finding, not fixed this session. **Its mechanism (measured, 19:00 CDT, in a probe build that prints the failing inversion, not kept):**
+  - Six µs into the igniter, one cell holds e = 79.5 MJ/kg at 12,176 K the step before, almost fully dissociated (Y_O 0.81, Y_H 0.16, Y_OH 0.024).
+  - h2o2_highT's 1,000 to 6,000 K fits, extrapolated past their range, turn cv negative: from 10,630 K for OH, 11,340 K for O and 12,140 K for H2O. O's u then peaks at 23.6 MJ/kg. The mixture's e(T) never reaches the cell's energy, and Newton walks off to 1e33 K.
+  - GRI h2o2.yaml's fits (to 3,500 K) extrapolate monotonically to 40,000 K, so the same run passes on them. Its temperatures there are equally outside its fits.
+  - So it is the igniter driving cells to about 12,000 K, beyond any fit in the tree.
+  - **The question for the fix (engineering, open):** the thermo above 6,000 K (for example TM-4513's 6,000 to 20,000 K range, or a constant cp beyond the top of the fit), or a gentler igniter deposit.
+  - **So the sampled run is on h2o2.yaml.**
   - f_H, Z_N and ρ do not depend on the mechanism file, but η does. Its top end is u(6,000 K) of the products, and h2o2.yaml's polynomials end at 3,500 K. Extrapolated, its u(6,000 K) of the O/F 4 to 6 products is 8.0 to 8.6% higher than h2o2_highT's, so the run's η reads up to 0.079 low near η 1. At 200 K the two energies agree. (Measured, in a probe.)
   - So each sample's η is re-expressed in h2o2_highT's energies before it is classified. The cell's energy e is recovered from η on h2o2.yaml's ends, and then η = (e − u_b(200 K)) / (u_b(6,000 K) − u_b(200 K)), using the products from (f_H, Z_N) (new `tools/state_samples_eta.cpp`, built as `crucible_state_samples_eta`).
   - What is left: the C1 states are h2o2.yaml's, whose thermo below 3,500 K differs from h2o2_highT's by the OH and 1-bar corrections (about 1e-4 in C1's c*, TABLE_A.md).
+
+### The fallback rate: measured (20 October 2026, 19:08 CDT; `table_b/c1_fallback_2026-10-20.txt`)
+
+The run: C1 finite-rate 32x6 to 4 ms, 300 J igniter, h2o2.yaml, analytic Jacobian. Its end values match the analytic C1 of check 4 to every printed digit (c* 2,477.28 m/s), so the sampling does not disturb the run. 2,001 samples of 192 cells, 6,662,784 cell updates. η re-expressed in h2o2_highT's energies, classified against the C1-range table with Y_H2O.
+
+| | Whole run (the stated figure) | Last ms |
+|---|---|---|
+| **Fallback, share of cell updates** | **47.97%** | **41.21%** |
+| A corner failed a gate | 41.86% | 41.21% |
+| η above the axis (the igniter's cells, η up to about 15) | 4.57% | 0 |
+| Z_N above the axis (the ambient N2 the start purges) | 1.45% | 0 |
+| No H or O (pure N2) | 0.09% | 0 |
+
+With η left on h2o2.yaml's scale the whole run is 47.87%, so the conversion moves it by 0.1 points.
+
+**Where it is (last ms, measured):**
+- Every cell of the divergent nozzle from column 19 to the exit (throat at 16), and 19% of column 18. These are the cells with ρ below 0.28 kg/m³: 41.2% of the run's cell updates.
+- Every one of their failing corners fails 2(a)'s turn-back (Y_H2O turning back on the low-density branches, the 83 nodes at ρ ≤ 0.069). None fails 2(b), 2(c) or the outside flag.
+- The chamber and the convergent section (ρ 0.28 to 4.8 kg/m³, 58.8% of updates) are on the table at every update.
+
+**The decision, by the Director's rule: over 1%, so the progress variable is reopened.**
+- A wider axis would not help: the fallback is failed corners inside the axes, not cells outside them.
+- A declared domain that leaves out the nozzle would hand CVODES 41% of the steady run, about 40 times the rule's bar.
+- The measured rate is a lower bound (the runtime's own causes are not counted), so the conclusion does not depend on what is left out.
+
+**A candidate for the reopened variable (a design choice, for the Director; *derived*, not tested):** the specific entropy s.
+- Every branch the builder integrates is an adiabatic reactor at fixed volume, so u and ρ are held, and dS/dt = Σ_r (r_f − r_r) R ln(r_f / r_r) / ρ ≥ 0.
+- That holds term by term when every reaction is reversible with its reverse rate from the equilibrium constant. All 29 reactions in h2o2_highT and h2o2.yaml are written `<=>` with no explicit reverse rate (checked).
+- So s is non-decreasing on every branch by the second law, and 2(a)'s turn-back is zero to round-off by construction, at every density.
+- What it would still have to pass, by measurement:
+  - the N gate and the resolution near equilibrium, where ds/dt → 0;
+  - the runtime cost of s per cell (it is not linear in Y: one log per species);
+  - its span on branches that barely react.
 
 ## The runtime, stated before its code (14 October 2026, about 01:20 CDT)
 
