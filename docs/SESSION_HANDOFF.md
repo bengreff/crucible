@@ -2,6 +2,57 @@
 
 20 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (20 October, about 23:15 CDT; night run after /clear, READY TO CLEAR at about 100k)
+
+The Director's brief (night run to about 05:30): code the entropy-based Table B as stated (E0 to E5, nodes clustered toward equilibrium, the nearer-branch rule with its reject count), build it in O/F 4 to 6 and 1 to 10 MPa, rerun C1 on h2o2_highT, and measure the fallback by region (chamber, convergent, divergent). Pass: the gates as written and a nozzle fallback under 1% of updates; if the nozzle fails, measure why before changing anything. Ben: straight line to RL10.
+
+Everything is in TABLE_B.md under its stated check, from *The specific entropy as progress variable: its checks* to *The N placement measured*. Commits from fdb5288 to 69bb304.
+
+1. **The builder's candidate 3 (s), with E2's node rule and per-node refinement (fdb5288 to b111aac).**
+   - E2 passes on both full tables, by the eighth-point check at the full bars: O/F 4 to 6 at 1.98 K, C1 range at 2.09 K. The refinement targets 2/3 of the bars, at most 15 points per node, none at the cap.
+   - A rate-seeded search clears the induction's t + h == t collapse. It has a counted raw-step fallback, used twice per table.
+   - **Still failing as written:**
+     - E1: one turn-back of 1.384e-9, on a frozen upper branch whose span is about 2 ulp of s, at 80 kg/m³.
+     - 2(c): the two builder refusals at η 0.6, ρ 80 kg/m³, outside the band.
+     - The N gate in the C1 range: the same 8 nodes as Y_H2O, all at η 1 and ρ ≤ 0.069.
+     - E5 below shows that C1's cells do not reach any of these.
+2. **E0 to E5 on C1 h2o2_highT** (the 50 kW torch, 32x6, to 4 ms; 9bad968):
+   - The domain alone now passes in every region over the last ms (0.000%). With Y_H2O the nozzle was at 82.3%.
+   - **The nearer-branch rule fails:** 100%, 100% and 92.7% over the last ms, with every cell's s above the blended s_eq.
+     - *Measured as predicted:* s_eq is concave, so its multilinear blend is a chord. It sits 13 J/(kg K) below the chamber cells' own s_eq, which they hold to 1e-4. It sits 61 J/(kg K) below the nozzle cells' own, from which they are 13 J/(kg K) short.
+   - E4 for s passes: 71 ns per cell, 1 to 2% of the step outside the reaction.
+3. **The cell placed by its own N (moles per kg) replaces the nearer-branch rule.** This is the 02:47 and 02:59 snap at equal N, with N also choosing the branch. It was stated before its code, and the bars are unchanged.
+   - **Director flag:** it replaces an engineering rule, it is reversible, and the comparison is kept in the replay's output.
+   - **Result (69bb304):**
+     - **0.000% fallback in chamber, convergent and divergent from 1 ms on. The nozzle is at 0.004% from 0.5 to 1 ms.**
+     - 97.06% of the inside samples are placed. Upper-branch ΔY is at most 2.2e-3; lower-branch median 3.3e-3. Illinois takes 1 to 3 iterations.
+   - **The whole run fails, nozzle 3.143%,** and all of it is in the first 0.5 ms (33.8% of that window):
+     - the purged N2 above the Z_N axis (1.89%);
+     - cold propellant (126 to 465 K) below the reactants' 200 K floor (0.82%). There, the η 0.6 corners at Z_N 0 start from the frozen family, partly burnt: their start's N is 0.936 to 0.980 of the reactants';
+     - the ignition front's mixed cells (0.22%);
+     - frozen reach (0.016%, each with the frozen corner at f_H 1/6, Z_N 0.3, η 0.6).
+   - **E4 for the placement: 1,255 ns per cell on one thread.** That is 54 times under CVODES (67.5 µs) but 17 to 34% of the step outside the reaction, so over 5% if E4's bar is applied to the whole placement. *Inferred:* C1 to 4 ms would take about 30 s of wall instead of 451 s.
+4. **Tools.**
+   - `crucible_table_b_branch_rule` (the E0 replay, both rules; columns `e0` and `n_rule`).
+   - `tools/fallback_rate.py`: chamber, convergent and divergent regions; the E0 join, selected by `E0_COLUMN`; the 0.5 ms windows.
+   - **Files not in git:**
+     - `/tmp/tbs/{small,of46,c1r}_s.bin` and `*_nodes.csv`: the s tables;
+     - `/tmp/c1s/`: the C1 run, with `states_torch50_TY.csv` carrying T and Y;
+     - `/tmp/e0/`: the replay outputs.
+     - If they are gone, rerun the commands in TABLE_B.md.
+
+**For inquiry2:** `core/flow.*`, `core/amr.*`, `core/transport.*`, `core/medium.*` and `contour.*` were not touched tonight. The replay reads `Species` from `core/medium.hpp` read-only. The runtime will need s per cell (NASA-7 s° plus the mixture term, constant cp above tHigh), so a `Medium` entropy method is to be agreed with you before it goes into `core/medium.*`. Until then it stays in the Table B runtime's own file.
+
+**For the Director:**
+- (a) Accept the N placement in place of the nearer-branch rule.
+- (b) Does the 1% bar cover the start transient (0 to 0.5 ms)? If so, there are two axis extensions in the builder: Z_N above 0.3 for the purge, and an η node at the reactants' 200 K floor (or a cold-frozen rule).
+- (c) Does E4's 5% apply to the whole placement?
+
+**Next, in order:**
+1. State the runtime's step on the N-placed point before its code: the update in s by λ, then Y read at the new s on the same branch. Code it in a new core file (not `flow.*`), and hook it in through the reaction adapter as Table B with CVODES fallback.
+2. Run C1 with it against the CVODES run.
+3. The four still-failing gates above, if the Director wants them closed rather than declared outside the band.
+
 ## Stopped at (20 October, about 19:40 CDT; session after /clear, READY TO CLEAR)
 
 The Director's brief (after /clear, to about 20:00) had two parts.
