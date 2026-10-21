@@ -152,6 +152,10 @@ if(CRUCIBLE_WITH_CANTERA)
     add_executable(crucible_mascotte_a10 tests/mascotte_a10.cpp)
     target_link_libraries(crucible_mascotte_a10 PRIVATE crucible_thermo)
     target_compile_definitions(crucible_mascotte_a10 PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    # RL10A-3-3A tier 1's central case, the dry-run build (docs/validation/rl10a33a/tier1_setup.md); not a test.
+    add_executable(crucible_rl10_tier1 tests/rl10_tier1.cpp)
+    target_link_libraries(crucible_rl10_tier1 PRIVATE crucible_thermo)
+    target_compile_definitions(crucible_rl10_tier1 PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     # S2's resolved-film reference (docs/evidence/SPRAY.md); sees Cantera directly.
     add_executable(crucible_drop_film_1d tools/drop_film_1d.cpp)
     target_include_directories(crucible_drop_film_1d PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})

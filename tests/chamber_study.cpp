@@ -85,6 +85,7 @@
 #include "core/manifold_runtime.hpp"
 #include "core/manifold_table.hpp"
 #include "tests/c1_geometry.hpp"
+#include "tests/rl10_geometry.hpp"
 
 using namespace crucible;
 
@@ -116,39 +117,15 @@ Chamber c1() {
 // the wall is at the bracket's central 567 K. The comparison's Cd is at R/r_t 0.5 when the PCHIP throat is sharper
 // (the series' edge, as tier 0).
 Chamber rl10dev(int nz) {
-  constexpr double inch = 0.0254, exitStation = 46.0, nominalFace = -13.1;
-  double rt = 0.062738;
-  if (const char* v = std::getenv("CRUCIBLE_RL10_THROAT_RADIUS")) rt = std::atof(v);
-  std::vector<std::array<double, 2>> nodes;
-  const std::string path = std::string(CRUCIBLE_SOURCE_DIR) + "/docs/validation/rl10a33a/tm107318_table_E1_si.csv";
-  FILE* f = std::fopen(path.c_str(), "r");
-  if (!f) throw std::runtime_error("cannot read " + path);
-  char line[512];
-  bool header = true;
-  while (std::fgets(line, sizeof line, f)) {
-    if (line[0] == '#') continue;
-    if (header) { header = false; continue; }
-    double zIn, zM, ratio;
-    if (std::sscanf(line, "%lf,%lf,%lf", &zIn, &zM, &ratio) == 3) nodes.push_back({zM, rt * std::sqrt(ratio)});
-  }
-  std::fclose(f);
-  if (nodes.size() != 16) throw std::runtime_error("Table E1: expected 16 nodes in " + path);
-  const int k = static_cast<int>(std::lround(nz * -nominalFace / (exitStation - nominalFace)));
-  const double face = -exitStation * k / (nz - k);  // inches
-  if (face > -12.8 || face < -13.4)
-    throw std::invalid_argument("rl10dev: the throat station puts the face at " + std::to_string(face) +
-                                " in, outside -13.4 to -12.8 in; choose another nz");
-  const double rc = rt * 5.13 / 2.47;
-  nodes.push_back({0.0, rt});
-  nodes.push_back({face * inch, rc});
-  nodes.push_back({exitStation * inch, rt * std::sqrt(61.0)});
-  std::sort(nodes.begin(), nodes.end());
-  const Pchip wall(nodes);
-  std::size_t throatNode = 0;
-  while (nodes[throatNode][0] != 0) ++throatNode;
+  using rl10::kInch;
+  const rl10::Wall w = rl10::wall(nz);
+  const double rt = w.rt, rc = w.rc, face = w.face, inch = kInch, exitStation = rl10::kExitStation;
+  const int k = w.throatStation;
+  const Pchip& wall = w.pchip;
+  const std::size_t throatNode = w.throatNode;
   Chamber c;
   c.name = "RL10A-3-3A development";
-  for (const auto& p : wall.sample(200)) c.geo.contour.push_back({p[0] - face * inch, p[1]});
+  c.geo.contour = w.contour;
   c.geo.throat = -face * inch;
   c.geo.cylinderEnd = (-10.00 - face) * inch;
   c.chamberRadius = rc;

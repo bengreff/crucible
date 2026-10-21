@@ -58,3 +58,80 @@ Status: stated 21 October 2026, about 02:15 CDT, before its code and before any 
 - **On the merged layout,** the outer rings' H2 velocity falls by about the cup's width over the two slots' widths (about 4 on ring 8), so J falls by about its square. That breaks choice 1's statement that the injection velocities and J are the elements' own.
 - **So the expected finding:** the face needs a sub-cell inlet, which takes each slot's own mass, momentum and energy flux into the cell whose face holds it, with the rest of that face a wall. Resolving the slots would instead need about 0.1 mm rings, and so time steps about 10 times shorter.
 - The inlet sits in `supplyFace` (`core/flow.cpp`, inquiry2's lane). It is proposed, not coded here.
+
+## Results (21 October 2026, about 02:35 CDT; `tier1_dry_run_2026-10-21.log`, `tier1_dry_run_probe_2026-10-21.log`)
+
+`crucible_rl10_tier1` builds, runs in about 1 s, and reads no measured value. rl10dev's output after the contour moved to `tests/rl10_geometry.hpp` is byte-identical to before (`fr`, 76 × 8, to 30 µs: mesh, history, the three fields, and the log apart from wall times; measured: `cmp`).
+
+| Check | 76 × 8 | 149 × 16 | 1192 × 128 (finest planned) |
+|---|---|---|---|
+| G1, contour | fail: face at −13.2542 in (−0.154) | pass: −13.0862 in (+0.0138) | pass: −13.0862 in |
+| G2, layout | pass | pass | pass |
+| G3, flows | pass | pass | pass |
+| G5, supplies within 5% of true area | 0 of 25 (19 hold no ring centre) | 0 of 25 (15 hold none) | 8 of 25 (7 hold none) |
+| G6, true slots | refused | refused | refused |
+| G6, merged bands | refused | refused | accepted; J at 0.048 (ring 8) to 0.34 (ring 1) of the slots' |
+| G7, the cup | | | fail |
+
+- **G1:** the throat station's radius, the face radius and the exit radius are exact to rounding (relative error 0) at every mesh. rl10dev's 76 × 8 puts the face 0.154 in from −13.1, so it is a development mesh, not tier 1's.
+- **G2:**
+  - the rings run from ring 1's inner H2 slot at 3.677 mm to ring 8's outer slot at 123.912 mm, against the wall at 130.302 mm;
+  - the slot areas are exact to 3.7e-14;
+  - the cups (12,784.04 mm²) and the porous face (40,555.84 mm²) sum to π R_c² exactly.
+- **G3:** oxidizer 13.952500 kg/s, fuel 2.760138 kg/s, O/F 5.055000. Transpired: 10.0000% at 6.805773 kg/(m² s) on every porous band. Ring O/F 5.61667.
+- **G4** (nominal 2.8 MPa; the same on every ring by construction):
+  - LOX density 1,084.65 kg/m³ at 101.17 K (`tools/o2_saturation_nist.tsv`). The skeleton's "about 1,140" was rounder, so V_L is 6.05 m/s, not 5.8.
+  - H2 density 3.400 kg/m³, so V_H2 is 176.9 m/s, J is 2.68, and Burick's group (V_g − V_L)/(V_L MR) is 5.03, inside Fig. 38's 0.4 to 12.
+  - The transpired H2 enters at 2.00 m/s.
+  - **The supply turbulence at a pitch length scale gives viscosity ratios of 46,000 at the slots and 524 on the porous face.** Protocol §4's length scale of one pitch (15.7 mm) was written for the uniform face. At choice 1's slots, which are 0.33 to 6.1 mm wide, it is up to 47 times the slot's width.
+- **G5 and G6, the probe at 149 × 1280, 2560 and 5120** (equal rings of 0.102, 0.051 and 0.025 mm):
+  - `Flow` accepts the true slots from 1,280 rings.
+  - Within 5%: 17, 21 and 24 of 25 supplies. The worst is ring 8's inner H2 slot, at 1.20, 1.10 and 1.05 times its true area.
+  - So the 5% bar needs more than 5,120 equal rings (rings of 0.025 mm or less). That is about 40 times the finest planned level's radial count. The radial cell is then about 50 times thinner than its axial length, which sets a time step roughly 40 times shorter.
+- **G7 at 1192 × 128:**
+  - 1.41 cells across the cup's 1.77 mm depth (4 needed);
+  - 0.33 across the narrowest slot and 0.95 across a tip (2 needed);
+  - `Mesh` has no cells behind the face plane, so it cannot carry the cup's walls at any resolution.
+
+**Verdict:** the setup's inputs (G2, G3) and its contour (G1, at tier-1 meshes) are as stated. The face of choice 1 cannot be represented by today's `Flow`:
+- the true slots are refused below 1,280 rings, and they need more than 5,120 rings to meet 5%;
+- the merged bands are accepted at the finest level but cut J to 5 to 34% of the elements'. Choice 1 states that J is the elements' own.
+- The cup fails G7.
+These are the outcomes expected before the code, except for the numbers.
+
+## Decision 5 applied (21 October 2026, about 02:35 CDT, before any tier-1 run)
+
+The cup is not resolved (G7), so the plan's decision 5 branch applies:
+- the central case takes the recess through the SMD correlation alone;
+- member 11b is not run;
+- the missing cup is a declared limit.
+
+**Its direction (inferred):**
+- A recess up to one post diameter raises mixing (SP-8089 §3.1.1.1.4, on Burick's data). Without the cup, the near-face mixing is under-represented.
+- So c* and Isp are biased **low**, and the heat flux to the face and the first part of the wall is biased **low**.
+
+**A consequence, recorded as applied and reversible:** Burick's Fig. 38 is one curve for flush and recessed posts, with no recess term (`docs/evidence/spray/burick_fig38.md`).
+- So "through the SMD correlation alone" gives the recess no input in tier 1. The central case's SMD is the same at recess 0, 0.5 and 1.0 d_L.
+- So member 11 (recess at its bracket's ends) would repeat the central case, and is not run.
+- The recess's whole effect is the declared limit above.
+- If a recess-dependent drop-size source is found before the prediction commit, member 11 returns.
+
+## Findings for the Director and inquiry2 (not decided here)
+
+1. **The face inlet: a DECISION NEEDED for the Director.** Choice 1's slots cannot be carried at an affordable mesh (G5, G6). The options:
+   - **(a)** A sub-cell ("open-area") supply in `core/flow` (inquiry2's lane).
+     - A supply declares its true annulus.
+     - Each face ring it overlaps takes the supply's mass, momentum and energy flux in proportion to the overlap, at the stream's own velocity (its true area), so the slot's mass flow and momentum and J are kept at any resolution.
+     - The rest of each ring's face is wall.
+     - A ring's cell mixes its slots' streams within one cell height, so the near-field shear layer is unresolved at any affordable mesh. That is a declared limit, as the cup is.
+   - **(b)** The merged bands that today's `Flow` accepts, with J at 5 to 34% of the elements' as a declared limit. This weakens choice 1's purpose, since J and the injection velocities set the mixing.
+   - **(c)** Resolving the slots: more than 5,120 rings and time steps roughly 40 times shorter. Not affordable.
+   - **Recommendation: (a).** It keeps the momentum and J that choice 1 exists to keep, and it adds no cells.
+2. **The supply turbulence's length scale (engineering, to be dated before any run).** At the slots, protocol §4's pitch gives viscosity ratios of 46,000. Proposed:
+   - L = 0.07 times each slot's hydraulic diameter (twice its width), the fully developed duct's estimate, at the slots;
+   - one pitch on the porous face.
+   - This needs the protocol §4 amendment that the skeleton already names for inquiry2's line.
+3. **One wall temperature (engineering, inquiry2's lane).**
+   - `Definition::wallTemperature` is one value, so the face's post tips and the chamber wall are both at 567 K.
+   - The face of a transpiration-cooled injector runs near the H2's temperature.
+   - Either a per-segment wall temperature, or the face's wall segments treated as adiabatic, is needed. With (a), the wall share of the face is only the post tips and the slots' complement within the rings.
