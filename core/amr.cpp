@@ -255,14 +255,16 @@ void Amr::spread(int l,std::size_t p,std::vector<Conserved>& state,std::vector<d
         g[k][0]=(m11*b[k][0]-m01*b[k][1])/det;
         g[k][1]=(m00*b[k][1]-m01*b[k][0])/det;
     }
+    // The children's volume-weighted centroid, as offsets from the parent's centroid: in absolute coordinates
+    // the offsets' weighted sum cancels only to rounding of |z| rather than of the cell size (AMR.md, Step C: results).
     double volume=0,zbar=0,rbar=0;
-    for(auto q:child) { const Cell& cc=fm.cells[q];volume+=cc.volume;zbar+=cc.volume*cc.z;rbar+=cc.volume*cc.r; }
+    for(auto q:child) { const Cell& cc=fm.cells[q];volume+=cc.volume;zbar+=cc.volume*(cc.z-cp.z);rbar+=cc.volume*(cc.r-cp.r); }
     zbar/=volume;rbar/=volume;
     double change[4][4],phi[4]={1,1,1,1};
     for(int n=0;n<4;++n) {
         const Cell& cc=fm.cells[child[n]];
         for(int k=0;k<4;++k) {
-            const double d=g[k][0]*(cc.z-zbar)+g[k][1]*(cc.r-rbar);
+            const double d=g[k][0]*((cc.z-cp.z)-zbar)+g[k][1]*((cc.r-cp.r)-rbar);
             change[n][k]=d;
             if(d>0) phi[k]=std::min(phi[k],(hi[k]-vp[k])/d);
             else if(d<0) phi[k]=std::min(phi[k],(lo[k]-vp[k])/d);
@@ -296,11 +298,11 @@ void Amr::setTags(Tags tags) {
 // ghost width of level l + 2's new active cells, so each new level nests in the one below by
 // construction, and level l + 1's new active cells are its children. New cells are filled from the
 // bottom up by spread from the level below at the regrid time; cells leaving a level keep nothing.
-void Amr::regrid() {
+void Amr::regrid(bool initial) {
     if(!checked_) check();
     const int top=levels()-1;
     const Tags& tg=tags_;
-    const bool first=!regridded_;
+    const bool first=initial;
     std::vector<std::vector<unsigned char>> set(static_cast<std::size_t>(top));
     for(int l=top-1;l>=0;--l) {
         Flow& f=level(l);const Mesh& m=f.mesh_;
@@ -359,6 +361,7 @@ void Amr::regrid() {
                 }
             }
             if(throat>=0 && std::abs(c.z-throat*m.dz)<=tg.throatHalfWidth*rt) tag[q]=1;
+            if(tg.custom && tg.custom(l,i,j)) tag[q]=1;
             if(wall && j==m.nr-1) {
                 if(first) tag[q]=1;
                 else {
@@ -563,7 +566,8 @@ Amr::Budget Amr::budget() const {
 }
 double Amr::step(double maxDt) {
     if(!(maxDt>0)) throw std::invalid_argument("Step interval must be positive.");
-    if(tagged_ && !regridded_) regrid();
+    // Level l's tags read its active cells, so the initial levels take one pass per level to reach the top.
+    if(tagged_ && !regridded_) for(int k=1;k<levels();++k) regrid(true);
     if(!checked_) check();
     if(!started_) { initial_=content();started_=true; }
     for(auto& v:levels_)
@@ -578,7 +582,7 @@ double Amr::step(double maxDt) {
         if(advance(0,time_,dt,0)) {
             time_=landing?event:time_+dt;++steps_;
             for(auto& v:levels_) v.flow->time_=time_;
-            if(tagged_ && steps_%static_cast<std::uint64_t>(tags_.interval)==0) regrid();
+            if(tagged_ && steps_%static_cast<std::uint64_t>(tags_.interval)==0) regrid(false);
             return dt;
         }
         restore();++rejected_;dt*=0.5;landing=false;

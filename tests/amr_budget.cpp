@@ -17,8 +17,8 @@
 // stops after the AMR run (no single-level run, nothing judged).
 // Step C's checks (AMR.md, Step C: setup): tags turns on the tags and regridding at Tags' defaults, with the f_H
 // weights from each species' H content. It prints the regrids that changed the pattern and level 1's active cells,
-// and judges check 2: the largest fill content error over every regrid below 1e-14, over the parent's content as
-// stated (the first after light-off printed) and, beside it, over the children's gross content (AMR.md, Step C: results).
+// and judges check 2 over every regrid (so including the first after light-off): the largest fill content error below
+// 1e-14, over the parent's content as stated and over the children's gross content (AMR.md, Step C: results).
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
     return n;
   };
   std::uint64_t regrids = 0;
-  double fillWorst = 0, fillGrossWorst = 0, fillFirstLit = -1;
+  double fillWorst = 0, fillGrossWorst = 0;
 
   // The AMR run.
   // The momentum error's denominator as Flow::measurements: |initial momentum| + the gross exchange.
@@ -230,7 +230,6 @@ int main(int argc, char** argv) {
       regrids = amr.regrids();
       fillWorst = std::max(fillWorst, amr.fillError());
       fillGrossWorst = std::max(fillGrossWorst, amr.fillGross());
-      if (fillFirstLit < 0 && amr.time() > d.igniter.start + d.igniter.duration) fillFirstLit = amr.fillError();
     }
     const auto b = amr.budget();
     composite.content(b.mass, b.energy);
@@ -269,8 +268,8 @@ int main(int argc, char** argv) {
                 final.momentumResidual / momentumScale(final), composite.worstMass, composite.worstEnergy, composite.worstMomentum,
                 std::abs(final.igniterEnergy - kIgniter), amrCstar, fVac, static_cast<unsigned long long>(amr.steps()), amrWall);
     if (tagged)
-      std::printf("AMR only, not judged: %llu regrids, fill error largest %.3e (first after light-off %.3e), over the gross content %.3e\n",
-                  static_cast<unsigned long long>(regrids), fillWorst, fillFirstLit, fillGrossWorst);
+      std::printf("AMR only, not judged: %llu regrids, fill error largest %.3e, over the gross content %.3e\n",
+                  static_cast<unsigned long long>(regrids), fillWorst, fillGrossWorst);
     return 0;
   }
 
@@ -317,8 +316,8 @@ int main(int argc, char** argv) {
   if (tagged) {
     check(fillWorst <= 1e-14, "step C check 2: the largest fill content error over the regrids", fillWorst, 1e-14);
     check(fillGrossWorst <= 1e-14, "  the same over the children's gross content", fillGrossWorst, 1e-14);
-    std::printf("      printed, not judged: %llu regrids changed the pattern; the first fill after light-off %.3e; level 1 ends with %zu of %zu active\n",
-                static_cast<unsigned long long>(regrids), fillFirstLit, activeCells(1), amr.active(1).size());
+    std::printf("      printed, not judged: %llu regrids changed the pattern; level 1 ends with %zu of %zu active\n",
+                static_cast<unsigned long long>(regrids), activeCells(1), amr.active(1).size());
   }
   std::printf("      printed, not judged: AMR igniter |E - 0.5 J| %.3e J; single level mass %.3e, energy %.3e, momentum %.3e, igniter |E - 0.5 J| %.3e J\n",
               std::abs(final.igniterEnergy - kIgniter), singleMass, singleEnergy, ms.momentumBalanceError,

@@ -12,7 +12,10 @@
 //        the uniform coarse and fine runs' and converging at order 0.8 or better on both pairs, the
 //        shock within one base cell, and the pressure behind it within 1e-3 of its jump of the uniform
 //        coarse run's.
-// Arguments: any of 1a 1b 3a 3b (default all) and a thread count (default 4). Step B2's checks (AMR.md,
+// Step C's check 3 (AMR.md, Step C: setup), case c3: 1(b)'s case with its two levels moved by a caller's tag one
+// base column per regrid (every 2 base steps), 400 base steps: check accepts every pattern (each regrid changes it),
+// and 1(b)'s bounds hold on every level's active cells.
+// Arguments: any of 1a 1b 3a 3b c3 (default all) and a thread count (default 4). Step B2's checks (AMR.md,
 // Step B2: setup): b1 runs B1 (with the temperature-guess reset) instead of B2, ghost=N sets the ghost
 // width, and dump=PREFIX writes each run's active cells, steps and budget to PREFIX_<case>.bin.
 #include "core/amr.hpp"
@@ -165,6 +168,61 @@ void uniformFlow() {
   const double t = amr.time(), lo = (u0 + a0) * t, hi = d.length - (a0 - u0) * t;
   std::printf("  t = %.4e s after %llu base steps (%llu redone), %.1f s of wall; judged for z in (%.4f, %.4f) m\n", t,
               static_cast<unsigned long long>(amr.steps()), static_cast<unsigned long long>(amr.rejectedSteps()), seconds(start), lo, hi);
+  for (int l = 0; l < amr.levels(); ++l) {
+    const Flow& f = amr.level(l);
+    const auto e = departure(f, amr.active(l), u0, a0, p0, [&](double z) { return z > lo && z < hi; });
+    const auto all = departure(f, amr.active(l), u0, a0, p0);
+    const std::string name = "level " + std::to_string(l) + " (" + std::to_string(f.mesh().nz) + " x " + std::to_string(f.mesh().nr) + ")";
+    check(e.speed < 1e-10, name + ": largest |u - u0| / a0", e.speed, 1e-10);
+    check(e.pressure < 1e-12, name + ": largest |p / p0 - 1|", e.pressure, 1e-12);
+    std::printf("      printed, not judged: over all its active cells %.3e and %.3e\n", all.speed, all.pressure);
+  }
+}
+
+// Step C's check 3: 1(b)'s flow, the levels moved by a tag one base column per regrid.
+void movingPattern() {
+  std::printf("Step C check 3: 1(b)'s flow, two levels moved one base column per regrid, 400 base steps\n");
+  constexpr double p0 = 1e5, t0 = 300;
+  Definition d;
+  d.experiment = Case::UniformDuct;
+  d.length = 0.6;
+  d.inletRadius = 0.035;
+  d.nz = 400;
+  d.nr = 8;
+  d.radialStretching = 1.7347;
+  d.totalPressure = p0;
+  d.totalTemperature = t0;
+  const double a0 = std::sqrt(d.gas.gamma * d.gas.specificR * t0), u0 = 0.3 * a0, rho0 = p0 / (d.gas.specificR * t0);
+  Amr amr(d, 2);
+  configure(amr);
+  amr.setThreads(threads);
+  for (int l = 0; l < amr.levels(); ++l) amr.level(l).setUniform({rho0, u0, 0, p0});
+  // 1(b)'s pattern moved n base columns at the regrid after base step 2n: level 0's tag sets level 1, level 1's level 2.
+  Amr::Tags tags;
+  tags.throatHalfWidth = 0;
+  tags.wallYPlus = 0;
+  tags.mixture = tags.temperature = tags.pressure = tags.vorticity = 0;
+  tags.custom = [&amr](int l, int i, int j) {
+    const int n = static_cast<int>(amr.steps() / 2), column = (i >> l) - n, row = j >> l;
+    return l == 0 ? column >= 50 && column < 150 && row >= 2 && row < 6 : column >= 70 && column < 130 && row >= 3 && row < 5;
+  };
+  amr.setTags(tags);
+  const auto start = std::chrono::steady_clock::now();
+  for (int n = 0; n < 400; ++n) amr.step();
+  dump(amr, "c3");
+  const double t = amr.time(), lo = (u0 + a0) * t, hi = d.length - (a0 - u0) * t;
+  std::printf("  t = %.4e s after %llu base steps (%llu redone), %.1f s of wall; judged for z in (%.4f, %.4f) m\n", t,
+              static_cast<unsigned long long>(amr.steps()), static_cast<unsigned long long>(amr.rejectedSteps()), seconds(start), lo, hi);
+  // Two initial passes, then one regrid after every second base step, each moving the pattern.
+  check(amr.regrids() == 202, "regrids that changed the pattern (202 expected)", static_cast<double>(amr.regrids()), 202);
+  for (int l = 1; l < amr.levels(); ++l) {
+    int first = amr.level(l).mesh().nz, last = -1;
+    const Mesh& m = amr.level(l).mesh();
+    for (int i = 0; i < m.nz; ++i)
+      for (int j = 0; j < m.nr; ++j)
+        if (amr.active(l)[m.index(i, j)]) first = std::min(first, i >> l), last = std::max(last, i >> l);
+    std::printf("      printed, not judged: level %d's active cells span base columns %d to %d\n", l, first, last);
+  }
   for (int l = 0; l < amr.levels(); ++l) {
     const Flow& f = amr.level(l);
     const auto e = departure(f, amr.active(l), u0, a0, p0, [&](double z) { return z > lo && z < hi; });
@@ -388,16 +446,17 @@ int main(int argc, char** argv) {
   std::set<std::string> cases;
   for (int k = 1; k < argc; ++k) {
     const std::string a = argv[k];
-    if (a == "1a" || a == "1b" || a == "3a" || a == "3b") cases.insert(a);
+    if (a == "1a" || a == "1b" || a == "3a" || a == "3b" || a == "c3") cases.insert(a);
     else if (a == "b1") b1 = true;
     else if (a.rfind("ghost=", 0) == 0) ghost = std::atoi(a.c_str() + 6);
     else if (a.rfind("dump=", 0) == 0) dumpPrefix = a.substr(5);
     else threads = std::max(1, std::atoi(a.c_str()));
   }
-  if (cases.empty()) cases = {"1a", "1b", "3a", "3b"};
+  if (cases.empty()) cases = {"1a", "1b", "3a", "3b", "c3"};
   std::printf("AMR step %s, criteria 1 and 3 (%d threads%s)\n", b1 ? "B1" : "B2", threads,
               ghost > 0 ? (", ghost width " + std::to_string(ghost)).c_str() : "");
   if (cases.count("1b")) uniformFlow();
+  if (cases.count("c3")) movingPattern();
   if (cases.count("3b")) sod();
   if (cases.count("3a")) acousticPulse();
   if (cases.count("1a")) quiescentChamber();

@@ -55,8 +55,9 @@ public:
     // reaction step, which must keep each cell's mass and energy.
     void setAfterStep(std::function<void(int, double)> afterStep) { afterStep_=std::move(afterStep); }
     // Step C (AMR.md, Step C: setup): tags on each level below the top decide the level above's active
-    // cells, once before the first base step and after every interval-th accepted base step. A threshold
-    // of zero or less turns its tag off; empty hydrogen weights turn the f_H tag off.
+    // cells, before the first base step (one pass per level above the base, so the initial levels reach the
+    // top) and after every interval-th accepted base step. A threshold of zero or less turns its tag off;
+    // empty hydrogen weights turn the f_H tag off.
     struct Tags {
         int interval{2}, buffer{2};
         double throatHalfWidth{0.5};  // in throat radii, about the wall's narrowest interior station
@@ -64,6 +65,7 @@ public:
         double wallYPlus{300};        // the wall row's target first-cell y+ (laminar estimate)
         double mixture{0.02}, temperature{0.05}, pressure{0.10}, vorticity{0.05};
         std::vector<double> hydrogen;  // per species, the H element's mass over the species' mass
+        std::function<bool(int, int, int)> custom;  // a caller's own tag on level l's cell (i, j), e.g. a test's
     };
     void setTags(Tags tags);
     // Regrids that changed the pattern, and the largest content error of the children against their parent in
@@ -121,7 +123,8 @@ private:
     // neighbours) onto its four children on level l.
     void spread(int l, std::size_t p, std::vector<Conserved>& state, std::vector<double>& species, std::vector<double>& turbulence);
     // Step C: new active sets from the tags, top down; the cells that become active filled, bottom up.
-    void regrid();
+    // initial: before the first base step, when the whole wall row is tagged.
+    void regrid(bool initial);
     Tags tags_;
     bool tagged_{false}, regridded_{false};
     std::uint64_t regrids_{};
