@@ -7,6 +7,11 @@
 //      the exact two-gamma Riemann solution: density L1(400 cells) <= 0.5 L1(100 cells); star
 //      pressure midway between contact and shock within 1% at 400 cells; species masses sum to
 //      the total mass within 1e-12 relative.
+//   1b. (20 October 2026) The constant-cp continuation above the top of h2o2_highT's fits (6,000 K):
+//      cv constant above it and continuous there, e linear (e(20,000 K) - e(6,000 K) = cv 14,000 K),
+//      all within 1e-12 relative; the inversion at 8,000, 12,176 and 20,000 K within 1e-9 K for the
+//      igniter cell's composition (O 0.81, H 0.16, OH 0.024 by mass, the rest H2O); and gri30 (fits to
+//      3,500 K) gets no continuation.
 //   3. Same two gases advected at uniform pressure and velocity: measured and reported only
 //      (spurious pressure at a variable-gamma contact is a known property of fully conservative
 //      schemes; its size decides whether a correction is needed).
@@ -125,6 +130,33 @@ int main() {
     }
     check(worstProp <= 1e-12, "worst relative difference R, e/(cv T), cv, a", worstProp, 1e-12);
     check(worstT <= 1e-9, "worst temperature inversion error [K]", worstT, 1e-9);
+  }
+
+  std::printf("1b. The constant-cp continuation above h2o2_highT's fits\n");
+  {
+    thermo::ReactionSource highT(CRUCIBLE_SOURCE_DIR "/tools/mechanisms/h2o2_highT.yaml");
+    const Medium medium = highT.medium();
+    std::vector<double> y(medium.size(), 0.0);
+    for (std::size_t k = 0; k < medium.size(); ++k) {
+      const auto& n = medium.species()[k].name;
+      y[k] = n == "O" ? 0.81 : n == "H" ? 0.16 : n == "OH" ? 0.024 : n == "H2O" ? 0.006 : 0.0;
+    }
+    const double top = medium.species()[0].tHigh, cvTop = medium.cv(top, y.data());
+    const double below = medium.cv(top * (1 - 1e-13), y.data());
+    double worstT = 0;
+    for (double t : {8000.0, 12176.0, 20000.0})
+      worstT = std::max(worstT, std::abs(medium.temperature(medium.internalEnergy(t, y.data()), y.data(), 3000) - t));
+    check(top == 6000, "top of the fits [K] (6,000 expected)", top, 0);
+    check(std::abs(medium.cv(20000, y.data()) / cvTop - 1) <= 1e-12, "cv(20,000 K) / cv(6,000 K) - 1",
+          std::abs(medium.cv(20000, y.data()) / cvTop - 1), 1e-12);
+    check(std::abs(below / cvTop - 1) <= 1e-12, "cv just below 6,000 K / cv(6,000 K) - 1", std::abs(below / cvTop - 1), 1e-12);
+    const double de = medium.internalEnergy(20000, y.data()) - medium.internalEnergy(6000, y.data());
+    check(std::abs(de / (cvTop * 14000) - 1) <= 1e-12, "e(20,000 K) - e(6,000 K) against cv 14,000 K",
+          std::abs(de / (cvTop * 14000) - 1), 1e-12);
+    check(worstT <= 1e-9, "inversion at 8,000, 12,176, 20,000 K [K]", worstT, 1e-9);
+    thermo::ReactionSource gri("gri30.yaml");
+    const bool none = std::isinf(gri.medium().species()[0].tHigh);
+    check(none, "gri30 (fits to 3,500 K): no continuation", none ? 0.0 : 1.0, 0);
   }
 
   std::printf("2. Two-gas shock tube against the exact two-gamma solution\n");

@@ -443,6 +443,39 @@ The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or sp
 - **What power cannot fix (*derived*).** At 0.2 ms the igniter's region holds propellant at about 0.007 kg/m³, because the nozzle is open to 1 kPa while the valve ramps. A volumetric deposit into that gas heats it at P / (ρ V), so any power drives a slow cell far above a torch's 3,100 K. A real torch adds its heat with its own mass, as hot gas.
   - The physical representation would be a hot-gas inflow, or a deposit that stops at the torch temperature. It is a change in `core/flow.*` (inquiry2's), and is not made here.
 
+**The guard's unit check (`crucible_mixture_tests` 1b, stated in its header before it ran): passes.** On h2o2_highT at the igniter cell's composition:
+- The top of the fits is 6,000 K.
+- cv(20,000 K) equals cv(6,000 K) exactly, and cv just below 6,000 K agrees with it to 4.1e-15.
+- e(20,000 K) − e(6,000 K) = cv × 14,000 K to 2.2e-16.
+- The inversion at 8,000, 12,176 and 20,000 K is within 4.5e-12 K.
+- gri30 (fits to 3,500 K) gets no continuation.
+
+Fast tests: core, thermo_cea, reaction and mixture pass.
+
+**C1 32x6 finite-rate on h2o2_highT, two runs, both past 0.206 ms (where the run failed before).** Samples in `/tmp/c1g/` (not in git).
+- **The former 300 J igniter, as the guard's check:**
+  - T_max 7,840 K at 0.216 ms. Above 6,000 K (on the guard) for the 8 samples from 0.212 to 0.226 ms.
+  - Stopped at 0.828 ms with the igniter still on: my watcher read a half-written history line as 8.3 s. So it shows the guard carrying the old igniter through its hot peak, not to 4 ms.
+- **The torch-sized igniter (50 kW for 1 ms), to 4 ms (`table_b/c1_fallback_torch_highT_2026-10-20.txt`):**
+  - T_max 4,029 K at 0.288 ms, and 3,489 K after 1 ms. The guard never engages (no cell above 6,000 K). The peak is still above a torch's 3,100 K, as the derivation above expects for a volumetric deposit.
+  - At 4 ms: injector pressure 3.3124 MPa, F_vac 1,663.9 N, Isp_vac 424.4 s on the supply flow. These are not compared with the h2o2.yaml run, which differs in both mechanism and igniter.
+
+**The fallback rate on h2o2_highT, against the C1-range table with Y_H2O, by region (throat station 16):**
+
+| Share of that region's cell updates | Whole run | Last ms |
+|---|---|---|
+| **Chamber and convergent (columns 0 to 15)** | **4.146%** | **0.000%** |
+| — a corner failed a gate | 3.449% | 0 |
+| — Z_N above the axis (the purged ambient N2) | 0.649% | 0 |
+| — η above the axis (the igniter's cells) | 0.037% | 0 |
+| — no H or O | 0.011% | 0 |
+| Divergent (columns 16 on) | 86.040% | 82.300% |
+| All cells | 45.093% | 41.150% |
+
+- **Where the chamber's failed corners are:** all of them are in the first 0.5 ms (39.3% of that window's chamber updates, then 0.00% in every later 0.5 ms window). All are at ρ below 0.28 kg/m³, before the chamber pressurises, on the same low-density 2(a) turn-back nodes as the nozzle.
+- **Against the h2o2.yaml run with the 300 J igniter (same split, e6d4378's samples):** chamber and convergent 9.237% over the whole run, of which 4.849% was the igniter's cells above the η axis. So the torch-sized igniter removes the η overflow (4.85% to 0.04%), and what remains of the chamber's transient fallback is the low-density turn-back.
+- **So:** the burning chamber and the convergent section are on the table at every update. The start transient and the divergent nozzle are not, both through 2(a) at ρ < 0.28 kg/m³, which is what entropy is for (E5). The nozzle stays failing until entropy lands, as the Director said.
+
 ## The runtime, stated before its code (14 October 2026, about 01:20 CDT)
 
 - **Why the corners cannot be read at the cell's c** (*derived*). Lean of stoichiometric, c_cp = 9 Y_H (all the hydrogen as water), so it rises with f_H. In cold burnt gas, c_eq is close to c_cp. A cell at its own c_eq, between f_H nodes f_1 < f < f_2, then has c above c_cp(f_1): the leaner corner's whole curve ends below the cell's c. The rich side is the mirror image. So *Y is interpolated linearly in c at each corner* would extrapolate at the nozzle exit and in the cooled wall layer, which are the places the table is for.

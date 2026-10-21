@@ -1,0 +1,26 @@
+# python3 tools/fallback_rate.py <C1 fr 32x6 4 ms state samples on h2o2_highT> docs/evidence/table_b/c1range_highT_nodes_2026-10-20.csv 0 16
+# run: CRUCIBLE_MECHANISM=../tools/mechanisms/h2o2_highT.yaml crucible_chamber_study fr 32 6 4e-3 2 <prefix> 50 1e-3 (torch-sized igniter, 50 kW for 1 ms from 0.2 ms; guard above 6,000 K), ca403ff, 20 October 2026 19:16-19:35 CDT; eta native (the run's own mechanism)
+# T_max 4,029 K at 0.288 ms (3,489 K after 1 ms); at 4 ms p_inj 3.3124 MPa, F_vac 1,663.9 N, Isp_vac (supply) 424.4 s
+# last two lines: an inline breakdown (columns 0 to 15) by rho bracket and 0.5 ms window, same gate rule
+table: 324 nodes, 85 failing a gate; axes  f_H [0.1429, 0.2] (3)  Z_N [0, 0.3] (2)  eta [0, 1] (6)  rho [0.001, 80] (9)
+whole run: 6331392 cell updates, fallback 2855020 = 45.093% (over 1%)
+  a corner failed a gate: 43.713%
+  Z_N above the axis: 1.269%
+  no H or O (pure N2): 0.092%
+  eta above the axis: 0.019%
+whole run, columns 0 to 15 (chamber and convergent): 3165696 cell updates, fallback 131244 = 4.146% (over 1%)
+  a corner failed a gate: 3.449%
+  Z_N above the axis: 0.649%
+  eta above the axis: 0.037%
+  no H or O (pure N2): 0.011%
+whole run, columns 16 on (divergent): 3165696 cell updates, fallback 2723776 = 86.040% (over 1%)
+  a corner failed a gate: 83.978%
+  Z_N above the axis: 1.890%
+  no H or O (pure N2): 0.173%
+last ms: 1632192 cell updates, fallback 671647 = 41.150% (over 1%)
+  a corner failed a gate: 41.150%
+last ms, columns 0 to 15 (chamber and convergent): 816096 cell updates, fallback 0 = 0.000% (under 1%)
+last ms, columns 16 on (divergent): 816096 cell updates, fallback 671647 = 82.300% (over 1%)
+  a corner failed a gate: 82.300%
+chamber+convergent failed-corner updates by rho bracket: {'0.0041-0.0168': 551, '0.0168-0.069': 19660, '0.069-0.283': 88960}
+by 0.5 ms window (share of that window's chamber+convergent updates): {'0.0-0.5 ms': '39.26%', '0.5-1.0 ms': '0.00%', '1.0-1.5 ms': '0.00%', '1.5-2.0 ms': '0.00%', '2.0-2.5 ms': '0.00%', '2.5-3.0 ms': '0.00%', '3.0-3.5 ms': '0.00%', '3.5-4.0 ms': '0.00%', '4.0-4.5 ms': '0.00%'}

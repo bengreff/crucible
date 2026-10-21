@@ -2,6 +2,43 @@
 
 20 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (20 October, about 19:40 CDT; session after /clear, READY TO CLEAR)
+
+The Director's brief (after /clear, to about 20:00) had two parts.
+- (1) Entropy as Table B's progress variable is approved. State its checks before code: 2(a) at every density, the resolution near equilibrium (nodes clustered toward it, the T and Y_H2O interpolation error measured there against 3 K and the composition gate), and the cost per cell. Code it next session unless the statement takes under 15 min.
+- (2) The 12,176 K igniter cell is unphysical. Size the igniter to a physical one, add a guard above 6,000 K on h2o2_highT (a constant-cp continuation, labelled outside the model), rerun C1 on h2o2_highT, and report the fallback rate in the chamber and the convergent section.
+
+Worker rules 13 to 16 were named in the brief but are not in the repository (AGENTS.md, TECHNICAL_PLAN, this file and memory searched). The brief was followed as written.
+
+1. **Entropy's checks, stated (TABLE_B.md, *The specific entropy as progress variable: its checks*), not coded.** E0 to E5 are stated.
+   - **A design consequence found while stating them (derived):** equilibrium is the entropy maximum at fixed (u, ρ, elements), so the **upper branch also rises in s** toward s_eq. The builder's upper-branch node placement and the runtime's 0-to-2 coordinate assume it falls, as Y_H2O does.
+   - The branch rule is stated (engineering): a cell takes the nearer branch's curve by max |ΔY_k|, and ties go to CVODES, counted as E0.
+   - The node rule: s_eq − s = span (1 − ξ)², uniform in the distance, because s is quadratic in |Y − Y_eq| near equilibrium. λ tends to 2k there, so it stays finite.
+   - **Not coded, though the statement took under 15 min, so the brief's condition for coding it now was met.** The consequence above means reworking the builder's upper branch and its dcdt (ds/dt = −Σ μ_k/W_k dY_k/dt / T at fixed u and ρ). I judged that it would not fit beside the C1 runs and the handoff, and committed the statement alone (ca403ff), before any entropy code.
+2. **The guard (`Species::tHigh` in `core/medium.*`, set in `adapters/reaction.cpp` when the fits reach 6,000 K).** Above it: constant cp, h linear, labelled outside the model. h2o2.yaml (fits to 3,500 K) is unchanged, so no earlier result moves. `ReactingFlow` checks tHigh between the media.
+   - **inquiry2: `core/medium.*` is in your lane.** This is an additive change: a field, two helpers, and the four evaluators calling them. It will conflict textually with your pre-divided enthalpy coefficients on rebase. Keep the continuation (h linear, cp constant above tHigh) in your form.
+   - Fast tests: core, thermo_cea, reaction and mixture pass.
+   - The new `crucible_mixture_tests` 1b passes: cv continuous at 6,000 K to 4e-15, e linear above it to 2e-16, the 12,176 K cell inverts to 5e-12 K, and gri30 gets no continuation.
+3. **The igniter, sized (TABLE_B.md, *The igniter and a guard above 6,000 K*).**
+   - A spark (1 to 120 mJ per spark, sourced) is sub-grid, so the model's igniter is a torch: gas at about 3,100 K (Repas 1994, provisional). Declared power 50 to 160 kW for C1 (*inferred*: a torch flow of 1 to 3% at the stoichiometric heating value; no sourced torch flow was found).
+   - The run uses 50 kW, 50 J over 1 ms from 0.2 ms. The old 300 J igniter was 300 kW.
+   - **Derived, and the open part:** a volumetric deposit into the 0.007 kg/m³ early fill drives slow cells above a torch's temperature at any power. The physical representation is a hot-gas inflow, or a deposit that stops at the torch temperature. That is in `core/flow.*`, inquiry2's lane.
+4. **C1 on h2o2_highT, rerun (both runs pass the 0.206 ms failure point).**
+   - **The torch run (50 kW), to 4 ms:** T_max 4,029 K at 0.288 ms (3,489 K after 1 ms). The guard is never engaged.
+   - **The fallback rate on h2o2_highT** (`table_b/c1_fallback_torch_highT_2026-10-20.txt`):
+     - **Chamber and convergent section (columns 0 to 15): 4.146% of their updates over the whole run, 0.000% over the last ms.**
+     - The 4.1% is all in the first 0.5 ms, at ρ < 0.28 kg/m³ before the chamber pressurises: 3.45% failed corners (the low-density 2(a) turn-back), 0.65% purged ambient N2 above the Z_N axis, and 0.04% η above the axis.
+     - Divergent: 86.0% and 82.3%. All cells: 45.1% and 41.2%.
+   - **The 300 J igniter, as the guard's check:** T_max 7,840 K at 0.216 ms, with the guard on from 0.212 to 0.226 ms.
+     - Stopped at 0.828 ms with the igniter still on: my watcher read a half-written CSV line. It shows the guard carrying the old igniter through its peak, not to 4 ms.
+     - Against the h2o2.yaml 300 J run, the torch removes the igniter's η overflow from the chamber (4.85% to 0.04%).
+5. **Also measured: the split on the h2o2.yaml samples (e6d4378's run).** Chamber and convergent section: 9.24% of their updates over the whole run (4.85% the igniter's cells above the η axis, 3.76% failed corners, 0.62% Z_N), and 0.000% over the last ms. Divergent: 86.7% and 82.4%. `tools/fallback_rate.py` now takes the throat station as an optional 4th argument.
+
+**Next, in order:**
+1. Code entropy as builder candidate 3, with the upper branch rising in s (E2's node rule, midpoint outputs). Run E1 to E3 on the small, O/F 4 to 6 and C1-range tables, then E4, then E5 on both sample sets (`/tmp/c1fb/states_highT.csv`; `/tmp/c1g/states_torch50.csv`, already in h2o2_highT's energies). The /tmp files are not in git: if they are gone, rerun the commands in TABLE_B.md.
+2. The torch as a temperature-capped deposit or a hot-gas inflow in `core/flow.*`: inquiry2's lane, or the Director's call on who does it.
+3. The runtime's branch rule (E0) once s is in the builder.
+
 ## Stopped at (20 October, about 19:15 CDT; session after /clear, READY TO CLEAR)
 
 The Director's brief (after /clear, to about 20:00): (1) an exact Jacobian for the builder's integration, check pre-registered, then the reaction tests and C1; (2) the small Table B in O/F 4 to 6 and the RL10 pressure band with its gate table; (3) the fallback rate in a C1-like run, measured, then domain against progress variable by the Director's rule (a declared domain if under about 1% of cell updates). All three done; TABLE_B.md has every result under its stated check.
@@ -24,7 +61,7 @@ The Director's brief (after /clear, to about 20:00): (1) an exact Jacobian for t
    - The C1-range table command is in TABLE_B.md. The samples are in `/tmp/c1fb/states*.csv` (not in git, 32 MB).
 
 **Open findings:**
-- **C1 on h2o2_highT fails at igniter onset (0.206 ms), so the fallback run used h2o2.yaml (a flagged deviation).** Measured mechanism: the igniter drives a cell to 12,176 K (e 79.5 MJ/kg, mostly O and H). h2o2_highT's 1,000 to 6,000 K fits, extrapolated, turn cv negative above 10,630 K (OH), 11,340 K (O) and 12,140 K (H2O), so `Medium::temperature` cannot invert. GRI's fits extrapolate monotonically.
+- **(Resolved at 19:40, see above: the guard and the torch-sized igniter.) C1 on h2o2_highT fails at igniter onset (0.206 ms), so the fallback run used h2o2.yaml (a flagged deviation).** Measured mechanism: the igniter drives a cell to 12,176 K (e 79.5 MJ/kg, mostly O and H). h2o2_highT's 1,000 to 6,000 K fits, extrapolated, turn cv negative above 10,630 K (OH), 11,340 K (O) and 12,140 K (H2O), so `Medium::temperature` cannot invert. GRI's fits extrapolate monotonically.
   - Fix options (engineering): thermo above 6,000 K (TM-4513's 6,000 to 20,000 K range, or constant cp past the fit), or a gentler igniter deposit.
   - `core/medium.*` is inquiry2's; coordinate there.
 - **h2o2.yaml's η scale:** its u(6,000 K) is extrapolated 8% high, so η from h2o2.yaml states reads up to 0.079 low. Any table lookup from an h2o2.yaml run must convert.
