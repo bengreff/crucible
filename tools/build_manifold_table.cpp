@@ -233,9 +233,9 @@ std::vector<double> lowerFractions(int geometric, int uniform) {
 struct NodeOutcome {
   double turnBack = 0;
   bool hasE2 = false;  // E2 (s only): the table's T and Y between stored points against the trajectory
-  // E2 after refinement: the final gaps' d-midpoints (the refinement criterion, so under the bars
-  // unless the node hit the cap) and the independent quarter points, over every gap and the last
-  // quarter of the span; the points the refinement added.
+  // E2 after refinement: the final gaps' 1/4, 1/2 and 3/4 points (the refinement criterion, so under
+  // the bars unless the node hit the cap) and the independent eighth points, over every gap and the
+  // last quarter of the span; the points the refinement added.
   double e2MidDT = 0, e2MidDY = 0;
   double e2QDT = 0, e2QDY = 0, e2QDTLast = 0, e2QDYLast = 0;
   std::size_t addedPoints = 0;
@@ -637,12 +637,13 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     }
     if (!zeroSpanUpper && !upperFrozen) out.lambda(nodeIdx, lowerCount) = out.lambda(nodeIdx, lowerCount - 1);
 
-    // E2 and per-node refinement (s only; TABLE_B.md, "per-node refinement"). The stored Y are
-    // interpolated linearly in the distance d = sqrt(s_ref - s), s_ref the branch's last point (s_eq, or
-    // a frozen branch's reach). Each gap whose d-midpoint differs from the trajectory's own state there
-    // by over 3 K or 0.01 in Y gets that state as a new point, until every gap passes or the node holds
-    // kMaxPointsPerNode points; then the final gaps are checked at their quarter points, which the
-    // refinement did not use.
+    // E2 and per-node refinement (s only; TABLE_B.md, "per-node refinement" and "refinement on three
+    // interior points"). The stored Y are interpolated linearly in the distance d = sqrt(s_ref - s),
+    // s_ref the branch's last point (s_eq, or a frozen branch's reach). A gap is refined if any of its
+    // points at d 1/4, 1/2 and 3/4 of the way differs from the trajectory's own state there by over 3 K
+    // or 0.01 in Y; the worst of them, the trajectory's state, becomes a new point, until every gap
+    // passes or the node holds kMaxPointsPerNode points. Then the final gaps are checked at their
+    // eighth points, which the refinement did not use.
     for (int p = 0; p < lowerCount; ++p) lowerPts.push_back(basePoint(p));
     for (int p = lowerCount; p < lowerCount + upperCount; ++p) upperPts.push_back(basePoint(p));
     refined = true;
@@ -685,47 +686,58 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
         auto dist = [&](double c) { return std::sqrt(std::max(sRef - c, 0.0)); };
         auto tolOf = [&](double ca, double cb) { return std::max(1e-6 * std::fabs(cb - ca), 1e-11 * std::fabs(ca)); };
         std::vector<double> z, ym(ns);
+        // The table's Y at fraction w of a gap in d, and the trajectory's state at the same s.
+        auto at = [&](std::size_t i, double w, double tol, double& sOut, std::vector<double>& zOut, double& dT,
+                      double& dY) {
+          const double da = dist(pts[i].c), db = dist(pts[i + 1].c), dq = da + w * (db - da);
+          sOut = sRef - dq * dq;
+          for (std::size_t q = 0; q < ns; ++q) ym[q] = pts[i].y[q] + w * (pts[i + 1].y[q] - pts[i].y[q]);
+          trajectoryAt(steps, sOut, tol, zOut);
+          differ(ym, zOut, dT, dY);
+        };
         for (std::size_t i = 0; i + 1 < pts.size();) {
           const double ca = pts[i].c, cb = pts[i + 1].c;
           if (ca == cb) { ++i; continue; }
-          const double dm = 0.5 * (dist(ca) + dist(cb)), sd = sRef - dm * dm;
-          for (std::size_t q = 0; q < ns; ++q) ym[q] = 0.5 * (pts[i].y[q] + pts[i + 1].y[q]);
-          trajectoryAt(steps, sd, tolOf(ca, cb), z);
-          double dT, dY;
-          differ(ym, z, dT, dY);
-          const bool fails = dT > kE2DT || dY > kE2DY;
+          // The worst of the three interior points, by its excess over the bars.
+          double worstExcess = -1, worstDT = 0, worstDY = 0;
+          std::vector<double> worstZ;
+          for (const double w : {0.25, 0.5, 0.75}) {
+            double sw, dT, dY;
+            at(i, w, tolOf(ca, cb), sw, z, dT, dY);
+            const double excess = std::max(dT / kE2DT, dY / kE2DY);
+            if (excess > worstExcess) { worstExcess = excess; worstZ = z; }
+            worstDT = std::max(worstDT, dT);
+            worstDY = std::max(worstDY, dY);
+          }
+          const bool fails = worstExcess > 1;
           if (fails && total < kMaxPointsPerNode) {
             CurvePoint n;
-            n.y.assign(z.begin() + 1, z.end());
+            n.y.assign(worstZ.begin() + 1, worstZ.end());
             double rawErr, projErr, sumErr;
             project(n.y, rawErr, projErr, sumErr);
             result.rawElementError = std::max(result.rawElementError, rawErr);
             result.projectedElementError = std::max(result.projectedElementError, projErr);
             result.sumError = std::max(result.sumError, sumErr);
-            n.c = progress(z.data());
-            source.rates(rho, z.data(), rates.data());
-            n.lambda = cEq != n.c ? dcdt(z.data(), rates.data()) / (cEq - n.c) : 0.0;
+            n.c = progress(worstZ.data());
+            source.rates(rho, worstZ.data(), rates.data());
+            n.lambda = cEq != n.c ? dcdt(worstZ.data(), rates.data()) / (cEq - n.c) : 0.0;
             pts.insert(pts.begin() + static_cast<std::ptrdiff_t>(i) + 1, std::move(n));
             ++total;
             ++result.addedPoints;
-            continue;  // the left half is checked next
+            continue;  // the left part is checked next
           }
           if (fails) result.e2Capped = true;
-          result.e2MidDT = std::max(result.e2MidDT, dT);
-          result.e2MidDY = std::max(result.e2MidDY, dY);
+          result.e2MidDT = std::max(result.e2MidDT, worstDT);
+          result.e2MidDY = std::max(result.e2MidDY, worstDY);
           ++i;
         }
-        // The independent check: the quarter points of every final gap.
+        // The independent check: the eighth points of every final gap.
         for (std::size_t i = 0; i + 1 < pts.size(); ++i) {
           const double ca = pts[i].c, cb = pts[i + 1].c;
           if (ca == cb) continue;
-          const double da = dist(ca), db = dist(cb);
-          for (const double w : {0.25, 0.75}) {
-            const double dq = da + w * (db - da), sq = sRef - dq * dq;
-            for (std::size_t q = 0; q < ns; ++q) ym[q] = pts[i].y[q] + w * (pts[i + 1].y[q] - pts[i].y[q]);
-            trajectoryAt(steps, sq, tolOf(ca, cb), z);
-            double dT, dY;
-            differ(ym, z, dT, dY);
+          for (const double w : {0.125, 0.375, 0.625, 0.875}) {
+            double sq, dT, dY;
+            at(i, w, tolOf(ca, cb), sq, z, dT, dY);
             result.e2QDT = std::max(result.e2QDT, dT);
             result.e2QDY = std::max(result.e2QDY, dY);
             if (std::fabs(cEq - sq) <= 0.25 * span) {
@@ -821,7 +833,7 @@ int main(int argc, char** argv) {
   const char* nodeReportPath = std::getenv("CRUCIBLE_TABLE_B_NODE_REPORT");
   if (const char* dump = std::getenv("CRUCIBLE_TABLE_B_E2_DUMP")) {
     gE2Dump = std::fopen(dump, "w");
-    std::fprintf(gE2Dump, "f_H,Z_N,eta,rho,branch,gap,w,c_a,c_b,s_ref,T_a,dT_quarter,dY_quarter\n");
+    std::fprintf(gE2Dump, "f_H,Z_N,eta,rho,branch,gap,w,c_a,c_b,s_ref,T_a,dT_check,dY_check\n");
   }
   std::FILE* nodeReport = nodeReportPath ? std::fopen(nodeReportPath, "w") : nullptr;
   if (nodeReportPath && !nodeReport) throw std::runtime_error(std::string("cannot write ") + nodeReportPath);
@@ -1061,12 +1073,12 @@ int main(int argc, char** argv) {
       std::sort(added.begin(), added.end());
       const std::size_t medianAdded = added.empty() ? 0 : added[added.size() / 2];
       const std::size_t maxAdded = added.empty() ? 0 : added.back();
-      std::printf("  E2 refinement (linear in sqrt(s_ref - s), d-midpoints to 3 K and dY 0.01, cap %zu points): points added "
-                  "per node median %zu, max %zu; %zu nodes at the cap; final midpoints worst |dT| %.4f K, max|dY| %.3e; "
+      std::printf("  E2 refinement (linear in sqrt(s_ref - s), the 1/4, 1/2, 3/4 points to 3 K and dY 0.01, cap %zu points): points added "
+                  "per node median %zu, max %zu; %zu nodes at the cap; final 1/4, 1/2, 3/4 points worst |dT| %.4f K, max|dY| %.3e; "
                   "%zu integration failures\n",
                   kMaxPointsPerNode, medianAdded, maxAdded, attemptStats.e2Capped, attemptStats.e2MidDT,
                   attemptStats.e2MidDY, attemptStats.e2Failures);
-      std::printf("  E2 at the quarter points (independent of the refinement; bars 3 K and dY 0.01): worst |dT| %.4f K at "
+      std::printf("  E2 at the eighth points (independent of the refinement; bars 3 K and dY 0.01): worst |dT| %.4f K at "
                   "%s, worst max|dY| %.3e at %s; last quarter of the span |dT| %.4f K, max|dY| %.3e: %s\n",
                   attemptStats.e2QDT, locStr(attemptStats.e2QDTLoc).c_str(), attemptStats.e2QDY,
                   locStr(attemptStats.e2QDYLoc).c_str(), attemptStats.e2QDTLast, attemptStats.e2QDYLast,
