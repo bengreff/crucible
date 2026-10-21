@@ -492,7 +492,7 @@ This is the second fix of this bug to fail, so the mechanism is written down abo
 - The refinement's target is 2/3 of the bars: 2 K and ΔY 0.0067. The eighth-point check stays at the full bars.
 - The margin covers a smooth profile's peak between samples (measured at up to 6.7% here). 2/3 leaves room for sharper profiles than these; that factor is *guessed*.
 
-### Refinement to 2/3 measured; capped nodes from a time coordinate that stands still; the search seeded from the rate, stated before its code (20 October 2026, 22:35 CDT)
+### Refinement to 2/3 measured; capped nodes from a time coordinate that stands still; the search seeded from the rate, stated before its code (20 October 2026, about 22:24 CDT)
 
 **Measured.** On the small table, the eighth points pass: worst 2.17 K and ΔY 6.3e-3. Refinement adds a median of 4 points per node and at most 23, and no node reaches the cap.
 
@@ -511,7 +511,7 @@ The capped nodes are f_H 1/7 at η 0.8 and f_H 0.2 at η 0.6, both Z_N 0, at eve
 - Where the recorded interval is not positive, the first trial step comes from the rate there: (s_target − s_a)/(ds/dt), with ds/dt = λ (s_eq − s_a). The bracket then grows by doubling, up to 100 times.
 - A search that still fails throws, and the node is counted as an E2 failure; it is never stored.
 
-### The search seeded from the rate measured; the remaining failures sit at s's integration noise floor; a counted fallback to the raw steps, stated before its code (20 October 2026, 22:40 CDT)
+### The search seeded from the rate measured; the remaining failures sit at s's integration noise floor; a counted fallback to the raw steps, stated before its code (20 October 2026, about 22:25 CDT)
 
 **Measured.** The nodes at the cap are gone from both tables: none at the cap, at most 15 points added. The eighth points are at worst 1.98 K and ΔY 3.4e-3 (O/F 4 to 6), and 2.09 K and ΔY 7.1e-3 (C1 range).
 
@@ -522,6 +522,29 @@ Two E2 searches fail in each table, with CVODES flag −3, at f_H 1/6 and 0.2, Z
 
 **The fix.** If a search fails (no convergence, or a CVODES failure), the trajectory's state at the target comes from the two bracketing raw steps, interpolated linearly in s. Those are CVODES internal steps, the source of the stored points themselves.
 - Each such fallback is counted and reported: the number, the nodes, and the largest span among their branches. It is not an E2 pass on its own: the report shows where E2 was not independent.
+
+### The raw-step fallback measured: E2 passes on both full tables; what still fails as written (20 October 2026, 22:26 CDT)
+
+**Measured** (`table_b/of46_s_2026-10-20.txt`, `table_b/c1r_s_2026-10-20.txt`, nodes `..._nodes_2026-10-20.csv`):
+
+| Check | O/F 4 to 6 (0.3 to 80 kg/m³, 180 nodes) | C1 range (1e-3 to 80 kg/m³, 324 nodes) |
+|---|---|---|
+| E2 at the eighth points (bars 3 K, ΔY 0.01) | 1.98 K, 3.35e-3: pass | 2.09 K, 7.08e-3: pass |
+| Points added per node (median, max; at the cap) | 5, 15; 0 | 4, 15; 0 |
+| Searches from the raw steps | 2, on 2 nodes (largest span 2.947e-3 J/(kg K)) | the same 2 |
+| E1 turn-back (bar 1e-9 of the span) | 1.384e-9: FAIL | 1.384e-9: FAIL |
+| N-gate failures (bar 0) | 0 | 8 |
+| 2(b) worst \|ΔT\| (bar 3 K) | 0.011 K | 0.030 K |
+| 2(c) integrator failures (bar 0) | 2 | 2 |
+| Criterion 1 after projection (bar 1e-12) | 2.8e-16 | 3.6e-16 |
+| E3: nodes with a branch under 1e-9 \|s_eq\| | 30 | 54 |
+
+The gates as written fail, on three counts. Each is named here; none is tuned.
+- **The turn-back, 1.384e-9 of the span.** It is at one node in both tables: f_H 1/6, Z_N 0.3, η 0.2, ρ 80. Its upper branch is frozen, with a span of 2.63e-3 J/(kg K), about 2e-7 of s.
+  - So the turn-back is 3.6e-12 J/(kg K), about 2 ulp of s there (*derived*). On a span this small, 1e-9 of the span is under the resolution of s in double precision. E3's zero-span scale, 1e-9 \|s\|, does not catch it.
+  - T_eq is 1,738 K at 80 kg/m³. That is far above 10 MPa (*inferred*), outside the band.
+- **2(c): the two named refusals** at η 0.6, ρ 80, Z_N 0 (f_H 1/7 and 1/6): no frozen start up to 6,000 K carries the node's energy. These are the two documented under the earlier O/F 4 to 6 table, at about 200 MPa, outside the band.
+- **The N gate, C1 range only: 8 nodes, all at η 1 and ρ ≤ 0.069 kg/m³.** They are f_H 1/6 and 0.2, at T_eq 2,760 to 3,451 K. η 1 is the products' energy frozen at 6,000 K, the top of the axis. The same 8 failed with Y_H2O (the table above at 18:46), since N along a branch does not depend on the progress variable. Whether C1's cells reach them is measured by E5.
 
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 

@@ -73,6 +73,7 @@ constexpr double kZeroSpanTol = 1e-12;    // |c_eq - c_start| below this: the br
 constexpr double kPhiA = 0.005;           // c_a: the lower branch's 0.5% fall in N
 constexpr double kDTGate2b = 3.0;         // K, gate 2(b)
 constexpr double kE2DT = 3.0, kE2DY = 0.01;  // E2's bars (TABLE_B.md, "The specific entropy's checks")
+constexpr double kRefineFrac = 2.0 / 3.0;     // the refinement's target, a fraction of E2's bars (TABLE_B.md)
 constexpr std::size_t kMaxPointsPerNode = 400;  // the refinement's cap (TABLE_B.md, "per-node refinement")
 constexpr std::size_t kNotReacting = std::numeric_limits<std::size_t>::max();
 
@@ -240,6 +241,8 @@ struct NodeOutcome {
   double e2QDT = 0, e2QDY = 0, e2QDTLast = 0, e2QDYLast = 0;
   std::size_t addedPoints = 0;
   bool e2Capped = false;
+  std::size_t e2RawFallbacks = 0;  // searches resolved from the raw steps (at s's noise floor)
+  double e2FallbackSpan = 0;       // the largest span of a branch with such a fallback
   double spanLower = 0, spanUpper = 0;  // E3: |c_eq - c_start| per branch
   bool e2Failure = false;               // an integration to a midpoint threw (reported, not a 2(c) failure)
   bool nGateChecked = false, nGateOk = true;
@@ -642,34 +645,79 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     // s_ref the branch's last point (s_eq, or a frozen branch's reach). A gap is refined if any of its
     // points at d 1/4, 1/2 and 3/4 of the way differs from the trajectory's own state there by over 3 K
     // or 0.01 in Y; the worst of them, the trajectory's state, becomes a new point, until every gap
-    // passes or the node holds kMaxPointsPerNode points. Then the final gaps are checked at their
-    // eighth points, which the refinement did not use.
+    // passes or the node holds kMaxPointsPerNode points. The refinement's target is kRefineFrac of the
+    // bars; the final gaps are then checked at their eighth points, which it did not use, at the full bars.
     for (int p = 0; p < lowerCount; ++p) lowerPts.push_back(basePoint(p));
     for (int p = lowerCount; p < lowerCount + upperCount; ++p) upperPts.push_back(basePoint(p));
     refined = true;
     if (candidate == kEntropy) {
-      auto trajectoryAt = [&](const std::vector<RawStep>& steps, double sm, double tol, std::vector<double>& z) {
-        std::size_t i = 1;
-        while (i < steps.size() && steps[i].c < sm) ++i;
-        if (i >= steps.size()) i = steps.size() - 1;
+      auto searchAt = [&](const std::vector<RawStep>& steps, std::size_t i, double sm, double tol, std::vector<double>& z) {
         const RawStep& a = steps[i - 1];
         std::vector<double> za(ns + 1);
         za[0] = a.T;
         std::copy(a.y.begin(), a.y.end(), za.begin() + 1);
         auto f = [&](double dt) {
           z = za;
-          if (dt > 0) step.advance(rho, z.data(), dt);
+          try {
+            if (dt > 0) step.advance(rho, z.data(), dt);
+          } catch (const std::exception& ex) {
+            char buf[300];
+            std::snprintf(buf, sizeof buf, "E2 search for s %.9e: from raw step %zu of %zu (t %.6e, c %.9e, lambda %.3e) "
+                          "over %.3e s: ", sm, i, steps.size(), a.t, a.c, a.lambda, dt);
+            throw std::runtime_error(buf + std::string(ex.what()));
+          }
           return progress(z.data()) - sm;
         };
-        double lo = 0, flo = a.c - sm, hi = steps[i].t - a.t, fhi = f(hi);
-        for (int grow = 0; fhi < 0 && grow < 20; ++grow) { lo = hi; flo = fhi; hi *= 2; fhi = f(hi); }
+        // The integration restarts at t = 0 from step a's state. After a long induction the raw steps' own
+        // times can stand still (t + h == t at ignition; TABLE_B.md, "a time coordinate that stands
+        // still"), so where the recorded interval is not positive the first trial comes from the rate.
+        double hi = steps[i].t - a.t;
+        if (!(hi > 0)) {
+          const double rate = a.lambda * (cEq - a.c);
+          hi = rate > 0 ? (sm - a.c) / rate : 1e-15;
+          if (!(hi > 0)) hi = 1e-15;
+        }
+        double lo = 0, flo = a.c - sm, fhi = f(hi);
+        for (int grow = 0; fhi < 0 && grow < 100; ++grow) { lo = hi; flo = fhi; hi *= 2; fhi = f(hi); }
         int side = 0;
+        const double fhi0 = fhi, hi0 = hi;
         for (int it = 0; it < 60; ++it) {
           const double dt = (lo * fhi - hi * flo) / (fhi - flo);
           const double fm = f(dt);
           if (std::fabs(fm) <= tol) return;
           if (fm < 0) { lo = dt; flo = fm; if (side == -1) fhi *= 0.5; side = -1; }
           else { hi = dt; fhi = fm; if (side == 1) flo *= 0.5; side = 1; }
+        }
+        // Not converged: a state at another s must not become a point (TABLE_B.md, "the search").
+        char buf[400];
+        std::snprintf(buf, sizeof buf,
+                      "E2 search for s %.9e not converged: raw step %zu of %zu at t %.6e (c %.9e to %.9e, dt %.3e; %zu raw "
+                      "steps share a time with the next), first "
+                      "f(hi) %.3e, bracket [%.6e, %.6e] f [%.3e, %.3e], tol %.3e",
+                      sm, i, steps.size(), a.t, a.c, steps[i].c, hi0,
+                      static_cast<std::size_t>(std::count_if(steps.begin() + 1, steps.end(),
+                                                             [&](const RawStep& r) { return r.t == (&r - 1)->t; })),
+                      fhi0, lo, hi, flo, fhi, tol);
+        throw std::runtime_error(buf);
+      };
+      // At s's integration noise floor a search can fail (TABLE_B.md, "a counted fallback to the raw
+      // steps"); the state then comes from the bracketing raw steps, linear in s, and is counted.
+      double fallbackSpan = 0;
+      auto trajectoryAt = [&](const std::vector<RawStep>& steps, double sm, double tol, std::vector<double>& z) {
+        std::size_t i = 1;
+        while (i < steps.size() && steps[i].c < sm) ++i;
+        if (i >= steps.size()) i = steps.size() - 1;
+        try {
+          searchAt(steps, i, sm, tol, z);
+        } catch (const std::exception&) {
+          const RawStep& a = steps[i - 1];
+          const RawStep& b = steps[i];
+          const double w = b.c != a.c ? std::clamp((sm - a.c) / (b.c - a.c), 0.0, 1.0) : 0.0;
+          z.assign(ns + 1, 0.0);
+          z[0] = a.T + w * (b.T - a.T);
+          for (std::size_t q = 0; q < ns; ++q) z[q + 1] = a.y[q] + w * (b.y[q] - a.y[q]);
+          ++result.e2RawFallbacks;
+          result.e2FallbackSpan = std::max(result.e2FallbackSpan, fallbackSpan);
         }
       };
       auto differ = [&](const std::vector<double>& y, const std::vector<double>& z, double& dT, double& dY) {
@@ -704,7 +752,7 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
           for (const double w : {0.25, 0.5, 0.75}) {
             double sw, dT, dY;
             at(i, w, tolOf(ca, cb), sw, z, dT, dY);
-            const double excess = std::max(dT / kE2DT, dY / kE2DY);
+            const double excess = std::max(dT / kE2DT, dY / kE2DY) / kRefineFrac;
             if (excess > worstExcess) { worstExcess = excess; worstZ = z; }
             worstDT = std::max(worstDT, dT);
             worstDY = std::max(worstDY, dY);
@@ -754,10 +802,14 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
       };
       try {
         result.hasE2 = true;
+        fallbackSpan = spanLower;
         if (!zeroSpanLower) refine(lowerPts, lowerSteps, spanLower, lowerPts.back().c, 0);
+        fallbackSpan = spanUpper;
         if (!zeroSpanUpper) refine(upperPts, upperSteps, spanUpper, upperPts.front().c, 1);
-      } catch (const std::exception&) {
+      } catch (const std::exception& ex) {
         result.e2Failure = true;
+        std::lock_guard<std::mutex> lock(gE2DumpLock);
+        std::fprintf(stderr, "E2 failure at f_H %.5f Z_N %.4f eta %.5f rho %.4e: %s\n", f, zn, eta, rho, ex.what());
       }
     }
 
@@ -840,7 +892,7 @@ int main(int argc, char** argv) {
   if (nodeReport)
     std::fprintf(nodeReport, "candidate,f_H,Z_N,eta,rho,T_eq,c0,c_eq,c_cp,degenerate,zero_span,outside,lower_frozen,upper_frozen,"
                              "integrator_failure,turn_back,n_gate_checked,n_gate_ok,dT_2b_lower,dT_2b_upper,raw_element_error,"
-                             "sum_error,span_lower,span_upper,e2q_dT,e2q_dY,e2q_dT_last_quarter,e2q_dY_last_quarter,e2_mid_dT,e2_mid_dY,added_points,e2_capped,e2_failure,failure\n");
+                             "sum_error,span_lower,span_upper,e2q_dT,e2q_dY,e2q_dT_last_quarter,e2q_dY_last_quarter,e2_mid_dT,e2_mid_dY,added_points,e2_capped,e2_raw_fallbacks,e2_failure,failure\n");
 
   refuseReactingN2(mechanism);
 
@@ -905,7 +957,8 @@ int main(int argc, char** argv) {
     double e2QDT = 0, e2QDY = 0, e2QDTLast = 0, e2QDYLast = 0, e2MidDT = 0, e2MidDY = 0;
     std::array<std::size_t, 4> e2QDTLoc{}, e2QDYLoc{};
     std::vector<std::size_t> added;  // per node with E2
-    std::size_t e2Failures = 0, e2Capped = 0;
+    std::size_t e2Failures = 0, e2Capped = 0, e2RawFallbacks = 0, e2FallbackNodes = 0;
+    double e2FallbackSpan = 0;
     double minSpanRatio = std::numeric_limits<double>::infinity();
   };
 
@@ -949,7 +1002,7 @@ int main(int argc, char** argv) {
           std::string why = r.failure;
           for (char& ch : why) if (ch == ',' || ch == '\n' || ch == '"') ch = ' ';
           std::lock_guard<std::mutex> lock(report);
-          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%.6e,%.6e,%s,%s,%s,%s,%s,%s,%zu,%d,%d,%s\n",
+          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%.6e,%.6e,%s,%s,%s,%s,%s,%s,%zu,%d,%zu,%d,%s\n",
                        candidate, table.fH[i], table.zN[j], eta, rho, r.tEq, r.c0, r.cEq, r.cCp, r.degenerate, r.zeroSpan,
                        r.outside, r.lowerFrozen, r.upperFrozen, r.integratorFailure, r.turnBack, r.nGateChecked, r.nGateOk,
                        r.hasDT2bLower ? std::to_string(r.dT2bLower).c_str() : "",
@@ -957,7 +1010,7 @@ int main(int argc, char** argv) {
                        r.spanLower, r.spanUpper, r.hasE2 ? std::to_string(r.e2QDT).c_str() : "",
                        r.hasE2 ? std::to_string(r.e2QDY).c_str() : "", r.hasE2 ? std::to_string(r.e2QDTLast).c_str() : "",
                        r.hasE2 ? std::to_string(r.e2QDYLast).c_str() : "", r.hasE2 ? std::to_string(r.e2MidDT).c_str() : "",
-                       r.hasE2 ? std::to_string(r.e2MidDY).c_str() : "", r.addedPoints, r.e2Capped, r.e2Failure,
+                       r.hasE2 ? std::to_string(r.e2MidDY).c_str() : "", r.addedPoints, r.e2Capped, r.e2RawFallbacks, r.e2Failure,
                        why.c_str());
         }
         if (r.turnBack > ts.worstTurnBack) { ts.worstTurnBack = r.turnBack; ts.worstTurnBackLoc = {i, j, k, l}; }
@@ -986,6 +1039,9 @@ int main(int argc, char** argv) {
           ts.added.push_back(r.addedPoints);
           ts.e2Capped += r.e2Capped;
           ts.e2Failures += r.e2Failure;
+          ts.e2RawFallbacks += r.e2RawFallbacks;
+          ts.e2FallbackNodes += r.e2RawFallbacks > 0;
+          ts.e2FallbackSpan = std::max(ts.e2FallbackSpan, r.e2FallbackSpan);
           const double sEq = std::fabs(r.cEq);
           for (double span : {r.spanLower, r.spanUpper})
             if (span >= 1e-9 * sEq) ts.minSpanRatio = std::min(ts.minSpanRatio, span / sEq);
@@ -1017,6 +1073,9 @@ int main(int argc, char** argv) {
       merged.added.insert(merged.added.end(), ts.added.begin(), ts.added.end());
       merged.e2Capped += ts.e2Capped;
       merged.e2Failures += ts.e2Failures;
+      merged.e2RawFallbacks += ts.e2RawFallbacks;
+      merged.e2FallbackNodes += ts.e2FallbackNodes;
+      merged.e2FallbackSpan = std::max(merged.e2FallbackSpan, ts.e2FallbackSpan);
       merged.minSpanRatio = std::min(merged.minSpanRatio, ts.minSpanRatio);
     };
     for (int w = 0; w < threads; ++w) pool.emplace_back(run);
@@ -1073,11 +1132,13 @@ int main(int argc, char** argv) {
       std::sort(added.begin(), added.end());
       const std::size_t medianAdded = added.empty() ? 0 : added[added.size() / 2];
       const std::size_t maxAdded = added.empty() ? 0 : added.back();
-      std::printf("  E2 refinement (linear in sqrt(s_ref - s), the 1/4, 1/2, 3/4 points to 3 K and dY 0.01, cap %zu points): points added "
+      std::printf("  E2 refinement (linear in sqrt(s_ref - s), the 1/4, 1/2, 3/4 points to 2/3 of 3 K and dY 0.01, cap %zu points): points added "
                   "per node median %zu, max %zu; %zu nodes at the cap; final 1/4, 1/2, 3/4 points worst |dT| %.4f K, max|dY| %.3e; "
-                  "%zu integration failures\n",
+                  "%zu integration failures; %zu searches from the raw steps on %zu nodes (largest such branch span "
+                  "%.3e J/(kg K))\n",
                   kMaxPointsPerNode, medianAdded, maxAdded, attemptStats.e2Capped, attemptStats.e2MidDT,
-                  attemptStats.e2MidDY, attemptStats.e2Failures);
+                  attemptStats.e2MidDY, attemptStats.e2Failures, attemptStats.e2RawFallbacks,
+                  attemptStats.e2FallbackNodes, attemptStats.e2FallbackSpan);
       std::printf("  E2 at the eighth points (independent of the refinement; bars 3 K and dY 0.01): worst |dT| %.4f K at "
                   "%s, worst max|dY| %.3e at %s; last quarter of the span |dT| %.4f K, max|dY| %.3e: %s\n",
                   attemptStats.e2QDT, locStr(attemptStats.e2QDTLoc).c_str(), attemptStats.e2QDY,
