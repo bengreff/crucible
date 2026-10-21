@@ -1,0 +1,51 @@
+AMR step B1, criteria 1 and 3 (4 threads)
+1(b) uniform Mach 0.3 flow, stretched-ring cylinder 400 x 8 plus two levels, 400 base steps
+  t = 1.3358e-04 s after 400 base steps (0 redone), 36.2 s of wall; judged for z in (0.0603, 0.5675) m
+  level 0 (400 x 8): largest |u - u0| / a0                                   5.874e-16 (limit 1e-10)  PASS
+  level 0 (400 x 8): largest |p / p0 - 1|                                    3.331e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 5.874e-16 and 3.331e-16
+  level 1 (800 x 16): largest |u - u0| / a0                                  6.347e-16 (limit 1e-10)  PASS
+  level 1 (800 x 16): largest |p / p0 - 1|                                   4.441e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 6.347e-16 and 4.441e-16
+  level 2 (1600 x 32): largest |u - u0| / a0                                 5.088e-16 (limit 1e-10)  PASS
+  level 2 (1600 x 32): largest |p / p0 - 1|                                  3.331e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 5.088e-16 and 3.331e-16
+3(b) Sod shock tube, level 1 over the middle third, to t = 0.25
+  64 columns (level 1 over base columns 21 to 42, the interfaces at 0.3281 and 0.6719): L1 8.3550e-03; uniform 64: 1.1456e-02, uniform 128: 6.3968e-03
+  64 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)   3.870e-01 (limit 1)  PASS
+  64 columns: shock place against exact 0.938039, in base cells              3.645e-01 (limit 1)  PASS
+  64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.458e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 4.434e-02
+  128 columns (level 1 over base columns 43 to 84, the interfaces at 0.3359 and 0.6641): L1 4.7171e-03; uniform 128: 6.3977e-03, uniform 256: 3.5661e-03
+  128 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  4.065e-01 (limit 1)  PASS
+  128 columns: shock place against exact 0.938039, in base cells             3.950e-01 (limit 1)  PASS
+  128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.657e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 2.498e-02
+  256 columns (level 1 over base columns 85 to 170, the interfaces at 0.3320 and 0.6680): L1 2.6132e-03; uniform 256: 3.5663e-03, uniform 512: 2.0416e-03
+  256 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  3.749e-01 (limit 1)  PASS
+  256 columns: shock place against exact 0.938039, in base cells             4.111e-01 (limit 1)  PASS
+  256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.384e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 1.437e-02
+  observed order, 64 to 128 columns (at least)                               8.247e-01 (limit 0.8)  PASS
+  observed order, 128 to 256 columns (at least)                              8.521e-01 (limit 0.8)  PASS
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 7.5 s of wall; difference from the uniform 384-column run 4.9507e-03 of the pulse's density amplitude; reflection 3.5426e-03 of its pressure amplitude
+  384 columns: 2700 base steps, 23.0 s of wall; difference from the uniform 768-column run 1.6435e-03 of the pulse's density amplitude; reflection 1.1499e-03 of its pressure amplitude
+  768 columns: 4500 base steps, 58.4 s of wall; difference from the uniform 1536-column run 5.6943e-04 of the pulse's density amplitude; reflection 3.3899e-04 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+  reflection on 768 columns, relative to the pulse                           3.390e-04 (limit 0.001)  PASS
+  reflection falls, 192 to 384 columns (ratio below 1)                       3.246e-01 (limit 1)  PASS
+  reflection falls, 384 to 768 columns (ratio below 1)                       2.948e-01 (limit 1)  PASS
+1(a) quiescent RL10 development chamber, base 150 x 16 plus two levels, 1,000 base steps
+  throat column 32 of 150 (R 0.0652 to 0.0627 m)
+  AMR: t = 3.7309e-04 s after 1000 base steps (0 redone), 61.1 s of wall
+  level 0 (150 x 16, 2400 active): largest |u| / a0                          2.572e-14 (limit 1e-10)  PASS
+  level 0 (150 x 16, 2400 active): largest |p / p0 - 1|                      2.220e-15 (limit 1e-12)  PASS
+  level 1 (300 x 32, 3360 active): largest |u| / a0                          8.240e-14 (limit 1e-10)  PASS
+  level 1 (300 x 32, 3360 active): largest |p / p0 - 1|                      8.438e-15 (limit 1e-12)  PASS
+  level 2 (600 x 64, 10944 active): largest |u| / a0                         2.020e-13 (limit 1e-10)  PASS
+  level 2 (600 x 64, 10944 active): largest |p / p0 - 1|                     2.176e-14 (limit 1e-12)  PASS
+      printed, not judged: 150 x 16 alone after 1,000 steps (t = 4.3281e-04 s): |u| / a0 1.830e-14, |p / p0 - 1| 2.554e-15
+      printed, not judged: 600 x 64 alone after 1,000 steps (t = 9.3272e-05 s): |u| / a0 1.347e-13, |p / p0 - 1| 1.699e-14
+FAILED (5 failures)

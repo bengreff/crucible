@@ -1,0 +1,89 @@
+# Profile: crucible_chamber_study eqtt 64 12, CRUCIBLE_WALL_FUNCTIONS=law, CRUCIBLE_SST_CORRECTION=hp, Table A, 1 thread,
+# macOS sample for 90 s from 25 s after start (t about 0.3 to 1.2 ms), Release with -g, measured 8 Oct 2026 22:05 CDT.
+# Run rate on 1 thread: t 1.000 ms after 17048 steps, wall 78 s (4.6 ms per step, 768 cells).
+
+## Self time (top of stack)
+total samples 74769
+ 20.0%   14968  crucible::Medium::transport(double, double, double const*, double*, std::__1::vector<double, std::__1::allocator<double>>&) const
+ 14.9%   11141  crucible::Flow::transportGradients()::$_0::operator()(unsigned long, unsigned long, int) const
+ 11.7%    8759  crucible::Flow::transportFluxes(std::__1::vector<std::__1::array<double, 4ul>, std::__1::allocator<std::__1::array<double, 4ul>>>&, std::__1::vector<d
+ 10.7%    8030  crucible::Medium::properties(double, double const*) const
+  6.9%    5192  crucible::Medium::temperature(double, double const*, double) const
+  3.3%    2483  crucible::EquilibriumTable::lookup(double const*, double, double, double*, double&) const
+  3.0%    2218  crucible::Medium::cv(double, double const*) const
+  2.4%    1795  crucible::Flow::eddyViscosity(bool)::$_0::operator()(unsigned long, unsigned long, int) const
+  2.4%    1782  crucible::Medium::enthalpy(double, double const*) const
+  2.0%    1524  expm1 [libsystem_m.dylib]
+  1.7%    1291  pow [libsystem_m.dylib]
+  1.6%    1189  tanh [libsystem_m.dylib]
+  1.5%    1101  crucible::wallLaw::solveIsothermal(crucible::wallLaw::Layer const&, crucible::wallLaw::Constants)::$_0::operator()(double, double&, double&) const
+  1.2%     894  exp [libsystem_m.dylib]
+  1.1%     811  crucible::Medium::energyFloor(double const*) const
+  1.0%     782  crucible::Flow::turbulenceSource(std::__1::vector<std::__1::array<double, 4ul>, std::__1::allocator<std::__1::array<double, 4ul>>> const&, std::__1::v
+  1.0%     741  crucible::Flow::faceThermal(crucible::Primitive const&, double*) const
+  1.0%     714  crucible::hllc(crucible::Primitive, crucible::Thermal, crucible::Primitive, crucible::Thermal, double, double)
+  0.9%     655  crucible::Medium::speciesEnthalpies(double, double*) const
+  0.8%     634  crucible::Flow::axialFace(int, int, double, std::__1::vector<double, std::__1::allocator<double>>&, std::__1::vector<double, std::__1::allocator<doubl
+  0.8%     616  crucible::Flow::radialFace(int, int, std::__1::vector<double, std::__1::allocator<double>>&, std::__1::vector<double, std::__1::allocator<double>>&)
+  0.7%     558  crucible::Flow::refresh(std::__1::vector<std::__1::array<double, 4ul>, std::__1::allocator<std::__1::array<double, 4ul>>> const&, std::__1::vector<dou
+  0.7%     510  crucible::Flow::transportProperties()
+  0.7%     508  crucible::Flow::radialProfiles(int)
+  0.6%     478  crucible::Flow::admissible(std::__1::array<double, 4ul> const&, double const*, double const*) const
+  0.6%     470  crucible::Medium::gasConstant(double const*) const
+  0.5%     379  crucible::Flow::gather(unsigned long, std::__1::vector<std::__1::array<double, 4ul>, std::__1::allocator<std::__1::array<double, 4ul>>>&, std::__1::ve
+  0.5%     379  crucible::neighbours(crucible::Mesh const&, bool, std::__1::vector<int, std::__1::allocator<int>> const&, int, int)
+  0.4%     307  crucible::wallLaw::solveIsothermal(crucible::wallLaw::Layer const&, crucible::wallLaw::Constants)
+  0.4%     297  crucible::Medium::energyFloorOfClipped(double const*) const
+
+## Inclusive time
+total samples 77147
+100.0%   77147  start
+100.0%   77147  main
+100.0%   77146  main::$_15
+ 99.8%   76968  crucible::thermo::ReactingFlow::advanceTo
+ 99.8%   76967  crucible::thermo::ReactingFlow::step
+ 83.8%   64652  crucible::Flow::step
+ 53.1%   40979  crucible::Flow::rhs
+ 32.4%   25010  crucible::Flow::transportFluxes
+ 22.0%   16952  crucible::Flow::stableDt
+ 19.8%   15279  crucible::Medium::transport
+ 18.5%   14242  crucible::Flow::transportProperties
+ 15.1%   11618  crucible::Flow::transportGradients
+ 15.0%   11535  crucible::Flow::transportGradients()::$_0
+ 13.3%   10234  crucible::Flow::transportFluxes(vector<array<double, 4ul>, allocator<array<double, 4ul>>>&, vector<double, all
+ 10.6%    8211  crucible::Flow::refresh
+ 10.4%    8045  crucible::Medium::properties
+  9.6%    7444  crucible::Flow::axialFace
+  8.5%    6577  crucible::Flow::refresh(vector<array<double, 4ul>, allocator<array<double, 4ul>>> const&, vector<double, alloc
+  6.8%    5260  crucible::Medium::temperature
+  6.6%    5085  crucible::Flow::eddyViscosity
+  6.0%    4613  crucible::Flow::wallSolve
+  5.2%    3993  crucible::Flow::radialFace
+  5.1%    3965  crucible::Flow::eddyViscosity(bool)::$_0
+  4.5%    3434  crucible::Flow::supplyFace
+  4.2%    3257  crucible::thermo::ReactingFlow::react
+  4.2%    3254  crucible::thermo::ReactingFlow::reactTable
+  4.2%    3227  crucible::thermo::ReactingFlow::reactTable()::$_0
+  4.1%    3197  crucible::Flow::prescribeWallTurbulence
+  4.1%    3173  crucible::Flow::prescribeWallTurbulence(vector<array<double, 4ul>, allocator<array<double, 4ul>>> const&, vect
+  4.1%    3158  crucible::wallLaw::solveIsothermal
+  3.7%    2856  crucible::Flow::turbulenceSource
+  3.7%    2855  crucible::Flow::turbulenceSource(vector<array<double, 4ul>, allocator<array<double, 4ul>>> const&, vector<doub
+  3.5%    2720  crucible::Flow::faceThermal
+  3.5%    2687  crucible::EquilibriumTable::lookup
+  3.5%    2674  crucible::wallLaw::solveIsothermal(crucible::wallLaw::Layer const&, crucible::wallLaw::Constants)::$_0
+  2.9%    2222  crucible::Medium::cv
+  2.3%    1803  crucible::Medium::enthalpy
+  2.0%    1520  crucible::Flow::supplyFace(crucible::Supply const&, double, crucible::Primitive const&, double const*) const::
+  1.4%    1097  ???
+  1.1%     827  crucible::Medium::energyFloor
+  1.0%     786  crucible::Flow::stableDt()::$_0
+  1.0%     777  crucible::hllc
+  1.0%     740  crucible::Flow::radialProfiles
+  0.9%     664  crucible::Medium::speciesEnthalpies
+
+## Thread scaling, same case to 0.3 ms (4584 steps), measured 13 Oct 2026 21:27 CDT, Mac load average 5.5
+threads 1: real 22.65 user 21.95 
+threads 2: real 15.20 user 27.73 
+threads 4: real 13.08 user 42.83 
+threads 8: real 19.20 user 90.39 

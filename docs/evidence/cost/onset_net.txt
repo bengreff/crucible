@@ -1,0 +1,7 @@
+# net b items by class (summed from the listed items in onset_B_readout.txt and onset_off_readout.txt by onset_net.py; J, 0.6 ms to 0.869 ms)
+onset_B_readout.txt cells 1:6-6 turbulent +2.0152e-01, spray -1.1783e-01, inviscid -7.6910e-02, molecular +1.1027e-03, other +3.7048e-04 sum +8.2541e-03
+onset_B_readout.txt cells 0:6-6 turbulent +8.8089e-02, spray -7.2434e-02, molecular +3.5575e-03, inviscid -9.5454e-03, other +4.2568e-04 sum +1.0092e-02
+onset_B_readout.txt cells 0:6-6 1:6-6 turbulent +2.8961e-01, spray -1.9026e-01, molecular +4.6601e-03, inviscid -8.6455e-02, other +7.9616e-04 sum +1.8346e-02
+onset_off_readout.txt cells 1:6-6 turbulent +1.4790e-01, spray -9.5983e-02, inviscid -4.8653e-02, molecular +8.1351e-05, other +4.3800e-04 sum +3.7778e-03
+onset_off_readout.txt cells 0:6-6 inviscid +1.3026e-02, spray -1.3894e-02, turbulent -1.6492e-03, molecular -1.9088e-04, other +2.5459e-04 sum -2.4535e-03
+onset_off_readout.txt cells 0:6-6 1:6-6 inviscid -3.5627e-02, spray -1.0988e-01, turbulent +1.4625e-01, molecular -1.0953e-04, other +6.9259e-04 sum +1.3243e-03

@@ -1,0 +1,5 @@
+CH4/O2: p 3.0 MPa, mdot 0.5 kg/m2/s, points 186, T_max 3445 K, f_st 0.2004; elements ['C', 'H', 'O']; max |delta| 5.553e-02 at f 0.3592, T 1985 K, delta [ 0.056 -0.023 -0.033]
+H2/O2: p 3.0 MPa, mdot 0.5 kg/m2/s, points 118, T_max 3565 K, f_st 0.1119; elements ['H', 'O']; max |delta| 2.359e-16 at f 0.9465, T 427 K, delta [ 2.220e-16 -2.359e-16]
+CH4/O2: p 3.0 MPa, mdot 5.0 kg/m2/s, points 206, T_max 3439 K, f_st 0.2004; elements ['C', 'H', 'O']; max |delta| 5.083e-02 at f 0.3545, T 2115 K, delta [ 0.051 -0.021 -0.03 ]
+H2/O2: p 3.0 MPa, mdot 5.0 kg/m2/s, points 139, T_max 3563 K, f_st 0.1119; elements ['H', 'O']; max |delta| 2.541e-16 at f 0.9940, T 330 K, delta [ 2.220e-16 -2.541e-16]
+exit 0

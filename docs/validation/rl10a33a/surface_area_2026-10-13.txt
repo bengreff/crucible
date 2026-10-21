@@ -1,0 +1,4 @@
+r_t 1.235 in, r_c 2.565 in, face -13.1 in, exit 46.0 in: wall area face to exit 2041 in2 (7200 / area = 3.53), face to throat 180 in2, chamber volume to the throat 202 in3, L* 42.2 in
+r_t 1.235 in, r_c 2.565 in, face -13.5 in, exit 45.64 in: wall area face to exit 2026 in2 (7200 / area = 3.55), face to throat 187 in2, chamber volume to the throat 210 in3, L* 43.9 in
+r_t 2.47 in, r_c 5.13 in, face -13.1 in, exit 46.0 in: wall area face to exit 4234 in2 (7200 / area = 1.70), face to throat 368 in2, chamber volume to the throat 808 in3, L* 42.2 in
+r_t 2.47 in, r_c 5.13 in, face -13.5 in, exit 45.64 in: wall area face to exit 4205 in2 (7200 / area = 1.71), face to throat 381 in2, chamber volume to the throat 841 in3, L* 43.9 in

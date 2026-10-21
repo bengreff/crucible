@@ -98,9 +98,11 @@ void ReactingFlow::reactTable() {
     w->mismatch = w->clipped = w->auditT = w->auditY = 0;
     w->table = w->clamped = w->fallbacks = w->audited = 0;
   }
-  flow_.pool().blocks(cells, kBlock, [&](std::size_t begin, std::size_t end, int w) {
+  const auto* list = flow_.stepCells();
+  flow_.pool().blocks(list ? list->size() : cells, kBlock, [&](std::size_t begin, std::size_t end, int w) {
     Worker& worker = *workers_[w];
-    for (std::size_t q = begin; q < end; ++q) {
+    for (std::size_t n = begin; n < end; ++n) {
+      const std::size_t q = list ? (*list)[n] : n;
       const auto& u = flow_.state()[q];
       const double rho = u[0];
       const double* partial = flow_.partialDensities().data() + q * ns;
@@ -171,9 +173,12 @@ void ReactingFlow::react(double dt) {
   // light-off do not all fall to one worker. Each cell's result is independent of which worker
   // takes it (the integrator is reinitialised per cell).
   for (const auto& w : workers_) w->mismatch = w->clipped = 0;
-  flow_.pool().blocks(cells, kBlock, [&](std::size_t begin, std::size_t end, int w) {
+  // Under AMR step B2 the cells a level steps (Flow::stepCells), else every cell.
+  const auto* list = flow_.stepCells();
+  flow_.pool().blocks(list ? list->size() : cells, kBlock, [&](std::size_t begin, std::size_t end, int w) {
     Worker& worker = *workers_[w];
-    for (std::size_t q = begin; q < end; ++q) {
+    for (std::size_t n = begin; n < end; ++n) {
+      const std::size_t q = list ? (*list)[n] : n;
       const double rho = flow_.state()[q][0];
       auto y = flow_.massFractions(q);
       worker.z[0] = flow_.temperature(q);

@@ -62,6 +62,15 @@ struct Definition {
     double totalPressure{300000}, totalTemperature{300}, backPressure{15000};
     double cfl{0.4};
     bool secondOrder{true};
+    // Reconstruct T in place of rho (face rho = p / (R(Y_face) T_face)): the face temperature stays
+    // within the limited range of T where the composition jumps, which rho, p and Y reconstructed
+    // separately do not guarantee (COST.md, lever 3).
+    bool temperatureReconstruction{false};
+    // At interior faces, a side whose reconstructed enthalpy h = e + k + p/rho lies outside the two
+    // cells' range takes its cell's own state (first order on that side): reconstructing T and Y,
+    // or rho and Y, separately can pair one cell's temperature with the other's composition
+    // (COST.md, lever 3).
+    bool boundedFaceEnthalpy{false};
     LowMach lowMach{LowMach::None};
     Case experiment{Case::Nozzle};
     Gas gas{};
@@ -128,6 +137,11 @@ struct Definition {
         // corrected one, mu_t carries D^ic, and the corrected k diffusion's non-divergence part enters E
         // (Measurements::correctionEnergy).
         bool propertyCorrections{false};
+        // The turbulent fluxes from the two cells' differences of Y_k and h along the line of centres:
+        // j_t = -(mu_t / Sc_t) dY_k/dn and the turbulent energy flux -(mu_t / Pr_t) dh/dn +
+        // (1 - Sc_t / Pr_t) sum_k h_k j_t,k on interior faces, so that the species and conduction parts
+        // agree by construction (COST.md, lever 3; off: mu_t / Sc_t added to D_km, cp mu_t / Pr_t grad T).
+        bool consistentFlux{false};
     };
     Turbulence turbulence;
     [[nodiscard]] double span() const;  // axial length of the domain
@@ -138,25 +152,55 @@ struct Definition {
 // r is the exact volume centroid radius (integral of r dV / V) where r-weighted cell averages sit;
 // radialSecondMoment is the integral of r^2 dV / V; radialPressureMeasure is the integral of dV / r.
 struct Cell { double volume{}, z{}, r{}, radialPressureMeasure{}, radialSecondMoment{}; };
+// The geometry the kernels read, held as explicit arrays (docs/evidence/AMR.md, step A): the direct
+// constructor fills them from the wall radius at each axial station and the ring fractions, and
+// coarsened() builds the level below a finer mesh from its arrays, so a coarse cell's sloped faces
+// are the polyline of its children's.
 struct Mesh {
     explicit Mesh(const Definition& definition);
+    // The mesh with the columns and the rings of `finer` paired (nz and nr even): volumes, the
+    // pressure measure, the r and r^2 integrals and the face area vectors summed; the radial face's
+    // reference radius f R_col with R_col the ratio of the summed integrals of R^3 and R^2 over z; its
+    // r^2 moment the mean of the two finer faces' (a trapezoid over the finer nodes); the side wall
+    // the finest polyline.
+    static Mesh coarsened(const Mesh& finer);
     int nz{}, nr{};
     double dz{};
+    // The wall radius at axial station i (0..nz) and the ring boundaries' fractions of it (0..nr); on
+    // a coarsened mesh, the finer mesh's at every other station and boundary.
     std::vector<double> radius;
-    // Radial position of ring boundary j (0..nr) as a fraction of the local wall radius.
     std::vector<double> fraction;
     bool uniform{true};
     std::vector<Cell> cells;
+    // The side wall as the finest polyline: wallRadius at stations wallDz apart from z = 0, wallStride
+    // of its segments per column (1 on a directly built mesh, where wallRadius is radius).
+    std::vector<double> wallRadius;
+    double wallDz{};
+    int wallStride{1};
     std::size_t index(int i, int j) const { return static_cast<std::size_t>(i)*nr+j; }
-    double axialArea(int face, int j) const;
+    double axialArea(int face, int j) const { return axialAreas_[static_cast<std::size_t>(face)*nr+j]; }
     // Radius of the middle of ring j on axial face `face`, and of radial face j at the middle of column i.
-    double ringMiddle(int face, int j) const;
-    double radialFaceMiddle(int i, int j) const;
-    std::array<double, 2> radialAreaVector(int i, int face) const;
+    double ringMiddle(int face, int j) const { return ringMiddles_[static_cast<std::size_t>(face)*nr+j]; }
+    double radialFaceMiddle(int i, int j) const { return radialMiddles_[radialIndex(i,j)]; }
+    std::array<double, 2> radialAreaVector(int i, int face) const { return radialAreaVectors_[radialIndex(i,face)]; }
     // Reference radius r_f and r^2 moment of a radial face: a quantity linear in r (or in r^2)
     // integrates over the face's radial area component exactly at these values.
-    double radialFaceRadius(int i, int face) const;
-    double radialFaceSecondMoment(int i, int face) const;
+    double radialFaceRadius(int i, int face) const { return radialRadii_[radialIndex(i,face)]; }
+    double radialFaceSecondMoment(int i, int face) const { return radialSecondMoments_[radialIndex(i,face)]; }
+    // The side wall's radius at axial position z inside column i, on the finest polyline.
+    double wallRadiusAt(int i, double z) const;
+    // Per column the integrals of R^2 and of R^3 over z, R(z) the wall radius: a cell between ring
+    // fractions a and b has the volume pi (b^2 - a^2) times the first and the centroid radius
+    // 2 (b^3 - a^3) / (3 (b^2 - a^2)) times R_col, the integral of R^3 over that of R^2.
+    const std::vector<double>& columnSquares() const { return columnSquares_; }
+    const std::vector<double>& columnCubes() const { return columnCubes_; }
+private:
+    Mesh() = default;
+    std::size_t radialIndex(int i, int j) const { return static_cast<std::size_t>(i)*(nr+1)+j; }
+    std::vector<double> axialAreas_, ringMiddles_;
+    std::vector<std::array<double, 2>> radialAreaVectors_;
+    std::vector<double> radialMiddles_, radialRadii_, radialSecondMoments_;
+    std::vector<double> columnSquares_, columnCubes_;
 };
 // Axial forces use +z = exhaust direction for forces on the gas. Thrusts are forces on the
 // device (supply/reservoir, walls, and later coils) positive against the exhaust (-z).
@@ -214,6 +258,9 @@ double chokedMassFlow(const Definition& definition);
 class Flow {
 public:
     explicit Flow(Definition definition);
+    // A flow on a given mesh with definition's nz x nr cells: a level of the AMR hierarchy
+    // (core/amr.hpp), the finest built directly and the others by Mesh::coarsened.
+    Flow(Definition definition, Mesh mesh);
     // Threads for the loops of the step (1 by default). The result is the same bit for bit on any
     // number: every cell and face is computed alone, and the sums over them keep the serial order.
     void setThreads(int threads);
@@ -259,6 +306,14 @@ public:
     [[nodiscard]] const std::vector<double>& turbulence() const { return turbulence_; }
     [[nodiscard]] const std::vector<double>& wallDistances() const { return wallDistance_; }
     [[nodiscard]] const std::vector<double>& eddyViscosities() const { return eddy_; }
+    // AMR step B2 (docs/evidence/AMR.md, Step B2: setup): the cells whose state at the end of a step is
+    // read (N_1), which an after-step hook such as a reaction step must update; null: every cell.
+    [[nodiscard]] const std::vector<std::size_t>* stepCells() const { return region(1); }
+    // Wall functions: per no-slip wall face (the side wall by column, then the plate rings), its cell,
+    // whether it is on the plate, and the first cell's y+ = rho_w u_tau d / mu_w from the last
+    // transport evaluation, the second stage of the last step (empty without wall functions).
+    struct WallYPlus { std::size_t cell; bool plate; double yPlus; };
+    [[nodiscard]] std::vector<WallYPlus> wallYPlus() const;
     // The PaSR closure's inputs per cell at the current state (TECHNICAL_PLAN step 7, "PaSR"; needs
     // turbulence): the mixing time tau_mix = cmix sqrt(nu_eff / epsilon), nu_eff = (mu + mu_t) / rho,
     // epsilon = beta* k omega (infinite where k = 0), and the segregation s, the largest over the
@@ -272,6 +327,10 @@ public:
     // Largest stable step for the current state (CFL bound, with the explicit diffusion bound when
     // the medium has transport).
     double stableDt();
+    // The cell that set the last stableDt() (the lowest index among equal steps, so independent of the
+    // thread count) and its convective and diffusive rates per unit volume: the step is cfl / (sum).
+    struct StepLimit { std::size_t cell = 0; double convective = 0, diffusive = 0; };
+    [[nodiscard]] const StepLimit& stepLimit() const { return stepLimit_; }
     // The molecular-transport part of the right-hand side alone for the current state, per unit
     // volume (verification of the operator).
     void transportDerivative(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative);
@@ -285,7 +344,44 @@ public:
     // Face of a supply delivering mass flux g [kg/(m^2 s)] against the interior face state inside
     // (composition yInside, mass fractions); g = 0 is a closed valve.
     [[nodiscard]] SupplyFace supplyFace(const Supply& supply, double g, const Primitive& inside, const double* yInside) const;
+    // A read-only budget probe (docs/evidence/COST.md, lever 3; single level). For each listed cell, the
+    // integrals over the accepted steps, since setBudgetProbe, of what entered it through each of its
+    // faces by mechanism, and of its sources. Faces: 0 the axial face at its low z (the injector plate or
+    // a supply ring in the first column of a chamber), 1 the one at its high z, 2 the radial face below
+    // it (zero at the axis), 3 the one above it. Per face, as gains of the cell in kg, J and kg of the
+    // tracked combination sum_k weights[k] rho Y_k (e.g. the hydrogen element): the convective mass,
+    // total energy and tracked fluxes; the viscous work, the molecular and turbulent conduction, the
+    // diffusion of k (part of E), the species-enthalpy diffusion sum_k h_k j_k and the tracked diffusion
+    // sum_k w_k j_k, each split into its molecular part and its turbulent part (each with its share of
+    // the correction flux); and, as the cells used them, the viscous energy flux (the parts' sum to
+    // rounding) and the tracked diffusion. A wall-function face's heat flux is booked as molecular
+    // conduction, an open end's viscous energy flux as work. After the four faces: the cell's sources.
+    // The parts are recomputed from the stage's own gradients and properties and do not touch the step.
+    enum FaceTerm { kInviscidMass, kInviscidEnergy, kInviscidTracked, kViscousWork, kConduction, kTurbulentConduction,
+                    kTurbulentEnergyDiffusion, kSpeciesEnthalpy, kTurbulentSpeciesEnthalpy, kTrackedDiffusion,
+                    kTurbulentTrackedDiffusion, kViscousEnergy, kTrackedTransport, kFaceTerms };
+    enum SourceTerm { kIgniter, kHeating, kBodyWork, kCorrection, kExchangedMass, kExchangedEnergy, kExchangedTracked,
+                      kSourceTerms };
+    static constexpr std::size_t kProbeStride=4*kFaceTerms+kSourceTerms;
+    struct BudgetProbe {
+        std::vector<std::size_t> cells;
+        std::vector<double> weights;  // per species
+        std::vector<double> sums;     // per cell in stride kProbeStride: face f's term t at f kFaceTerms + t, then the sources
+    };
+    void setBudgetProbe(std::vector<std::size_t> cells, std::vector<double> weights);
+    // Under boundedFaceEnthalpy, the bound judges the excess b = h + |u|^2/2 - sum_k c_k Y_k (h without k) in
+    // place of h when c (per species) is given, e.g. c_k = h_ox + (h_fuel - h_ox) times the fuel element's share
+    // of species k: the total enthalpy above the propellants' mixing line, which h and Y bounded separately
+    // do not bound (COST.md, lever 3). Empty: h.
+    void setBoundedExcess(std::vector<double> c) { boundedExcess_ = std::move(c); }
+    [[nodiscard]] const BudgetProbe& budgetProbe() const { return probe_; }
 private:
+    friend class Amr;
+    // The budget probe: its sums, the current right-hand side's terms and the attempt's (dt/2 per stage).
+    BudgetProbe probe_;
+    std::vector<double> boundedExcess_;
+    std::vector<double> probeStage_, probeAttempt_;
+    void probeConvective();
     // Exchange rates of one right-hand-side evaluation, combined with the RK weights.
     struct BoundaryRates {
         double mass{}, energy{}, inlet{}, outlet{}, inletMomentum{}, outletMomentum{}, wallAxial{}, bodyAxial{}, heat{}, wallHeat{};
@@ -327,18 +423,25 @@ private:
     // Per worker: face mass fractions (left, right), the stage's admissibility and smallest stable step,
     // and the transport scratch (Medium::transport's work, the wall's diffusion coefficients, the face
     // mass fractions and species enthalpies).
-    struct TransportScratch { std::vector<double> work, diffusion, face, enthalpy; };
+    struct TransportScratch { std::vector<double> work, diffusion, face, enthalpy, gradient, turbulent; };
     std::vector<std::vector<double>> faceFractions_;
     std::vector<TransportScratch> transportScratch_;
     std::vector<char> workerOk_;
     std::vector<double> workerDt_;
-    // Per cell: inside the igniter; rho k V added by the last stage's clip (Flow::step).
+    std::vector<StepLimit> workerLimit_;
+    StepLimit stepLimit_;
+    // Per cell: inside the igniter, and its volume inside it (its own volume on a single level); rho k V
+    // added by the last stage's clip (Flow::step).
     std::vector<char> igniterCell_;
-    std::vector<double> clippedCell_;
+    std::vector<double> igniterCellVolume_, clippedCell_;
     double time_{}, dt_{}, totalPressure_{}, initialMass_{}, initialEnergy_{};
     double integratedMassFlux_{}, integratedEnergyFlux_{}, initialMomentum_{};
     double integratedMomentumSource_{}, integratedMomentumGross_{}, integratedHeat_{}, clippedTurbulentEnergy_{};
     double prescribedTurbulentEnergy_{};
+    // The delivered igniter energy is integratedHeat_ plus heatCompensation_, a Neumaier compensated sum
+    // (docs/evidence/AMR.md, Before step C).
+    double heatCompensation_{};
+    [[nodiscard]] double deliveredHeat() const { return integratedHeat_+heatCompensation_; }
     // Chamber: supply index of each injector-face ring (-1: plate), each supply's ring area, the
     // igniter's cells and their total volume.
     std::vector<int> faceSupply_;
@@ -347,19 +450,76 @@ private:
     double igniterVolume_{}, igniterPower_{};
     std::uint64_t steps_{}, rejectedSteps_{};
     BoundaryRates lastRates_{};
+    // The step in pieces, so the AMR driver can fill a level's non-active cells between the stages:
+    // beginStep saves rho k, rho omega and the frozen source coefficients; firstStage (igniter power,
+    // the first half source, u^(1)) and secondStage (the wall functions' prescription of u^(1), u^(n+1),
+    // the second half source) return false on a non-admissible state; accept swaps in u^(n+1) and books
+    // the budgets. step() is these in this order, with the same arithmetic.
+    struct Attempt { double clipped{}, prescribed{}; BoundaryRates first{}, second{}; };
+    void beginStep();
+    bool firstStage(double dt, Attempt& attempt);
+    bool secondStage(double dt, Attempt& attempt);
+    void accept(double dt, double newTime, const Attempt& attempt);
+    // A stage's clip of negative rho k in cell q (kept per cell), the stage's clips summed in cell
+    // order, and the wall functions' prescription of a stage with its rho k V summed (false if not admissible).
+    void clipTurbulence(std::vector<double>& turbulence, std::size_t q);
+    void sumClipped(Attempt& attempt) const;
+    bool prescribe(std::vector<Conserved>& state, std::vector<double>& species, std::vector<double>& turbulence, Attempt& attempt);
+    // AMR: per cell whether this level updates it (empty: all). A cell that is not active is carried
+    // through the stages unchanged and left out of the stable step and the admissibility checks.
+    std::vector<unsigned char> active_;
+    [[nodiscard]] bool isActive(std::size_t q) const { return active_.empty() || active_[q]; }
+    // AMR: per cell whether this level books the boundary exchange beside it and its sources (igniter,
+    // heating, body force) in the budgets (empty: all): active and not covered by the level above.
+    std::vector<unsigned char> owned_;
+    [[nodiscard]] bool isOwned(std::size_t q) const { return owned_.empty() || owned_[q]; }
+    // AMR: with recordFaces_, each attempt sums at every face the flux that moved the cells,
+    // dt (F(u^n) + F(u^(1))) / 2 times the area, convective and viscous, per face in stride 4 + nw_ (bulk,
+    // then the transported mass fractions, k and omega), the axial faces first and then the radial ones.
+    bool recordFaces_{false};
+    std::vector<double> faceIntegral_;
+    void recordFaceIntegrals(double weight);
+    // AMR step B2 (docs/evidence/AMR.md, Step B2: setup): the kernels run over lists of cells and faces
+    // instead of the whole level. within_[k] lists the cells within Chebyshev distance k (index space) of
+    // an active cell, N_k, k = 0..g for the ghost width g, in ascending order, and distance_ holds each
+    // cell's distance (g + 1 beyond N_g). filled_ lists the non-active cells the driver fills (all four
+    // children of each parent of N_g \ A, so they contain N_g \ A), carried through the stages as B1
+    // carries its non-active cells. faces_ lists the faces with an active cell on a side in
+    // faceIntegral_'s numbering, the axialFaces_ axial ones first; columns_ the rows of N_1 in each column
+    // that has any, as [lo, hi) intervals. With no regions (a single level, the base, or B1) every loop
+    // runs over the whole level.
+    struct Column { int i; std::vector<std::array<int, 2>> rows; };
+    std::vector<std::vector<std::size_t>> within_;
+    std::vector<unsigned char> distance_;
+    std::vector<std::size_t> filled_, faces_;
+    std::size_t axialFaces_{};
+    std::vector<Column> columns_;
+    void setRegions(int width);
+    void clearRegions();
+    // The cells of N_k (null: every cell, with no regions or for k = kWhole), and whether cell q is among them.
+    static constexpr int kWhole=-1;
+    [[nodiscard]] const std::vector<std::size_t>* region(int k) const {
+        return within_.empty() || k<0?nullptr:&within_[static_cast<std::size_t>(k)];
+    }
+    [[nodiscard]] bool inRegion(std::size_t q,int k) const { return distance_.empty() || k<0 || distance_[q]<=k; }
+    // The ghost width g of the regions (0 with none, where the depths are not used).
+    [[nodiscard]] int ghostWidth() const { return within_.empty()?0:static_cast<int>(within_.size())-1; }
+    // Runs f(q, worker) on the pool for each cell of a list (null: every cell).
+    template<class F> void eachCell(const std::vector<std::size_t>* list,F f) const;
+    // Applies f(q) on the pool to each cell of a list (null: every cell); true if it returned true for all.
+    template<class F> bool allOf(const std::vector<std::size_t>* list,F f);
     void resetAccounting();
-    // Column i's limited axial slopes and radial face states.
-    void axialSlopes(int i);
-    void radialProfiles(int i);
+    // Column i's limited axial slopes and radial face states in rows lo..hi - 1.
+    void axialSlopes(int i,int lo,int hi);
+    void radialProfiles(int i,int lo,int hi);
     // One axial or radial face's area-weighted flux into axialFlux_ / radialFlux_ (y: the worker's scratch).
     void axialFace(int i, int j, double time, std::vector<double>& yl, std::vector<double>& yr);
     void radialFace(int i, int j, std::vector<double>& yl, std::vector<double>& yr);
     // Cell q's sum of its face fluxes, igniter and body force (before transport, the pressure source and the volume).
     void gather(std::size_t q, std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
                 std::vector<double>& turbulenceDerivative) const;
-    // Applies f(q) to every cell on the pool; true if it returned true for all.
-    template<class F> bool allCells(F f);
-    void refresh(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence);
+    // Over the cells of N_depth (region).
+    void refresh(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence, int depth);
     BoundaryRates rhs(const std::vector<Conserved>& state, const std::vector<double>& species, const std::vector<double>& turbulence,
                       std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
                       std::vector<double>& turbulenceDerivative, double time);
@@ -370,6 +530,15 @@ private:
         return nt_?turbulence[q*nt_]/u[0]:0.0;
     }
     Thermal faceThermal(const Primitive& w, double* y) const;
+    // A cell's reconstructed variables: (rho, u_z, u_r, p), or (T, u_z, u_r, p) under temperatureReconstruction;
+    // toFace turns a reconstructed face state back into (rho, u_z, u_r, p), normalising y.
+    [[nodiscard]] Conserved reconstructionValues(std::size_t q) const;
+    void toFace(Primitive& w, double* y) const;
+    // boundedFaceEnthalpy: the bounded measure of a state (w, e with k, y), cell q's, and the bound applied to
+    // one side's face state (w, t, y) between cells q (its own) and other.
+    [[nodiscard]] double boundMeasure(const Primitive& w, double e, const double* y) const;
+    [[nodiscard]] double cellEnthalpy(std::size_t q) const;
+    void boundEnthalpy(Primitive& w, Thermal& t, double* y, std::size_t q, std::size_t other) const;
     Primitive inlet(Primitive inside) const;
     // ambientInflow is set when a Chamber exit draws ambient gas in (subsonic backflow).
     // inside: the reconstructed face state of the last cell; cell: that cell's own state.
@@ -380,7 +549,8 @@ private:
     // (cell-major, 3 + ns_ fields of {d/dz, d/dr}); each cell's inverse least-squares matrix. The
     // transport face fluxes, indexed like axialFlux_ and radialFlux_: bulk per unit area, then the
     // species and k, omega fluxes per unit area (stride ns_ + nt_), summed per cell like the convective ones.
-    std::vector<double> viscosity_, conductivity_, diffusion_, moles_, gradients_;
+    // fieldValues_ holds each cell's gradient fields (transportValue, cell-major), gathered by transportGradients.
+    std::vector<double> viscosity_, conductivity_, diffusion_, moles_, gradients_, fieldValues_;
     std::vector<std::array<double, 3>> leastSquares_;
     std::vector<Conserved> axialViscous_, radialViscous_;
     std::vector<double> axialViscousTransported_, radialViscousTransported_;
@@ -394,6 +564,7 @@ private:
     // and sound the speed of sound for D^ic's M_t.
     struct SourceCoefficients { double strain2{}, strain{}, crossGradient{}, nu{}, inverseDistance{}, crossSource{}, sound{1}; };
     std::vector<double> eddy_, eddyConductivity_, eddyDiffusion_, wallDistance_, wallOmega_;
+    std::vector<double> staticEnthalpy_, heatCapacity_;  // per cell, h and cp at its T and Y (consistentFlux)
     // Property corrections: the unit vector away from the nearest wall; per cell the fields psi =
     // sqrt(rho) / mu, rho k, sqrt(rho) omega and mu omega (stride 4, gradient fields 3 + ns_ + nt_ on);
     // rho_w and mu_w at the no-slip wall cells; S_n / mu, F1 and whether S_n is floored; the inner and
@@ -411,11 +582,11 @@ private:
     // Wall functions. Each no-slip wall face (the side wall by column, then the plate rings): its
     // cell, whether it is on the plate, the unit normal out of the gas and the centroid's normal
     // distance to it. Its solution at the current state: the wall's traction on the gas, q_w (gas to
-    // wall), and the first cell's mu_t and omega. Per entry of wallCells_ the face that sets that
+    // wall), the first cell's mu_t and omega, and its y+. Per entry of wallCells_ the face that sets that
     // cell's k and omega (the nearer, the side wall on a tie); per ring the plate face (-1: none); per
     // cell whether its turbulence is prescribed, and the rho k V the last prescription added.
     struct WallFace { std::size_t cell; bool plate; double nz, nr, distance; };
-    struct WallSolution { double tz{}, tr{}, heat{}, eddy{}, omega{}; };
+    struct WallSolution { double tz{}, tr{}, heat{}, eddy{}, omega{}, yPlus{}; };
     std::vector<WallFace> wallFaces_;
     std::vector<WallSolution> wallSolutions_;
     std::vector<std::size_t> wallCellFace_;
@@ -431,18 +602,26 @@ private:
     bool prescribeWallTurbulence(const std::vector<Conserved>& state, const std::vector<double>& species,
                                  std::vector<double>& turbulence);
     void prepareTransport();
-    void transportProperties();
+    // Over N_depth, with the wall-face omega of the wall cells among them.
+    void transportProperties(int depth);
     // Gradient field f of a cell (u_z, u_r, T, the mole fractions, then k and omega) and its value
     // on a wall face with unit normal (nz, nr).
     [[nodiscard]] double transportValue(std::size_t q, std::size_t f) const;
     [[nodiscard]] double wallValue(std::size_t q, std::size_t f, double nz, double nr) const;
-    void transportGradients();
-    // Eddy viscosity and diffusivities from the current gradients; with sources, also sources_.
-    void eddyViscosity(bool sources);
-    // Advances rho k and rho omega over tau under the SST sources at fixed rho and E.
+    // The gradients over N_depth, from the field values gathered over N_(depth + 1).
+    void transportGradients(int depth);
+    // Eddy viscosity and diffusivities from the current gradients over N_depth; with sources, also sources_.
+    void eddyViscosity(bool sources, int depth);
+    // Advances rho k and rho omega over tau under the SST sources at fixed rho and E, over N_depth.
     void turbulenceSource(const std::vector<Conserved>& state, std::vector<double>& turbulence,
-                          const std::vector<SourceCoefficients>& coefficients, double tau) const;
+                          const std::vector<SourceCoefficients>& coefficients, double tau, int depth) const;
     void transportFluxes(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
                          std::vector<double>& turbulenceDerivative, BoundaryRates& rates);
 };
+template<class F> void Flow::eachCell(const std::vector<std::size_t>* list, F f) const {
+    pool_->blocks(list ? list->size() : state_.size(), kCells, [&](std::size_t begin, std::size_t end, int worker) {
+        if(list) for(std::size_t n = begin; n < end; ++n) f((*list)[n], worker);
+        else for(std::size_t q = begin; q < end; ++q) f(q, worker);
+    });
+}
 } // namespace crucible

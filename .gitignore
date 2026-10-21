@@ -1,6 +1,7 @@
 # Local environments, build outputs, and generated runs (including the archive).
 target/
 .venv/
+.venv-cea/
 __pycache__/
 *.pyc
 *.egg-info/

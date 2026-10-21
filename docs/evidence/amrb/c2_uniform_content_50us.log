@@ -1,0 +1,4 @@
+# c2_uniform_content.cpp at its default 5e-5 s (14 October 2026), then the AMR's contents line from crucible_amr_budget 5e-5
+32 x 6 at 0.05 ms: mass 2.813774390e-06 to 3.812751933e-06 kg, energy -2.449897468e-01 to -3.068526054e-01 J, wall heat flow -3.7728e+03 W, inlet 3.9978e-02 kg/s, steps 188
+64 x 12 at 0.05 ms: mass 2.814362153e-06 to 3.812352537e-06 kg, energy -2.450409221e-01 to -3.791731107e-01 J, wall heat flow -7.4293e+03 W, inlet 3.9989e-02 kg/s, steps 419
+contents: AMR mass 2.814362153e-06 to 3.812330021e-06 kg, energy -2.450409221e-01 to -3.750087322e-01 J; single level mass 2.814362153e-06 to 3.813339696e-06 kg, energy -2.450409221e-01 to -3.068586503e-01 J

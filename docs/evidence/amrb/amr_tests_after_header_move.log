@@ -1,0 +1,88 @@
+AMR criterion 0, step A
+(c) cylinder, uniform rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                2.045e-16 (limit 1e-14)  PASS
+  cell z                                                                     1.433e-16 (limit 1e-14)  PASS
+  cell r                                                                     3.695e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 0.000e+00 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    1.365e-16 (limit 1e-14)  PASS
+  axial face area                                                            8.180e-17 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, r component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face middle                                                         0.000e+00 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           1.156e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          0.000e+00 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     0.000e+00 (limit 1e-14)  PASS
+  column integral of R^3                                                     0.000e+00 (limit 1e-14)  PASS
+  wall radius at five points per column                                      0.000e+00 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        3.785e-16 (limit 1e-14)  PASS
+(c) cone, uniform rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                1.529e-16 (limit 1e-14)  PASS
+  cell z                                                                     2.868e-16 (limit 1e-14)  PASS
+  cell r                                                                     6.024e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 1.125e-16 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    2.040e-16 (limit 1e-14)  PASS
+  axial face area                                                            1.178e-16 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       1.876e-16 (limit 1e-14)  PASS
+  radial face area vector, r component                                       1.688e-16 (limit 1e-14)  PASS
+  radial face middle                                                         7.071e-17 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           2.828e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          1.160e-16 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     1.126e-16 (limit 1e-14)  PASS
+  column integral of R^3                                                     1.434e-16 (limit 1e-14)  PASS
+  wall radius at five points per column                                      1.388e-16 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        6.341e-16 (limit 1e-14)  PASS
+(c) cylinder, stretched rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                2.599e-16 (limit 1e-14)  PASS
+  cell z                                                                     2.865e-16 (limit 1e-14)  PASS
+  cell r                                                                     4.704e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 2.025e-16 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    6.227e-16 (limit 1e-14)  PASS
+  axial face area                                                            0.000e+00 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, r component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face middle                                                         0.000e+00 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           1.156e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          0.000e+00 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     0.000e+00 (limit 1e-14)  PASS
+  column integral of R^3                                                     0.000e+00 (limit 1e-14)  PASS
+  wall radius at five points per column                                      0.000e+00 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        5.452e-16 (limit 1e-14)  PASS
+(c) cone, stretched rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                2.915e-16 (limit 1e-14)  PASS
+  cell z                                                                     1.434e-16 (limit 1e-14)  PASS
+  cell r                                                                     4.313e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 1.238e-16 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    7.446e-16 (limit 1e-14)  PASS
+  axial face area                                                            1.497e-16 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       1.876e-16 (limit 1e-14)  PASS
+  radial face area vector, r component                                       2.251e-16 (limit 1e-14)  PASS
+  radial face middle                                                         7.071e-17 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           2.828e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          1.832e-16 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     1.126e-16 (limit 1e-14)  PASS
+  column integral of R^3                                                     1.434e-16 (limit 1e-14)  PASS
+  wall radius at five points per column                                      1.388e-16 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        5.219e-16 (limit 1e-14)  PASS
+(d) RL10 development contour, base 150 x 16, stretching 1.7347
+  level 3 (1200 x 128) closure, relative to the faces                        8.132e-14 (limit 1e-14)  FAIL
+      printed, not judged: relative to the pressure measure 4.199e-11, to pi R^2 7.640e-16
+  level 2 (600 x 64) closure, relative to the faces                          3.938e-14 (limit 1e-14)  FAIL
+      printed, not judged: relative to the pressure measure 9.695e-12, to pi R^2 6.674e-16
+  level 1 (300 x 32) closure, relative to the faces                          1.912e-14 (limit 1e-14)  FAIL
+      printed, not judged: relative to the pressure measure 2.098e-12, to pi R^2 5.651e-16
+  level 0 (150 x 16) closure, relative to the faces                          8.260e-15 (limit 1e-14)  PASS
+      printed, not judged: relative to the pressure measure 4.443e-13, to pi R^2 5.495e-16
+      level 0 coarsened against built directly (printed, not judged): cell volume 2.130e-02 largest, throat station area +0.000e+00, side-wall face area 7.427e-03 largest
+FAILED (3 failures)

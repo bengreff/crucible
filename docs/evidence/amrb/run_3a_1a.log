@@ -1,0 +1,22 @@
+AMR step B1, criteria 1 and 3 (4 threads)
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 10.3 s of wall; difference from the uniform 384-column run 4.9507e-03 of the pulse's density amplitude; reflection 3.5426e-03 of its pressure amplitude
+  384 columns: 2700 base steps, 27.4 s of wall; difference from the uniform 768-column run 1.6435e-03 of the pulse's density amplitude; reflection 1.1499e-03 of its pressure amplitude
+  768 columns: 4500 base steps, 81.6 s of wall; difference from the uniform 1536-column run 5.6943e-04 of the pulse's density amplitude; reflection 3.3899e-04 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 2e+00)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 2e+00)  FAIL
+  reflection on 768 columns, relative to the pulse                           3.390e-04 (limit 1e-03)  PASS
+  reflection falls, 192 to 384 columns (ratio below 1)                       3.246e-01 (limit 1e+00)  PASS
+  reflection falls, 384 to 768 columns (ratio below 1)                       2.948e-01 (limit 1e+00)  PASS
+1(a) quiescent RL10 development chamber, base 150 x 16 plus two levels, 1,000 base steps
+  throat column 32 of 150 (R 0.0652 to 0.0627 m)
+  AMR: t = 3.7309e-04 s after 1000 base steps (0 redone), 87.8 s of wall
+  level 0 (150 x 16, 2400 active): largest |u| / a0                          2.572e-14 (limit 1e-10)  PASS
+  level 0 (150 x 16, 2400 active): largest |p / p0 - 1|                      2.220e-15 (limit 1e-12)  PASS
+  level 1 (300 x 32, 3360 active): largest |u| / a0                          8.240e-14 (limit 1e-10)  PASS
+  level 1 (300 x 32, 3360 active): largest |p / p0 - 1|                      8.438e-15 (limit 1e-12)  PASS
+  level 2 (600 x 64, 10944 active): largest |u| / a0                         2.020e-13 (limit 1e-10)  PASS
+  level 2 (600 x 64, 10944 active): largest |p / p0 - 1|                     2.176e-14 (limit 1e-12)  PASS
+      printed, not judged: 150 x 16 alone after 1,000 steps (t = 4.3281e-04 s): |u| / a0 1.830e-14, |p / p0 - 1| 2.554e-15
+      printed, not judged: 600 x 64 alone after 1,000 steps (t = 9.3272e-05 s): |u| / a0 1.347e-13, |p / p0 - 1| 1.699e-14
+FAILED (2 failures)

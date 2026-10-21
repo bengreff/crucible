@@ -1,0 +1,16 @@
+t 0.000 ms, 1 steps, dt 7.23e-08 s, wall 0 s, outlet 2.594e-16 kg/s, T_max 1997 K, 0 parcels, liquid 1.307e-10 g, spray 0 s, fallbacks 0
+t 0.100 ms, 1390 steps, dt 7.19e-08 s, wall 73 s, outlet -0.0001463 kg/s, T_max 2017 K, 50 parcels, liquid 0.0002501 g, spray 1 s, fallbacks 0
+t 0.200 ms, 2783 steps, dt 7.17e-08 s, wall 117 s, outlet -0.0002514 kg/s, T_max 2053 K, 100 parcels, liquid 0.0009998 g, spray 3 s, fallbacks 0
+t 0.300 ms, 4179 steps, dt 7.16e-08 s, wall 207 s, outlet 0.0001912 kg/s, T_max 2008 K, 150 parcels, liquid 0.002247 g, spray 6 s, fallbacks 0
+t 0.400 ms, 5584 steps, dt 7.06e-08 s, wall 306 s, outlet 0.001171 kg/s, T_max 1999 K, 208 parcels, liquid 0.00399 g, spray 10 s, fallbacks 0
+t 0.500 ms, 7008 steps, dt 6.99e-08 s, wall 387 s, outlet 0.002356 kg/s, T_max 1999 K, 665 parcels, liquid 0.006218 g, spray 15 s, fallbacks 0
+t 0.600 ms, 8468 steps, dt 6.7e-08 s, wall 477 s, outlet 0.003812 kg/s, T_max 2061 K, 1440 parcels, liquid 0.008883 g, spray 23 s, fallbacks 0
+t 0.700 ms, 9956 steps, dt 6.68e-08 s, wall 577 s, outlet 0.005478 kg/s, T_max 3334 K, 2178 parcels, liquid 0.01191 g, spray 33 s, fallbacks 0
+t 0.800 ms, 11469 steps, dt 6.55e-08 s, wall 689 s, outlet 0.007921 kg/s, T_max 3383 K, 3006 parcels, liquid 0.01525 g, spray 48 s, fallbacks 0
+t 0.900 ms, 13009 steps, dt 6.43e-08 s, wall 807 s, outlet 0.01157 kg/s, T_max 3456 K, 3967 parcels, liquid 0.01889 g, spray 67 s, fallbacks 0
+t 1.000 ms, 14599 steps, dt 2.91e-08 s, wall 946 s, outlet 0.01556 kg/s, T_max 3474 K, 5172 parcels, liquid 0.02266 g, spray 91 s, fallbacks 0
+t 1.100 ms, 16247 steps, dt 5.98e-08 s, wall 1110 s, outlet 0.02001 kg/s, T_max 3483 K, 6264 parcels, liquid 0.02615 g, spray 123 s, fallbacks 0
+t 1.200 ms, 17938 steps, dt 5.85e-08 s, wall 1270 s, outlet 0.02571 kg/s, T_max 3480 K, 7036 parcels, liquid 0.02902 g, spray 163 s, fallbacks 0
+t 1.300 ms, 19659 steps, dt 5.78e-08 s, wall 1431 s, outlet 0.03161 kg/s, T_max 3484 K, 7369 parcels, liquid 0.03116 g, spray 207 s, fallbacks 0
+t 1.400 ms, 21393 steps, dt 5.76e-08 s, wall 1599 s, outlet 0.03684 kg/s, T_max 3510 K, 7522 parcels, liquid 0.03289 g, spray 256 s, fallbacks 2995
+t 1.500 ms, 23130 steps, dt 5.76e-08 s, wall 1747 s, outlet 0.04162 kg/s, T_max 3505 K, 7768 parcels, liquid 0.0344 g, spray 304 s, fallbacks 4668

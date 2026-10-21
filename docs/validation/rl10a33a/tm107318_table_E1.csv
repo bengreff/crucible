@@ -1,0 +1,50 @@
+# Source: Binder, M., Tomsik, T., and Veres, J. P., "RL10A-3-3A Rocket Engine
+# Modeling Project," NASA TM-107318, January 1997. NTRS ID 19970010379.
+# Local file: archive/pre-pivot-2026-09-17/data/anchors/TM-107318_ntrs_19970010379.pdf
+# Table E1, "Hot-Gas Property Node Axial Locations and Expansion Ratios for
+# NASA LeRC Model of RL10A-3-3A", Appendix E (Component Modeling of RL10
+# Injector, Combustion Chamber, and Nozzle).
+# Printed page 139 of the report; PDF page 145 of the 184-page scanned file.
+# Verified against the page image (pdftoppm -r 300, page 145) -- the raw
+# pdftotext -layout extraction of this table matched the image exactly, so no
+# OCR correction was needed.
+#
+# Units as printed: axial_location_in = axial station, inches, measured with
+# respect to (relative to) the throat; negative = upstream of the throat
+# (subsonic, converging side), positive = downstream (supersonic, diverging
+# side). expansion_ratio = local area / throat area (A/A*), dimensionless,
+# also with respect to the throat. regime = "subsonic" or "supersonic" as
+# printed in the table (confirms which side of the throat each row is on).
+#
+# These are the 14 chamber/nozzle property-table nodes used by the model
+# (the text above the table, p. 135, says CET93 properties were tabulated "at
+# each of fourteen axial locations"); the table itself prints 16 rows at
+# PDF-page 145 (the table caption says 14 locations but two additional rows
+# appear in the printed table -- reproduced exactly as printed, no rows
+# added, removed, or merged).
+#
+# Rows are reproduced in the exact order printed (not resorted by station).
+# No resampling, smoothing, or interpolation has been applied.
+#
+# This table does NOT include the injector-face station or the nozzle-exit
+# station as separate rows; Figure E1 (same appendix) shows the injector face
+# upstream of the leftmost node here (-12.00 in) and the nozzle exit
+# downstream of the rightmost node here (41.84 in), but does not give exact
+# numeric stations for either in the printed text.
+axial_location_in_wrt_throat,expansion_ratio_wrt_throat,regime
+-0.500,1.11,subsonic
+0.485,1.29,supersonic
+-2.018,1.62,subsonic
+2.035,2.35,supersonic
+-4.054,2.72,subsonic
+-6.068,3.65,subsonic
+-8.032,4.00,subsonic
+-10.00,4.14,subsonic
+-12.00,4.27,subsonic
+4.215,4.29,supersonic
+6.588,6.93,supersonic
+8.989,9.95,supersonic
+16.54,20.7,supersonic
+25.05,33.2,supersonic
+33.41,45.0,supersonic
+41.84,56.1,supersonic

@@ -1,0 +1,96 @@
+[slot] waiting for a heavy-job slot / RAM (free 5.1 GB, need 3.0); waited 0s
+[slot] waiting for a heavy-job slot / RAM (free 4.9 GB, need 3.0); waited 60s
+[slot] waiting for a heavy-job slot / RAM (free 6.0 GB, need 3.0); waited 120s
+[slot] waiting for a heavy-job slot / RAM (free 5.1 GB, need 3.0); waited 180s
+CanteraWarning: ChemEquil::equilibrate: Temperature (3503.2165030714614 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3504.682309005151 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.219282242632 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3504.8030790008884 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3503.4719860385203 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.292079181025 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3502.7439636051295 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3503.2619206221575 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3504.541214951675 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.1485264168837 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.0741251923946 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3504.2454434583055 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3502.6511516609194 K) outside valid range of 300 K to 3500 K
+chamber: RL10A-3-3A development (pre-vaporized H2/O2 at 300 K; development only, never the reported case): r_t 0.062738 m, chamber radius 0.130302 m, injector face at -12.9744 in (throat station 33 of 150), exit at 46.00 in, PCHIP R/r_t 0.1366, exit wall angle 10.054 deg, cone 20.086 deg
+wall functions: law (kappa 0.3697, B 3.752)
+SST property corrections: Hasan, Elias, Menter and Pecnik (2025), full form
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 150x16: dz 9.986 mm, throat station 33 at z 0.3295 m (design 0.3295), r_t 0.06274 m, eps 61.0000, chamber-end column 7 at z 0.0749 m
+chemistry eqtt; igniter 0.5 J over 0.2 ms from 0.2 ms; viscous, SST
+light-off at 0.0200 ms (largest Y_H2O 0.520); chamber volume with s > 0.01: 0.1216
+t 0.500 ms  p_inj 0.9295 MPa  outlet 0.0016 kg/s  F_vac 25578.5 N  steps 2257  wall 12 s  step 1.838e-07 s set by cell (33, 13), convective 2.170e+06 and diffusive 6.522e+03 per s
+t 1.000 ms  p_inj 1.8467 MPa  outlet 16.4088 kg/s  F_vac 38497.5 N  steps 5027  wall 25 s  step 1.866e-07 s set by cell (33, 13), convective 2.139e+06 and diffusive 3.843e+03 per s
+t 1.500 ms  p_inj 2.5450 MPa  outlet 9.6318 kg/s  F_vac 54909.0 N  steps 7777  wall 39 s  step 1.903e-07 s set by cell (33, 13), convective 2.099e+06 and diffusive 3.391e+03 per s
+t 2.000 ms  p_inj 2.9113 MPa  outlet 12.2014 kg/s  F_vac 61928.2 N  steps 10527  wall 52 s  step 1.919e-07 s set by cell (33, 13), convective 2.081e+06 and diffusive 3.190e+03 per s
+t 2.500 ms  p_inj 3.1486 MPa  outlet 13.8824 kg/s  F_vac 67432.6 N  steps 13277  wall 65 s  step 1.933e-07 s set by cell (33, 13), convective 2.066e+06 and diffusive 3.096e+03 per s
+t 3.000 ms  p_inj 3.2922 MPa  outlet 14.9571 kg/s  F_vac 70543.9 N  steps 16027  wall 78 s  step 1.941e-07 s set by cell (33, 13), convective 2.057e+06 and diffusive 3.047e+03 per s
+t 3.500 ms  p_inj 3.3800 MPa  outlet 15.6279 kg/s  F_vac 72468.8 N  steps 18777  wall 92 s  step 1.947e-07 s set by cell (33, 13), convective 2.052e+06 and diffusive 3.016e+03 per s
+t 4.000 ms  p_inj 3.4342 MPa  outlet 16.0431 kg/s  F_vac 73661.7 N  steps 21527  wall 105 s  step 1.950e-07 s set by cell (33, 13), convective 2.048e+06 and diffusive 2.998e+03 per s
+t 4.500 ms  p_inj 3.4674 MPa  outlet 16.2998 kg/s  F_vac 74387.7 N  steps 24277  wall 118 s  step 1.952e-07 s set by cell (33, 13), convective 2.046e+06 and diffusive 2.987e+03 per s
+t 5.000 ms  p_inj 3.4879 MPa  outlet 16.4583 kg/s  F_vac 74837.1 N  steps 27027  wall 131 s  step 1.953e-07 s set by cell (33, 13), convective 2.045e+06 and diffusive 2.981e+03 per s
+t 5.500 ms  p_inj 3.5005 MPa  outlet 16.5560 kg/s  F_vac 75113.2 N  steps 29777  wall 144 s  step 1.954e-07 s set by cell (33, 13), convective 2.044e+06 and diffusive 2.977e+03 per s
+t 6.000 ms  p_inj 3.5082 MPa  outlet 16.6162 kg/s  F_vac 75282.4 N  steps 32527  wall 157 s  step 1.954e-07 s set by cell (33, 13), convective 2.044e+06 and diffusive 2.974e+03 per s
+t 6.500 ms  p_inj 3.5130 MPa  outlet 16.6532 kg/s  F_vac 75387.1 N  steps 35277  wall 170 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.973e+03 per s
+t 7.000 ms  p_inj 3.5160 MPa  outlet 16.6761 kg/s  F_vac 75451.4 N  steps 38027  wall 183 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.972e+03 per s
+t 7.500 ms  p_inj 3.5178 MPa  outlet 16.6901 kg/s  F_vac 75490.9 N  steps 40777  wall 195 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.971e+03 per s
+t 8.000 ms  p_inj 3.5189 MPa  outlet 16.6987 kg/s  F_vac 75515.3 N  steps 43527  wall 209 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.971e+03 per s
+t 8.500 ms  p_inj 3.5196 MPa  outlet 16.7041 kg/s  F_vac 75530.2 N  steps 46277  wall 223 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.971e+03 per s
+t 9.000 ms  p_inj 3.5200 MPa  outlet 16.7074 kg/s  F_vac 75539.5 N  steps 49027  wall 236 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.971e+03 per s
+t 9.500 ms  p_inj 3.5202 MPa  outlet 16.7094 kg/s  F_vac 75545.2 N  steps 51777  wall 248 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.971e+03 per s
+t 10.000 ms  p_inj 3.5204 MPa  outlet 16.7106 kg/s  F_vac 75548.6 N  steps 54527  wall 262 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 10.500 ms  p_inj 3.5205 MPa  outlet 16.7114 kg/s  F_vac 75550.8 N  steps 57277  wall 277 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 11.000 ms  p_inj 3.5206 MPa  outlet 16.7118 kg/s  F_vac 75552.1 N  steps 60027  wall 294 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 11.500 ms  p_inj 3.5206 MPa  outlet 16.7121 kg/s  F_vac 75552.9 N  steps 62777  wall 313 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 12.000 ms  p_inj 3.5206 MPa  outlet 16.7123 kg/s  F_vac 75553.4 N  steps 65527  wall 331 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 12.500 ms  p_inj 3.5206 MPa  outlet 16.7124 kg/s  F_vac 75553.7 N  steps 68277  wall 349 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 13.000 ms  p_inj 3.5206 MPa  outlet 16.7125 kg/s  F_vac 75553.9 N  steps 71027  wall 365 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 13.500 ms  p_inj 3.5206 MPa  outlet 16.7125 kg/s  F_vac 75554.1 N  steps 73777  wall 383 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 14.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.1 N  steps 76527  wall 401 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 14.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 79277  wall 426 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 15.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 82027  wall 448 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 15.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 84777  wall 464 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 16.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 87527  wall 480 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 16.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 90277  wall 497 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 17.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 93027  wall 513 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 17.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 95777  wall 528 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 18.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 98527  wall 544 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 18.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 101277  wall 559 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 19.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 104027  wall 574 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 19.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 106777  wall 589 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 20.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 109527  wall 603 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 20.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 112277  wall 617 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 21.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 115027  wall 631 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 21.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 117777  wall 644 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 22.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 120527  wall 661 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 22.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 123277  wall 675 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 23.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 126027  wall 690 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 23.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 128777  wall 705 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 24.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 131527  wall 721 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 24.500 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 134277  wall 737 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+t 25.000 ms  p_inj 3.5206 MPa  outlet 16.7126 kg/s  F_vac 75554.2 N  steps 137027  wall 752 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+
+end 25.000 ms after 137028 steps (0 replans), wall 752 s
+budgets: mass -1.01e-13  energy -1.22e-13
+cost: 2.286 us of wall time per cell update on 4 threads, 30.1 s per simulated ms over the run
+step limit after 1 ms (12002 samples): mean step 1.951e-07 s; set in the wall row 0.0%, the axis row 0.0%, upstream of the throat 0.0%, at it (its two columns) 100.0%, downstream 0.0%; diffusive rate above convective 0.0%; last: step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+SST property corrections: integral of Phi_k booked 1.234240e+02 J; S_n floored (F1-weighted) 0.000e+00
+reaction wall 29.6 s (3.9% of the run), 0.090 us per cell update
+table: 328867185 cell updates from it (3997779 clamped at an axis end), 15 outside it took the direct call (4.561e-08)
+drift over last 1 ms: outlet mass flow 2.04e-10, injector pressure 1.65e-10, vacuum thrust 7.38e-04
+RL10A-3-3A development: every quantity below is a development quantity (pre-vaporized propellants at 300 K), never the reported case
+chamber end: static 3.23102 MPa, equilibrium stagnation p0 3.27057 MPa; injector face 3.52065 MPa
+simulated: mdot out 16.712600 kg/s (supply 16.712600), c* 2419.86 m/s, vacuum thrust 75610.04 N, vacuum Isp 461.33 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3365.8 K, c* 2425.42 m/s, Isp_vac shifting 478.93 s, frozen 455.11 s, gamma 1.2068
+NASA CEA at p0 (RocketCEA 1.2.3, gases at 300 K): Tc 3361.8 K, c* 2424.61 m/s, Isp_vac shifting 478.90 s, frozen 454.87 s, frozen from the throat 462.21 s
+simulated/CEA: c* 0.9980, Isp_vac 0.9633 of shifting (1.0142 of frozen)
+corrections: Cd 0.97884 (R = 0.5000), lambda 0.98095
+predicted 2-D: c* 2477.85 m/s, Isp_vac shifting 470.14 s, frozen 446.71 s, F_vac 77053.97 N
+simulated/predicted - 1: c* -2.3401%, Isp_vac (shifting) -1.8739%
+reported: first-cell y+ at the wall row (laminar estimate): median 109.6, largest 172.3, largest upstream of the throat 172.3
+reported: wall heat flow into the gas -9.365952e+06 W, wall axial force on the gas -1.010674e+05 N
+exit 0

@@ -201,6 +201,28 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 20 October, night session from about 21:50 CDT)
+
+- **Rebased onto `main` 953ef93 (about 21:58), then 24488d0 (about 22:07); `main` still not fast-forwarded.** The 953ef93 rebase's `core/medium.cpp` conflict was resolved keeping both ca403ff's constant-cp guard above `Species::tHigh` and inquiry2's divided enthalpy coefficients (`speciesHR` takes the low and high h/R arrays). Fast ctest after it: 7 of 11, the sorted FAIL lines identical to before (`docs/evidence/inquiry2_rebase_ctest.txt`). The 24488d0 rebase had no conflicts. `docs/evidence/inquiry2_rebase_map.txt` maps every earlier ID to the current one; COST.md and this handoff cite the current IDs.
+  - **The fast-forward is blocked for this session:** the worktree guard refuses any git command aimed at the main checkout. From the main checkout, when its tracked tree is clean: `git merge --ff-only worktree-inquiry2`. If `main` has moved again, inquiry2 rebases first.
+- **Lever 3, the consistent turbulent fluxes (the Director's delta-h decision; COST.md).** Registered (a450cd6, 22:01:48 CDT; its text says about 22:05) before the code (774b9ab): `Definition::Turbulence::consistentFlux`, driver `CRUCIBLE_DELTA_H=1`, off by default.
+  - Found while reading the code (derived): the turbulent species flux was −(μ_t/Sc_t)(W_k/W̄)∇X_k at the face's mean composition, 4.51 times the two cells' ΔY_H2 across a pure H2/O2 face. So the change takes both parts: j_t from ΔY_k, and the energy flux −(μ_t/Pr_t) ∂h/∂n + (1 − Sc_t/Pr_t) Σ h_k j_t from Δh.
+  - **c0 passes (measured):** flag off, low to 0.04 ms, the history is identical to the pre-change build's apart from the timing columns.
+  - **c1 and c2 are running on the Mac** (`/tmp/inq2c/dh/run.sh`; `c1.log`, `c2.log`, `c2_budget.csv`, done-files `c1_done`, `c2_done`). c1 is the b-bound with the flag to 1.2 ms (a diagnostic: no crossing by 1.2 ms means the inconsistency drove the bound's pocket). c2 is the decision: the flag with the baseline scheme to 2.5 ms; the pocket goes if 3,450 K is not crossed and T_max ≤ 3,420 K at every printed time from 2.2 ms. If c2 passes: add `CRUCIBLE_DELTA_H` to `chamber_study` and `turbulence_tests`, run c3 (C1 32×6 to 8 ms on against off within 1e-3; the pipe, nr 16, within 1e-5), report the budget readout (`cost/budget_read.py` on `c2_budget.csv`), then adopt. If c2 fails: register and run the Director's backups, unity Lewis number and the corner refined.
+  - Earlier lever-3 results (the one-cell budget, the three failed remedies, the onset readout, Pr_t = Sc_t not enough) are in COST.md; the Mac runs are in `/tmp/inq2b/`.
+  - **Known, not investigated:** the Mascotte driver with average-from 0 segfaults after writing the stations. Use average-from 1.
+- **AMR B2 and the igniter: done (AMR.md, *Step B2: results* and *Before step C: the igniter's results*; 9878e86).** The checks had finished on backhouse on 14 October, before the reboot; only their collection was missing. B2 is `cmp`-identical to B1 on every case, 3(c) is met, the single level is unchanged, and the igniter's compensated sum meets 1e-14 (1.332e-15).
+- **AMR step C: setup recorded (645e876), no code yet.** Next: build it as recorded (AMR.md, *Step C: setup*): `Amr::setTags`, the tags, the top-down new sets with the nesting envelope, and the fill's spatial part shared with `fill`. Then its five checks, with criterion 2 as stated and 5(b) on backhouse.
+- **Held from the Director:**
+  - Penn State GO2/GH2 single element (NTRS 20050207576 / 20050209932) is the next validation case after the RL10 contour.
+  - The blind engine-set spec scraper drops outcome columns (Isp, thrust, c*) at ingest.
+  - Spray subcycling is inquiry's lane.
+- **Earlier, still standing:**
+  - RL10A-3-3A tier 0 is committed (`docs/validation/RL10A33A_PREDICTION.md`); no measured performance may be read until tier 1 is committed.
+  - AMR: 0(d), 3(a)'s order, 3(b)'s peak and criterion 2's ten-times comparisons for mass and momentum fail as written (AMR.md); amending them is the Director's call.
+  - The RL10 development chamber (`RL10_DEV.md`) and Table A for any pair (`TABLE_A_PAIRS.md`, design only).
+  - inquiry2 has no pending edits in `core/medium.*`.
+
 ## Exact next steps (in order)
 
 0. **Lever 3 (the Director's order, `COST.md` *Decision*):** the one-cell budget on a face-column cell (r 0.4 to 0.8 mm) before 2.311 ms: inviscid, conductive and species-diffusion enthalpy fluxes per face. The fluxes are in `core/flow.*` (inquiry2's), so either agree a read-only flux hook with inquiry2 or recompute them in the driver from the state through `Medium::transport`. Then the remedy: the open gas volume inside the RR core (block it or feed it from the core) if the transport is physical, or the wall and axis corner if numerical. Then decide the S7 runs: all four use this code; blob looks unaffected; low needs the fix; high (3,406 K at 1.4 ms) may reach the same zone. Then start the Mac copies of high and blob-fine (backhouse is far slower; see above). **Then lever 2**, spray subcycling: advance the parcels every N gas steps and apply their exchange as rates over the next N steps (the last step takes the remainder, so the deposit stays exact); N chosen by measurement, S1 to S5 at N = 1 and N. Also review the Table B agent's uncommitted files.
@@ -253,6 +275,7 @@ TECHNICAL_PLAN *Lightweight engine*, order of work:
 - `/home/greff/crucible_wf`: the wall-function study binaries (`wfs_hp_bin` has the corrected SST), Table A (`table_a.bin`), the law states, and the c2a runs.
 - `/home/greff/crucible_c3`: the criterion 3 binaries (`study_bin`, `study_c3r`) and runs.
 - `/home/greff/crucible_s7`: the S7 tree (main at 8a5b8d0 plus the spray timer 7897b1d; built with `-DCRUCIBLE_BUILD_APP=OFF`), the Mascotte table copied from the Mac (md5 identical), runs in `runs/`. Copy files in with `rsync -az -e ssh --rsync-path="wsl rsync" <files> backhouse:/home/greff/crucible_s7/<dir>/`.
+- `/home/greff/crucible_b2pre`, `/home/greff/crucible_b2` and `/home/greff/crucible_b2ig`: inquiry2's AMR step B2 and igniter checks (544acc7, 89b034d and 720cce7 in today's IDs; finished 14 October, results in AMR.md; outputs `b2out/` and `igout/`). Files go in by `scp` to the Windows home (`/mnt/c/Users/ben/` in WSL), because the worktree guard refuses rsync's `--rsync-path`.
 - Not ours, do not touch: gate_wg, ltaste2, battery2, flyapp-lib, lsug3, flyapp-m9r, s12spec_* (other users' jobs).
 - Never write to `/home/greff/inquiry-project` (the old Rust project).
 

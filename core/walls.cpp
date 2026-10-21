@@ -11,7 +11,8 @@ std::vector<double> wallDistance(const Mesh& m, bool sideWall, const std::vector
         throw std::invalid_argument("Plate wall flags must be empty or one per ring.");
     struct Segment { double z0, r0, z1, r1; };
     std::vector<Segment> walls;
-    if(sideWall) for(int i=0;i<m.nz;++i) walls.push_back({i*m.dz,m.radius[i],(i+1)*m.dz,m.radius[i+1]});
+    if(sideWall) for(std::size_t k=0;k+1<m.wallRadius.size();++k)
+        walls.push_back({static_cast<double>(k)*m.wallDz,m.wallRadius[k],static_cast<double>(k+1)*m.wallDz,m.wallRadius[k+1]});
     for(std::size_t j=0;j<plate.size();++j)
         if(plate[j]) walls.push_back({0,m.fraction[j]*m.radius[0],0,m.fraction[j+1]*m.radius[0]});
     std::vector<double> out(m.cells.size(),std::numeric_limits<double>::infinity());

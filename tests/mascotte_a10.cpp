@@ -10,7 +10,12 @@
 // SST, adiabatic no-slip walls, the chamber filled at rest with the overall mixture's complete-
 // combustion products at 1 MPa and 2,000 K; supply and LOX valves ramp open over 1 ms.
 //
-// CRUCIBLE_CFL overrides Definition::cfl.
+// CRUCIBLE_CFL overrides Definition::cfl; CRUCIBLE_RECONSTRUCT_T sets Definition::temperatureReconstruction,
+// CRUCIBLE_BOUND_H Definition::boundedFaceEnthalpy, and CRUCIBLE_BOUND_B the same judged on the excess above
+// the mixing line (Flow::setBoundedExcess); CRUCIBLE_PRANDTL_T overrides the turbulent Prandtl
+// number (a diagnostic: Pr_t = Sc_t makes turbulent transport carry the excess enthalpy as one scalar);
+// CRUCIBLE_DELTA_H sets Definition::Turbulence::consistentFlux (the turbulent fluxes from the two cells'
+// differences of Y_k and h).
 // Usage: crucible_mascotte_a10 <size> <nz> <nr> <end s> <average from s> <threads> <prefix> <table|none>
 //                             [parcels per second] [table audit interval]
 //   size: blob (Reitz's blob, KH-RT atomises), or rr:<SMD um>:<q>:<core length mm> (Rosin-Rammler
@@ -115,6 +120,10 @@ int main(int argc, char** argv) {
     d.transport = thermo::transportFits("h2o2.yaml", 60);  // fits valid down to cold O2 (SPRAY.md, Results: S2)
     d.wallTemperature = 0;
     if (const char* cfl = std::getenv("CRUCIBLE_CFL")) d.cfl = std::atof(cfl);
+    if (std::getenv("CRUCIBLE_RECONSTRUCT_T")) d.temperatureReconstruction = true;
+    if (std::getenv("CRUCIBLE_BOUND_H") || std::getenv("CRUCIBLE_BOUND_B")) d.boundedFaceEnthalpy = true;
+    if (const char* prt = std::getenv("CRUCIBLE_PRANDTL_T")) d.turbulence.prandtl = std::atof(prt);
+    if (std::getenv("CRUCIBLE_DELTA_H")) d.turbulence.consistentFlux = true;
     Supply s;
     s.innerRadius = kAnnulusInner;
     s.outerRadius = kAnnulusOuter;
@@ -250,7 +259,52 @@ int main(int argc, char** argv) {
     };
     const char* hotHeader = "i,j,z_mm,r_mm,T,p,rho,uz,ur,Y_H2,Y_O2,Y_H2O,Y_OH,f_H,excess_J_per_kg,"
                             "spray_mass_per_gas_mass,spray_energy_J_per_kg,parcels,liquid_kg";
+    // CRUCIBLE_BUDGET=<t0 s>:<i0>:<i1>:<j0>:<j1>: from the first step past t0, the one-cell budgets of the
+    // cells i0..i1 x j0..j1 (Flow::setBudgetProbe, the tracked quantity rho f_H), written every 10 steps to
+    // <prefix>_budget.csv: each cell's V, rho V, rho E V, rho f_H V, p V, rho k V, T, f_H and excess with the
+    // probe's running sums (face 0 to 3 x Flow::FaceTerm, then Flow::SourceTerm), and h_H2(287 K), h_LOX.
+    const char* budgetEnv = std::getenv("CRUCIBLE_BUDGET");
+    double budgetFrom = 0;
+    int budgetBox[4] = {0, 0, 0, 0};
+    if (budgetEnv && std::sscanf(budgetEnv, "%lf:%d:%d:%d:%d", &budgetFrom, &budgetBox[0], &budgetBox[1], &budgetBox[2], &budgetBox[3]) != 5)
+      throw std::runtime_error("CRUCIBLE_BUDGET: <t0>:<i0>:<i1>:<j0>:<j1>");
+    FILE* budget = nullptr;
+    auto budgetLines = [&] {
+      const auto& probe = flow.budgetProbe();
+      const auto& lg = spray.ledger();
+      const double hLox = lg.injectedMass > 0 ? lg.injectedEnergy / lg.injectedMass : 0;
+      for (std::size_t c = 0; c < probe.cells.size(); ++c) {
+        const std::size_t q = probe.cells[c];
+        const double v = mesh.cells[q].volume;
+        const auto& u = flow.state()[q];
+        const auto y = flow.massFractions(q);
+        const auto w = flow.cellPrimitive(q);
+        const double t = flow.temperature(q);
+        double fh = 0;
+        for (std::size_t k = 0; k < ns; ++k) fh += y[k] * hydrogenShare[k];
+        double tracked = 0;
+        for (std::size_t k = 0; k < ns; ++k) tracked += hydrogenShare[k] * flow.partialDensities()[q * ns + k];
+        const double rhoK = flow.turbulence().empty() ? 0 : flow.turbulence()[q * 2];
+        const double excess = medium.enthalpy(t, y.data()) + 0.5 * (w.uz * w.uz + w.ur * w.ur) - (fh * hHydrogen + (1 - fh) * hLox);
+        std::fprintf(budget, "%.12e,%ld,%d,%d,%.12e,%.15e,%.15e,%.15e,%.15e,%.15e,%.6f,%.9e,%.9e,%.9e,%.9e", flow.time(), steps,
+                     static_cast<int>(q / mesh.nr), static_cast<int>(q % mesh.nr), v, u[0] * v, u[3] * v, tracked * v, w.p * v,
+                     rhoK * v, t, fh, excess, hHydrogen, hLox);
+        for (std::size_t n = 0; n < Flow::kProbeStride; ++n) std::fprintf(budget, ",%.15e", probe.sums[c * Flow::kProbeStride + n]);
+        std::fprintf(budget, "\n");
+      }
+      std::fflush(budget);
+    };
+    // CRUCIBLE_BOUND_B: the bound judges the excess above the mixing line (Flow::setBoundedExcess), from the
+    // first step with injected LOX (h_LOX is the spray's injected energy per kilogram); h before.
+    bool excessBound = !std::getenv("CRUCIBLE_BOUND_B");
     while (flow.time() < endTime) {
+      if (!excessBound && spray.ledger().injectedMass > 0) {
+        const double hLox = spray.ledger().injectedEnergy / spray.ledger().injectedMass;
+        std::vector<double> c(ns);
+        for (std::size_t k = 0; k < ns; ++k) c[k] = hLox + (hHydrogen - hLox) * hydrogenShare[k];
+        flow.setBoundedExcess(c);
+        excessBound = true;
+      }
       reacting.step(endTime - flow.time());
       ++steps;
       if (hotT > 0 && hotAfter != 0) {
@@ -286,6 +340,20 @@ int main(int argc, char** argv) {
           ringNext = (ringNext + 1) % kRing;
         }
       }
+      if (budgetEnv && !budget && flow.time() >= budgetFrom) {
+        std::vector<std::size_t> cells;
+        for (int i = budgetBox[0]; i <= budgetBox[1]; ++i)
+          for (int jr = budgetBox[2]; jr <= budgetBox[3]; ++jr) cells.push_back(mesh.index(i, jr));
+        flow.setBudgetProbe(cells, hydrogenShare);
+        budget = std::fopen((prefix + "_budget.csv").c_str(), "w");
+        if (!budget) throw std::runtime_error("cannot write " + prefix + "_budget.csv");
+        std::fprintf(budget, "t,step,i,j,V,rhoV,rhoEV,rhofHV,pV,rhokV,T,f_H,excess,h_H2,h_LOX");
+        for (int face = 0; face < 4; ++face)
+          for (int term = 0; term < Flow::kFaceTerms; ++term) std::fprintf(budget, ",f%d_%d", face, term);
+        for (int term = 0; term < Flow::kSourceTerms; ++term) std::fprintf(budget, ",s_%d", term);
+        std::fprintf(budget, "\n");
+        budgetLines();
+      } else if (budget && steps % 10 == 0) budgetLines();
       const double now = flow.time();
       if (now >= nextSample - 1e-12 && now >= averageFrom) {
         all.add(flow, oh, 1);
@@ -314,6 +382,10 @@ int main(int argc, char** argv) {
       }
     }
     std::fclose(history);
+    if (budget) {
+      budgetLines();
+      std::fclose(budget);
+    }
     if (all.weight == 0) return 0;
 
     FILE* f = std::fopen((prefix + "_stations.csv").c_str(), "w");

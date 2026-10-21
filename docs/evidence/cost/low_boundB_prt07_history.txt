@@ -1,0 +1,13 @@
+# low, the b-bound (CRUCIBLE_BOUND_B=1) with CRUCIBLE_PRANDTL_T=0.7 (Pr_t = Sc_t = 0.7), 5 threads, stopped after 1.0 ms (COST.md lever 3, the Pr_t = Sc_t diagnostic)
+t 0.000 ms, 1 steps, dt 7.23e-08 s, wall 0 s, outlet 2.594e-16 kg/s, T_max 1997 K, 0 parcels, liquid 1.307e-10 g, spray 0 s, fallbacks 0
+t 0.100 ms, 1390 steps, dt 7.18e-08 s, wall 67 s, outlet -0.0001463 kg/s, T_max 2017 K, 50 parcels, liquid 0.00025 g, spray 1 s, fallbacks 0
+t 0.200 ms, 2785 steps, dt 7.15e-08 s, wall 137 s, outlet -0.0002514 kg/s, T_max 2053 K, 100 parcels, liquid 0.0009999 g, spray 5 s, fallbacks 0
+t 0.300 ms, 4181 steps, dt 7.16e-08 s, wall 222 s, outlet 0.0001908 kg/s, T_max 2005 K, 150 parcels, liquid 0.002247 g, spray 9 s, fallbacks 0
+t 0.400 ms, 5579 steps, dt 7.15e-08 s, wall 339 s, outlet 0.001173 kg/s, T_max 1998 K, 211 parcels, liquid 0.00399 g, spray 14 s, fallbacks 0
+t 0.500 ms, 6977 steps, dt 7.15e-08 s, wall 469 s, outlet 0.002379 kg/s, T_max 1999 K, 716 parcels, liquid 0.006218 g, spray 25 s, fallbacks 0
+t 0.600 ms, 8398 steps, dt 6.87e-08 s, wall 599 s, outlet 0.003859 kg/s, T_max 2000 K, 1539 parcels, liquid 0.008888 g, spray 37 s, fallbacks 0
+t 0.700 ms, 9858 steps, dt 6.81e-08 s, wall 717 s, outlet 0.005491 kg/s, T_max 3303 K, 2345 parcels, liquid 0.0119 g, spray 51 s, fallbacks 0
+t 0.800 ms, 11340 steps, dt 6.67e-08 s, wall 840 s, outlet 0.007939 kg/s, T_max 3354 K, 3187 parcels, liquid 0.01523 g, spray 67 s, fallbacks 0
+t 0.900 ms, 12883 steps, dt 6.32e-08 s, wall 973 s, outlet 0.01176 kg/s, T_max 3443 K, 4125 parcels, liquid 0.01884 g, spray 88 s, fallbacks 0
+hot trace: T 3450 K at step 13077 (t 0.912286 ms), cell 9.122863090e-04,13077,6.2838e-08,1,6,3.000,2.605,3450.00,1.030639e+06,5.288434e-01,10.298,10.820,2.18461e-02,8.42531e-02,7.32192e-01,1.27817e-01,0.11588,1.189338e+06,5.630729e-03,-6.309525e+03,428,3.1085e-06
+t 1.000 ms, 14498 steps, dt 5.41e-08 s, wall 1126 s, outlet 0.01591 kg/s, T_max 3471 K, 5259 parcels, liquid 0.02259 g, spray 114 s, fallbacks 0

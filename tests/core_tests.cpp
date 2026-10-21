@@ -1,3 +1,4 @@
+#include "core/contour.hpp"
 #include "core/flow.hpp"
 #include "core/session.hpp"
 #include <algorithm>
@@ -398,6 +399,29 @@ int main(int argc,char** argv) {
         {Definition d=base();d.experiment=Case::UniformDuct;d.nz=12;d.nr=5;Mesh m(d);double v=0;
          for(auto c:m.cells) v+=c.volume;
          near(v,std::numbers::pi*d.inletRadius*d.inletRadius*d.length,1e-16,"Cylinder volume");}
+        // PCHIP contour (core/contour): SciPy 1.17 PchipInterpolator on the RL10A-3-3A nodes (TM-107318 Table E1 as
+        // r_t sqrt(A/A_t) in inches, r_t 1.235, with a face node at -13.5 in and an exit node at 45.64 in): values and
+        // derivatives between nodes, the end slopes and the throat's one-sided second derivatives.
+        {const double rt=1.235;
+         const double e1[][2]={{-12.00,4.27},{-10.00,4.14},{-8.032,4.00},{-6.068,3.65},{-4.054,2.72},{-2.018,1.62},{-0.500,1.11},
+             {0,1.0},{0.485,1.29},{2.035,2.35},{4.215,4.29},{6.588,6.93},{8.989,9.95},{16.54,20.7},{25.05,33.2},{33.41,45.0},
+             {41.84,56.1},{45.64,61.0}};
+         std::vector<std::array<double,2>> nodes{{-13.5,2.565}};
+         for(const auto& n:e1) nodes.push_back({n[0],rt*std::sqrt(n[1])});
+         Pchip c(nodes);
+         const double ref[][3]={{-13.0,2.5620538072254075,-0.0076223277829086588},{-11.0,2.5346329769530693,-0.021257283138185167},
+             {-5.0,2.2139858201493077,-0.17551107873464941},{-1.0,1.3812657246212805,-0.17120642021516808},
+             {-0.25,1.2588126266321116,-0.16140374500575902},{0.2,1.2808888740969946,0.39793036848285107},
+             {1.0,1.5701101367453294,0.31835623769806254},{3.0,2.190811921899928,0.30576025993835038},
+             {12.0,4.6276686240406235,0.23492516974433572},{44.0,9.4784205700301705,0.10331202072962879}};
+         for(const auto& r:ref) {near(c(r[0]),r[1],1e-14,"PCHIP value against SciPy");near(c.derivative(r[0]),r[2],1e-13,"PCHIP derivative against SciPy");}
+         near(c.slopes().front(),-0.00399082206266669,1e-15,"PCHIP first end slope against SciPy");
+         near(c.slopes().back(),0.10083659939328354,1e-14,"PCHIP last end slope against SciPy");
+         near(c.secondLeft(8),0.9947821966338357,1e-9,"PCHIP throat second derivative (left) against SciPy");
+         near(c.secondRight(8),2.904027429711514,1e-9,"PCHIP throat second derivative (right) against SciPy");
+         for(const auto& p:nodes) require(c(p[0])==p[1],"PCHIP passes through every node");
+         double low=1e9;for(const auto& p:c.sample(50)) low=std::min(low,p[1]);
+         require(low==rt,"PCHIP: the throat node is the minimum");}
         {Primitive w{1.3,20,-2,90000};Gas g;auto q=primitive(conservative(w,g),g);
          near(q.p,w.p,1e-9,"State round trip");auto f=hllc(w,w,1,0,g);
          near(f[0],w.rho*w.uz,1e-12,"Identical-state mass flux");}

@@ -1,0 +1,8 @@
+# budget_beyond.py on /tmp/inq2b/bx/onB_budget.csv, 6e-4 to 8.69012e-4 s
+/tmp/inq2b/bx/onB_budget.csv: 28 cells, t 0.6000 to 0.8688 ms
+  positive supply of b 6.9701e+00 J; inviscid supply beyond the two cells' range 1.3103e-02 J (0.2%); worst excursion 0.527 MJ/kg
+  cell i 1 j 9: beyond 1.297e-03 J of supply 3.688e-02 J (3.5%), worst 0.0039 MJ/kg (face low z)
+  cell i 1 j 8: beyond 2.294e-03 J of supply 1.117e-01 J (2.1%), worst 0.0173 MJ/kg (face high z)
+  cell i 1 j 7: beyond 2.819e-03 J of supply 4.749e-01 J (0.6%), worst 0.0199 MJ/kg (face low z)
+  cell i 3 j 8: beyond 2.440e-03 J of supply 5.282e-01 J (0.5%), worst 0.0201 MJ/kg (face low z)
+  cell i 2 j 7: beyond 2.095e-03 J of supply 6.713e-01 J (0.3%), worst 0.0218 MJ/kg (face above)
