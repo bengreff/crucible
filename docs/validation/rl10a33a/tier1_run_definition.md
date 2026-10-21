@@ -38,11 +38,12 @@ Status: drafted 21 October 2026, about 02:40 CDT, before any tier-1 run. It hold
    - **The face's heat flow is not part of the hot-gas wall's** (*inferred*). Protocol §3 names the hot-gas wall's heat flow as the expander cycle's driver, which is the jacket's coolant. The transpiration-cooled face is not on the jacket. Under decision 8 the face is a cold wall, so including it would bias the wall heat flow.
    - Also printed: Table B's causes by region, the parcels in flight, the liquid mass, and the spray's share of the step's cost.
 4. **The mesh.** The base is 149 × 16 (G1 passes: the face at −13.0862 in) with 3 levels (1192 × 128 at the finest).
-   - **The tags are AMR step C's** (`AMR.md`, *Step C*, recorded and not yet coded), with step D's thresholds fixed on C1:
+   - **The tags are AMR step C's** (`Amr::setTags`, on `main` since af91015; its checks 2, 4 and 5 are inquiry2's), with step D's thresholds fixed on C1:
      - the throat tag (0.5 r_t, to level 2);
      - the wall strip to the y+ target (300 by default; step D and the wall functions' y+ question decide 300 or 956, which is the budget's factor of 4);
      - the dynamic tags on f_H, T, the pressure jump and vorticity, with regridding every 2 base steps and a buffer of 2.
    - **Added for tier 1:** a static face tag. Every face-column cell from the axis to R_c, out to the core length (6.84 mm, 5.4 finest cells of 1.26 mm), is held at the finest level. This is because decision 6's declared limit (streams mixed within one cell) falls with the face cell's height, and because the drops are released there. Its cost is one strip of 128 × 6 finest cells, small against the wall strip (*derived*).
+     - Step C's `Tags::custom` holds it with no engine change: true on level l's cell (i, j) when its centroid lies within 6.84 mm of the face, from `level(l).mesh()` (`core/amr.cpp:364`; read 21 October, about 02:55).
 5. **The parcel rate.** 5e5 parcels per second per injector, Mascotte's (*guessed* there, for cost), so each parcel carries 3.5 mg (*derived*: 1.744 kg/s / 5e5), about 69 drops at the SMD.
    - A numerical check, not a member: once settled, the central case runs 1 ms more at twice the rate. If any quantity moves by more than the settle bar (0.1%), the rate doubles for every run.
    - The parcels per occupied cell near the face are printed at the end of the first ms. A bar for them is not stated (no basis yet).
@@ -52,7 +53,7 @@ Status: drafted 21 October 2026, about 02:40 CDT, before any tier-1 run. It hold
 ## What it waits on
 
 - **The face inlet (a) and the face's wall temperature,** inquiry2's lane (the handoff's spec, 21 October, about 02:40), after S7 and AMR step C. The driver then sets the switch, adds the LOX ports and the face temperature, and reruns G5 and G6 as the spec's gate F3.
-- **AMR step C** (the tags) and **step D** (their thresholds on C1, and the y+ target).
+- **AMR step C's remaining checks** (2, 4 and 5; the code is on `main` since af91015, and checks 1 and 3 pass by AMR.md and abdda6d's message) and **step D** (the thresholds on C1, and the y+ target).
 - **AMR carrying the wall functions and the SST property corrections across levels.** `Amr` refuses both today (`core/amr.cpp:25-26`), and tier 1 needs both. This is inquiry2's AMR line, before any tier-1 run.
 - **Member 19's adiabatic face** needs the wall functions' adiabatic law (`core/flow.cpp:107-108`). Only member 19 needs it.
 - **The two protocol §4 amendments** (choice 1's face and decision 7's length scale), inquiry2's line.

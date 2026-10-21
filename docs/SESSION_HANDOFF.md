@@ -2,6 +2,19 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (21 October, about 03:05 CDT; parked for the night, READY TO CLEAR)
+
+- **The Director merged worktree-inquiry2 into `main` at 02:47** (af91015, a clean merge: AMR step C and the corner fix (x)).
+- **Main at af91015: the build passes and the fast ctest shows no new failures (measured, Mac, 02:46 to 03:00).** The build exits 0 with no warnings. The same 7 tests pass, and the same 4 fail: amr, amr_subcycling, transport and spray.
+  - Every FAIL line of the rerun is identical to the 02:20 record, values included (diff).
+  - New are 7 PASS lines in amr_subcycling_verification: step C's check 3, the moving-pattern case with 202 regrids.
+  - Evidence: `docs/evidence/merge_inquiry2_ctest_af91015_2026-10-21.txt`.
+- **The run definition follows step C** (`tier1_run_definition.md`, items 4 and *What it waits on*):
+  - the tags are `Amr::setTags`;
+  - the static face tag needs no engine change, since `Tags::custom` holds it from `level(l).mesh()` (`core/amr.cpp:364`);
+  - what remains of step C for tier 1 is its checks 2, 4 and 5 (inquiry2's).
+- **Parked:** nothing else small on the line to RL10 is outside inquiry2's lane tonight. The driver's run mode needs (a) and AMR with the wall functions first.
+
 ## Stopped at (21 October, about 02:45 CDT; night run, READY TO CLEAR)
 
 **The Director's brief on f29c38c:** three decisions, recorded in the plan (`tier1_ensemble_plan.md`, *Decided ... about 02:35*, decisions 6 to 8; commit 60b1c23):
