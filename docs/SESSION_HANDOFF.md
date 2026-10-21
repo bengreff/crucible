@@ -2,7 +2,7 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Stopped at (21 October, about 02:50 CDT; night run, READY TO CLEAR)
+## Stopped at (21 October, about 02:45 CDT; night run, READY TO CLEAR)
 
 **The Director's brief on f29c38c:** three decisions, recorded in the plan (`tier1_ensemble_plan.md`, *Decided ... about 02:35*, decisions 6 to 8; commit 60b1c23):
 - **(6) The face inlet is (a),** the open-area sub-cell supply in `core/flow`. It is inquiry2's lane, so the interface spec is below, for inquiry2 to code next session, after S7 and AMR step C.
