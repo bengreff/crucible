@@ -2,6 +2,34 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (21 October, about 03:47 CDT; READY TO CLEAR)
+
+**The blind engine database's specs are committed (caf3051, S0).** The first compile run was killed at 03:19 (worker rule 18) and wrote no spec. The rerun's four Sonnet compilers ran in the foreground, 03:22 to 03:42.
+
+- **18 engines:** LOX/LH2 5, LOX/kerosene 4, LOX/methane 4, storables 5. `engines.json` SHA-256 `c73b97f5…1389`, 0 schema errors.
+- **The screen** (counts, then the masked view) found 59 hits and no outcome value, so there were no redactions (`docs/evidence/engine_db_screen_2026-10-21.txt`). Every record was then read in full and merged unchanged.
+- **Usable:** tier0_isp 16, tier0_thrust 10, tier1 none.
+- **Geometry gaps:** the throat is missing on 6 engines and rests on a lip-unstated or envelope diameter on 7. Only 3 records print the chamber, and none prints its contour. The full lists are in `docs/validation/ENGINE_DB.md`, *Compilation*.
+- **Not done:** no `predictions/` and no `sealed/` yet. No RL10 source was opened.
+
+**Next (exact):**
+1. **Round 2 to pass the trust bar's 20 engines.**
+   - Foreground compilers, the same `compile_rules.md` and `compile_brief_2026-10-21.md` (edit only the clock), new output files in `/tmp/engine_db_staging/out/`.
+   - Candidates are the ones dropped:
+     - LOX/LH2: HM7B, LE-7A, LE-5B, Vinci;
+     - storables: OMS AJ10-190, Viking, Aestus, RD-253, R-4D;
+     - LOX/kerosene: H-1, RS-27A, RD-107/108.
+   - Also ask for primary sources for the 7 envelope or lip throats and the 6 missing ones (e.g. an NTRS SPS or LR91 report).
+   - Screen as before (`check_specs.py --counts`, then `--masked`), then append to `engines.json` as a new commit S1.
+   - `/tmp/engine_db_staging/digest.py FILE` prints a compact read of a screened file.
+2. **The batch's RULES.md** (PREDICTION_PROTOCOL §2) before any prediction. It needs a rule for each of these:
+   - the missing pressure station;
+   - the open-cycle mixture-ratio basis;
+   - turbine exhaust into the nozzle extension;
+   - throats from envelope diameters;
+   - secondary-only fields.
+   It must also declare that the CUIP rig is c* only.
+
 ## Stopped at (21 October, about 03:05 CDT; parked for the night, READY TO CLEAR)
 
 - **The Director merged worktree-inquiry2 into `main` at 02:47** (af91015, a clean merge: AMR step C and the corner fix (x)).
