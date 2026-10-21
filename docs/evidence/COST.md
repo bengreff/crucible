@@ -293,3 +293,13 @@ The order is not lower, but the entropy error is 26% larger with the flag at eac
 - Budgets: mass −4.5e-13 and energy 1.1e-11 on; −1.1e-12 and −3.3e-11 off.
 - Against the 2-D prediction: c* +0.29% off and +0.36% on.
 - So the 32×6 c* shift is consistent with truncation error that shrinks with the grid (derived), and (x3) is passed by all three cases on the registered rules: C1 through C1b, the pipe's comparison, and the nozzle.
+
+**(x2): passes (c2)'s rule (measured; backhouse `xout/x2.log`, `x2_history.csv`, `x2_budget.csv`; scored about 02:20 CDT).** The low case to 2.5 ms with the consistent fluxes and (x) (`CRUCIBLE_DELTA_H=1 CRUCIBLE_EXTREMUM_H=1`, CFL 0.8, hot trace at 3,450 K, probe `1.6e-3:0:3:0:7`), exit 0, 40,267 steps, 1,291 s of wall time on 5 threads.
+- 3,450 K is not crossed: no hot trace was written, and the largest T_max in the history is 3,417.7 K, at 1.6 ms.
+- T_max at the printed times: 3,396.4 K at 2.2 ms, 3,396.1 at 2.3, 3,396.0 at 2.4 and 3,398.1 K at 2.5 ms, all at most 3,420 K and within 7 K of the 3,392 K flame temperature (Cantera, 1 MPa).
+- Table fallbacks 0. Budgets at 2.5 ms: mass −2.4e-15, energy 1.3e-14.
+- Reported alongside: the face column's largest excess b at 2.3 ms is 0.28 MJ/kg (j 3), against the baseline's 3.7 to 5.6 MJ/kg. Its largest from 2.2 to 2.5 ms is 0.39 MJ/kg. With no pocket, the readout's shares are not run.
+- So x0, x1b, x2 and x3 pass. Against the side run (s) on the same rule, (x) runs 9 to 11 K cooler at the printed times and its face-column excess is lower, and its mechanism is the one (m) measured.
+
+**Adopted (the Director, 21 October, about 02:20 CDT): (x) with the consistent fluxes is the default scheme for liquid runs.** The engine's defaults do not change: `Definition::extremumBoundedEnthalpy` and `Definition::Turbulence::consistentFlux` stay off, so the gas cases (C1, the pipe, the nozzle and the verification suites) are unchanged. The Mascotte driver, the liquid runs' driver, now sets both on by default and prints the pair at its start; `CRUCIBLE_DELTA_H=0` and `CRUCIBLE_EXTREMUM_H=0` turn either off. Both go on together because x2 tested the pair, and (x) alone is untested on the low case. `crucible_spray_tests` keeps its own settings (its recorded S0 to S8 results stand).
+- **Check (measured, Mac, `/tmp/inq2c/x/def_cmp.txt`):** the low case to 0.04 ms (556 steps) with no flags set equals x0's flag-on smoke (both set by environment) in all 19 compared columns. With `CRUCIBLE_DELTA_H=0 CRUCIBLE_EXTREMUM_H=0` it equals x0's flag-off run, which equals the e20d6c6 build.
