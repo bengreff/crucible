@@ -1,0 +1,183 @@
+# budget_read.py on /tmp/inq2b/bx/onoff_budget.csv, 6e-4 to 8.69012e-4 s (the registered onset readout, COST.md lever 3)
+## cells 1:6-6
+cell i 1 j 6: t 0.600059 to 0.868961 ms, steps 8447 to 12450, T 608 to 2359 K, excess -1.106e+05 to 6.494e+05 J/kg
+  (a) rho V     change -2.355120e-09, sum of terms -2.355120e-09, residual / largest term -2.78e-15
+  (a) rho E V   change +3.537855e-03, sum of terms +3.537855e-03, residual / largest term -2.30e-15
+  (a) rho f_H V change -3.881050e-09, sum of terms -3.881050e-09, residual / largest term 3.43e-16
+      face low z  viscous energy +5.097627e-03, parts +5.097627e-03 (-8.5e-15); tracked +5.121426e-10, parts +5.121426e-10
+      face high z viscous energy -2.668049e-03, parts -2.668049e-03 (9.9e-15); tracked -3.557340e-10, parts -3.557340e-10
+      face below  viscous energy +1.782422e-02, parts +1.782422e-02 (-4.1e-14); tracked +4.175734e-09, parts +4.175734e-09
+      face above  viscous energy +1.322764e-01, parts +1.322764e-01 (1.2e-14); tracked +1.275114e-08, parts +1.275114e-08
+  (b) rho b V change +3.777724e-03 J; sum of items +3.777724e-03; residual -3.747e-16
+      above   turbulent species            +3.036409e-01
+      above   turbulent conduction         -1.759907e-01
+      below   turbulent species            +1.174547e-01
+      below   turbulent conduction         -9.946003e-02
+      cell    spray exchange               -9.598342e-02
+      above   inviscid                     -1.455279e-02
+      below   inviscid                     -1.452825e-02
+      low z   inviscid                     -1.311226e-02
+      low z   turbulent species            +1.213896e-02
+      above   molecular species            +1.205984e-02
+      high z  turbulent species            -1.104323e-02
+      above   molecular conduction         -1.087789e-02
+      high z  turbulent conduction         +8.414010e-03
+      low z   turbulent conduction         -7.235592e-03
+      high z  inviscid                     -6.460095e-03
+      below   molecular conduction         -5.398911e-03
+      below   molecular species            +4.181479e-03
+      high z  molecular conduction         +5.595454e-04
+      high z  molecular species            -4.988676e-04
+      low z   molecular species            +4.589595e-04
+      low z   molecular conduction         -4.028041e-04
+      cell    V dp                         +2.208830e-04
+      above   viscous work                 +2.164142e-04
+      above   turbulent k diffusion        -1.345923e-05
+      below   turbulent k diffusion        -9.385187e-06
+      high z  viscous work                 -8.587009e-06
+      low z   viscous work                 +8.320505e-06
+      cell    -d(rho k V)                  +6.092801e-06
+      below   viscous work                 -5.120667e-06
+      high z  turbulent k diffusion        -4.916199e-07
+      low z   turbulent k diffusion        -4.075897e-07
+      above   unsplit viscous              -1.526557e-15
+      below   unsplit viscous              +7.285839e-16
+      low z   unsplit viscous              +4.336809e-17
+      high z  unsplit viscous              -2.645453e-17
+  positive supply 4.593601e-01 J; shares: molecular diffusion, interior faces 3.8%, turbulent diffusion, interior faces 96.1%, plate or axis faces 0.0%, sources that should be zero 0.0%, inviscid, interior faces 0.0%, V dp 0.0%, other 0.1%
+      face low z  inviscid b per unit mass outside the two cells' range in 366 of 401 intervals (worst by 5.915e+05 J/kg); those intervals' positive b supply 0.000e+00 J (0.0% of the cell's), beyond the range 0.000e+00 J (0.0%)
+      face high z inviscid b per unit mass outside the two cells' range in 222 of 401 intervals (worst by 4.69e+05 J/kg); those intervals' positive b supply 8.117e-05 J (0.0% of the cell's), beyond the range 1.855e-03 J (0.4%)
+      face below  inviscid b per unit mass outside the two cells' range in 0 of 401 intervals (worst by 0 J/kg); those intervals' positive b supply 0.000e+00 J (0.0% of the cell's), beyond the range 0.000e+00 J (0.0%)
+      face above  inviscid b per unit mass outside the two cells' range in 13 of 401 intervals (worst by 1.213e+07 J/kg); those intervals' positive b supply 9.313e-07 J (0.0% of the cell's), beyond the range 0.000e+00 J (0.0%)
+## cells 0:6-6
+cell i 0 j 6: t 0.600059 to 0.868961 ms, steps 8447 to 12450, T 333 to 337 K, excess -2.728e+05 to -5.045e+05 J/kg
+  (a) rho V     change +1.863664e-10, sum of terms +1.863664e-10, residual / largest term -2.35e-15
+  (a) rho E V   change -2.665199e-03, sum of terms -2.665199e-03, residual / largest term 2.79e-15
+  (a) rho f_H V change -1.469491e-11, sum of terms -1.469491e-11, residual / largest term -1.77e-15
+      face low z  viscous energy +0.000000e+00, parts +0.000000e+00 (0.0e+00); tracked +0.000000e+00, parts +0.000000e+00
+      face high z viscous energy -5.097627e-03, parts -5.097627e-03 (8.5e-15); tracked -5.121426e-10, parts -5.121426e-10
+      face below  viscous energy +7.079479e-05, parts +7.079479e-05 (3.7e-14); tracked -5.693497e-11, parts -5.693497e-11
+      face above  viscous energy +3.359820e-03, parts +3.359820e-03 (-1.1e-14); tracked +7.633521e-10, parts +7.633521e-10
+  (b) rho b V change -2.453526e-03 J; sum of items -2.453526e-03; residual +6.462e-17
+      above   inviscid                     -2.429109e-02
+      below   inviscid                     +2.420502e-02
+      cell    spray exchange               -1.389421e-02
+      high z  inviscid                     +1.311226e-02
+      high z  turbulent species            -1.213896e-02
+      above   turbulent species            +1.128156e-02
+      above   turbulent conduction         -8.105367e-03
+      high z  turbulent conduction         +7.235592e-03
+      below   turbulent conduction         +9.617661e-04
+      below   turbulent species            -8.789359e-04
+      high z  molecular species            -4.589595e-04
+      high z  molecular conduction         +4.028041e-04
+      above   molecular conduction         -3.831973e-04
+      above   molecular species            +2.296045e-04
+      above   viscous work                 +1.460773e-04
+      cell    V dp                         +1.250739e-04
+      below   molecular conduction         +1.900174e-05
+      below   viscous work                 -1.405427e-05
+      high z  viscous work                 -8.320505e-06
+      cell    -d(rho k V)                  +5.813555e-06
+      above   turbulent k diffusion        -2.900588e-06
+      below   turbulent k diffusion        -2.377712e-06
+      high z  turbulent k diffusion        +4.075897e-07
+      below   molecular species            -1.320443e-07
+      high z  unsplit viscous              -4.336809e-17
+      above   unsplit viscous              +3.686287e-17
+      below   unsplit viscous              -2.588533e-18
+  positive supply 5.772498e-02 J; shares: molecular diffusion, interior faces 1.1%, turbulent diffusion, interior faces 33.7%, plate or axis faces 0.0%, sources that should be zero 0.0%, inviscid, interior faces 64.6%, V dp 0.2%, other 0.3%
+      face high z inviscid b per unit mass outside the two cells' range in 366 of 401 intervals (worst by 5.915e+05 J/kg); those intervals' positive b supply 1.280e-02 J (22.2% of the cell's), beyond the range 7.141e-03 J (12.4%)
+      face below  inviscid b per unit mass outside the two cells' range in 109 of 401 intervals (worst by 5684 J/kg); those intervals' positive b supply 5.314e-03 J (9.2% of the cell's), beyond the range 5.345e-05 J (0.1%)
+      face above  inviscid b per unit mass outside the two cells' range in 62 of 401 intervals (worst by 1.054e+04 J/kg); those intervals' positive b supply 0.000e+00 J (0.0% of the cell's), beyond the range 0.000e+00 J (0.0%)
+## cells 0:6-6 1:6-6
+cell i 0 j 6: t 0.600059 to 0.868961 ms, steps 8447 to 12450, T 333 to 337 K, excess -2.728e+05 to -5.045e+05 J/kg
+  (a) rho V     change +1.863664e-10, sum of terms +1.863664e-10, residual / largest term -2.35e-15
+  (a) rho E V   change -2.665199e-03, sum of terms -2.665199e-03, residual / largest term 2.79e-15
+  (a) rho f_H V change -1.469491e-11, sum of terms -1.469491e-11, residual / largest term -1.77e-15
+      face low z  viscous energy +0.000000e+00, parts +0.000000e+00 (0.0e+00); tracked +0.000000e+00, parts +0.000000e+00
+      face high z viscous energy -5.097627e-03, parts -5.097627e-03 (8.5e-15); tracked -5.121426e-10, parts -5.121426e-10
+      face below  viscous energy +7.079479e-05, parts +7.079479e-05 (3.7e-14); tracked -5.693497e-11, parts -5.693497e-11
+      face above  viscous energy +3.359820e-03, parts +3.359820e-03 (-1.1e-14); tracked +7.633521e-10, parts +7.633521e-10
+  (b) rho b V change -2.453526e-03 J; sum of items -2.453526e-03; residual +6.462e-17
+      above   inviscid                     -2.429109e-02
+      below   inviscid                     +2.420502e-02
+      cell    spray exchange               -1.389421e-02
+      high z  inviscid                     +1.311226e-02
+      high z  turbulent species            -1.213896e-02
+      above   turbulent species            +1.128156e-02
+      above   turbulent conduction         -8.105367e-03
+      high z  turbulent conduction         +7.235592e-03
+      below   turbulent conduction         +9.617661e-04
+      below   turbulent species            -8.789359e-04
+      high z  molecular species            -4.589595e-04
+      high z  molecular conduction         +4.028041e-04
+      above   molecular conduction         -3.831973e-04
+      above   molecular species            +2.296045e-04
+      above   viscous work                 +1.460773e-04
+      cell    V dp                         +1.250739e-04
+      below   molecular conduction         +1.900174e-05
+      below   viscous work                 -1.405427e-05
+      high z  viscous work                 -8.320505e-06
+      cell    -d(rho k V)                  +5.813555e-06
+      above   turbulent k diffusion        -2.900588e-06
+      below   turbulent k diffusion        -2.377712e-06
+      high z  turbulent k diffusion        +4.075897e-07
+      below   molecular species            -1.320443e-07
+      high z  unsplit viscous              -4.336809e-17
+      above   unsplit viscous              +3.686287e-17
+      below   unsplit viscous              -2.588533e-18
+  positive supply 5.772498e-02 J; shares: molecular diffusion, interior faces 1.1%, turbulent diffusion, interior faces 33.7%, plate or axis faces 0.0%, sources that should be zero 0.0%, inviscid, interior faces 64.6%, V dp 0.2%, other 0.3%
+      face high z inviscid b per unit mass outside the two cells' range in 366 of 401 intervals (worst by 5.915e+05 J/kg); those intervals' positive b supply 1.280e-02 J (22.2% of the cell's), beyond the range 7.141e-03 J (12.4%)
+      face below  inviscid b per unit mass outside the two cells' range in 109 of 401 intervals (worst by 5684 J/kg); those intervals' positive b supply 5.314e-03 J (9.2% of the cell's), beyond the range 5.345e-05 J (0.1%)
+      face above  inviscid b per unit mass outside the two cells' range in 62 of 401 intervals (worst by 1.054e+04 J/kg); those intervals' positive b supply 0.000e+00 J (0.0% of the cell's), beyond the range 0.000e+00 J (0.0%)
+cell i 1 j 6: t 0.600059 to 0.868961 ms, steps 8447 to 12450, T 608 to 2359 K, excess -1.106e+05 to 6.494e+05 J/kg
+  (a) rho V     change -2.355120e-09, sum of terms -2.355120e-09, residual / largest term -2.78e-15
+  (a) rho E V   change +3.537855e-03, sum of terms +3.537855e-03, residual / largest term -2.30e-15
+  (a) rho f_H V change -3.881050e-09, sum of terms -3.881050e-09, residual / largest term 3.43e-16
+      face low z  viscous energy +5.097627e-03, parts +5.097627e-03 (-8.5e-15); tracked +5.121426e-10, parts +5.121426e-10
+      face high z viscous energy -2.668049e-03, parts -2.668049e-03 (9.9e-15); tracked -3.557340e-10, parts -3.557340e-10
+      face below  viscous energy +1.782422e-02, parts +1.782422e-02 (-4.1e-14); tracked +4.175734e-09, parts +4.175734e-09
+      face above  viscous energy +1.322764e-01, parts +1.322764e-01 (1.2e-14); tracked +1.275114e-08, parts +1.275114e-08
+  (b) rho b V change +3.777724e-03 J; sum of items +3.777724e-03; residual -3.747e-16
+      above   turbulent species            +3.036409e-01
+      above   turbulent conduction         -1.759907e-01
+      below   turbulent species            +1.174547e-01
+      below   turbulent conduction         -9.946003e-02
+      cell    spray exchange               -9.598342e-02
+      above   inviscid                     -1.455279e-02
+      below   inviscid                     -1.452825e-02
+      low z   inviscid                     -1.311226e-02
+      low z   turbulent species            +1.213896e-02
+      above   molecular species            +1.205984e-02
+      high z  turbulent species            -1.104323e-02
+      above   molecular conduction         -1.087789e-02
+      high z  turbulent conduction         +8.414010e-03
+      low z   turbulent conduction         -7.235592e-03
+      high z  inviscid                     -6.460095e-03
+      below   molecular conduction         -5.398911e-03
+      below   molecular species            +4.181479e-03
+      high z  molecular conduction         +5.595454e-04
+      high z  molecular species            -4.988676e-04
+      low z   molecular species            +4.589595e-04
+      low z   molecular conduction         -4.028041e-04
+      cell    V dp                         +2.208830e-04
+      above   viscous work                 +2.164142e-04
+      above   turbulent k diffusion        -1.345923e-05
+      below   turbulent k diffusion        -9.385187e-06
+      high z  viscous work                 -8.587009e-06
+      low z   viscous work                 +8.320505e-06
+      cell    -d(rho k V)                  +6.092801e-06
+      below   viscous work                 -5.120667e-06
+      high z  turbulent k diffusion        -4.916199e-07
+      low z   turbulent k diffusion        -4.075897e-07
+      above   unsplit viscous              -1.526557e-15
+      below   unsplit viscous              +7.285839e-16
+      low z   unsplit viscous              +4.336809e-17
+      high z  unsplit viscous              -2.645453e-17
+  positive supply 4.593601e-01 J; shares: molecular diffusion, interior faces 3.8%, turbulent diffusion, interior faces 96.1%, plate or axis faces 0.0%, sources that should be zero 0.0%, inviscid, interior faces 0.0%, V dp 0.0%, other 0.1%
+      face low z  inviscid b per unit mass outside the two cells' range in 366 of 401 intervals (worst by 5.915e+05 J/kg); those intervals' positive b supply 0.000e+00 J (0.0% of the cell's), beyond the range 0.000e+00 J (0.0%)
+      face high z inviscid b per unit mass outside the two cells' range in 222 of 401 intervals (worst by 4.69e+05 J/kg); those intervals' positive b supply 8.117e-05 J (0.0% of the cell's), beyond the range 1.855e-03 J (0.4%)
+      face below  inviscid b per unit mass outside the two cells' range in 0 of 401 intervals (worst by 0 J/kg); those intervals' positive b supply 0.000e+00 J (0.0% of the cell's), beyond the range 0.000e+00 J (0.0%)
+      face above  inviscid b per unit mass outside the two cells' range in 13 of 401 intervals (worst by 1.213e+07 J/kg); those intervals' positive b supply 9.313e-07 J (0.0% of the cell's), beyond the range 0.000e+00 J (0.0%)
+all named cells: positive supply 5.170850e-01 J; shares: molecular diffusion, interior faces 3.5%, turbulent diffusion, interior faces 89.2%, plate or axis faces 0.0%, sources that should be zero 0.0%, inviscid, interior faces 7.2%, V dp 0.1%, other 0.1%
