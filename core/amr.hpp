@@ -66,11 +66,12 @@ public:
         std::vector<double> hydrogen;  // per species, the H element's mass over the species' mass
     };
     void setTags(Tags tags);
-    // Regrids that changed the pattern, and the largest relative content error of the children over their
-    // parent's in the last such regrid's fill (mass, energy and partial densities over the parent's,
-    // momentum over sqrt(2 rho E) times the volume).
+    // Regrids that changed the pattern, and the largest content error of the children against their parent in
+    // the last such regrid's fill (mass, momentum, energy and partial densities): over the parent's content
+    // (momentum's magnitude for both components), and over the children's gross content (the sum of |content|).
     [[nodiscard]] std::uint64_t regrids() const { return regrids_; }
     [[nodiscard]] double fillError() const { return fillError_; }
+    [[nodiscard]] double fillGross() const { return fillGross_; }
     // The composite budget (AMR.md, criterion 2 (b)): the base's content, which holds the composite
     // after average-down and reflux, less its content at the first step and every level's exchanges
     // booked at its owned cells since (boundary faces, igniter, corrections, spray). The residuals are
@@ -124,7 +125,7 @@ private:
     Tags tags_;
     bool tagged_{false}, regridded_{false};
     std::uint64_t regrids_{};
-    double fillError_{};
+    double fillError_{}, fillGross_{};
     void averageDown(int l);
     bool reflux(int l);
     void save();

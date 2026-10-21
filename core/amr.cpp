@@ -403,7 +403,7 @@ void Amr::regrid() {
     }
     regridded_=true;
     if(!changed) return;
-    fillError_=0;
+    fillError_=fillGross_=0;
     for(int l=1;l<=top;++l) {
         Level& cv=levels_[static_cast<std::size_t>(l-1)];
         Flow& f=level(l);const Flow& c=*cv.flow;
@@ -425,17 +425,23 @@ void Amr::regrid() {
             const double* vp=cv.values.data()+p*stride;
             const double vol=cm.cells[p].volume;
             const std::size_t child[4]={q0,m.index(2*I,2*J+1),m.index(2*I+1,2*J),m.index(2*I+1,2*J+1)};
-            auto error=[&](double sum,double parent,double scale) { if(scale>0) fillError_=std::max(fillError_,std::abs(sum-parent)/scale); };
-            const double momentumScale=std::sqrt(2*vp[0]*vp[3])*vol;
+            // As stated, over the parent's own content (momentum's magnitude for both components); and over the
+            // children's gross content, the sum of their |content|, which stays well conditioned where a content
+            // nears zero (the total energy, which carries the formation enthalpies, changes sign in this flow).
+            auto error=[&](double sum,double parent,double own,double gross) {
+                if(own>0) fillError_=std::max(fillError_,std::abs(sum-parent)/own);
+                if(gross>0) fillGross_=std::max(fillGross_,std::abs(sum-parent)/gross);
+            };
+            const double momentum=std::hypot(vp[1],vp[2])*vol;
             for(int k=0;k<4;++k) {
-                double sum=0;
-                for(auto q:child) sum+=m.cells[q].volume*f.state_[q][k];
-                error(sum,vol*vp[k],k==1 || k==2?momentumScale:std::abs(vol*vp[k]));
+                double sum=0,gross=0;
+                for(auto q:child) { const double v=m.cells[q].volume*f.state_[q][k];sum+=v;gross+=std::abs(v); }
+                error(sum,vol*vp[k],k==1 || k==2?momentum:std::abs(vol*vp[k]),gross);
             }
             for(std::size_t k=0;k<ns;++k) {
-                double sum=0;
-                for(auto q:child) sum+=m.cells[q].volume*f.species_[q*ns+k];
-                error(sum,vol*vp[4+k],std::abs(vol*vp[4+k]));
+                double sum=0,gross=0;
+                for(auto q:child) { const double v=m.cells[q].volume*f.species_[q*ns+k];sum+=v;gross+=std::abs(v); }
+                error(sum,vol*vp[4+k],std::abs(vol*vp[4+k]),gross);
             }
         }
         f.active_=a;
