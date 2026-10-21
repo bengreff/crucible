@@ -2,7 +2,8 @@
 """The share of a run's cell updates that a Table B's domain sends to CVODES (docs/evidence/TABLE_B.md,
 "The fallback rate in a C1-like run").
 
-Usage: fallback_rate.py <state samples CSV> <node report CSV> [candidate] [throat station]
+Usage: fallback_rate.py <state samples CSV> <node report CSV> [candidate] [throat station] [chamber-end column]
+                        [E0 replay CSV]
 
 The state samples are tests/chamber_study.cpp's CRUCIBLE_STATE_SAMPLES (each cell's f_H, Z_N, eta and rho
 every 2 us, with the flow steps since the previous sample), with eta in the table's mechanism's energies
@@ -11,6 +12,11 @@ CRUCIBLE_TABLE_B_NODE_REPORT. A cell update counts as a fallback if its state is
 of its 16 corners failed a gate (2(a) turn-back above 1e-9 or an N-gate failure, 2(b) above 3 K, 2(c), or
 the outside flag). The runtime's other causes (off the curve, Delta Y, frozen reach, AR) are not counted,
 so the rate is a lower bound. Each sample is weighted by its steps, over the whole run and the last ms.
+
+With the chamber-end column, the regions are the chamber (columns up to it), the convergent (to the throat)
+and the divergent (from the throat on). With an E0 replay CSV (crucible_table_b_branch_rule, one row per
+sample in the same order), a cell update the domain hands to the table is also counted as a fallback if the
+specific entropy's branch rule rejects it (TABLE_B.md, E0 and E5), by its cause.
 """
 import bisect
 import csv
@@ -26,6 +32,10 @@ def main():
     # Optional: the throat station; then each figure is also given for the columns upstream of it
     # (the chamber and the convergent section) and for the rest (the divergent nozzle).
     throat = int(sys.argv[4]) if len(sys.argv) > 4 else None
+    chamber_end = int(sys.argv[5]) if len(sys.argv) > 5 else None
+    e0_rows = csv.reader(open(sys.argv[6])) if len(sys.argv) > 6 else None
+    if e0_rows is not None:
+        next(e0_rows)
     failed = {}
     for row in csv.DictReader(open(report_path)):
         if row["candidate"] != candidate:
@@ -65,14 +75,28 @@ def main():
 
     end = 0.0
     rows = []
+    mismatch = 0
     for row in csv.DictReader(open(samples_path)):
         t = float(row["t"])
         end = max(end, t)
         f = float(row["f_H"]) if row["f_H"] not in ("nan", "-nan") else math.nan
-        rows.append((t, int(row["steps"]), classify(f, float(row["Z_N"]), float(row["eta"]), float(row["rho"])),
-                     int(row["i"])))
+        cause = classify(f, float(row["Z_N"]), float(row["eta"]), float(row["rho"]))
+        if e0_rows is not None:
+            e0 = next(e0_rows)[0]
+            if cause == "table":
+                if not e0.startswith("table"):
+                    # The replay's own domain (axes, refused or flagged corners) disagrees with the report's.
+                    mismatch += 0 if e0.startswith(("off the curve", "a tie", "dY above")) else 1
+                    cause = f"E0: {e0}"
+        rows.append((t, int(row["steps"]), cause, int(row["i"])))
+    if e0_rows is not None:
+        print(f"E0 replay joined; {mismatch} samples the domain hands to the table were outside the replay's own domain")
     regions = [("", lambda i: True)]
-    if throat is not None:
+    if throat is not None and chamber_end is not None:
+        regions += [(f", columns 0 to {chamber_end} (chamber)", lambda i: i <= chamber_end),
+                    (f", columns {chamber_end + 1} to {throat - 1} (convergent)", lambda i: chamber_end < i < throat),
+                    (f", columns {throat} on (divergent)", lambda i: i >= throat)]
+    elif throat is not None:
         regions += [(f", columns 0 to {throat - 1} (chamber and convergent)", lambda i: i < throat),
                     (f", columns {throat} on (divergent)", lambda i: i >= throat)]
     for (label, t0), (where, inside) in itertools.product((("whole run", -1.0), ("last ms", end - 1e-3)), regions):

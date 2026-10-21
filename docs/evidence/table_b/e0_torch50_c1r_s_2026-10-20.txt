@@ -1,0 +1,12 @@
+E0 replay: 384192 samples, 368183 inside the axes with usable corners (unweighted; fallback_rate.py weights by steps and applies the gates)
+  (domain) no H or O: 1639
+  (domain) outside the axes: 14370
+  dY above dY_max: 1298
+  off the curve (lower above the blended s_eq; upper above the blended s_eq): 327463
+  off the curve (lower above the blended s_eq; upper below the blended start): 59
+  off the curve (lower below the blended start; upper below the blended start): 9539
+  table (lower branch): 29628
+  table (upper branch): 196
+s_cell against Cantera's entropy_mass on 3800 samples: worst |difference| 1.819e-11 J/(kg K)
+own s_eq (equilibrateUV) on 920 samples: s_eq_own - blended lower s_eq: min -1.119, 5% 4.084, median 16.246, 95% 86.504, max 1896.647 J/(kg K); s_eq_own - s_cell: min -1.129e-06, median 0.321, max 5657.939
+E4 (one thread, 368183 cells): s_cell 73.5 ns per cell; s_cell with the branch rule (16 corners, both branches) 248.8 ns per cell (sink 1)

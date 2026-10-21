@@ -546,6 +546,79 @@ The gates as written fail, on three counts. Each is named here; none is tuned.
 - **2(c): the two named refusals** at η 0.6, ρ 80, Z_N 0 (f_H 1/7 and 1/6): no frozen start up to 6,000 K carries the node's energy. These are the two documented under the earlier O/F 4 to 6 table, at about 200 MPa, outside the band.
 - **The N gate, C1 range only: 8 nodes, all at η 1 and ρ ≤ 0.069 kg/m³.** They are f_H 1/6 and 0.2, at T_eq 2,760 to 3,451 K. η 1 is the products' energy frozen at 6,000 K, the top of the axis. The same 8 failed with Y_H2O (the table above at 18:46), since N along a branch does not depend on the progress variable. Whether C1's cells reach them is measured by E5.
 
+## E0, E4 and E5 measured on h2o2_highT's C1 run: the domain passes everywhere, the branch rule fails at equilibrium (20 October 2026, about 22:52 CDT)
+
+**The run.** C1 32x6 finite-rate on h2o2_highT, the torch igniter (50 kW for 1 ms), 2 threads, to 4 ms (`/tmp/c1s/`, not in git). It ended at 4 ms after 32,976 steps in 451 s wall; the reaction took 427.6 s (67.5 µs per cell update). Drift over the last ms: outlet mass flow 1.3e-3, injector pressure 1.1e-3, vacuum thrust 1.6e-3. Its state samples carry T and Y.
+
+**The tools.** `tools/table_b_branch_rule.cpp` (`crucible_table_b_branch_rule`) replays E0's rule as stated at 22:05, with the runtime's ξ from one square root (22:16). `tools/fallback_rate.py` now splits the chamber (columns 0 to 8), the convergent (9 to 15) and the divergent (16 on), and joins the replay's rejects.
+- s_cell on the core's NASA-7 data agrees with Cantera's `entropy_mass` to 1.8e-11 J/(kg K) at worst, over 3,800 samples.
+
+**E5 without E0, the domain alone** (`table_b/e5_torch50_c1r_s_domain_only_2026-10-20.txt`; the axes and the gates of the C1-range table with s, as before):
+
+| Share of the region's cell updates | Whole run | Last ms |
+|---|---|---|
+| Chamber (columns 0 to 8) | 0.746% | **0.000%** |
+| Convergent (9 to 15) | 1.058% | **0.000%** |
+| Divergent (16 on) | 2.063% | **0.000%** |
+| All | 1.473% (1.269% is the purged ambient N2, above the Z_N axis) | **0.000%** |
+
+With Y_H2O the divergent nozzle was 82.3% over the last ms, through 2(a) at low density. With s, no corner of a nozzle cell fails a gate. So the domain is what entropy was for, and it now passes.
+
+**E0, the nearer-branch rule** (`table_b/e0_torch50_c1r_s_2026-10-20.txt`, `table_b/e5_torch50_c1r_s_2026-10-20.txt`): it fails, everywhere.
+
+| Share of the region's cell updates sent to CVODES | Whole run | Last ms |
+|---|---|---|
+| Chamber | 98.221% | **100.000%** |
+| Convergent | 97.875% | **100.000%** |
+| Divergent | 85.313% | **92.708%** |
+| All | 91.691% | 96.354% |
+
+Over the last ms, every reject is the same cause: the cell's s is above the blended s_eq on both branches, so it is on neither curve.
+
+**The cause, measured as the prediction stated** (920 samples, every 400th inside the axes, each with its own s_eq from `equilibrateUV`):
+
+| Last ms | The cell's own deficit, s_eq,own − s_cell (median; 95%) | The blend's shortfall, s_eq,own − s̄_eq (median; 5% to 95%) | Samples where the shortfall exceeds the deficit |
+|---|---|---|---|
+| Chamber (61) | under 1e-4 J/(kg K); 1e-5 | 13.05; 13.05 to 13.07 J/(kg K) | 61 of 61 |
+| Convergent (60) | under 1e-4; 1e-4 | 13.72; 13.04 to 17.69 | 60 of 60 |
+| Divergent (120) | 13.07; 51.1 | 61.33; 17.4 to 86.5 | 120 of 120 |
+
+- The chamber and the convergent gas is at its own equilibrium, to under 1e-4 J/(kg K). The nozzle's gas is a median 13 J/(kg K) short of its own, which is the freezing expansion.
+- The blended s_eq is always below the cell's own, by 13 J/(kg K) in the chamber and 61 in the nozzle. Over all 920 samples, the shortfall is negative only down to −1.1 J/(kg K).
+- *Derived:* s_eq(e, ρ, elements) is concave, since it is the maximum of a concave function under linear constraints, the thermodynamic stability condition. So a multilinear blend of it is a chord, and the chord lies below the curve. At fixed composition, ∂²s/∂e² = −1/(T² c_v), as the prediction stated.
+- So a cell at or near equilibrium has its s above the end of both blended curves. s is the maximum at equilibrium, and both branches end there from below, so nothing covers the range above s̄_eq. The prediction is confirmed in sign and size ("tens of J/(kg K)").
+
+**E4, measured on one thread** (368,183 cells, the machine shared at a load of about 10 on 10 cores; four runs):
+- s_cell costs 72 to 92 ns per cell. The whole rule costs 248 to 305 ns per cell: s, the 16 corners and both branches.
+- C1's step at 2 threads costs 71.2 µs of wall per cell update, of which 3.70 µs is outside the reaction (both measured from the run's log).
+- So s is 1.0% (*inferred*, if it runs on both threads like the reaction) to 2.0% (on one) of the step outside the reaction, and 0.1% of the whole step. That is under E4's 5% bar: **E4 passes.** The whole rule is 3.4% to 6.7% of the step outside the reaction.
+
+### The cell placed by its moles per kilogram, stated before its code (20 October 2026, about 22:52 CDT)
+
+The 19:25 branch rule was stated as engineering, and it fails E0 by the predicted mechanism. Its replacement is the design's own snap at equal N (the 02:47 amendment and the 02:59 handover), with one change: φ_N is the cell's own. The bars do not change.
+
+**Why N, physically.** N = Σ Y_k/W_k is linear in Y. Unlike s, it is not an extremum at equilibrium: along each node's joined curve it keeps falling through equilibrium onto the upper branch (N_0 to N_eq on the lower, N_eq to N_cp on the upper; the N gate, measured at every node of the C1-range table but the 8 at η 1). So the blended curve's N covers the equilibrium point from both sides, and a cell near equilibrium lands on one branch or the other near τ = 1, with no gap. The 02:47 probe already found the snap at equal N 3.2 K off in a freezing nozzle where the snap at equal c was 245 K off. N also decides the branch, so the nearer-branch rule by max|ΔY| is dropped.
+
+**The rule.**
+- **The blended curve.** It is parametrised by τ, from 0 at the start to 1 at equilibrium (or the reach) on the lower branch, and from 1 to 2 at complete combustion on the upper branch. On the lower branch τ = ξ; on the upper, τ = 1 + u, with s = s_ref − span u² on each corner. Each corner gives its Y at its own s at that τ by the search in d, and the blend is the multilinear weights' sum. N̄(τ) is N of the blend, over the reacting species; N2 is the cell's own Z_N on both sides, so it cancels.
+- **φ_N, from the cell's own N:** φ_N = (N̄(0) − N_cell)/(N̄(0) − N̄(1⁻)), with 1⁻ the lower branch's end. If N̄(0) ≤ N̄(1⁻) the curve has no fall in N, and the cell goes to CVODES ("no fall in N").
+  - The weight is as at 02:59: w = clamp((φ_N − 0.005)/0.005, 0, 1).
+- **w = 0 (induction):** the cell's s places it on the lower branch, with ξ from one square root as now. If s is outside the lower curve, the cell is off the curve in s.
+- **w = 1:** τ_N, where N̄(τ_N) = N_cell.
+  - The branch comes from N: lower if N_cell ≥ N̄(1⁻), upper if N_cell ≤ N̄(1⁺).
+  - Between the two is a gap, possible only where a corner is frozen, since N̄(1⁻) = N̄(1⁺) at equilibrium. A cell there goes to CVODES ("frozen reach", the 03:10 cause). Below N̄(2) it is off the curve in N.
+  - τ_N comes from an Illinois iteration on τ within the branch, to |N̄ − N_cell| ≤ 1e-12 N_cell, or 60 iterations.
+- **0 < w < 1:** s* = (1 − w) s_cell + w s̄(τ_N), with s̄ the lower branch's blended s, and τ* placed from s* on the lower branch, as 02:59 states.
+- **The snap's bar.** If max_k |Ȳ(τ*) − Y_cell,k| > ΔY_max = 0.01, the cell goes to CVODES ("ΔY above ΔY_max").
+- **A check on the search's premise.** N̄ must not rise along the branch searched, between τ = 0 and the end. It is sampled at the corners' 40 base τ values, and a rise above 1e-12 N̄ beyond the first point that has lost 0.5% of the fall is a cause of its own ("blended N not monotone"). The N gate guarantees this per corner, and so for their blend, but the replay measures it.
+
+**What is measured with it, before any runtime code.**
+- E0: the share of cell updates this rule sends to CVODES, by cause, by region, over the whole run and the last ms. The split by w (0, between, 1) and by branch is also given.
+- E5: the domain plus E0's rejects, against the Director's 1% bar in the nozzle.
+- E4: the rule's cost per cell, on one thread.
+- The nearer-branch rule's result stays in the replay's output, for comparison.
+- *Expected (inferred, not a bar):* the chamber's equilibrium cells land at τ near 1. Their ΔY is then the blend's interpolation error in Y_eq at this table's spacing (Δη 0.2, Δ ln ρ 1.4), which may be near 0.01. A fail there is the axes' coarseness, not the placement. It is reported against the table's spacing, not tuned.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.

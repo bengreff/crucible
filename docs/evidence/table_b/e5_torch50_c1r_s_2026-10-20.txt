@@ -1,0 +1,41 @@
+table: 324 nodes, 11 failing a gate; axes  f_H [0.1429, 0.2] (3)  Z_N [0, 0.3] (2)  eta [0, 1] (6)  rho [0.001, 80] (9)
+E0 replay joined; 0 samples the domain hands to the table were outside the replay's own domain
+whole run: 6331392 cell updates, fallback 5805334 = 91.691% (over 1%)
+  E0: off the curve (lower above the blended s_eq; upper above the blended s_eq): 88.676%
+  Z_N above the axis: 1.269%
+  E0: off the curve (lower below the blended start; upper below the blended start): 1.265%
+  E0: dY above dY_max: 0.268%
+  a corner failed a gate: 0.093%
+  no H or O (pure N2): 0.092%
+  eta above the axis: 0.019%
+  E0: off the curve (lower above the blended s_eq; upper below the blended start): 0.009%
+whole run, columns 0 to 8 (chamber): 1780704 cell updates, fallback 1749024 = 98.221% (over 1%)
+  E0: off the curve (lower above the blended s_eq; upper above the blended s_eq): 95.359%
+  E0: off the curve (lower below the blended start; upper below the blended start): 1.945%
+  Z_N above the axis: 0.346%
+  a corner failed a gate: 0.330%
+  E0: dY above dY_max: 0.171%
+  eta above the axis: 0.066%
+  no H or O (pure N2): 0.004%
+whole run, columns 9 to 15 (convergent): 1384992 cell updates, fallback 1355565 = 97.875% (over 1%)
+  E0: off the curve (lower above the blended s_eq; upper above the blended s_eq): 95.283%
+  E0: off the curve (lower below the blended start; upper below the blended start): 1.401%
+  Z_N above the axis: 1.038%
+  E0: dY above dY_max: 0.118%
+  no H or O (pure N2): 0.020%
+  E0: off the curve (lower above the blended s_eq; upper below the blended start): 0.016%
+whole run, columns 16 on (divergent): 3165696 cell updates, fallback 2700745 = 85.313% (over 1%)
+  E0: off the curve (lower above the blended s_eq; upper above the blended s_eq): 82.026%
+  Z_N above the axis: 1.890%
+  E0: off the curve (lower below the blended start; upper below the blended start): 0.824%
+  E0: dY above dY_max: 0.389%
+  no H or O (pure N2): 0.173%
+  E0: off the curve (lower above the blended s_eq; upper below the blended start): 0.011%
+last ms: 1632192 cell updates, fallback 1572685 = 96.354% (over 1%)
+  E0: off the curve (lower above the blended s_eq; upper above the blended s_eq): 96.354%
+last ms, columns 0 to 8 (chamber): 459054 cell updates, fallback 459054 = 100.000% (over 1%)
+  E0: off the curve (lower above the blended s_eq; upper above the blended s_eq): 100.000%
+last ms, columns 9 to 15 (convergent): 357042 cell updates, fallback 357042 = 100.000% (over 1%)
+  E0: off the curve (lower above the blended s_eq; upper above the blended s_eq): 100.000%
+last ms, columns 16 on (divergent): 816096 cell updates, fallback 756589 = 92.708% (over 1%)
+  E0: off the curve (lower above the blended s_eq; upper above the blended s_eq): 92.708%

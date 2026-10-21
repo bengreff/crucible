@@ -93,6 +93,11 @@ if(CRUCIBLE_WITH_CANTERA)
   target_include_directories(crucible_build_manifold_table PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
   target_link_libraries(crucible_build_manifold_table PRIVATE crucible_thermo
     ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+  # E0's replay of Table B's branch rule on a chamber study's state samples, and E4's cost (TABLE_B.md).
+  add_executable(crucible_table_b_branch_rule tools/table_b_branch_rule.cpp)
+  target_include_directories(crucible_table_b_branch_rule PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+  target_link_libraries(crucible_table_b_branch_rule PRIVATE crucible_thermo
+    ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
   # A chamber study's state samples, re-expressed in another mechanism's eta (TABLE_B.md).
   add_executable(crucible_state_samples_eta tools/state_samples_eta.cpp)
   target_include_directories(crucible_state_samples_eta PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
