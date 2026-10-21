@@ -1,0 +1,27 @@
+t 0.000 ms, 1 steps, dt 7.23e-08 s, wall 0 s, outlet 2.594e-16 kg/s, T_max 1997 K, 0 parcels, liquid 1.307e-10 g, spray 0 s, fallbacks 0
+t 0.100 ms, 1390 steps, dt 7.2e-08 s, wall 59 s, outlet -0.0001594 kg/s, T_max 2016 K, 50 parcels, liquid 0.0002499 g, spray 1 s, fallbacks 0
+t 0.200 ms, 2780 steps, dt 7.19e-08 s, wall 119 s, outlet -0.0002868 kg/s, T_max 2054 K, 100 parcels, liquid 0.0009997 g, spray 4 s, fallbacks 0
+t 0.300 ms, 4174 steps, dt 7.16e-08 s, wall 177 s, outlet 0.0001875 kg/s, T_max 2058 K, 150 parcels, liquid 0.002247 g, spray 6 s, fallbacks 0
+t 0.400 ms, 5577 steps, dt 7.06e-08 s, wall 232 s, outlet 0.001137 kg/s, T_max 2001 K, 208 parcels, liquid 0.003989 g, spray 9 s, fallbacks 0
+t 0.500 ms, 7002 steps, dt 6.98e-08 s, wall 286 s, outlet 0.002303 kg/s, T_max 1999 K, 551 parcels, liquid 0.006221 g, spray 12 s, fallbacks 0
+t 0.600 ms, 8445 steps, dt 6.83e-08 s, wall 348 s, outlet 0.003763 kg/s, T_max 2000 K, 1277 parcels, liquid 0.00891 g, spray 17 s, fallbacks 0
+t 0.700 ms, 9908 steps, dt 6.82e-08 s, wall 422 s, outlet 0.005453 kg/s, T_max 3302 K, 1969 parcels, liquid 0.012 g, spray 26 s, fallbacks 0
+t 0.800 ms, 11389 steps, dt 6.69e-08 s, wall 494 s, outlet 0.007613 kg/s, T_max 3353 K, 2625 parcels, liquid 0.01547 g, spray 36 s, fallbacks 0
+t 0.900 ms, 12899 steps, dt 6.57e-08 s, wall 558 s, outlet 0.01068 kg/s, T_max 3366 K, 3512 parcels, liquid 0.01931 g, spray 46 s, fallbacks 0
+t 1.000 ms, 14434 steps, dt 2.79e-10 s, wall 626 s, outlet 0.01406 kg/s, T_max 3375 K, 4700 parcels, liquid 0.02336 g, spray 60 s, fallbacks 0
+t 1.100 ms, 16008 steps, dt 6.23e-08 s, wall 695 s, outlet 0.01787 kg/s, T_max 3394 K, 6040 parcels, liquid 0.02711 g, spray 77 s, fallbacks 0
+t 1.200 ms, 17648 steps, dt 5.98e-08 s, wall 767 s, outlet 0.02327 kg/s, T_max 3408 K, 6980 parcels, liquid 0.03026 g, spray 99 s, fallbacks 0
+t 1.300 ms, 19348 steps, dt 5.81e-08 s, wall 854 s, outlet 0.03034 kg/s, T_max 3407 K, 7439 parcels, liquid 0.0328 g, spray 128 s, fallbacks 0
+t 1.400 ms, 21084 steps, dt 5.72e-08 s, wall 930 s, outlet 0.03712 kg/s, T_max 3401 K, 7550 parcels, liquid 0.03464 g, spray 156 s, fallbacks 0
+t 1.500 ms, 22837 steps, dt 5.7e-08 s, wall 1005 s, outlet 0.04348 kg/s, T_max 3416 K, 8088 parcels, liquid 0.03535 g, spray 187 s, fallbacks 0
+t 1.600 ms, 24593 steps, dt 5.69e-08 s, wall 1080 s, outlet 0.04932 kg/s, T_max 3408 K, 7685 parcels, liquid 0.03429 g, spray 220 s, fallbacks 0
+t 1.700 ms, 26350 steps, dt 5.7e-08 s, wall 1176 s, outlet 0.05385 kg/s, T_max 3411 K, 6913 parcels, liquid 0.03311 g, spray 259 s, fallbacks 0
+t 1.800 ms, 28102 steps, dt 5.72e-08 s, wall 1263 s, outlet 0.05797 kg/s, T_max 3395 K, 6389 parcels, liquid 0.03202 g, spray 291 s, fallbacks 0
+t 1.900 ms, 29847 steps, dt 5.75e-08 s, wall 1348 s, outlet 0.06211 kg/s, T_max 3404 K, 6139 parcels, liquid 0.03103 g, spray 323 s, fallbacks 0
+t 2.000 ms, 31581 steps, dt 5.79e-08 s, wall 1433 s, outlet 0.06492 kg/s, T_max 3397 K, 5961 parcels, liquid 0.03024 g, spray 354 s, fallbacks 0
+hot trace: T 3450 K at step 32873 (t 2.074958 ms), cell 2.074958172e-03,32873,5.8142e-08,0,2,1.000,1.013,3450.02,1.034009e+06,4.634978e-01,31.784,-19.467,3.79206e-02,3.72737e-02,7.86223e-01,1.11441e-01,0.13886,1.799494e+06,0.000000e+00,0.000000e+00,0,0.0000e+00
+t 2.100 ms, 33304 steps, dt 5.82e-08 s, wall 1500 s, outlet 0.06367 kg/s, T_max 3481 K, 5770 parcels, liquid 0.0298 g, spray 379 s, fallbacks 0
+t 2.200 ms, 35016 steps, dt 5.85e-08 s, wall 1624 s, outlet 0.06197 kg/s, T_max 3524 K, 5831 parcels, liquid 0.03035 g, spray 400 s, fallbacks 1963
+t 2.300 ms, 36722 steps, dt 5.87e-08 s, wall 1680 s, outlet 0.0581 kg/s, T_max 3470 K, 6307 parcels, liquid 0.03137 g, spray 420 s, fallbacks 3094
+t 2.400 ms, 38423 steps, dt 5.88e-08 s, wall 1734 s, outlet 0.05484 kg/s, T_max 3402 K, 6768 parcels, liquid 0.0323 g, spray 441 s, fallbacks 3094
+t 2.500 ms, 40120 steps, dt 3.33e-08 s, wall 1800 s, outlet 0.05261 kg/s, T_max 3397 K, 7180 parcels, liquid 0.03307 g, spray 466 s, fallbacks 3094

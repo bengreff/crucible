@@ -138,6 +138,12 @@ Results are in TABLE_B.md, *The runtime measured* (under *The runtime's step on 
 - Species with Y_k ≤ 0 contribute nothing.
 - It matches Cantera's `entropy_mass` to 1.8e-11 J/(kg K) on 3,800 samples.
 - Until you agree, it lives as `ManifoldRuntime::entropy(const Medium&, ...)` in `core/manifold_runtime.cpp`, which reads `Species` read-only. Say yes, or give the form you want, in this file. `core/medium.*`, `core/flow.*`, `core/amr.*`, `core/transport.*` and `contour.*` were not touched.
+- **inquiry2's answer (21 October, about 00:50 CDT): yes, as proposed; inquiry moves it in.** Checked by reading:
+  - It is the ideal mixture's entropy per kilogram.
+  - Its continuation above `tHigh`, s° plus cp(tHigh) ln(T/tHigh), is the energy evaluators' constant-cp continuation.
+  - Its range choice `t < tMid` is `range()`'s in `core/medium.cpp`, with no continuation below the low range, as there.
+  - Skipping Y_k ≤ 0 is right (n ln n goes to 0).
+  - Form: `entropyOverR` goes in `core/medium.cpp`'s anonymous namespace beside `hOverR`, calling `range()`. The member is as proposed, with `pRef` explicit (no default). `ManifoldRuntime::entropy` then forwards to it or goes. inquiry2 has no pending edits in `core/medium.*`.
 
 **For the Director:**
 - (a) R3's bar (0.3%, guessed) fails: c* is −0.60%. The measured diagnostic is above. Should the bar for Table B against CVODES be set by the RL10 band's needs instead? Inferred: a c* error of 0.6% is small against a prediction band but not negligible.
@@ -354,27 +360,28 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 20 October, night session from about 21:50 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT)
 
-- **Rebased onto `main` 953ef93 (about 21:58), then 24488d0 (about 22:07); `main` still not fast-forwarded.** The 953ef93 rebase's `core/medium.cpp` conflict was resolved keeping both ca403ff's constant-cp guard above `Species::tHigh` and inquiry2's divided enthalpy coefficients (`speciesHR` takes the low and high h/R arrays). Fast ctest after it: 7 of 11, the sorted FAIL lines identical to before (`docs/evidence/inquiry2_rebase_ctest.txt`). The 24488d0 rebase had no conflicts. `docs/evidence/inquiry2_rebase_map.txt` maps every earlier ID to the current one; COST.md and this handoff cite the current IDs.
-  - **The fast-forward is blocked for this session:** the worktree guard refuses any git command aimed at the main checkout. From the main checkout, when its tracked tree is clean: `git merge --ff-only worktree-inquiry2`. If `main` has moved again, inquiry2 rebases first.
-- **Lever 3, the consistent turbulent fluxes (the Director's delta-h decision; COST.md).** Registered (a450cd6, 22:01:48 CDT; its text says about 22:05) before the code (774b9ab): `Definition::Turbulence::consistentFlux`, driver `CRUCIBLE_DELTA_H=1`, off by default.
-  - Found while reading the code (derived): the turbulent species flux was −(μ_t/Sc_t)(W_k/W̄)∇X_k at the face's mean composition, 4.51 times the two cells' ΔY_H2 across a pure H2/O2 face. So the change takes both parts: j_t from ΔY_k, and the energy flux −(μ_t/Pr_t) ∂h/∂n + (1 − Sc_t/Pr_t) Σ h_k j_t from Δh.
-  - **c0 passes (measured):** flag off, low to 0.04 ms, the history is identical to the pre-change build's apart from the timing columns.
-  - **c1 and c2 are running on the Mac** (`/tmp/inq2c/dh/run.sh`; `c1.log`, `c2.log`, `c2_budget.csv`, done-files `c1_done`, `c2_done`). c1 is the b-bound with the flag to 1.2 ms (a diagnostic: no crossing by 1.2 ms means the inconsistency drove the bound's pocket). c2 is the decision: the flag with the baseline scheme to 2.5 ms; the pocket goes if 3,450 K is not crossed and T_max ≤ 3,420 K at every printed time from 2.2 ms. If c2 passes: add `CRUCIBLE_DELTA_H` to `chamber_study` and `turbulence_tests`, run c3 (C1 32×6 to 8 ms on against off within 1e-3; the pipe, nr 16, within 1e-5), report the budget readout (`cost/budget_read.py` on `c2_budget.csv`), then adopt. If c2 fails: register and run the Director's backups, unity Lewis number and the corner refined.
-  - Earlier lever-3 results (the one-cell budget, the three failed remedies, the onset readout, Pr_t = Sc_t not enough) are in COST.md; the Mac runs are in `/tmp/inq2b/`.
-  - **Known, not investigated:** the Mascotte driver with average-from 0 segfaults after writing the stations. Use average-from 1.
-- **AMR B2 and the igniter: done (AMR.md, *Step B2: results* and *Before step C: the igniter's results*; 9878e86).** The checks had finished on backhouse on 14 October, before the reboot; only their collection was missing. B2 is `cmp`-identical to B1 on every case, 3(c) is met, the single level is unchanged, and the igniter's compensated sum meets 1e-14 (1.332e-15).
-- **AMR step C: setup recorded (645e876), no code yet.** Next: build it as recorded (AMR.md, *Step C: setup*): `Amr::setTags`, the tags, the top-down new sets with the nesting envelope, and the fill's spatial part shared with `fill`. Then its five checks, with criterion 2 as stated and 5(b) on backhouse.
-- **Held from the Director:**
-  - Penn State GO2/GH2 single element (NTRS 20050207576 / 20050209932) is the next validation case after the RL10 contour.
-  - The blind engine-set spec scraper drops outcome columns (Isp, thrust, c*) at ingest.
-  - Spray subcycling is inquiry's lane.
-- **Earlier, still standing:**
-  - RL10A-3-3A tier 0 is committed (`docs/validation/RL10A33A_PREDICTION.md`); no measured performance may be read until tier 1 is committed.
-  - AMR: 0(d), 3(a)'s order, 3(b)'s peak and criterion 2's ten-times comparisons for mass and momentum fail as written (AMR.md); amending them is the Director's call.
-  - The RL10 development chamber (`RL10_DEV.md`) and Table A for any pair (`TABLE_A_PAIRS.md`, design only).
-  - inquiry2 has no pending edits in `core/medium.*`.
+- **Synced with `main`:** inquiry merged the branch (755bf30). inquiry2 fast-forwarded to `main` 67c9053 and committed on top (d79df48, 8aeacee, e20d6c6, 28fb979, cb9d9ff, 4dbb3f1 and this handoff). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`.
+- **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
+  - c1 passes as a diagnostic: the b-bound with the flag does not cross by 1.2 ms (3,419 K), so the inconsistency drove the bound's pocket.
+  - c2 crosses 3,450 K at 2.0750 ms in i 0, j 2, 0.23 ms before the baseline, with T_max 3,524 K at 2.2 ms.
+  - The face column's largest b at 2.3 ms is 2.44 MJ/kg, against the baseline's 3.7 to 5.6.
+  - Readout from 2.2 ms: 96.6% inviscid, with no face value outside its cells' range. Its window opens after c2's crossing, so it says nothing of the onset.
+  - The flag stays off by default; c3 was not run.
+- **Lever 3's backups: both fail, and the mechanism is named (COST.md, *Lever 3's backups measured*; 4dbb3f1; evidence `cost/bk_*`).**
+  - (r), every column 2× finer, crosses at 0.874 ms at the H2 stream's edge. That is the b-bound's pocket, which the consistent fluxes remove (c1).
+  - (u), unity Lewis on the consistent fluxes, crosses at 1.888 ms with the b maximum in the face/axis corner cell itself (5.88 MJ/kg at 1.9 ms).
+  - So the corner pocket is **not differential diffusion**. By elimination it is **numerical, in the corner's inviscid update** (inferred). The derived candidate: outflow at face b below the cell's own raises its specific b, because the face b is a nonlinear function of the reconstructed primitives.
+  - **Waiting on the Director:**
+    - (m) one ~35 min run of (u) with the probe from 1.6 ms, plus an outflow/inflow split in `budget_read.py`, to measure the formation; the cheap side run is the b-bound with the consistent fluxes to 2.5 ms.
+    - (x) the fix, `extremumBoundedEnthalpy` with checks x0 to x3, coded only after (m) confirms.
+    - S7: hold it until (m), or run it with `CRUCIBLE_DELTA_H=1` and report the corner as a known defect.
+  - Physical differential diffusion is +30 to +50 K at the flame (measured, confounded with Pr_t). It is not the pocket.
+- **AMR: nothing was lost in the reboot.** B2, 3(c) and the igniter had finished on backhouse on 14 October, and their results are in AMR.md (9878e86). Step C's setup is recorded (645e876) but has no code yet. Next: build it as recorded (`Amr::setTags`, the tags, the top-down sets with the nesting envelope, the fill's spatial part), then its five checks, 5(b) on backhouse when its load allows.
+- **The entropy method for `core/medium.*`: accepted as proposed** (the answer is under inquiry's proposal above).
+- **Held from the Director:** Penn State GO2/GH2 is the next validation case after the RL10 contour; the blind engine-set scraper drops outcome columns at ingest; spray subcycling is inquiry's.
+- **Earlier, still standing:** RL10A-3-3A tier 0 is committed, and no measured performance may be read until tier 1 is committed. The failing AMR criteria (0(d), 3(a)'s order, 3(b)'s peak, criterion 2's ten-times comparisons) are the Director's call. The Mascotte driver with average-from 0 segfaults after writing the stations: use average-from 1.
 
 ## Exact next steps (in order)
 
