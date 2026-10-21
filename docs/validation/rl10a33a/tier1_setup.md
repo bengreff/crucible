@@ -135,3 +135,31 @@ The cup is not resolved (G7), so the plan's decision 5 branch applies:
    - `Definition::wallTemperature` is one value, so the face's post tips and the chamber wall are both at 567 K.
    - The face of a transpiration-cooled injector runs near the H2's temperature.
    - Either a per-segment wall temperature, or the face's wall segments treated as adiabatic, is needed. With (a), the wall share of the face is only the post tips and the slots' complement within the rings.
+
+## The LOX drop size and its release (stated 21 October 2026, about 02:25 CDT, before its code)
+
+The skeleton puts the LOX in as Rosin-Rammler parcels with SPRAY.md's Burick bracket, evaluated at the element's dimensions (member 5: the central SMD, with the bracket's two ends as the member's runs). This applies the rule that Mascotte's prediction states (`docs/validation/MASCOTTE_A10_PREDICTION.md` §3) to tier 1. Burick's data are wax/GN2 cold flow, not connected to the RL10. Nothing here reads an RL10 measurement.
+
+- **The group.** Each ring's (V_g − V_L)/(V_L MR), where MR is the ring O/F and both velocities are at G4's nominal face pressure. For the central case it is 5.03 (G4), inside the range of Burick's data (about 0.3 to 11). So the case needs no extrapolation rule, unlike Mascotte at 68.4.
+- **The central diameter.**
+  - D̄/D_L is read from the digitised curve (`docs/evidence/spray/burick_fig38.md` §1.4), interpolated linearly in log-log between the table's neighbouring points. D_L is the post's inner diameter d_L.
+  - The ordinate is used as printed: the report names a property correction (Ingebo) but does not give it.
+  - *Inferred* direction: LOX's viscosity is far below the wax's, which tends toward smaller real drops. That is a declared limit of the bracket, as at Mascotte.
+- **The exponent.** q = 3.207, solved from Burick's Eq. (5), D30 = 0.455 D̄ (Mascotte §3). Then SMD = X / Γ(1 − 1/q) with X = D̄ / (ln 2)^(1/q), so SMD = 0.851 D̄.
+- **The bracket (member 5's two runs).**
+  - SPRAY.md's rule: "the scatter band's low and high diameters at the case's correlating group".
+  - Near group 5 the digitisation holds three markers (x 3.9 to 5.4), all within 4% of the curve. Three points cannot bound a scatter band.
+  - So the band is the data's scatter about the curve as the digitisation states it for the populated range: high = curve × 1.3, low = curve / 1.7 (its "+30%/−40%").
+  - Readings not taken, so the choice is visible:
+    - the local markers (a band of about ±4%);
+    - the flagged low point's factor of 2.4 below the curve (Mascotte also declined to anchor on it).
+- **The release.**
+  - The drops are released from each ring's LOX slot over Porcheron et al.'s core length, as at Mascotte: L/D = 2.85 (ρ_g/ρ_l)^−0.38 Oh^0.34 M^−0.13, with D = d_L, ρ_g the H2 at G4's state, M = J, and Oh = μ_l / √(ρ_l σ d_L) at 101.17 K from the NIST table that the spray loads.
+  - Lasheras and Hopfinger's 6 M^−0.5 is reported beside it.
+  - The Spray releases a Rosin-Rammler injector's drops from the slot's outer radius. A ring's slot stands for 27 round jets, so the release surface is the slot's edge, not each jet's. This is a declared approximation of choice 1; the slot is 0.35 to 3.4 mm wide.
+- **Members.** A member that changes d_L, t or h changes the velocities, the group and D_L, so the driver evaluates its SMD at its own group. A member's central reading is the curve. Member 5's ends are the band at the central element.
+
+**G8 (reported, with one bar):**
+- The bar: every ring's group lies inside the digitised curve's table (0.23 to 14.5), so the reading is an interpolation.
+- Reported: D̄/D_L and the SMD at the centre and the band's two ends; q, with D30/D̄ from it; and both core lengths.
+- `Spray` is constructed with the central SMD, q and the Porcheron length (G6 at the merged layout).
