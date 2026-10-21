@@ -271,3 +271,25 @@ A rerun of low with `CRUCIBLE_HOT_TRACE=3450` (e18c710; it reproduces the origin
 - Wall-row order: 2.019 and 1.998 off; 2.069 and 2.024 on.
 
 The order is not lower, but the entropy error is 26% larger with the flag at each grid. The total-enthalpy L1 is 28% smaller (1.72e-5 against 2.37e-5 at 160×24). Mass flow agrees with the flag-off value to 1e-7.
+
+**The side run (s), the b-bound with the consistent fluxes: passes (c2)'s rule (measured; `/tmp/inq2c/m/s_history.csv`, `s_budget.csv`, scored about 02:05 CDT).** Low to 2.5 ms, exit 0, with `CRUCIBLE_DELTA_H=1 CRUCIBLE_BOUND_B=1`.
+- 3,450 K is not crossed: no hot trace was written, and the largest T_max in the history is 3,418.8 K, at 1.2 ms.
+- T_max at the printed times: 3,406.7 K at 2.2 ms, 3,407.1 at 2.3, 3,406.6 at 2.4 and 3,407.3 K at 2.5 ms, all at most 3,420 K.
+- Table fallbacks 0. Budgets: mass 1.5e-14, energy 1.0e-14.
+- Reported alongside: the face column's largest excess b at 2.3 ms is 0.46 MJ/kg (j 6), against the baseline's 3.7 to 5.6 MJ/kg. Its largest from 2.2 to 2.5 ms is 0.49 MJ/kg. With no pocket, the registered readout's shares have nothing to attribute and are not run.
+- **This contradicts the derivation in *the mechanism*, which predicted a failure.** That derivation says a face's b inside its two cells' range can still sit below the upwind cell's own b, so the bound should not stop the outflow case. The face column's excess staying an order of magnitude below the baseline's makes timing luck unlikely (inferred). Why the bound works here is open (not measured).
+
+**(x3), the pipe: the on/off comparison passes; criterion (b)'s mass budget fails with and without the flag (measured; `xout/pipe_off.log`, `pipe_on.log`).** nr 16 to 4.0 ms, flag on against off:
+- u_b 105.13615366 against 105.13615775 m/s: −3.9e-8 relative.
+- c_f 0.0093808356 against 0.0093808352: +4.3e-8.
+- T_axis 304.782926 K in both, so T_axis − T_wall agrees to better than 2e-7.
+- (a), settledness and the force balance, passes in both (force balance 9.0e-9 on, 1.3e-9 off). (c), against the 1-D reference, passes in both (u_b 5.0e-5, c_f 1.0e-4, T_axis − T_wall 5.9e-5).
+- (b)'s mass budget fails in both: 1.48e-11 on and 4.07e-12 off, against 1e-12. That failure predates (x): TURBULENCE_C2.md records it at 5.7e-12 to 6.1e-11 (stored-density rounding, inferred). The flag-on value is 3.6 times the flag-off one but inside that recorded range. The momentum and energy budgets pass in both.
+- So "(a) to (c) still pass" holds for (a) and (c). (b) fails on and off alike, as before (x).
+
+**(x3-C1b), 64×12: passes (measured; `xout/c1b_off.log`, `c1b_on.log`).** Both runs settled (drift over the last ms at most 6.1e-8). Flag on against off:
+- c* 2,446.58 against 2,444.92 m/s: +6.79e-4, within the registered 9.2e-4. The shift fell by a factor of 2.7 from 32×6 (1.84e-3), between first- and second-order shrinkage.
+- Vacuum Isp 427.45 against 427.42 s: +7e-5. Vacuum thrust 1,676.74 against 1,676.63 N: +6.6e-5. Both within 1e-3.
+- Budgets: mass −4.5e-13 and energy 1.1e-11 on; −1.1e-12 and −3.3e-11 off.
+- Against the 2-D prediction: c* +0.29% off and +0.36% on.
+- So the 32×6 c* shift is consistent with truncation error that shrinks with the grid (derived), and (x3) is passed by all three cases on the registered rules: C1 through C1b, the pipe's comparison, and the nozzle.
