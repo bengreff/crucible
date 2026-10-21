@@ -503,7 +503,41 @@ The code follows the setup: `Amr::setTags`, `Amr::regrid`, and `Amr::spread`, th
   - Criterion 2's case with the fixed pattern to 1 ms: the dump is `cmp`-identical (8,429 base steps both).
   - C1 `eqtt` 64 x 12 to 1 ms, single level: the state dump is `cmp`-identical.
   - So moving the fill's spatial part into `spread` changed nothing it computes.
-- **Checks 2 to 5 have not been run.** They need a tags option in `crucible_amr_budget` (checks 2, 4 and 5) and a unit case in `amr_tests` (check 3).
+- **Checks 2 to 5 and the regressions after the fill change** ran on the Mac on 21 October at abdda6d, 4 threads unless stated. Evidence is in `/tmp/inq2c/c/c45/` and `/tmp/inq2c/c/regress/`, with the first fill's run in `/tmp/inq2c/c/c45_old/` (b2e13ce). All values are measured unless labelled.
+- **Check 2: failed on the first fill, then passed after the fix.**
+  - The first fill (b2e13ce) gave a content error of 4.6e-14 over the parent and 1.6e-14 over the children's gross content, against a limit of 1e-14.
+  - The cause was the centroid in absolute coordinates. Energy carries formation enthalpies and changes sign, so near the throat a parent's energy can be close to zero, and an error taken relative to it is ill-conditioned. That is why both measures are printed.
+  - With the centroid taken from the parent's (abdda6d), the driver judges the largest error over all 1,173 regrids of criterion 2's case to 8 ms, not only the first regrid after light-off. It is 5.128e-16 over the parent and 4.298e-16 over the gross content (limit 1e-14). Met.
+- **Check 4 (criterion 2 as stated): met on the absolute bounds; the ten-times comparisons fail for mass and momentum, as with the fixed pattern.**
+  - Mass budget error over the largest mass: 1.753e-13 (limit 1e-12). Met.
+  - Ten times the single level's mass error is 6.02e-15. Not met as written.
+  - Energy: 7.457e-15 (limit 1e-12). Ten times the single level's is 4.02e-14. Both met.
+  - Axial momentum: 1.092e-14 (limit 1e-12). Met. Ten times the single level's is 1.14e-16. Not met as written.
+  - Igniter: |E / 0.5 J - 1| = 2.776e-15 (limit 1e-14). Met.
+  - The mass error is 23 times the fixed pattern's (7.540e-15). The first fill gave about the same (1.8e-13), so the centroid is not the cause.
+  - Inferred, not tested: the rounding from replacing newly covered base cells by their children's mean, at each of 1,173 regrids.
+  - Printed, not judged:
+    - 1,173 regrids changed the pattern. Level 1 had 500 to 504 of its 768 cells active from 3.5 ms on, and ended with 500.
+    - With tags: c* 2446.43 m/s, vacuum thrust 1676.79 N, 67,699 base steps, 227.1 s of wall.
+    - Fixed pattern: 2474.44 m/s, 1677.93 N, 67,813 steps, 228.8 s.
+    - Single level: 2477.43 m/s, 1681.83 N, 67,624 steps, 30.8 s.
+    - The tagged run's c* is 1.1% below the fixed pattern's. Criterion 4 waits for step D's thresholds.
+- **Check 5(b): met.** The 1-thread run (AMR only) and the 4-thread run gave `cmp`-identical dumps, which include the composite budget, over 1,173 regrids. Their printed budgets, c* and thrust also agree. The first fill had also given identical dumps.
+- **Regressions after the fill change (abdda6d): rounding-level differences only, as expected.**
+  - 1(b): largest |u - u0| / a0 on levels 0 to 2 is 5.936e-16, 3.577e-16 and 4.391e-16, and |p / p0 - 1| is 3.331e-16, 4.441e-16 and 3.331e-16. Met.
+  - 1(a): largest |u| / a0 is 2.567e-14, 8.241e-14 and 2.015e-13, and |p / p0 - 1| is 2.665e-15, 8.438e-15 and 2.176e-14, the same as B2's. Met.
+  - 3(a): the orders are 1.591 and 1.529, and the reflection on 768 columns is 3.390e-4.
+  - 3(b): the judged pressures are 5.458e-3, 3.657e-3 and 1.384e-3.
+  - So the five failures as written are B1's, at B1's values.
+  - Check 3 still passes: 202 regrids, largest 8.708e-16.
+  - Criterion 2's fixed pattern to 8 ms:
+    - Budget errors: mass 7.540e-15, energy 2.670e-16, momentum 9.726e-16, igniter 1.554e-15.
+    - The verdicts are B2's, except the igniter, which is now met through its compensated sum.
+    - c* 2474.44 m/s, vacuum thrust 1677.93 N, outlet 0.400053 kg/s and 67,813 base steps are identical to the recorded values.
+  - The same case to 1 ms: the dump differs from check 1's (3d8716c), as the fill change implies.
+    - c* 2554.92 m/s, vacuum thrust 1408.02 N and 8,429 base steps are the same.
+    - The budget errors change only at rounding: mass -5.503e-16 against 4.586e-16, and energy 2.361e-15 against 1.653e-15.
+- **Step C is complete to its five checks.** The open items are criterion 2's two ten-times comparisons, which also fail with the fixed pattern, and the tagged run's 23-fold mass error, whose cause is inferred, not tested.
 
 ## Deviations from the plan's text
 
