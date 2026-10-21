@@ -415,7 +415,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:10 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:25 CDT)
 
 - **Synced with `main`:** inquiry merged the branch (755bf30). inquiry2 fast-forwarded to `main` 67c9053 and committed on top (d79df48, 8aeacee, e20d6c6, 28fb979, cb9d9ff, 4dbb3f1 and this handoff). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`.
 - **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
@@ -430,12 +430,14 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
   - So the corner pocket is **not differential diffusion**. By elimination it is **numerical, in the corner's inviscid update** (inferred). The derived candidate: outflow at face b below the cell's own raises its specific b, because the face b is a nonlinear function of the reconstructed primitives.
   - **(m) confirms the mechanism (COST.md, *(m), the readout*; 07d474c registered it, fb1e558 has the result; `cost/m_readout_2026-10-21.txt`).** Over the corner's local-maximum intervals its b rises 0.955 MJ/kg, and outflow through the plate column's high-z face supplies 99.3% of the positive contributions (the mixture part is negative). That face is built from the one-sided axial slope.
   - **(x) `extremumBoundedEnthalpy` is coded (fb1e558; form and checks registered in c05c6b4), and x0 passes**: flag off is identical to e20d6c6.
-  - **(x)'s checks so far (COST.md; backhouse `/home/greff/crucible_x/xout`, synced at fb1e558 and x1b's fix):**
-    - x1 failed as registered: the test's pure-air inflow let a variable-gamma contact in at the inlet. x1b sets the inflow to the first cell's composition and passes (h never rises with the flag).
-    - x3 passes: C1 32x6's c* shift (1.84e-3) halves at 64x12 (C1b, 6.8e-4, registered limit 9.2e-4); the pipe's on/off values agree to 4e-8 (its 4b mass budget fails on and off, as before (x)); the nozzle's entropy order is 2.035 on and 2.010 off.
-    - x2 (`x2.log`, low to 2.5 ms, consistent fluxes on, judged by (c2)'s rule) runs in tmux `inq2x`, `x2_done` at the end. Status from the Mac: `ssh backhouse "wsl bash -l" < /tmp/inq2c/x/bh_x2.sh`.
-  - **The side run (s), the b-bound with the consistent fluxes, passes (c2)'s rule** (T_max 3,407 K from 2.2 to 2.5 ms, no crossing, face-column b 0.46 MJ/kg at 2.3 ms against the baseline's 3.7 to 5.6), against the derivation's prediction. Why is open.
-  - **S7 is held until x2 passes** (the Director). Then AMR step C.
+  - **(x) passes all its checks and is adopted for liquid runs (COST.md; 2983418).**
+    - x0 passes (flag off identical to e20d6c6). x1 failed as registered (the test's pure-air inflow let a variable-gamma contact in); x1b fixes the inflow and passes.
+    - x2 passes (c2)'s rule: the low case to 2.5 ms with (x) and the consistent fluxes, no crossing, T_max 3,396 to 3,398 K from 2.2 to 2.5 ms, face-column b 0.28 MJ/kg at 2.3 ms against the baseline's 3.7 to 5.6.
+    - x3 passes: C1's c* shift halves from 32x6 to 64x12 (1.84e-3 to 6.8e-4); the pipe agrees to 4e-8 (its 4b mass budget fails on and off, as before (x)); the nozzle's entropy order is 2.035 on and 2.010 off.
+    - **Adopted (the Director):** the Mascotte driver sets (x) and the consistent fluxes on by default and prints them; `CRUCIBLE_DELTA_H=0` / `CRUCIBLE_EXTREMUM_H=0` turn each off. Engine defaults are unchanged, so the gas cases are untouched. MASCOTTE_A10_PREDICTION.md section 7 records the scheme change before any production result.
+  - **The side run (s), the b-bound with the consistent fluxes, also passes (c2)'s rule** (T_max 3,407 K, 9 to 11 K above x2), against the derivation's prediction. Why is open; it is not adopted.
+  - **S7 is unblocked.** Its timing is the Director's call. Run it from a tree at 2983418 or later (the defaults carry the scheme). Pace on backhouse from x2: about 560 s per simulated ms at 239x70 on 5 threads late in the run, so about 4 to 5 h per 25 ms run if the parcel count stays level (inferred); blob-fine at 478x70 about 4 times that. The backhouse runs are in `/home/greff/crucible_x/xout` (x2, c1, c1b, pipe, conv); tmux `inq2x` and `inq2c1b` have finished.
+  - **Then AMR step C** (below).
   - Physical differential diffusion is +30 to +50 K at the flame (measured, confounded with Pr_t). It is not the pocket.
 - **AMR: nothing was lost in the reboot.** B2, 3(c) and the igniter had finished on backhouse on 14 October, and their results are in AMR.md (9878e86). Step C's setup is recorded (645e876) but has no code yet. Next: build it as recorded (`Amr::setTags`, the tags, the top-down sets with the nesting envelope, the fill's spatial part), then its five checks, 5(b) on backhouse when its load allows.
 - **The entropy method for `core/medium.*`: accepted as proposed** (the answer is under inquiry's proposal above).
