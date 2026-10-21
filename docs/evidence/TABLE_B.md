@@ -395,6 +395,54 @@ With η left on h2o2.yaml's scale the whole run is 47.87%, so the conversion mov
   - the runtime cost of s per cell (it is not linear in Y: one log per species);
   - its span on branches that barely react.
 
+## The specific entropy as progress variable: its checks, stated before its code (20 October 2026, 19:25 CDT)
+
+The Director approved s, on the second-law argument above. These checks are stated before any code, which comes next session. Nothing below is measured yet.
+
+- **The variable.** c = s, the mixture's specific entropy, s = Σ Y_k (s_k°(T) − R_k ln(X_k p / p°)).
+  - At build it comes from Cantera along each branch.
+  - At run time it comes from the cell's own T, ρ and Y on the same NASA-7 data. The 7th coefficient is already in `Species`. Above 6,000 K it uses the constant-cp continuation of the section below, s° continued as cp ln(T / 6,000 K).
+- **A consequence of the argument, found while stating it (derived): both branches now approach equilibrium from below.**
+  - At fixed (u, ρ, elements), equilibrium is the entropy maximum. So the upper branch, from the complete-combustion products, also rises in s toward s_eq. It does not fall toward it, as Y_H2O does.
+  - The runtime's coordinate (lower branch 0 to 1, upper 1 to 2, "The runtime" below) therefore cannot tell the branches apart by c alone.
+  - **The rule, stated now (engineering):** a cell takes the branch whose blended curve, at the cell's s, is nearer the cell's composition, by the largest |ΔY_k| (the snap's own measure). Ties and both-above-ΔY_max cases go to CVODES, counted.
+  - **Check E0:** on the C1 samples, the share of cell updates that the rule sends to CVODES. It is reported and counted in the fallback rate.
+- **E1. 2(a)'s turn-back: zero by construction, measured anyway.** The bar stays as stated: no decrease above 1e-9 of the branch's span, until within 1e-4 of the span from s_eq, on every branch of three tables: the small one, the O/F 4 to 6 one, and the C1-range one (whose 83 low-density nodes fail for every linear candidate). The N gate is measured on the same branches.
+  - A turn-back above the bar would mean an irreversible reaction or a thermo inconsistency between the builder's s and the integrator's. It would be reported, not tuned.
+- **E2. Resolution near equilibrium: the c nodes are clustered toward s_eq.** The entropy production is quadratic in the distance from equilibrium, so s_eq − s ∝ |Y − Y_eq|² there (derived). Nodes uniform in s would leave the last approach with almost no points.
+  - **The node rule:** nodes are uniform in the distance, at s_eq − s = (s_eq − s_0)(1 − ξ)², with ξ uniform over the existing 30 lower-branch and 9 upper-branch slots. The early geometric nodes in Y_H2O for the induction are kept, mapped through s.
+  - λ = (ds/dt) / (s_eq − s) stays finite at equilibrium. With a linear relaxation of rate k it tends to 2k, so the exponential update of the stated step still lands on s_eq exactly.
+  - **The check:** at the midpoint between every pair of c nodes on every branch, the table's T and Y (interpolated linearly in s, as the lookup does) are compared with the trajectory's own state at the same s. For that, the builder integrates to the midpoints as extra output points.
+  - **Bars:** |ΔT| ≤ 3 K (2(b)'s bar and reason) and max_k |ΔY_k| ≤ ΔY_max = 0.01 (the snap's bar). Both are reported separately for the last quarter of the span, where s flattens. A fail there adds nodes toward s_eq. It does not relax a bar.
+- **E3. Span on weakly reacting branches.** On frozen or barely reacting branches, s_eq − s_0 can sit near round-off. Every branch's span is reported against 1e-9 |s| (the turn-back bar's scale). A branch under it is treated as frozen, as now, and counted.
+- **E4. Cost per cell.** s needs one logarithm per species plus ln T at the cell's state, once per cell per reaction call, since the lookup inverts the blended curve at the cell's s.
+  - It is timed in isolation (ns per cell, `h2o2_highT`, 10 species), and as its share of the C1 32x6 step at the same threads.
+  - **Bar (guessed): under 5% of the flow step.** Over it is reported against criterion 6's 5 minutes, not tuned.
+- **E5. The fallback rate, rerun.** The same samples (`/tmp/c1fb/states_highT.csv`, h2o2.yaml's run re-expressed), then the samples of the h2o2_highT run in the next section, both classified against the C1-range table with s, by `tools/fallback_rate.py`. The Director's 1% bar applies, with E0's rejects counted.
+
+## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
+
+The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
+
+**The guard (`core/medium.*`, `adapters/reaction.cpp`).**
+- `Species::tHigh`: above it, cp is held at its tHigh value and h continues linearly, so e(T) keeps increasing. This continuation is labelled outside the model.
+- The loader sets tHigh to the top of the fits when the top is 6,000 K or more (h2o2_highT). GRI h2o2.yaml's fits end at 3,500 K and keep their extrapolation, which is monotone to 40,000 K, so every result on h2o2.yaml is unchanged.
+- The reaction step's CVODES integrates T with Cantera's own thermo, which extrapolates the fits above 6,000 K. So in a cell above 6,000 K the step and the flow disagree; the step's |ΔT| mismatch is already measured. Those cells are outside the model either way.
+- `ReactingFlow` now also checks tHigh between the flow's medium and the mechanism's.
+
+**The igniter, sized (sources from a Sonnet search, screened; no RL10 or Mascotte performance figure was read).**
+- **A spark is sub-grid.**
+  - Energies: 8 mJ (compact exciter) and 50 mJ (conventional) per spark (Tinker, NTRS 20210000596). Reliable multi-spark ignition needed 55 to 75 mJ (NTRS 20120011145). Generic exciters give 50 to 120 mJ at 100 to 300 sparks per second (US patent 10590887).
+  - That is at most about 36 W. Its kernel (about 1 mm, *inferred*) is far below C1's 5.2 mm cells. Spread over the igniter's 3.1 cm³ it heats the gas by kilojoules per kilogram, and cannot stand for the spark.
+  - So the model's igniter stands for a **torch**: hot gas at its flame temperature, about 3,100 K for an H2/O2 torch (Repas 1994, NASA TM-106493; taken from the indexed abstract, *provisional*).
+- **The torch's power: a declared range, 50 to 160 kW for C1 (*inferred*; no sourced torch flow was found).**
+  - The basis is a torch flow of 1 to 3% of C1's 0.4 kg/s (*guessed*) at the stoichiometric H2/O2 heating value, about 13.4 MJ/kg of mixture (120 MJ/kg of H2, one ninth by mass).
+  - The duration is kept at 1 ms from 0.2 ms: a torch runs through the start transient, and C1 lights within it.
+  - The run uses the low end, **50 kW (50 J over 1 ms)**.
+  - The former 300 J over 1 ms is 300 kW, about twice the range's top.
+- **What power cannot fix (*derived*).** At 0.2 ms the igniter's region holds propellant at about 0.007 kg/m³, because the nozzle is open to 1 kPa while the valve ramps. A volumetric deposit into that gas heats it at P / (ρ V), so any power drives a slow cell far above a torch's 3,100 K. A real torch adds its heat with its own mass, as hot gas.
+  - The physical representation would be a hot-gas inflow, or a deposit that stops at the torch temperature. It is a change in `core/flow.*` (inquiry2's), and is not made here.
+
 ## The runtime, stated before its code (14 October 2026, about 01:20 CDT)
 
 - **Why the corners cannot be read at the cell's c** (*derived*). Lean of stoichiometric, c_cp = 9 Y_H (all the hydrogen as water), so it rises with f_H. In cold burnt gas, c_eq is close to c_cp. A cell at its own c_eq, between f_H nodes f_1 < f < f_2, then has c above c_cp(f_1): the leaner corner's whole curve ends below the cell's c. The rich side is the mirror image. So *Y is interpolated linearly in c at each corner* would extrapolate at the nozzle exit and in the cooled wall layer, which are the places the table is for.

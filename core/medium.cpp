@@ -14,12 +14,23 @@ double cpOverR(const std::array<double, 7>& a, double t) {
 double hOverR(const std::array<double, 7>& a, double t) {
     return t*(a[0]+t*(a[1]/2+t*(a[2]/3+t*(a[3]/4+t*a[4]/5))))+a[5];
 }
+// One species' cp/R and h/R, with the constant-cp continuation above tHigh (Species).
+double speciesCpR(const Species& s,double t) {
+    const double c=std::min(t,s.tHigh);
+    return cpOverR(range(s,c),c);
+}
+double speciesHR(const Species& s,double t) {
+    if(!(t>s.tHigh)) return hOverR(range(s,t),t);
+    const auto& a=range(s,s.tHigh);
+    return hOverR(a,s.tHigh)+cpOverR(a,s.tHigh)*(t-s.tHigh);
+}
 }
 
 Medium::Medium(std::vector<Species> species):species_(std::move(species)) {
     if(species_.empty()) throw std::invalid_argument("A medium needs at least one species.");
     for(const auto& s:species_) {
         if(!(s.molarMass>0) || !(s.tMid>0)) throw std::invalid_argument("Species molar mass and mid temperature must be positive.");
+        if(!(s.tHigh>s.tMid)) throw std::invalid_argument("Species top temperature must be above its mid temperature.");
         specificR_.push_back(universalGasConstant/s.molarMass);
     }
 }
@@ -31,8 +42,8 @@ Medium Medium::perfectGas(Gas gas) {
 Medium::Properties Medium::properties(double t,const double* y) const {
     Properties out;
     for(std::size_t k=0;k<size();++k) {
-        const auto& a=range(species_[k],t);double w=y[k]*specificR_[k];
-        out.r+=w;out.e+=w*(hOverR(a,t)-t);out.cv+=w*(cpOverR(a,t)-1);
+        const auto& s=species_[k];double w=y[k]*specificR_[k];
+        out.r+=w;out.e+=w*(speciesHR(s,t)-t);out.cv+=w*(speciesCpR(s,t)-1);
     }
     return out;
 }
@@ -43,18 +54,18 @@ double Medium::gasConstant(const double* y) const {
 }
 double Medium::enthalpy(double t,const double* y) const {
     double h=0;
-    for(std::size_t k=0;k<size();++k) h+=y[k]*specificR_[k]*hOverR(range(species_[k],t),t);
+    for(std::size_t k=0;k<size();++k) h+=y[k]*specificR_[k]*speciesHR(species_[k],t);
     return h;
 }
 void Medium::speciesEnthalpies(double t,double* h) const {
-    for(std::size_t k=0;k<size();++k) h[k]=specificR_[k]*hOverR(range(species_[k],t),t);
+    for(std::size_t k=0;k<size();++k) h[k]=specificR_[k]*speciesHR(species_[k],t);
 }
 double Medium::internalEnergy(double t,const double* y) const {
     return enthalpy(t,y)-gasConstant(y)*t;
 }
 double Medium::cv(double t,const double* y) const {
     double c=0;
-    for(std::size_t k=0;k<size();++k) c+=y[k]*specificR_[k]*(cpOverR(range(species_[k],t),t)-1);
+    for(std::size_t k=0;k<size();++k) c+=y[k]*specificR_[k]*(speciesCpR(species_[k],t)-1);
     return c;
 }
 double Medium::soundSpeed(double t,const double* y) const {

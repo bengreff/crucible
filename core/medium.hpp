@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <cstddef>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -8,11 +9,14 @@ namespace crucible {
 struct Gas { double gamma{1.4}, specificR{287.05}; };
 // Thermally perfect species: NASA 7-coefficient polynomials, low range below tMid, high above.
 // cp/R = a0 + a1 T + a2 T^2 + a3 T^3 + a4 T^4,  h/(R T) = a0 + a1 T/2 + ... + a4 T^4/5 + a5/T.
+// Above tHigh, cp is held at its tHigh value and h continues linearly: a constant-cp continuation,
+// outside the model, so that e(T) keeps increasing (none when tHigh is infinite).
 struct Species {
     std::string name;
     double molarMass{};  // kg/kmol
     double tMid{1000};
     std::array<double, 7> low{}, high{};
+    double tHigh{std::numeric_limits<double>::infinity()};
 };
 // Molecular transport fits in the form of Cantera's GasTransport (degree 4 in ln T):
 // sqrt(mu_k / sqrt(T)) [Pa s], lambda_k / sqrt(T) [W/(m K)], and D_kj p / T^1.5 [m^2 Pa/s] for the

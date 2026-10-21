@@ -41,7 +41,8 @@ ReactingFlow::ReactingFlow(Flow& flow, const std::string& mechanism, int threads
   if (mine.size() != theirs.size())
     throw std::invalid_argument("Flow medium does not match the mechanism's species.");
   for (std::size_t k = 0; k < mine.size(); ++k)
-    if (mine[k].name != theirs[k].name || mine[k].low != theirs[k].low || mine[k].high != theirs[k].high)
+    if (mine[k].name != theirs[k].name || mine[k].low != theirs[k].low || mine[k].high != theirs[k].high ||
+        mine[k].tHigh != theirs[k].tHigh)
       throw std::invalid_argument("Flow medium species " + mine[k].name + " differs from the mechanism.");
 }
 

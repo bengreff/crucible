@@ -2,7 +2,7 @@
 """The share of a run's cell updates that a Table B's domain sends to CVODES (docs/evidence/TABLE_B.md,
 "The fallback rate in a C1-like run").
 
-Usage: fallback_rate.py <state samples CSV> <node report CSV> [candidate]
+Usage: fallback_rate.py <state samples CSV> <node report CSV> [candidate] [throat station]
 
 The state samples are tests/chamber_study.cpp's CRUCIBLE_STATE_SAMPLES (each cell's f_H, Z_N, eta and rho
 every 2 us, with the flow steps since the previous sample), with eta in the table's mechanism's energies
@@ -23,6 +23,9 @@ from collections import Counter
 def main():
     samples_path, report_path = sys.argv[1], sys.argv[2]
     candidate = sys.argv[3] if len(sys.argv) > 3 else "0"
+    # Optional: the throat station; then each figure is also given for the columns upstream of it
+    # (the chamber and the convergent section) and for the rest (the divergent nozzle).
+    throat = int(sys.argv[4]) if len(sys.argv) > 4 else None
     failed = {}
     for row in csv.DictReader(open(report_path)):
         if row["candidate"] != candidate:
@@ -66,11 +69,17 @@ def main():
         t = float(row["t"])
         end = max(end, t)
         f = float(row["f_H"]) if row["f_H"] not in ("nan", "-nan") else math.nan
-        rows.append((t, int(row["steps"]), classify(f, float(row["Z_N"]), float(row["eta"]), float(row["rho"]))))
-    for label, t0 in (("whole run", -1.0), ("last ms", end - 1e-3)):
+        rows.append((t, int(row["steps"]), classify(f, float(row["Z_N"]), float(row["eta"]), float(row["rho"])),
+                     int(row["i"])))
+    regions = [("", lambda i: True)]
+    if throat is not None:
+        regions += [(f", columns 0 to {throat - 1} (chamber and convergent)", lambda i: i < throat),
+                    (f", columns {throat} on (divergent)", lambda i: i >= throat)]
+    for (label, t0), (where, inside) in itertools.product((("whole run", -1.0), ("last ms", end - 1e-3)), regions):
+        label += where
         weight = Counter()
-        for t, steps, cause in rows:
-            if t > t0:
+        for t, steps, cause, i in rows:
+            if t > t0 and inside(i):
                 weight[cause] += steps
         total = sum(weight.values())
         fallback = total - weight["table"]

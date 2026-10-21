@@ -59,6 +59,11 @@ Medium ReactionSource::medium() const {
     Species s{speciesName(k), gas.molecularWeight(k), c[0], {}, {}};
     std::copy(c + 8, c + 15, s.low.begin());
     std::copy(c + 1, c + 8, s.high.begin());
+    // Fits that reach 6,000 K (h2o2_highT) get the constant-cp continuation above their top, labelled
+    // outside the model: there, extrapolated, they turn cv negative from 10,630 K (OH) and e(T) cannot
+    // be inverted. Fits to 3,500 K (GRI h2o2.yaml) keep their extrapolation, which is monotone to
+    // 40,000 K, so every result on them is unchanged.
+    if (thigh >= 6000) s.tHigh = thigh;
     species.push_back(s);
   }
   return Medium(species);
