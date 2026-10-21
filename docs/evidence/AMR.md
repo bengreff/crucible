@@ -460,6 +460,31 @@ Run from 05:02 to 05:04 CDT on 14 October, on 4 threads, the build before at 89b
 
 With criterion 2's igniter now met, criterion 2's remaining failures as written are the ten-times comparisons for mass and momentum (*Step B1: criterion 2 results*); amending them is the Director's call. Step C can start.
 
+## Step C: setup (recorded 20 October, before any of its code)
+
+Step C adds *Tags and regridding* to the B2 driver. What it builds, and the points that section left open:
+- **Interface.** `Amr::setTags(Tags)` turns regridding on; without it the driver is B2 as it stands, with the pattern set by `setActive`. `Tags` holds the regrid interval k_r (2 base steps) and the buffer b (2 cells); the throat's half-width (0.5 r_t) and level (2); the wall strip's target y+ (300); the dynamic thresholds (0.02, 0.05, 0.10, 0.05); and per-species weights for f_H (the H element's mass in each species over the species' mass, supplied by the driver, as for the budget probe; empty turns the f_H tag off). A threshold of zero or less turns its tag off.
+- **When.** Once before the first base step, then after every k_r-th accepted base step. The levels are then at the same time and averaged down, so a covered cell holds its children's mean. Regridding is serial and depends only on the state (criterion 5(b)). A redone base step does not regrid.
+- **Tags on level l** (0 to L - 1, over its active cells; every cell of the base), each from that level's refreshed primitives:
+  - **Across a face** to a face neighbour that is active on level l: f_H when |f_H,n - f_H,c| > 0.02; T when |T_n - T_c| > 0.05 min(T_n, T_c); p when |p_n - p_c| > 0.10 min(p_n, p_c). The difference across one face stands in for |grad| times the cell size, and the smaller of the two values for "T" and for "the smaller pressure". Both cells of the face are tagged.
+  - **Vorticity:** |du_r/dz - du_z/dr| Δ > 0.05 a_c, the gradients the fill's unlimited least-squares fit over the face neighbours (the axis mirror below j = 0), Δ = sqrt(V / (2π r_c)), the side of a square of the cell's meridional area.
+  - **The throat:** the cells within 0.5 r_t of the throat station in z, while l + 1 is at most the throat's level.
+  - **The wall strip:** a cell in the wall row is tagged while its first-cell y+ exceeds the target and l + 1 is at most the throat's level. y+ is the laminar estimate the chamber study reports (u_τ from the resolved wall shear, μ |u_t| / y over the first cell's centroid distance), because the AMR still refuses the wall functions (a deviation from the plan's "from the wall function's u_tau"). At the first regrid, before the flow exists, the whole wall row is tagged to the throat's level, as the plan says.
+- **New active sets, from the top down**, so that each nests in the new set below it with ghost width g:
+  - For l = L - 1 down to 0, the level-l set is the buffered tags (widened by b cells, Chebyshev, clipped to the domain), together with the parents of the level-(l + 1) cells within g of level l + 2's new active cells (the cells that nesting requires).
+  - Level l + 1's new active cells are the children of that set. The nesting then holds by construction; `Amr::check` still verifies it at the next step.
+  - Where no tag is set the level empties, and a level above an empty one is empty.
+- **The fill of new cells, from the bottom up.** It is the fill's spatial part (the limited least-squares slopes, conservative about the children's volume-weighted centroid; the partial densities, ρk and ρω scaled with the child's density; the parent's value if a child is not admissible; the parent's temperature as the guess), applied from level l's state at the regrid time to the parents of the cells that become active. That code moves into a function both paths share, and `fill` is unchanged in what it computes. A new cell's face neighbours on level l lie within g ≥ 2 fine cells, so they are active on the new level l and hold valid values.
+- **Cells leaving a level** keep nothing; the level below already holds their mean. If the pattern does not change, the regrid touches nothing (no fill, no new `check`).
+- **The budget.** The composite's content is the base's, which a regrid does not touch. The next average-down replaces a newly covered base cell by its children's mean, which differs from the parent by rounding only. The owned cells, where each level books its exchanges and its igniter share, are rebuilt by `check` after the regrid.
+
+**The checks, in order.**
+1. **Nothing moves without tags.** Criterion 2's case with the fixed pattern (B2) to 1 ms: a `cmp`-identical dump to the build before; C1 `eqtt` 64 x 12 to 1 ms single level: `cmp`-identical state.
+2. **The fill keeps content.** In criterion 2's case at its first regrid after light-off, for every parent whose children become active: the children's mass, momentum, energy and partial densities within 1e-14 relative of the parent's (printed: the largest).
+3. **Nesting under motion.** A unit case on 1(b)'s cylinder with two levels and a tag that moves one base cell per regrid across a level-1 boundary: `check` accepts every pattern, and the free-stream bounds of 1(b) hold on every level after 400 base steps.
+4. **Criterion 2 as stated.** C1 `eqtt` 32 x 6 plus one level, dynamic tags (f_H, T, p and vorticity, the throat and the wall strip) and regridding, to 8 ms: mass and energy budget errors below 1e-12 of the run's largest mass and |energy|, and at most 10 times the single-level 32 x 6 run's; the axial momentum balance likewise; the igniter within 1e-14. Printed: the regrids that changed the pattern, level 1's active cells over time, c*, vacuum thrust and wall time beside the fixed-pattern run's.
+5. **5(b).** Criterion 2's case on 1 and 4 threads: `cmp`-identical dumps and budgets.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.
