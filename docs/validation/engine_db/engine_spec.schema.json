@@ -1,0 +1,635 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "crucible/engine_db/engine_spec.schema.json",
+ "title": "CRUCIBLE blind engine database: input specification (no outcome fields)",
+ "description": "Inputs only. Thrust, specific impulse, c*, thrust coefficient, exhaust velocity, mass flow, exit pressure and any efficiency are outcomes: they have no field here and live only in the sealed outcome file (sealed_outcome.schema.json), written after the predictions are committed (ENGINE_DB.md). Every object is closed (additionalProperties false), so an outcome cannot enter under a new key. Units are fixed by the field name.",
+ "type": "object",
+ "required": [
+  "schema_version",
+  "engines"
+ ],
+ "additionalProperties": false,
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "engines": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/engine"
+   }
+  }
+ },
+ "$defs": {
+  "provenance": {
+   "description": "printed: a number printed in a source (give locator and original). digitised: read off a figure or drawing (give locator, say how). derived: computed from other INPUT fields of this record (give derivation; never from an outcome). inferred: reasoned from analogues or practice (say how in note). assumed: a stated default with no engine-specific basis. missing: not found (value null; note says why, e.g. 'not public' or 'only derivable from an outcome, not derived').",
+   "enum": [
+    "printed",
+    "digitised",
+    "derived",
+    "inferred",
+    "assumed",
+    "missing"
+   ]
+  },
+  "basis": {
+   "description": "For operating-point values: what the printed number is. test: measured in a named test or flight. design, rated, nominal: the maker's stated point. unknown: the source does not say.",
+   "enum": [
+    "test",
+    "design",
+    "rated",
+    "nominal",
+    "unknown"
+   ]
+  },
+  "field_common": {
+   "type": "object",
+   "required": [
+    "provenance"
+   ],
+   "properties": {
+    "provenance": {
+     "$ref": "#/$defs/provenance"
+    },
+    "source": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "A key of this engine's sources list."
+    },
+    "locator": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "Table, figure, page or section in the source."
+    },
+    "original": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "The value as printed, with its printed unit, before conversion."
+    },
+    "derivation": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "For derived: the formula and the input fields it uses."
+    },
+    "basis": {
+     "$ref": "#/$defs/basis"
+    },
+    "note": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "num": {
+   "allOf": [
+    {
+     "$ref": "#/$defs/field_common"
+    }
+   ],
+   "type": "object",
+   "required": [
+    "value",
+    "provenance"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "value": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "provenance": {},
+    "source": {},
+    "locator": {},
+    "original": {},
+    "derivation": {},
+    "basis": {},
+    "note": {}
+   }
+  },
+  "text": {
+   "allOf": [
+    {
+     "$ref": "#/$defs/field_common"
+    }
+   ],
+   "type": "object",
+   "required": [
+    "value",
+    "provenance"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "value": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "provenance": {},
+    "source": {},
+    "locator": {},
+    "original": {},
+    "derivation": {},
+    "basis": {},
+    "note": {}
+   }
+  },
+  "source": {
+   "type": "object",
+   "required": [
+    "id",
+    "citation"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "citation": {
+     "type": "string",
+     "description": "Authors, title, report number or journal, year."
+    },
+    "url": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "accessed": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "ISO date the agent read it."
+    }
+   }
+  },
+  "outcome_pointer": {
+   "description": "WHERE an outcome is printed, never its value: for the sealed step to read later.",
+   "type": "object",
+   "required": [
+    "source",
+    "locator",
+    "quantity"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "source": {
+     "type": "string"
+    },
+    "locator": {
+     "type": "string"
+    },
+    "quantity": {
+     "enum": [
+      "isp_vacuum",
+      "isp_sea_level",
+      "thrust_vacuum",
+      "thrust_sea_level",
+      "c_star",
+      "mass_flow",
+      "other"
+     ]
+    },
+    "label": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "How the source labels it (e.g. 'test', 'rated', 'cycle model'); words only, no number."
+    }
+   }
+  },
+  "flag": {
+   "type": "object",
+   "required": [
+    "field",
+    "reason"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "field": {
+     "type": "string"
+    },
+    "reason": {
+     "type": "string"
+    }
+   }
+  },
+  "engine": {
+   "type": "object",
+   "required": [
+    "id",
+    "name",
+    "family",
+    "propellants",
+    "cycle",
+    "operating_point",
+    "geometry",
+    "injector",
+    "temperatures",
+    "sources",
+    "outcome_pointers",
+    "flags"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "id": {
+     "type": "string",
+     "pattern": "^[a-z0-9_]+$"
+    },
+    "name": {
+     "type": "string",
+     "description": "Engine and variant, e.g. 'J-2 (Saturn S-II/S-IVB)'. No thrust class or performance words."
+    },
+    "maker": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "country": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "kind": {
+     "enum": [
+      "flight",
+      "development",
+      "research_chamber"
+     ]
+    },
+    "family": {
+     "enum": [
+      "lox_lh2",
+      "lox_kerosene",
+      "lox_methane",
+      "storable",
+      "other"
+     ]
+    },
+    "propellants": {
+     "type": "object",
+     "required": [
+      "oxidizer",
+      "fuel"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "oxidizer": {
+       "$ref": "#/$defs/text",
+       "description": "Species and grade: 'O2(L)', 'N2O4', 'MON-3', 'MON-10', 'IRFNA', 'H2O2 (90%)', ..."
+      },
+      "fuel": {
+       "$ref": "#/$defs/text",
+       "description": "Species and grade: 'H2', 'RP-1', 'RG-1', 'T-1', 'CH4', 'LNG', 'MMH', 'UDMH', 'A-50', 'N2H4', 'C2H5OH (75%)', ..."
+      }
+     }
+    },
+    "cycle": {
+     "type": "object",
+     "required": [
+      "type",
+      "turbine_exhaust"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "type": {
+       "allOf": [
+        {
+         "$ref": "#/$defs/text"
+        },
+        {
+         "properties": {
+          "value": {
+           "enum": [
+            "pressure_fed",
+            "gas_generator",
+            "staged_combustion_oxidizer_rich",
+            "staged_combustion_fuel_rich",
+            "full_flow_staged",
+            "expander_closed",
+            "expander_bleed",
+            "tap_off",
+            "electric_pump",
+            "other",
+            null
+           ]
+          }
+         }
+        }
+       ]
+      },
+      "turbine_exhaust": {
+       "allOf": [
+        {
+         "$ref": "#/$defs/text"
+        },
+        {
+         "properties": {
+          "value": {
+           "enum": [
+            "none",
+            "dumped_overboard",
+            "into_nozzle_extension",
+            "into_main_chamber",
+            "unknown",
+            null
+           ]
+          }
+         }
+        }
+       ]
+      },
+      "turbine_flow_fraction": {
+       "$ref": "#/$defs/num",
+       "description": "Turbine-drive flow / engine-inlet flow, for open cycles."
+      }
+     }
+    },
+    "operating_point": {
+     "type": "object",
+     "required": [
+      "label",
+      "chamber_pressure_mpa",
+      "pressure_station",
+      "mixture_ratio",
+      "mixture_ratio_basis"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "label": {
+       "type": "string",
+       "description": "Which point, in words: 'rated (mainstage)', 'test 1234 at 30 s', ... The outcome step must take its values at this same point."
+      },
+      "chamber_pressure_mpa": {
+       "$ref": "#/$defs/num"
+      },
+      "pressure_station": {
+       "allOf": [
+        {
+         "$ref": "#/$defs/text"
+        },
+        {
+         "properties": {
+          "value": {
+           "enum": [
+            "injector_face",
+            "nozzle_stagnation",
+            "unspecified",
+            null
+           ]
+          }
+         }
+        }
+       ]
+      },
+      "mixture_ratio": {
+       "$ref": "#/$defs/num",
+       "description": "Oxidizer/fuel mass ratio."
+      },
+      "mixture_ratio_basis": {
+       "allOf": [
+        {
+         "$ref": "#/$defs/text"
+        },
+        {
+         "properties": {
+          "value": {
+           "enum": [
+            "engine",
+            "thrust_chamber",
+            "unspecified",
+            null
+           ]
+          }
+         }
+        }
+       ],
+       "description": "(open cycles differ)"
+      }
+     }
+    },
+    "geometry": {
+     "type": "object",
+     "required": [
+      "throat_diameter_m",
+      "contraction_ratio",
+      "expansion_ratio",
+      "contour_type"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "throat_diameter_m": {
+       "$ref": "#/$defs/num",
+       "description": "Never back-derived from thrust, Isp, c* or mass flow."
+      },
+      "contraction_ratio": {
+       "$ref": "#/$defs/num",
+       "description": "A_chamber / A_throat."
+      },
+      "expansion_ratio": {
+       "$ref": "#/$defs/num",
+       "description": "A_exit / A_throat of the configuration at the operating point (say if an extension is deployed)."
+      },
+      "chamber_diameter_m": {
+       "$ref": "#/$defs/num"
+      },
+      "exit_diameter_m": {
+       "$ref": "#/$defs/num",
+       "description": "Inner (flow) diameter; say in note if only an outer diameter was printed."
+      },
+      "chamber_length_m": {
+       "$ref": "#/$defs/num",
+       "description": "Injector face to throat plane."
+      },
+      "characteristic_length_m": {
+       "$ref": "#/$defs/num",
+       "description": "L* = V_chamber / A_throat."
+      },
+      "nozzle_length_m": {
+       "$ref": "#/$defs/num",
+       "description": "Throat plane to exit plane."
+      },
+      "contour_type": {
+       "allOf": [
+        {
+         "$ref": "#/$defs/text"
+        },
+        {
+         "properties": {
+          "value": {
+           "enum": [
+            "bell_thrust_optimised",
+            "bell_truncated_ideal",
+            "bell_unspecified",
+            "conical",
+            "dual_bell",
+            "plug",
+            "tabulated",
+            "unknown",
+            null
+           ]
+          }
+         }
+        }
+       ]
+      },
+      "bell_length_fraction": {
+       "$ref": "#/$defs/num",
+       "description": "Bell length / 15-degree cone length."
+      },
+      "cone_half_angle_deg": {
+       "$ref": "#/$defs/num"
+      },
+      "exit_wall_angle_deg": {
+       "$ref": "#/$defs/num"
+      },
+      "throat_upstream_radius_ratio": {
+       "$ref": "#/$defs/num",
+       "description": "Wall radius of curvature upstream of the throat / throat radius."
+      },
+      "throat_downstream_radius_ratio": {
+       "$ref": "#/$defs/num"
+      },
+      "contour_table": {
+       "$ref": "#/$defs/text",
+       "description": "Where a tabulated or drawn contour is (source and locator), if one exists."
+      },
+      "chamber_cooling": {
+       "allOf": [
+        {
+         "$ref": "#/$defs/text"
+        },
+        {
+         "properties": {
+          "value": {
+           "enum": [
+            "regenerative",
+            "ablative",
+            "radiative",
+            "film",
+            "transpiration",
+            "combined",
+            "unknown",
+            null
+           ]
+          }
+         }
+        }
+       ],
+       "description": "(say which parts in note)"
+      },
+      "film_cooling_fraction": {
+       "$ref": "#/$defs/num",
+       "description": "Film or boundary-layer coolant flow / chamber fuel flow."
+      }
+     }
+    },
+    "injector": {
+     "type": "object",
+     "required": [
+      "type"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "type": {
+       "allOf": [
+        {
+         "$ref": "#/$defs/text"
+        },
+        {
+         "properties": {
+          "value": {
+           "enum": [
+            "coaxial_shear",
+            "coaxial_swirl",
+            "like_doublet",
+            "unlike_doublet",
+            "triplet",
+            "pentad",
+            "pintle",
+            "showerhead",
+            "impinging_other",
+            "other",
+            "unknown",
+            null
+           ]
+          }
+         }
+        }
+       ]
+      },
+      "element_count": {
+       "$ref": "#/$defs/num"
+      }
+     }
+    },
+    "temperatures": {
+     "type": "object",
+     "required": [
+      "fuel_injection_k",
+      "oxidizer_injection_k"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "fuel_injection_k": {
+       "$ref": "#/$defs/num",
+       "description": "At the injector (after any regenerative pickup or preburner)."
+      },
+      "oxidizer_injection_k": {
+       "$ref": "#/$defs/num"
+      },
+      "fuel_inlet_k": {
+       "$ref": "#/$defs/num",
+       "description": "At the engine inlet."
+      },
+      "oxidizer_inlet_k": {
+       "$ref": "#/$defs/num"
+      }
+     }
+    },
+    "sources": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/source"
+     }
+    },
+    "outcome_pointers": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/outcome_pointer"
+     }
+    },
+    "flags": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/flag"
+     },
+     "description": "Every missing or doubtful required field, and anything the predictor must know (e.g. 'expansion ratio of the flight nozzle, not the test nozzle')."
+    },
+    "notes": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "Words only. No thrust, Isp, c*, flow or efficiency value, and no thrust class."
+    }
+   }
+  }
+ }
+}

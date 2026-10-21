@@ -1,0 +1,59 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "crucible/engine_db/sealed_outcome.schema.json",
+ "title": "CRUCIBLE blind engine database: sealed outcomes",
+ "description": "Written only by the sealed step (PREDICTION_PROTOCOL.md), after the batch's prediction commit exists, by an agent that has not seen the predictions. One file per scored batch: sealed/<batch>.json. No such file exists before its batch's prediction commit.",
+ "type": "object",
+ "required": ["schema_version", "batch", "prediction_commit", "prediction_sha256", "spec_sha256", "written", "outcomes"],
+ "additionalProperties": false,
+ "properties": {
+  "schema_version": {"const": 1},
+  "batch": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+  "prediction_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$", "description": "Checked to be an ancestor of HEAD before anything was written."},
+  "prediction_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of predictions.json at prediction_commit, checked against REGISTER.md."},
+  "spec_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of engines.json as the prediction recorded it."},
+  "written": {"type": "string", "description": "ISO date-time, and who wrote it (the agent and its brief)."},
+  "outcomes": {"type": "array", "items": {"$ref": "#/$defs/engine_outcome"}}
+ },
+ "$defs": {
+  "label": {"enum": ["test", "flight", "rated", "design", "cycle_model", "unknown"], "description": "The source's own label. Only test and flight count as validation; the rest are rating or model comparisons (as RL10A33A_PROTOCOL.md section 5)."},
+  "quantity": {
+   "type": "object",
+   "required": ["value", "label", "source", "locator", "original"],
+   "additionalProperties": false,
+   "properties": {
+    "value": {"type": "number"},
+    "label": {"$ref": "#/$defs/label"},
+    "source": {"type": "string", "description": "A key of the engine's sources in engines.json, or a new id defined in sources below."},
+    "locator": {"type": "string"},
+    "original": {"type": "string", "description": "As printed, with its unit."},
+    "basis": {"enum": ["engine", "thrust_chamber", "unspecified"], "description": "Isp and mass flow: on the engine's whole flow (open cycles include the turbine flow) or the chamber's."},
+    "ambient_pressure_mpa": {"type": ["number", "null"], "description": "Sea-level and test-cell values: the printed ambient pressure, if any."},
+    "note": {"type": ["string", "null"]}
+   }
+  },
+  "engine_outcome": {
+   "type": "object",
+   "required": ["id", "operating_point_match", "quantities"],
+   "additionalProperties": false,
+   "properties": {
+    "id": {"type": "string", "description": "The engine's id in engines.json."},
+    "operating_point_match": {"type": "string", "description": "How the values correspond to the spec's operating_point.label; any mismatch said here, not corrected."},
+    "quantities": {
+     "type": "object",
+     "additionalProperties": false,
+     "properties": {
+      "isp_vacuum_s": {"$ref": "#/$defs/quantity"},
+      "isp_sea_level_s": {"$ref": "#/$defs/quantity"},
+      "thrust_vacuum_n": {"$ref": "#/$defs/quantity"},
+      "thrust_sea_level_n": {"$ref": "#/$defs/quantity"},
+      "c_star_m_s": {"$ref": "#/$defs/quantity"},
+      "mass_flow_kg_s": {"$ref": "#/$defs/quantity"}
+     }
+    },
+    "alternates": {"type": "array", "items": {"$ref": "#/$defs/quantity"}, "description": "Other printed values for the same point: recorded, never scored."},
+    "sources": {"type": "array", "items": {"type": "object", "required": ["id", "citation"], "additionalProperties": false, "properties": {"id": {"type": "string"}, "citation": {"type": "string"}, "url": {"type": ["string", "null"]}}}}
+   }
+  }
+ }
+}
