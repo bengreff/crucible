@@ -2,7 +2,8 @@
 // to G7 stated before this code). It builds the case's Definition: the PCHIP wall shared with rl10dev
 // (tests/rl10_geometry.hpp), the face of choice 1 (8 rings, each a LOX slot between two post-tip walls and two
 // H2 slots, the slots at the elements' own flow areas) and of choice 3 (10% of the H2 transpired at a uniform
-// mass flux over the face outside the rings' cups), the supply turbulence at 5% and a pitch length scale. It
+// mass flux over the face outside the rings' cups), the supply turbulence at 5% and a pitch length scale, and the
+// LOX as Rosin-Rammler drops from Burick's curve at the rings' group over Porcheron's core length (G8). It
 // reports the layout, the flows and the injection numbers, maps each supply onto candidate meshes by Flow's
 // ring-centre rule, constructs Flow and Spray on each, and exits before any step. No measured value is read.
 //
@@ -18,6 +19,7 @@
 //   CRUCIBLE_T1_FACE_PRESSURE  G4's nominal face pressure [Pa], 2.8e6 (our development runs', not a measurement)
 //   CRUCIBLE_RADIAL_STRETCHING  Definition::radialStretching, 0
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -61,6 +63,36 @@ std::string fmt(const char* f, double a, double b = 0, double c = 0, double d = 
 }
 double rel(double a, double b) { return std::abs(a - b) / std::abs(b); }
 
+// Burick (1972) Fig. 38, the digitised curve: (V_g - V_L) / (V_L MR) against D-bar / D_L, the mass median over the
+// post diameter (docs/evidence/spray/burick_fig38.md, section 1.4). Wax/GN2 cold flow, used as printed.
+constexpr std::array<std::array<double, 2>, 32> kBurick{{
+    {0.23, 0.277}, {0.28, 0.276}, {0.35, 0.272}, {0.45, 0.265}, {0.55, 0.260}, {0.65, 0.252}, {0.75, 0.247},
+    {0.85, 0.242}, {1.00, 0.241}, {1.30, 0.238}, {1.60, 0.248}, {2.00, 0.243}, {2.30, 0.225}, {2.60, 0.209},
+    {2.80, 0.206}, {3.20, 0.169}, {3.60, 0.165}, {4.00, 0.159}, {4.50, 0.154}, {5.00, 0.148}, {5.50, 0.154},
+    {6.00, 0.129}, {6.50, 0.133}, {7.00, 0.129}, {7.70, 0.125}, {8.50, 0.118}, {9.50, 0.113}, {10.50, 0.112},
+    {11.50, 0.113}, {12.50, 0.101}, {13.50, 0.097}, {14.50, 0.094}}};
+// The scatter's stated width about the curve (its section 1.5, "+30%/-40%"): member 5's two ends.
+constexpr double kScatterHigh = 1.3, kScatterLow = 1 / 1.7;
+
+// Beyond the table: a power law through its last point at the slope fitted over group 4 to 12
+// (MASCOTTE_A10_PREDICTION.md section 3; tier1_setup.md, *Two member rules*).
+constexpr double kBurickSlope = -0.371;
+
+// D-bar / D_L at group x, linear in log-log between neighbours, the power law past the end; NaN below the start.
+double burick(double x) {
+  if (x > kBurick.back()[0]) return kBurick.back()[1] * std::pow(x / kBurick.back()[0], kBurickSlope);
+  for (std::size_t i = 0; i + 1 < kBurick.size(); ++i) {
+    const auto& [x0, y0] = kBurick[i];
+    const auto& [x1, y1] = kBurick[i + 1];
+    if (x >= x0 && x <= x1)
+      return std::exp(std::log(y0) + (std::log(x / x0) / std::log(x1 / x0)) * std::log(y1 / y0));
+  }
+  return std::nan("");
+}
+
+// A mass-based Rosin-Rammler's D30 / D-bar; Burick's Eq. (5) sets it to 0.455.
+double d30OverMedian(double q) { return std::pow(std::tgamma(1 - 3 / q), -1.0 / 3) / std::pow(std::log(2.0), 1 / q); }
+
 struct Ring {
   double r{}, w{};
   double h2InInner{}, h2InOuter{}, loxInner{}, loxOuter{}, h2OutInner{}, h2OutOuter{};
@@ -101,30 +133,61 @@ int main(int argc, char** argv) {
     const double rc = rl10::wall(meshes.front().first).rc;
     const double pitch = std::sqrt(kPi * rc * rc / kElements);
     const double r8 = rc - outerOffset * pitch;
-    const double r1 = innerRule == "pitch" ? r8 - (kRings - 1) * pitch : kPerRing * dA / (2 * kPi);
+    const double r1Rule = innerRule == "pitch" ? r8 - (kRings - 1) * pitch : kPerRing * dA / (2 * kPi);
+    // Ring 1 must hold its inner H2 slot: the radius at which that slot reaches the axis solves
+    // r - A_L / (4 pi r) - t = sqrt(A_H / 2 pi). And every ring must clear the next: r_1 is the smallest radius at
+    // or above both at which the evenly spaced rings do not overlap (tier1_setup.md, *Two member rules*).
+    const double reach = t + std::sqrt(aH / (2 * kPi));
+    const double r1Min = (reach + std::sqrt(reach * reach + aL / kPi)) / 2;
+    auto layout = [&](double r1) {  // choice 1's rings from r_1 to r_8
+      std::vector<Ring> rings(kRings);
+      for (int i = 0; i < kRings; ++i) {
+        Ring& g = rings[i];
+        g.r = r1 + i * (r8 - r1) / (kRings - 1);
+        g.w = aL / (2 * kPi * g.r);
+        g.loxInner = g.r - g.w / 2;
+        g.loxOuter = g.r + g.w / 2;
+        g.h2InOuter = g.loxInner - t;
+        const double inner2 = g.h2InOuter * g.h2InOuter - aH / (2 * kPi);
+        const double roundOff = 1e-12 * g.h2InOuter * g.h2InOuter;  // at r1Min the slot reaches the axis exactly
+        g.h2InInner = inner2 > roundOff ? std::sqrt(inner2) : inner2 > -roundOff ? 0 : -1;
+        g.h2OutInner = g.loxOuter + t;
+        g.h2OutOuter = std::sqrt(g.h2OutInner * g.h2OutInner + aH / (2 * kPi));
+      }
+      return rings;
+    };
+    auto ordered = [&](const std::vector<Ring>& rings) {
+      bool ok = rings.front().h2InInner >= 0 && rings.back().h2OutOuter < rc;
+      for (int i = 0; i < kRings; ++i) {
+        const Ring& g = rings[i];
+        ok = ok && g.h2InInner < g.h2InOuter && g.h2InOuter < g.loxInner && g.loxInner < g.loxOuter &&
+             g.loxOuter < g.h2OutInner && g.h2OutInner < g.h2OutOuter;
+        if (i + 1 < kRings) ok = ok && g.h2OutOuter < rings[i + 1].h2InInner;
+      }
+      return ok;
+    };
+    double r1 = std::max(r1Rule, r1Min), r1Clear = r1;
+    if (!ordered(layout(r1))) {  // step out to a clear layout, then bisect back to the boundary
+      double lo = r1, hi = r1;
+      while (hi < r8 && !ordered(layout(hi))) lo = hi, hi += 1e-4;
+      for (int it = 0; it < 60 && hi < r8; ++it) {
+        const double mid = (lo + hi) / 2;
+        (ordered(layout(mid)) ? hi : lo) = mid;
+      }
+      r1 = r1Clear = hi;
+    }
     const double spacing = (r8 - r1) / (kRings - 1);
     std::printf("RL10A-3-3A tier 1, central case dry run (tier1_setup.md): no step is taken, no measured value is read\n");
     std::printf("element: d_L %.4f mm, t %.4f mm (%.3f d_L), h %.4f mm (%.3f d_L), post OD %.4f mm, annulus OD %.4f mm, "
                 "recess %.4f mm (%.3f d_L)\n", dL * 1e3, t * 1e3, t / dL, h * 1e3, h / dL, dO * 1e3, dA * 1e3,
                 recess * 1e3, recess / dL);
-    std::printf("face: R_c %.4f mm, pitch %.4f mm, r_8 %.4f mm (R_c - %.3f p), r_1 %.4f mm (%s), ring spacing %.4f mm; "
-                "per ring LOX area %.4f mm2, H2 area %.4f mm2\n", rc * 1e3, pitch * 1e3, r8 * 1e3, outerOffset,
-                r1 * 1e3, innerRule.c_str(), spacing * 1e3, aL * 1e6, aH * 1e6);
+    std::printf("face: R_c %.4f mm, pitch %.4f mm, r_8 %.4f mm (R_c - %.3f p), r_1 %.4f mm (%s %.4f mm, ring 1's "
+                "smallest %.4f mm, clear of ring 2 from %.4f mm), ring spacing %.4f mm; per ring LOX area %.4f mm2, H2 area "
+                "%.4f mm2\n", rc * 1e3, pitch * 1e3, r8 * 1e3, outerOffset, r1 * 1e3, innerRule.c_str(), r1Rule * 1e3,
+                r1Min * 1e3, r1Clear * 1e3, spacing * 1e3, aL * 1e6, aH * 1e6);
 
     // The rings (choice 1).
-    std::vector<Ring> rings(kRings);
-    for (int i = 0; i < kRings; ++i) {
-      Ring& g = rings[i];
-      g.r = r1 + i * spacing;
-      g.w = aL / (2 * kPi * g.r);
-      g.loxInner = g.r - g.w / 2;
-      g.loxOuter = g.r + g.w / 2;
-      g.h2InOuter = g.loxInner - t;
-      const double inner2 = g.h2InOuter * g.h2InOuter - aH / (2 * kPi);
-      g.h2InInner = inner2 > 0 ? std::sqrt(inner2) : -1;
-      g.h2OutInner = g.loxOuter + t;
-      g.h2OutOuter = std::sqrt(g.h2OutInner * g.h2OutInner + aH / (2 * kPi));
-    }
+    const std::vector<Ring> rings = layout(r1);
     std::printf("\nring  r [mm]    H2 inner slot [mm]   tip   LOX slot [mm] (w)          tip   H2 outer slot [mm]   cup width [mm]\n");
     for (int i = 0; i < kRings; ++i) {
       const Ring& g = rings[i];
@@ -135,14 +198,7 @@ int main(int argc, char** argv) {
 
     // G2: the layout.
     std::printf("\n");
-    bool ordered = rings.front().h2InInner > 0 && rings.back().h2OutOuter < rc;
-    for (int i = 0; i < kRings; ++i) {
-      const Ring& g = rings[i];
-      ordered = ordered && g.h2InInner < g.h2InOuter && g.h2InOuter < g.loxInner && g.loxInner < g.loxOuter &&
-                g.loxOuter < g.h2OutInner && g.h2OutInner < g.h2OutOuter;
-      if (i + 1 < kRings) ordered = ordered && g.h2OutOuter < rings[i + 1].h2InInner;
-    }
-    check("G2", ordered, fmt("no overlap: ring 1's inner H2 slot from %.4f mm (axis clear), ring 8's outer to %.4f mm "
+    check("G2", ordered(rings), fmt("no overlap: ring 1's inner H2 slot from %.4f mm (axis clear), ring 8's outer to %.4f mm "
                              "(wall at %.4f mm)", rings.front().h2InInner * 1e3, rings.back().h2OutOuter * 1e3, rc * 1e3));
     double areaError = 0, cups = 0;
     for (const Ring& g : rings) {
@@ -161,6 +217,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i + 1 < kRings; ++i) gaps.push_back({rings[i].h2OutOuter, rings[i + 1].h2InInner});
     gaps.push_back({rings.back().h2OutOuter, rc});
     double porous = 0;
+    std::erase_if(gaps, [](const auto& g) { return g[1] - g[0] < 1e-9; });  // no band where a slot meets the axis or the next cup
     for (const auto& g : gaps) porous += kPi * (g[1] * g[1] - g[0] * g[0]);
     const double flux = sweep / porous;
     check("G2", rel(cups + porous, kPi * rc * rc) < 1e-12,
@@ -230,6 +287,36 @@ int main(int argc, char** argv) {
     const auto slot = std::find_if(streams.begin(), streams.end(), [](const Stream& s) { return !s.porous; });
     std::printf("  transpired: %.4f m/s; viscosity ratios from I %.2f and L = p: slots %.4g, porous %.4g\n",
                 flux / rhoG, kIntensity, slot->ratio, streams[0].ratio);
+
+    // G8: the LOX drop size from Burick's curve at each ring's group, and the core length (tier1_setup.md,
+    // *The LOX drop size and its release*). Every ring carries the same flows through the same areas.
+    double qLo = 3.01, qHi = 10;  // d30OverMedian rises with q
+    for (int it = 0; it < 200; ++it) {
+      const double q = (qLo + qHi) / 2;
+      (d30OverMedian(q) > 0.455 ? qHi : qLo) = q;
+    }
+    const double q = (qLo + qHi) / 2;
+    const double smdOverMedian = 1 / (std::tgamma(1 - 1 / q) * std::pow(std::log(2.0), 1 / q));
+    const double vL = (kOxidizer / kRings) / (rhoL * aL), vG = ((fuel - sweep) / kRings) / (rhoG * aH);
+    const double group = (vG - vL) / (vL * ringOF), momentum = rhoG * vG * vG / (rhoL * vL * vL);
+    const double medianRatio = burick(group);
+    check("G8", std::isfinite(medianRatio),
+          fmt("every ring's group %.4f inside the digitised curve's table [%.2f, %.2f]", group, kBurick.front()[0],
+              kBurick.back()[0]) +
+              (group > kBurick.back()[0] ? fmt(" or past its end: EXTRAPOLATED at slope %.3f, %.2f times the data's "
+                                               "last group (about 11)", kBurickSlope, group / 11)
+                                         : std::string()));
+    const auto lox = liquid.at(kOxidizerT);
+    const double oh = lox.viscosity / std::sqrt(lox.density * lox.tension * dL);
+    const double core = dL * 2.85 * std::pow(rhoG / lox.density, -0.38) * std::pow(oh, 0.34) * std::pow(momentum, -0.13);
+    const double coreLH = dL * 6 / std::sqrt(momentum);
+    const double smd = std::isfinite(medianRatio) ? smdOverMedian * medianRatio * dL : 0;
+    std::printf("  q %.4f (D30 / D-bar %.6f), SMD / D-bar %.4f; D-bar / D_L %.4f: SMD %.1f um central, %.1f um low "
+                "(curve / 1.7), %.1f um high (curve x 1.3)\n", q, d30OverMedian(q), smdOverMedian, medianRatio, smd * 1e6,
+                smd * kScatterLow * 1e6, smd * kScatterHigh * 1e6);
+    std::printf("  core length: LOX at %.2f K: mu_l %.4g Pa s, sigma %.4g N/m; Oh %.4g, M = J %.3f; Porcheron %.2f mm "
+                "(%.3f d_L, used), Lasheras-Hopfinger %.2f mm (%.3f d_L)\n", kOxidizerT, lox.viscosity, lox.tension, oh,
+                momentum, core * 1e3, core / dL, coreLH * 1e3, coreLH / dL);
 
     // The Definition (tier1_skeleton.md, *Tier 1's settings*).
     auto define = [&](int nz, int nr, bool merged) {
@@ -361,6 +448,10 @@ int main(int argc, char** argv) {
             j.opens = 0;
             j.ramp = kRamp;
             j.temperature = kOxidizerT;
+            j.size = Spray::Injector::Size::RosinRammler;
+            j.sauterDiameter = smd;
+            j.exponent = q;
+            j.coreLength = core;
             settings.injectors.push_back(j);
           }
           settings.restitution = 0.5;

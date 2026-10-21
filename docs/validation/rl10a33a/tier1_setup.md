@@ -163,3 +163,69 @@ The skeleton puts the LOX in as Rosin-Rammler parcels with SPRAY.md's Burick bra
 - The bar: every ring's group lies inside the digitised curve's table (0.23 to 14.5), so the reading is an interpolation.
 - Reported: D̄/D_L and the SMD at the centre and the band's two ends; q, with D30/D̄ from it; and both core lengths.
 - `Spray` is constructed with the central SMD, q and the Porcheron length (G6 at the merged layout).
+
+## Two member rules, from the members' dry runs (21 October 2026, about 02:27 CDT, before any tier-1 run)
+
+The members' dry runs (`crucible_rl10_tier1 1192x128` with each member's value through the environment) found two inputs that the setup above does not define. Both are rules about inputs, stated here before any run.
+
+1. **Ring 1 must hold its slots.**
+   - Choice 1's construction puts ring 1's inner H2 slot inside r_1 − w/2 − t. For the larger elements that area is not there: d_L 4.78 mm, t 0.37 d_L, h 0.80 d_L, and member 12's r_8 = R_c − p (which puts r_1 at 4.6 mm). G2 fails and the build stops.
+   - **The rule:** r_1 is the larger of the member's own rule and the smallest radius at which ring 1's inner H2 slot reaches the axis exactly. That radius solves r − A_L/(4π r) − t = √(A_H/2π). The other rings keep r_8 and are spaced evenly from r_1.
+   - The central case is unchanged, since its smallest radius is 11.82 mm, below r_1 = 12.44 mm.
+   - It moves r_1 to:
+     - 15.96 mm for d_L 4.78;
+     - 12.54 mm for t 0.37;
+     - 19.84 mm for h 0.80;
+     - 11.82 mm for member 12.
+   - The ring spacing shrinks by at most 1%.
+   - *Inferred:* choice 1 is an area-equivalent face, so this is the smallest change that keeps every slot's true area. Member 13's clearance rule is the physical spacing of 27 elements.
+2. **Burick's curve beyond its table.**
+   - h 0.09 d_L gives a group of 17.0. That is past the digitised curve's end (14.5) and past the data (about 11). G8 fails by its bar.
+   - **The rule:** beyond the table, the curve continues as a power law through its last point (14.5, 0.094), at the slope Mascotte's §3 fitted over group 4 to 12 (−0.371). At 17.0 that gives D̄/D_L 0.0886.
+   - It is reported as an extrapolation, 1.5 times beyond the data. Member 10's low run is one run, so no bracket is needed there.
+   - G8's bar becomes: every ring's group lies inside the table, or past its end under this rule (flagged); a group below the table's start fails.
+
+## Results: G8 and the members (21 October 2026, about 02:28 CDT; `tier1_dry_run_g8_2026-10-21.log`, `tier1_members_dry_run_2026-10-21.log`)
+
+**The central case** (76 × 8, 149 × 16, 1192 × 128): the output is the 02:08 log's line for line, apart from the face line (it now prints the ring-1 limits) and G8's three lines.
+- **G8 passes:** the group is 5.0276, D̄/D_L 0.1483.
+  - q is 3.2073 (D30/D̄ 0.455000), so SMD/D̄ is 0.8511.
+  - **The SMD is 447.0 μm central;** member 5's ends are 262.9 μm (low) and 581.0 μm (high).
+- **The core length:**
+  - LOX at 101.17 K: μ_l 1.484e-4 Pa s, σ 0.01045 N/m (Mulero's fit gives 0.01046), Oh 7.41e-4.
+  - With M = J = 2.68, Porcheron gives 6.84 mm (1.93 d_L, used); Lasheras-Hopfinger gives 12.97 mm.
+- **G6** at 1192 × 128, with the merged layout, now constructs `Spray` with Rosin-Rammler injectors at that SMD, q and core length.
+
+**The members**, each at 1192 × 128 with one value changed. G2, G3 and G8 pass for all ten. G5 and G7 fail as for the central case. G6 (merged) passes for all ten.
+
+| Member | r_1, spacing (mm) | V_L, V_H2 (m/s), J | Group | D̄/D_L; SMD central (low, high) μm | Core: Porcheron, L-H (mm) | Merged J_mesh/J |
+|---|---|---|---|---|---|---|
+| central | 12.44, 15.71 | 6.05, 176.9, 2.68 | 5.03 | 0.148; 447 (263, 581) | 6.84, 12.97 | 0.048 to 0.337 |
+| 8: d_L 2.62 mm | 12.44, 15.71 | 11.05, 323.0, 2.68 | 5.03 | 0.148; 331 (195, 430) | 5.33, 9.60 | 0.033 to 0.291 |
+| 8: d_L 4.78 mm | **15.96** (rule 1), 15.21 | 3.32, 97.0, 2.68 | 5.03 | 0.148; 604 (355, 785) | 8.78, 17.52 | 0.075 to 0.299 |
+| 9: t 0.20 d_L | 12.44, 15.71 | 6.05, 192.2, 3.16 | 5.48 | 0.154; 463 (273, 602) | 6.70, 11.94 | 0.074 to 0.306 |
+| 9: t 0.37 d_L | **12.54** (rule 1), 15.70 | 6.05, 159.6, 2.18 | 4.52 | 0.154; 463 (273, 602) | 7.03, 14.38 | 0.034 to 0.294 |
+| 10: h 0.09 d_L | 12.44, 15.71 | 6.05, 584.2, 29.2 | **17.01** (rule 2) | 0.089; 267 (157, 347) | 5.02, 3.93 | 0.008 to 0.063 |
+| 10: h 0.80 d_L | **21.70** (rule 1, clear of ring 2), 14.39 | 6.05, 45.8, 0.18 | 1.17 | 0.239; 721 (424, 937) | 9.73, 50.10 | 0.258 to 0.621 |
+| 12: r_8 = R_c − p | **11.82** (rule 1), 14.68 | 6.05, 176.9, 2.68 | 5.03 | 0.148; 447 (263, 581) | 6.84, 12.97 | 0.055 to 0.301 |
+| 13: r_1 clearance | 31.64, 12.97 | 6.05, 176.9, 2.68 | 5.03 | 0.148; 447 (263, 581) | 6.84, 12.97 | 0.048 to 0.182 |
+| 14: 5% transpired | 12.44, 15.71 | 6.05, 186.7, 2.99 | 5.61 | 0.148; 445 (262, 579) | 6.75, 12.29 | 0.048 to 0.337 |
+| 14: 15% transpired | 12.44, 15.71 | 6.05, 167.1, 2.39 | 4.48 | 0.154; 465 (273, 604) | 6.95, 13.74 | 0.048 to 0.337 |
+
+**What the members show:**
+- **Member 8 leaves the group unchanged.** With t and h scaled by d_L, both velocities go as 1/d_L², so the drop size scales with d_L alone.
+- **Rule 1 binds in four members.** At h 0.80 d_L the binding limit is ring 2's clearance (21.70 mm), not the axis (19.84 mm). There the cups touch, so the porous band between rings 1 and 2 has zero width and is dropped.
+- **The reading at groups 4.5 to 5.6 is non-monotone.**
+  - Members 9 and 14 move the group by about ±10%, but D̄/D_L only between 0.148 and 0.154. The curve's table reads 0.148 at 5.0 and 0.154 at both 4.5 and 5.5.
+  - *Inferred:* that wobble is digitisation noise of about ±0.01, the size the digitiser gives for the cluttered stretch. So these members' drop-size changes (under 4%) are not resolved by the curve, and their effect enters through J and the velocities, not the SMD.
+- **Member 10's ends dominate the injection range.**
+  - J runs from 0.18 to 29, and the group from 1.17 to 17.0 (the low end extrapolated, flagged).
+  - With the merged bands, J at the mesh is 0.8 to 6% of the elements' at h 0.09 d_L, the worst of any member. That is the face-inlet decision's sharpest case.
+- **h 0.80 d_L's true slots** are wide enough for `Flow` to accept them at 1192 × 128 (G6 passes for both layouts). Only 12 of its 24 supplies are within 5% of their true area, so G5 still fails.
+
+**Not covered by the environment, and so not dry-run here:**
+- members 2 and 3 (the face and exit stations), which change the contour (`rl10::wall` takes the face from nz);
+- member 4 (wall temperature);
+- member 7 (supply intensity);
+- members 15 and 16 (chemistry and property corrections).
+These change one Definition value each and no geometry.
