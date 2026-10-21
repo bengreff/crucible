@@ -485,6 +485,23 @@ Step C adds *Tags and regridding* to the B2 driver. What it builds, and the poin
 4. **Criterion 2 as stated.** C1 `eqtt` 32 x 6 plus one level, dynamic tags (f_H, T, p and vorticity, the throat and the wall strip) and regridding, to 8 ms: mass and energy budget errors below 1e-12 of the run's largest mass and |energy|, and at most 10 times the single-level 32 x 6 run's; the axial momentum balance likewise; the igniter within 1e-14. Printed: the regrids that changed the pattern, level 1's active cells over time, c*, vacuum thrust and wall time beside the fixed-pattern run's.
 5. **5(b).** Criterion 2's case on 1 and 4 threads: `cmp`-identical dumps and budgets.
 
+## Step C: what was built (21 October)
+
+The code follows the setup: `Amr::setTags`, `Amr::regrid`, and `Amr::spread`, the fill's spatial part moved out of `fill`. `step` regrids before the first base step and after every k_r-th accepted one. These points were left open by the setup's text:
+- **The throat station** is the wall's narrowest station strictly inside the domain (the lowest index on a tie). There is none if the narrowest station is an end. A cell is a throat cell when its centroid's z lies within 0.5 r_t of the station's z.
+- **The wall strip's y+** uses the wall segment over the cell's column. u_t is the velocity's component along that segment, and y is the centroid's normal distance to it. After the first regrid, the strip refuses a level without molecular transport.
+- **The nesting term** marks a level-l cell when one of its level-(l + 2) descendants lies within g (Chebyshev, clipped to the domain) of a child of a level-(l + 1) cell in the new set.
+- **`fillError()`** gives the largest relative content error over the parents filled at the last regrid that changed the pattern. Mass, energy and the partial densities are taken over the parent's own value, and momentum over sqrt(2 ρ ρE) times the volume. `regrids()` counts the regrids that changed the pattern.
+
+## Step C: results
+
+- **Check 1 passes (measured, 21 October, Mac).**
+  - The build with step C was compared with the build before it (`2135c11`), neither with tags.
+  - Criterion 2's case with the fixed pattern to 1 ms: the dump is `cmp`-identical (8,429 base steps both).
+  - C1 `eqtt` 64 x 12 to 1 ms, single level: the state dump is `cmp`-identical.
+  - So moving the fill's spatial part into `spread` changed nothing it computes.
+- **Checks 2 to 5 have not been run.** They need a tags option in `crucible_amr_budget` (checks 2, 4 and 5) and a unit case in `amr_tests` (check 3).
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.
