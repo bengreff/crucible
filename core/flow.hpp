@@ -71,6 +71,13 @@ struct Definition {
     // or rho and Y, separately can pair one cell's temperature with the other's composition
     // (COST.md, lever 3).
     bool boundedFaceEnthalpy{false};
+    // At interior faces, each side's static enthalpy h = e + p/rho is the cell's plus its limited slope (as the
+    // other reconstructed variables', one-sided at the plate, the exit and the wall row, r^2 on the axis row),
+    // with zero slope where the cell's excess b (Flow::setBoundedExcess; h with k when none is set) is above or
+    // below that of every face neighbour; the face density is p / (R T) with T solved from that h at the face
+    // composition. One-sided slopes are not zero at an extremum, and h of separately reconstructed rho (or T),
+    // p and Y need not be: outflow below a maximum's own b raises it (COST.md, lever 3, (x)).
+    bool extremumBoundedEnthalpy{false};
     LowMach lowMach{LowMach::None};
     Case experiment{Case::Nozzle};
     Gas gas{};
@@ -376,7 +383,7 @@ public:
     // Under boundedFaceEnthalpy, the bound judges the excess b = h + |u|^2/2 - sum_k c_k Y_k (h without k) in
     // place of h when c (per species) is given, e.g. c_k = h_ox + (h_fuel - h_ox) times the fuel element's share
     // of species k: the total enthalpy above the propellants' mixing line, which h and Y bounded separately
-    // do not bound (COST.md, lever 3). Empty: h.
+    // do not bound (COST.md, lever 3). Empty: h. Definition::extremumBoundedEnthalpy's extremum test uses the same measure.
     void setBoundedExcess(std::vector<double> c) { boundedExcess_ = std::move(c); }
     [[nodiscard]] const BudgetProbe& budgetProbe() const { return probe_; }
 private:
@@ -543,6 +550,10 @@ private:
     [[nodiscard]] double boundMeasure(const Primitive& w, double e, const double* y) const;
     [[nodiscard]] double cellEnthalpy(std::size_t q) const;
     void boundEnthalpy(Primitive& w, Thermal& t, double* y, std::size_t q, std::size_t other) const;
+    // extremumBoundedEnthalpy: whether cell q's excess is above or below every face neighbour's, and a face
+    // state's density from static enthalpy h at its composition y (normalised in place; unchanged if h has no T).
+    [[nodiscard]] bool excessExtremum(std::size_t q) const;
+    void enthalpyFace(Primitive& w, double h, double* y) const;
     Primitive inlet(Primitive inside) const;
     // ambientInflow is set when a Chamber exit draws ambient gas in (subsonic backflow).
     // inside: the reconstructed face state of the last cell; cell: that cell's own state.
@@ -569,6 +580,9 @@ private:
     struct SourceCoefficients { double strain2{}, strain{}, crossGradient{}, nu{}, inverseDistance{}, crossSource{}, sound{1}; };
     std::vector<double> eddy_, eddyConductivity_, eddyDiffusion_, wallDistance_, wallOmega_;
     std::vector<double> staticEnthalpy_, heatCapacity_;  // per cell, h and cp at its T and Y (consistentFlux)
+    // extremumBoundedEnthalpy: per cell, h = e + p/rho and the excess (boundMeasure); h's axial slope and its
+    // radial face values (low, high).
+    std::vector<double> cellStaticEnthalpy_, cellExcess_, enthalpySlopesZ_, enthalpyLow_, enthalpyHigh_;
     // Property corrections: the unit vector away from the nearest wall; per cell the fields psi =
     // sqrt(rho) / mu, rho k, sqrt(rho) omega and mu omega (stride 4, gradient fields 3 + ns_ + nt_ on);
     // rho_w and mu_w at the no-slip wall cells; S_n / mu, F1 and whether S_n is floored; the inner and

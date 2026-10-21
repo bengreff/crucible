@@ -18,7 +18,8 @@ namespace crucible {
 // from the level below before each stage, and keeps its other cells (off cells) fixed. Step B1, every
 // kernel over the whole level and every non-active cell filled, stays selectable (setRestricted) and
 // gives the same active cells bit for bit. The registers carry the convective and viscous fluxes; the
-// wall functions and the SST property corrections are refused.
+// wall functions and the SST property corrections are refused. Step C (setTags) moves the levels'
+// active cells with the flow; without it the pattern is setActive's.
 class Amr {
 public:
     // base: the level-0 definition; finer: the number of levels above it (1 to 3).
@@ -53,6 +54,26 @@ public:
     // Called after each step of a level (its index and dt), before the levels above it step: e.g. a
     // reaction step, which must keep each cell's mass and energy.
     void setAfterStep(std::function<void(int, double)> afterStep) { afterStep_=std::move(afterStep); }
+    // Step C (AMR.md, Step C: setup): tags on each level below the top decide the level above's active
+    // cells, before the first base step (one pass per level above the base, so the initial levels reach the
+    // top) and after every interval-th accepted base step. A threshold of zero or less turns its tag off;
+    // empty hydrogen weights turn the f_H tag off.
+    struct Tags {
+        int interval{2}, buffer{2};
+        double throatHalfWidth{0.5};  // in throat radii, about the wall's narrowest interior station
+        int throatLevel{2};           // the throat and the wall strip refine to this level
+        double wallYPlus{300};        // the wall row's target first-cell y+ (laminar estimate)
+        double mixture{0.02}, temperature{0.05}, pressure{0.10}, vorticity{0.05};
+        std::vector<double> hydrogen;  // per species, the H element's mass over the species' mass
+        std::function<bool(int, int, int)> custom;  // a caller's own tag on level l's cell (i, j), e.g. a test's
+    };
+    void setTags(Tags tags);
+    // Regrids that changed the pattern, and the largest content error of the children against their parent in
+    // the last such regrid's fill (mass, momentum, energy and partial densities): over the parent's content
+    // (momentum's magnitude for both components), and over the children's gross content (the sum of |content|).
+    [[nodiscard]] std::uint64_t regrids() const { return regrids_; }
+    [[nodiscard]] double fillError() const { return fillError_; }
+    [[nodiscard]] double fillGross() const { return fillGross_; }
     // The composite budget (AMR.md, criterion 2 (b)): the base's content, which holds the composite
     // after average-down and reflux, less its content at the first step and every level's exchanges
     // booked at its owned cells since (boundary faces, igniter, corrections, spray). The residuals are
@@ -98,6 +119,16 @@ private:
     // at the fraction theta of l - 1's current step: linear in time between its old and new states,
     // conservative linear in space; each filled cell's temperature guess becomes its parent's.
     void fill(int l, std::vector<Conserved>& state, std::vector<double>& species, std::vector<double>& turbulence, double theta);
+    // The fill's spatial part: level l - 1's parent p's values (Level::values, at p and its face
+    // neighbours) onto its four children on level l.
+    void spread(int l, std::size_t p, std::vector<Conserved>& state, std::vector<double>& species, std::vector<double>& turbulence);
+    // Step C: new active sets from the tags, top down; the cells that become active filled, bottom up.
+    // initial: before the first base step, when the whole wall row is tagged.
+    void regrid(bool initial);
+    Tags tags_;
+    bool tagged_{false}, regridded_{false};
+    std::uint64_t regrids_{};
+    double fillError_{}, fillGross_{};
     void averageDown(int l);
     bool reflux(int l);
     void save();

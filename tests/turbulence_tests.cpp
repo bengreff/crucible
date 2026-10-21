@@ -571,6 +571,8 @@ void pipeTests(const Nitrogen& n2, const std::vector<int>& grids) {
     d.totalPressure = d.backPressure = 101325; d.totalTemperature = tWall;
     d.wallTemperature = tWall;
     d.turbulence.ambientK = 0; d.turbulence.ambientOmega = 1;
+    // COST.md lever 3, check x3: CRUCIBLE_EXTREMUM_H runs the pipe with Definition::extremumBoundedEnthalpy.
+    if (std::getenv("CRUCIBLE_EXTREMUM_H")) d.extremumBoundedEnthalpy = true;
     Flow flow(d);
     const auto& m = flow.mesh();
     std::vector<Primitive> cells(m.cells.size());

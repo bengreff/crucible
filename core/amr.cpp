@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <stdexcept>
 #include <string>
 
@@ -204,76 +205,251 @@ void Amr::fill(int l,std::vector<Conserved>& state,std::vector<double>& species,
             for(std::size_t k=0;k<nt;++k) v[4+ns+k]=(1-theta)*cv.oldTurbulence[q*nt+k]+theta*c.turbulence_[q*nt+k];
         }
     });
-    // Each parent of cells that are not active: rho, rho u_z, rho u_r and E linear with the parent's
-    // least-squares gradient over its face neighbours (across the axis its mirror image, rho u_r odd),
-    // limited by Barth and Jespersen to the neighbours' range, times the child's offset from the
-    // children's volume-weighted centroid, so the children's content is the parent's. The partial
-    // densities, rho k and rho omega scale with the child's density. If a child is not admissible, the
-    // parent's children all take its values.
+    // Each parent of cells that are not active, by spread.
     const auto* parents=restricted_?&fv.parents:nullptr;
     c.pool_->blocks(parents?parents->size():count,Flow::kCells,[&](std::size_t begin,std::size_t end,int) {
         for(std::size_t n=begin;n<end;++n) {
             const std::size_t p=parents?(*parents)[n]:n;
             const int I=static_cast<int>(p/static_cast<std::size_t>(cm.nr)),J=static_cast<int>(p%static_cast<std::size_t>(cm.nr));
-            const std::size_t child[4]={fm.index(2*I,2*J),fm.index(2*I,2*J+1),fm.index(2*I+1,2*J),fm.index(2*I+1,2*J+1)};
-            if(f.isActive(child[0])) continue;
-            const double* vp=cv.values.data()+p*stride;
-            const Cell& cp=cm.cells[p];
-            double m00=0,m01=0,m11=0,b[4][2]={},lo[4],hi[4];
-            for(int k=0;k<4;++k) lo[k]=hi[k]=vp[k];
-            auto add=[&](double dz,double dr,const double* vn) {
-                m00+=dz*dz;m01+=dz*dr;m11+=dr*dr;
-                for(int k=0;k<4;++k) {
-                    const double dv=vn[k]-vp[k];
-                    b[k][0]+=dz*dv;b[k][1]+=dr*dv;
-                    lo[k]=std::min(lo[k],vn[k]);hi[k]=std::max(hi[k],vn[k]);
-                }
-            };
-            auto neighbour=[&](int i,int j) {
-                const std::size_t n=cm.index(i,j);
-                add(cm.cells[n].z-cp.z,cm.cells[n].r-cp.r,cv.values.data()+n*stride);
-            };
-            if(I>0) neighbour(I-1,J);
-            if(I<cm.nz-1) neighbour(I+1,J);
-            if(J>0) neighbour(I,J-1);
-            else { const double mirror[4]={vp[0],vp[1],-vp[2],vp[3]};add(0,-2*cp.r,mirror); }
-            if(J<cm.nr-1) neighbour(I,J+1);
-            const double det=m00*m11-m01*m01;
-            double g[4][2]={};
-            if(det>0) for(int k=0;k<4;++k) {
-                g[k][0]=(m11*b[k][0]-m01*b[k][1])/det;
-                g[k][1]=(m00*b[k][1]-m01*b[k][0])/det;
-            }
-            double volume=0,zbar=0,rbar=0;
-            for(auto q:child) { const Cell& cc=fm.cells[q];volume+=cc.volume;zbar+=cc.volume*cc.z;rbar+=cc.volume*cc.r; }
-            zbar/=volume;rbar/=volume;
-            double change[4][4],phi[4]={1,1,1,1};
-            for(int n=0;n<4;++n) {
-                const Cell& cc=fm.cells[child[n]];
-                for(int k=0;k<4;++k) {
-                    const double d=g[k][0]*(cc.z-zbar)+g[k][1]*(cc.r-rbar);
-                    change[n][k]=d;
-                    if(d>0) phi[k]=std::min(phi[k],(hi[k]-vp[k])/d);
-                    else if(d<0) phi[k]=std::min(phi[k],(lo[k]-vp[k])/d);
-                }
-            }
-            bool ok=true;
-            for(int n=0;n<4 && ok;++n) {
-                const auto q=child[n];
-                for(int k=0;k<4;++k) state[q][k]=vp[k]+phi[k]*change[n][k];
-                const double scale=state[q][0]/vp[0];
-                for(std::size_t k=0;k<ns;++k) species[q*ns+k]=vp[4+k]*scale;
-                for(std::size_t k=0;k<nt;++k) turbulence[q*nt+k]=vp[4+ns+k]*scale;
-                ok=f.admissible(state[q],species.data()+q*ns,nt?turbulence.data()+q*nt:nullptr);
-            }
-            if(!ok) for(auto q:child) {
-                for(int k=0;k<4;++k) state[q][k]=vp[k];
-                for(std::size_t k=0;k<ns;++k) species[q*ns+k]=vp[4+k];
-                for(std::size_t k=0;k<nt;++k) turbulence[q*nt+k]=vp[4+ns+k];
-            }
-            for(auto q:child) f.temperature_[q]=c.temperature_[p];
+            if(f.isActive(fm.index(2*I,2*J))) continue;
+            spread(l,p,state,species,turbulence);
         }
     });
+}
+// rho, rho u_z, rho u_r and E linear with the parent's least-squares gradient over its face neighbours
+// (across the axis its mirror image, rho u_r odd), limited by Barth and Jespersen to the neighbours'
+// range, times the child's offset from the children's volume-weighted centroid, so the children's
+// content is the parent's. The partial densities, rho k and rho omega scale with the child's density.
+// If a child is not admissible, the parent's children all take its values.
+void Amr::spread(int l,std::size_t p,std::vector<Conserved>& state,std::vector<double>& species,std::vector<double>& turbulence) {
+    const Level& cv=levels_[static_cast<std::size_t>(l-1)];
+    const Flow& c=*cv.flow;Flow& f=level(l);
+    const Mesh& cm=c.mesh_;const Mesh& fm=f.mesh_;
+    const std::size_t ns=c.ns_,nt=c.nt_,stride=4+ns+nt;
+    const int I=static_cast<int>(p/static_cast<std::size_t>(cm.nr)),J=static_cast<int>(p%static_cast<std::size_t>(cm.nr));
+    const std::size_t child[4]={fm.index(2*I,2*J),fm.index(2*I,2*J+1),fm.index(2*I+1,2*J),fm.index(2*I+1,2*J+1)};
+    const double* vp=cv.values.data()+p*stride;
+    const Cell& cp=cm.cells[p];
+    double m00=0,m01=0,m11=0,b[4][2]={},lo[4],hi[4];
+    for(int k=0;k<4;++k) lo[k]=hi[k]=vp[k];
+    auto add=[&](double dz,double dr,const double* vn) {
+        m00+=dz*dz;m01+=dz*dr;m11+=dr*dr;
+        for(int k=0;k<4;++k) {
+            const double dv=vn[k]-vp[k];
+            b[k][0]+=dz*dv;b[k][1]+=dr*dv;
+            lo[k]=std::min(lo[k],vn[k]);hi[k]=std::max(hi[k],vn[k]);
+        }
+    };
+    auto neighbour=[&](int i,int j) {
+        const std::size_t n=cm.index(i,j);
+        add(cm.cells[n].z-cp.z,cm.cells[n].r-cp.r,cv.values.data()+n*stride);
+    };
+    if(I>0) neighbour(I-1,J);
+    if(I<cm.nz-1) neighbour(I+1,J);
+    if(J>0) neighbour(I,J-1);
+    else { const double mirror[4]={vp[0],vp[1],-vp[2],vp[3]};add(0,-2*cp.r,mirror); }
+    if(J<cm.nr-1) neighbour(I,J+1);
+    const double det=m00*m11-m01*m01;
+    double g[4][2]={};
+    if(det>0) for(int k=0;k<4;++k) {
+        g[k][0]=(m11*b[k][0]-m01*b[k][1])/det;
+        g[k][1]=(m00*b[k][1]-m01*b[k][0])/det;
+    }
+    // The children's volume-weighted centroid, as offsets from the parent's centroid: in absolute coordinates
+    // the offsets' weighted sum cancels only to rounding of |z| rather than of the cell size (AMR.md, Step C: results).
+    double volume=0,zbar=0,rbar=0;
+    for(auto q:child) { const Cell& cc=fm.cells[q];volume+=cc.volume;zbar+=cc.volume*(cc.z-cp.z);rbar+=cc.volume*(cc.r-cp.r); }
+    zbar/=volume;rbar/=volume;
+    double change[4][4],phi[4]={1,1,1,1};
+    for(int n=0;n<4;++n) {
+        const Cell& cc=fm.cells[child[n]];
+        for(int k=0;k<4;++k) {
+            const double d=g[k][0]*((cc.z-cp.z)-zbar)+g[k][1]*((cc.r-cp.r)-rbar);
+            change[n][k]=d;
+            if(d>0) phi[k]=std::min(phi[k],(hi[k]-vp[k])/d);
+            else if(d<0) phi[k]=std::min(phi[k],(lo[k]-vp[k])/d);
+        }
+    }
+    bool ok=true;
+    for(int n=0;n<4 && ok;++n) {
+        const auto q=child[n];
+        for(int k=0;k<4;++k) state[q][k]=vp[k]+phi[k]*change[n][k];
+        const double scale=state[q][0]/vp[0];
+        for(std::size_t k=0;k<ns;++k) species[q*ns+k]=vp[4+k]*scale;
+        for(std::size_t k=0;k<nt;++k) turbulence[q*nt+k]=vp[4+ns+k]*scale;
+        ok=f.admissible(state[q],species.data()+q*ns,nt?turbulence.data()+q*nt:nullptr);
+    }
+    if(!ok) for(auto q:child) {
+        for(int k=0;k<4;++k) state[q][k]=vp[k];
+        for(std::size_t k=0;k<ns;++k) species[q*ns+k]=vp[4+k];
+        for(std::size_t k=0;k<nt;++k) turbulence[q*nt+k]=vp[4+ns+k];
+    }
+    for(auto q:child) f.temperature_[q]=c.temperature_[p];
+}
+void Amr::setTags(Tags tags) {
+    if(tags.interval<1 || tags.buffer<0) throw std::invalid_argument("The regrid interval must be at least 1 and the buffer at least 0.");
+    if(!tags.hydrogen.empty() && tags.hydrogen.size()!=level(0).ns_) throw std::invalid_argument("The f_H weights need one entry per species.");
+    tags_=std::move(tags);tagged_=true;
+}
+// Tags on level l over its active cells (AMR.md, Step C: setup), from its refreshed primitives:
+// across each face to an active face neighbour (f_H, T and p, both cells), vorticity times the side of
+// the cell's meridional square against 0.05 of its sound speed, the throat and the wall strip; then
+// buffered. The level-l set is those together with the parents of the level-(l + 1) cells within the
+// ghost width of level l + 2's new active cells, so each new level nests in the one below by
+// construction, and level l + 1's new active cells are its children. New cells are filled from the
+// bottom up by spread from the level below at the regrid time; cells leaving a level keep nothing.
+void Amr::regrid(bool initial) {
+    if(!checked_) check();
+    const int top=levels()-1;
+    const Tags& tg=tags_;
+    const bool first=initial;
+    std::vector<std::vector<unsigned char>> set(static_cast<std::size_t>(top));
+    for(int l=top-1;l>=0;--l) {
+        Flow& f=level(l);const Mesh& m=f.mesh_;
+        const std::size_t count=m.cells.size(),ns=f.ns_,nw=f.nw_;
+        std::vector<unsigned char> tag(count,0);
+        f.refresh(f.state_,f.species_,f.turbulence_,0);
+        auto on=[&](int i,int j) { return i>=0 && i<m.nz && j>=0 && j<m.nr && f.isActive(m.index(i,j)); };
+        auto mixture=[&](std::size_t q) {
+            const double* y=f.fractions_.data()+q*nw;
+            double s=0;
+            for(std::size_t k=0;k<ns;++k) s+=tg.hydrogen[k]*y[k];
+            return s;
+        };
+        auto across=[&](std::size_t a,std::size_t b) {
+            const double ta=f.temperature_[a],tb=f.temperature_[b],pa=f.primitives_[a].p,pb=f.primitives_[b].p;
+            if((!tg.hydrogen.empty() && tg.mixture>0 && std::abs(mixture(a)-mixture(b))>tg.mixture) ||
+               (tg.temperature>0 && std::abs(ta-tb)>tg.temperature*std::min(ta,tb)) ||
+               (tg.pressure>0 && std::abs(pa-pb)>tg.pressure*std::min(pa,pb))) tag[a]=tag[b]=1;
+        };
+        // The throat: the wall's narrowest station strictly inside the domain (none if the narrowest is an end).
+        int throat=-1;double rt=0;
+        if(tg.throatHalfWidth>0 && l+1<=tg.throatLevel) {
+            int it=0;
+            for(int i=1;i<=m.nz;++i) if(m.radius[static_cast<std::size_t>(i)]<m.radius[static_cast<std::size_t>(it)]) it=i;
+            rt=m.radius[static_cast<std::size_t>(it)];
+            if(it>0 && it<m.nz && rt<m.radius.front() && rt<m.radius.back()) throat=it;
+        }
+        const bool wall=tg.wallYPlus>0 && l+1<=tg.throatLevel;
+        if(wall && !first && f.viscosity_.size()<count) throw std::invalid_argument("The wall strip needs molecular transport.");
+        for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
+            if(!on(i,j)) continue;
+            const std::size_t q=m.index(i,j);
+            const Cell& c=m.cells[q];
+            if(on(i+1,j)) across(q,m.index(i+1,j));
+            if(on(i,j+1)) across(q,m.index(i,j+1));
+            if(tg.vorticity>0) {
+                // The fill's unlimited least-squares fit of u_z and u_r over the active face neighbours.
+                const Primitive& w=f.primitives_[q];
+                double m00=0,m01=0,m11=0,bz[2]={},br[2]={};
+                auto add=[&](double dz,double dr,double uz,double ur) {
+                    m00+=dz*dz;m01+=dz*dr;m11+=dr*dr;
+                    bz[0]+=dz*(uz-w.uz);bz[1]+=dr*(uz-w.uz);br[0]+=dz*(ur-w.ur);br[1]+=dr*(ur-w.ur);
+                };
+                auto neighbour=[&](int ii,int jj) {
+                    if(!on(ii,jj)) return;
+                    const std::size_t n=m.index(ii,jj);
+                    add(m.cells[n].z-c.z,m.cells[n].r-c.r,f.primitives_[n].uz,f.primitives_[n].ur);
+                };
+                neighbour(i-1,j);neighbour(i+1,j);neighbour(i,j+1);
+                if(j>0) neighbour(i,j-1); else add(0,-2*c.r,w.uz,-w.ur);
+                const double det=m00*m11-m01*m01;
+                if(det>0) {
+                    const double durdz=(m11*br[0]-m01*br[1])/det,duzdr=(m00*bz[1]-m01*bz[0])/det;
+                    const double side=std::sqrt(c.volume/(2*std::numbers::pi*c.r));
+                    if(std::abs(durdz-duzdr)*side>tg.vorticity*f.sound_[q]) tag[q]=1;
+                }
+            }
+            if(throat>=0 && std::abs(c.z-throat*m.dz)<=tg.throatHalfWidth*rt) tag[q]=1;
+            if(tg.custom && tg.custom(l,i,j)) tag[q]=1;
+            if(wall && j==m.nr-1) {
+                if(first) tag[q]=1;
+                else {
+                    // Laminar y+: u_tau from mu |u_t| / y, y the centroid's distance to the wall segment.
+                    const double r0=m.radius[static_cast<std::size_t>(i)],r1=m.radius[static_cast<std::size_t>(i+1)];
+                    const double len=std::hypot(m.dz,r1-r0);
+                    const Primitive& w=f.primitives_[q];
+                    const double ut=std::abs(w.uz*m.dz+w.ur*(r1-r0))/len;
+                    const double y=(r0+(r1-r0)*(c.z-i*m.dz)/m.dz-c.r)*m.dz/len;
+                    if(std::sqrt(w.rho*ut*y/f.viscosity_[q])>tg.wallYPlus) tag[q]=1;
+                }
+            }
+        }
+        auto& s=set[static_cast<std::size_t>(l)];
+        s.assign(count,0);
+        const int b=tg.buffer;
+        for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
+            if(!tag[m.index(i,j)]) continue;
+            for(int ii=std::max(0,i-b);ii<=std::min(m.nz-1,i+b);++ii)
+                for(int jj=std::max(0,j-b);jj<=std::min(m.nr-1,j+b);++jj) s[m.index(ii,jj)]=1;
+        }
+        // Nesting: level l + 2's new active cells are the children of set[l + 1].
+        if(l+1<top) {
+            const auto& above=set[static_cast<std::size_t>(l+1)];
+            const Mesh& am=level(l+1).mesh_;const Mesh& tm=level(l+2).mesh_;
+            for(int I=0;I<am.nz;++I) for(int J=0;J<am.nr;++J) {
+                if(!above[am.index(I,J)]) continue;
+                for(int ii=std::max(0,2*I-ghost_);ii<=std::min(tm.nz-1,2*I+1+ghost_);++ii)
+                    for(int jj=std::max(0,2*J-ghost_);jj<=std::min(tm.nr-1,2*J+1+ghost_);++jj) s[m.index(ii>>2,jj>>2)]=1;
+            }
+        }
+    }
+    // The new active sets; nothing is touched if none changes.
+    std::vector<std::vector<unsigned char>> next(static_cast<std::size_t>(levels()));
+    bool changed=false;
+    for(int l=1;l<=top;++l) {
+        const Mesh& m=level(l).mesh_;const Mesh& cm=level(l-1).mesh_;
+        auto& a=next[static_cast<std::size_t>(l)];
+        a.assign(m.cells.size(),0);
+        for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) a[m.index(i,j)]=set[static_cast<std::size_t>(l-1)][cm.index(i>>1,j>>1)];
+        changed=changed || a!=level(l).active_;
+    }
+    regridded_=true;
+    if(!changed) return;
+    fillError_=fillGross_=0;
+    for(int l=1;l<=top;++l) {
+        Level& cv=levels_[static_cast<std::size_t>(l-1)];
+        Flow& f=level(l);const Flow& c=*cv.flow;
+        const Mesh& m=f.mesh_;const Mesh& cm=c.mesh_;
+        const std::size_t ns=c.ns_,nt=c.nt_,stride=4+ns+nt,count=cm.cells.size();
+        cv.values.resize(count*stride);
+        for(std::size_t q=0;q<count;++q) {
+            double* v=cv.values.data()+q*stride;
+            for(int k=0;k<4;++k) v[k]=c.state_[q][k];
+            for(std::size_t k=0;k<ns;++k) v[4+k]=c.species_[q*ns+k];
+            for(std::size_t k=0;k<nt;++k) v[4+ns+k]=c.turbulence_[q*nt+k];
+        }
+        const auto& a=next[static_cast<std::size_t>(l)];
+        for(int I=0;I<cm.nz;++I) for(int J=0;J<cm.nr;++J) {
+            const std::size_t p=cm.index(I,J),q0=m.index(2*I,2*J);
+            if(!a[q0] || f.isActive(q0)) continue;
+            spread(l,p,f.state_,f.species_,f.turbulence_);
+            // Check 2: the children's content against the parent's.
+            const double* vp=cv.values.data()+p*stride;
+            const double vol=cm.cells[p].volume;
+            const std::size_t child[4]={q0,m.index(2*I,2*J+1),m.index(2*I+1,2*J),m.index(2*I+1,2*J+1)};
+            // As stated, over the parent's own content (momentum's magnitude for both components); and over the
+            // children's gross content, the sum of their |content|, which stays well conditioned where a content
+            // nears zero (the total energy, which carries the formation enthalpies, changes sign in this flow).
+            auto error=[&](double sum,double parent,double own,double gross) {
+                if(own>0) fillError_=std::max(fillError_,std::abs(sum-parent)/own);
+                if(gross>0) fillGross_=std::max(fillGross_,std::abs(sum-parent)/gross);
+            };
+            const double momentum=std::hypot(vp[1],vp[2])*vol;
+            for(int k=0;k<4;++k) {
+                double sum=0,gross=0;
+                for(auto q:child) { const double v=m.cells[q].volume*f.state_[q][k];sum+=v;gross+=std::abs(v); }
+                error(sum,vol*vp[k],k==1 || k==2?momentum:std::abs(vol*vp[k]),gross);
+            }
+            for(std::size_t k=0;k<ns;++k) {
+                double sum=0,gross=0;
+                for(auto q:child) { const double v=m.cells[q].volume*f.species_[q*ns+k];sum+=v;gross+=std::abs(v); }
+                error(sum,vol*vp[4+k],std::abs(vol*vp[4+k]),gross);
+            }
+        }
+        f.active_=a;
+    }
+    ++regrids_;checked_=false;
 }
 // Each uncovered level-l cell beside a covered one takes, at the face between them, the sum of
 // level l + 1's face integrals over both substeps and the two fine faces less level l's own, divided
@@ -390,6 +566,8 @@ Amr::Budget Amr::budget() const {
 }
 double Amr::step(double maxDt) {
     if(!(maxDt>0)) throw std::invalid_argument("Step interval must be positive.");
+    // Level l's tags read its active cells, so the initial levels take one pass per level to reach the top.
+    if(tagged_ && !regridded_) for(int k=1;k<levels();++k) regrid(true);
     if(!checked_) check();
     if(!started_) { initial_=content();started_=true; }
     for(auto& v:levels_)
@@ -404,6 +582,7 @@ double Amr::step(double maxDt) {
         if(advance(0,time_,dt,0)) {
             time_=landing?event:time_+dt;++steps_;
             for(auto& v:levels_) v.flow->time_=time_;
+            if(tagged_ && steps_%static_cast<std::uint64_t>(tags_.interval)==0) regrid(false);
             return dt;
         }
         restore();++rejected_;dt*=0.5;landing=false;

@@ -15,6 +15,10 @@
 // Step B2's checks (AMR.md, Step B2: setup): b1 runs B1 (with the temperature-guess reset) instead of B2,
 // ghost=N sets the ghost width, dump=PATH writes the active cells, steps and budget at the end, and amr
 // stops after the AMR run (no single-level run, nothing judged).
+// Step C's checks (AMR.md, Step C: setup): tags turns on the tags and regridding at Tags' defaults, with the f_H
+// weights from each species' H content. It prints the regrids that changed the pattern and level 1's active cells,
+// and judges check 2 over every regrid (so including the first after light-off): the largest fill content error below
+// 1e-14, over the parent's content as stated and over the children's gross content (AMR.md, Step C: results).
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -134,12 +138,13 @@ struct Tracker {
 int main(int argc, char** argv) {
   double end = 8e-3;
   int threads = 4, ghost = 0, positional = 0;
-  bool b1 = false, amrOnly = false;
+  bool b1 = false, amrOnly = false, tagged = false;
   std::string dumpPath;
   for (int k = 1; k < argc; ++k) {
     const std::string a = argv[k];
     if (a == "b1") b1 = true;
     else if (a == "amr") amrOnly = true;
+    else if (a == "tags") tagged = true;
     else if (a.rfind("ghost=", 0) == 0) ghost = std::atoi(a.c_str() + 6);
     else if (a.rfind("dump=", 0) == 0) dumpPath = a.substr(5);
     else if (positional++ == 0) end = std::atof(a.c_str());
@@ -150,8 +155,9 @@ int main(int argc, char** argv) {
   const EquilibriumTable table = EquilibriumTable::load(path);
   thermo::ReactionSource source("h2o2.yaml");
   const Definition d = c1eqtt(source, 32, 6);
-  std::printf("AMR criterion 2 on %s: C1 eqtt (resolved walls), base 32 x 6 plus one level, to %.4g ms, %d threads%s\n", b1 ? "B1" : "B2",
-              end * 1e3, threads, ghost > 0 ? (", ghost width " + std::to_string(ghost)).c_str() : "");
+  std::printf("AMR criterion 2 on %s: C1 eqtt (resolved walls), base 32 x 6 plus one level, to %.4g ms, %d threads%s%s\n", b1 ? "B1" : "B2",
+              end * 1e3, threads, ghost > 0 ? (", ghost width " + std::to_string(ghost)).c_str() : "",
+              tagged ? ", step C's tags and regridding" : "");
   std::printf("table %s: %s\n", path, table.provenance.c_str());
 
   Amr amr(d, 1);
@@ -192,6 +198,22 @@ int main(int argc, char** argv) {
 
   auto historySolution = Cantera::newSolution("h2o2.yaml", "", "none");
   Cantera::ThermoPhase& gas = *historySolution->thermo();
+  if (tagged) {
+    Amr::Tags tags;
+    const std::size_t eH = gas.elementIndex("H");
+    for (const auto& sp : d.species) {
+      const std::size_t k = gas.speciesIndex(sp.name);
+      tags.hydrogen.push_back(gas.nAtoms(k, eH) * gas.atomicWeight(eH) / gas.molecularWeight(k));
+    }
+    amr.setTags(tags);
+  }
+  auto activeCells = [&](int l) {
+    std::size_t n = 0;
+    for (auto a : amr.active(l)) n += a;
+    return n;
+  };
+  std::uint64_t regrids = 0;
+  double fillWorst = 0, fillGrossWorst = 0;
 
   // The AMR run.
   // The momentum error's denominator as Flow::measurements: |initial momentum| + the gross exchange.
@@ -204,6 +226,11 @@ int main(int argc, char** argv) {
   double nextPrint = 5e-4;
   while (amr.time() < end) {
     amr.step(end - amr.time());
+    if (amr.regrids() != regrids) {
+      regrids = amr.regrids();
+      fillWorst = std::max(fillWorst, amr.fillError());
+      fillGrossWorst = std::max(fillGrossWorst, amr.fillGross());
+    }
     const auto b = amr.budget();
     composite.content(b.mass, b.energy);
     composite.errors(b.massResidual / composite.largestMass, b.energyResidual / composite.largestEnergy,
@@ -213,6 +240,9 @@ int main(int argc, char** argv) {
                   amr.time() * 1e3, static_cast<unsigned long long>(amr.steps()), static_cast<unsigned long long>(amr.rejectedSteps()),
                   seconds(clock0), b.massResidual / composite.largestMass, b.energyResidual / composite.largestEnergy,
                   b.momentumResidual / momentumScale(b), b.igniterEnergy);
+      if (tagged)
+        std::printf("    regrids %llu, level 1 active %zu of %zu, fill error largest %.3e (gross %.3e)\n", static_cast<unsigned long long>(regrids),
+                    activeCells(1), amr.active(1).size(), fillWorst, fillGrossWorst);
       std::fflush(stdout);
       nextPrint += 5e-4;
     }
@@ -237,6 +267,9 @@ int main(int argc, char** argv) {
                 final.massResidual / composite.largestMass, final.energyResidual / composite.largestEnergy,
                 final.momentumResidual / momentumScale(final), composite.worstMass, composite.worstEnergy, composite.worstMomentum,
                 std::abs(final.igniterEnergy - kIgniter), amrCstar, fVac, static_cast<unsigned long long>(amr.steps()), amrWall);
+    if (tagged)
+      std::printf("AMR only, not judged: %llu regrids, fill error largest %.3e, over the gross content %.3e\n",
+                  static_cast<unsigned long long>(regrids), fillWorst, fillGrossWorst);
     return 0;
   }
 
@@ -280,6 +313,12 @@ int main(int argc, char** argv) {
   // Criterion 2 says "exact to 1e-14 relative"; the first run judged 1e-14 J, twice as loose (AMR.md, criterion 2 results).
   const double igniterError = std::abs(final.igniterEnergy - kIgniter) / kIgniter;
   check(igniterError <= 1e-14, "composite igniter energy, |E / 0.5 J - 1|", igniterError, 1e-14);
+  if (tagged) {
+    check(fillWorst <= 1e-14, "step C check 2: the largest fill content error over the regrids", fillWorst, 1e-14);
+    check(fillGrossWorst <= 1e-14, "  the same over the children's gross content", fillGrossWorst, 1e-14);
+    std::printf("      printed, not judged: %llu regrids changed the pattern; level 1 ends with %zu of %zu active\n",
+                static_cast<unsigned long long>(regrids), activeCells(1), amr.active(1).size());
+  }
   std::printf("      printed, not judged: AMR igniter |E - 0.5 J| %.3e J; single level mass %.3e, energy %.3e, momentum %.3e, igniter |E - 0.5 J| %.3e J\n",
               std::abs(final.igniterEnergy - kIgniter), singleMass, singleEnergy, ms.momentumBalanceError,
               std::abs(ms.igniterEnergy - kIgniter));

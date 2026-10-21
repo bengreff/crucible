@@ -484,7 +484,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT)
 
 - **Synced with `main`:** inquiry merged the branch (755bf30). inquiry2 fast-forwarded to `main` 67c9053 and committed on top (d79df48, 8aeacee, e20d6c6, 28fb979, cb9d9ff, 4dbb3f1 and this handoff). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`.
 - **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
@@ -497,10 +497,17 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
   - (r), every column 2× finer, crosses at 0.874 ms at the H2 stream's edge. That is the b-bound's pocket, which the consistent fluxes remove (c1).
   - (u), unity Lewis on the consistent fluxes, crosses at 1.888 ms with the b maximum in the face/axis corner cell itself (5.88 MJ/kg at 1.9 ms).
   - So the corner pocket is **not differential diffusion**. By elimination it is **numerical, in the corner's inviscid update** (inferred). The derived candidate: outflow at face b below the cell's own raises its specific b, because the face b is a nonlinear function of the reconstructed primitives.
-  - **Waiting on the Director:**
-    - (m) one ~35 min run of (u) with the probe from 1.6 ms, plus an outflow/inflow split in `budget_read.py`, to measure the formation; the cheap side run is the b-bound with the consistent fluxes to 2.5 ms.
-    - (x) the fix, `extremumBoundedEnthalpy` with checks x0 to x3, coded only after (m) confirms.
-    - S7: hold it until (m), or run it with `CRUCIBLE_DELTA_H=1` and report the corner as a known defect.
+  - **(m) confirms the mechanism (COST.md, *(m), the readout*; 07d474c registered it, fb1e558 has the result; `cost/m_readout_2026-10-21.txt`).** Over the corner's local-maximum intervals its b rises 0.955 MJ/kg, and outflow through the plate column's high-z face supplies 99.3% of the positive contributions (the mixture part is negative). That face is built from the one-sided axial slope.
+  - **(x) `extremumBoundedEnthalpy` is coded (fb1e558; form and checks registered in c05c6b4), and x0 passes**: flag off is identical to e20d6c6.
+  - **(x) passes all its checks and is adopted for liquid runs (COST.md; 2983418).**
+    - x0 passes (flag off identical to e20d6c6). x1 failed as registered (the test's pure-air inflow let a variable-gamma contact in); x1b fixes the inflow and passes.
+    - x2 passes (c2)'s rule: the low case to 2.5 ms with (x) and the consistent fluxes, no crossing, T_max 3,396 to 3,398 K from 2.2 to 2.5 ms, face-column b 0.28 MJ/kg at 2.3 ms against the baseline's 3.7 to 5.6.
+    - x3 passes: C1's c* shift halves from 32x6 to 64x12 (1.84e-3 to 6.8e-4); the pipe agrees to 4e-8 (its 4b mass budget fails on and off, as before (x)); the nozzle's entropy order is 2.035 on and 2.010 off.
+    - **Adopted (the Director):** the Mascotte driver sets (x) and the consistent fluxes on by default and prints them; `CRUCIBLE_DELTA_H=0` / `CRUCIBLE_EXTREMUM_H=0` turn each off. Engine defaults are unchanged, so the gas cases are untouched. MASCOTTE_A10_PREDICTION.md section 7 records the scheme change before any production result.
+  - **The side run (s), the b-bound with the consistent fluxes, also passes (c2)'s rule** (T_max 3,407 K, 9 to 11 K above x2), against the derivation's prediction. Why is open; it is not adopted.
+  - **S7 is running on backhouse (the Director's decision, 21 October about 02:20 CDT: start all four now, backhouse is ours overnight).** Launched 02:21 CDT in tmux `inq2s7` from `/home/greff/crucible_s7x` (inquiry2 at 97f4fcd, in `REVISION`), script `bh_s7.sh`, Mascotte table from `/home/greff/crucible_s7/build`. All four from t = 0 to 25 ms, averaging from 15 ms, CFL 0.8, hot trace at 3,450 K, the liquid default scheme (each log's second line prints it): low (`rr:223:3.207:13.7`), high (`rr:574:3.207:13.7`) and blob at 239x70 on 5 threads each, blob-fine at 478x70 on 9 (24 in total). Outputs and done-files in `runs/` (`<name>_done`, `all_done`); status from the Mac with `ssh backhouse "wsl bash -l" < /tmp/inq2c/s7/bh_s7_status.sh`. Expected (inferred from x2's pace): 4 to 5 h for the three coarse runs, 10 to 15 h for blob-fine. Blind: read only the log's history lines until section 6 is committed; then settledness per section 2 and `tools/mascotte_band.py`. The old runs in `/home/greff/crucible_s7/runs` are the pre-change scheme and are not used.
+  - **Open item: why the b-bound with the consistent fluxes (side run s) also removes the pocket**, 9 to 11 K hotter than (x), against the derivation that predicted it would not. Not adopted; documented in COST.md.
+  - **Then AMR step C** (below), on the Mac.
   - Physical differential diffusion is +30 to +50 K at the flame (measured, confounded with Pr_t). It is not the pocket.
 - **AMR: nothing was lost in the reboot.** B2, 3(c) and the igniter had finished on backhouse on 14 October, and their results are in AMR.md (9878e86). Step C's setup is recorded (645e876) but has no code yet. Next: build it as recorded (`Amr::setTags`, the tags, the top-down sets with the nesting envelope, the fill's spatial part), then its five checks, 5(b) on backhouse when its load allows.
 - **The entropy method for `core/medium.*`: accepted as proposed** (the answer is under inquiry's proposal above).

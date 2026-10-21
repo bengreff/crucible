@@ -15,6 +15,15 @@
 //   3. Same two gases advected at uniform pressure and velocity: measured and reported only
 //      (spurious pressure at a variable-gamma contact is a known property of fully conservative
 //      schemes; its size decides whether a correction is needed).
+//   4. (21 October 2026, COST.md lever 3, check x1) Definition::extremumBoundedEnthalpy on a convected hot spot:
+//      a 400-cell UniformDuct at uniform p and u, the same two gases, T 300 K plus a 300 K Gaussian (sigma 0.02 m)
+//      at z 0.3 m across a helium ramp Y_He = 0.01 +- 0.01 tanh((z - 0.3)/0.02), both signs, carried 0.2 m. b is h
+//      (no excess coefficients, no turbulence). With the flag, the largest cell h never rises by more than 1e-12
+//      relative in a step; without it, it rises by more than that in at least one of the two runs (the check
+//      discriminates). The largest |p/p0 - 1| is reported, since a variable-gamma contact moves pressure (item 3).
+//      Corrected the same night (x1b, registered before its run): the duct's inflow takes Definition::composition,
+//      which was pure air, so the -1 ramp (2% helium at the inlet) let a variable-gamma contact in at the inlet,
+//      and its pressure waves (|p/p0 - 1| 2.5e-3) compressed the spot. The inflow now has the first cell's composition.
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -213,6 +222,58 @@ int main() {
       du = std::max(du, std::abs(w.uz / u - 1));
     }
     std::printf("  %d cells, contact moved 0.25 m: max |p/p0-1| %.4e, max |u/u0-1| %.4e\n", n, dp, du);
+  }
+
+  std::printf("4. extremumBoundedEnthalpy: largest h of a convected hot spot across a helium ramp\n");
+  {
+    double worstOff = 0, worstOn = 0;
+    for (double sign : {1.0, -1.0})
+      for (bool on : {false, true}) {
+        const int n = 400;
+        Definition d = tube(n);
+        d.experiment = Case::UniformDuct;
+        d.extremumBoundedEnthalpy = on;
+        const double inflowHe = 0.01 + sign * 0.01 * std::tanh((0.5 / n - 0.3) / 0.02);
+        d.composition = {1 - inflowHe, inflowHe};
+        Flow f(d);
+        const Medium& medium = f.medium();
+        const double u = 100, p = 1e5;
+        std::vector<Primitive> cells;
+        std::vector<double> y;
+        for (int i = 0; i < n; ++i) {
+          double z = (i + 0.5) / n, x = (z - 0.3) / 0.02;
+          double he = 0.01 + sign * 0.01 * std::tanh(x), t = 300 + 300 * std::exp(-x * x);
+          double yk[2] = {1 - he, he};
+          cells.push_back({p / (medium.gasConstant(yk) * t), u, 0, p});
+          y.insert(y.end(), {1 - he, he});
+        }
+        f.setInitialState(cells, y);
+        auto largest = [&] {
+          double h = 0;
+          for (int i = 0; i < n; ++i) {
+            auto w = f.cellPrimitive(i);
+            double yk[2] = {f.partialDensities()[2 * i] / w.rho, f.partialDensities()[2 * i + 1] / w.rho};
+            double r = medium.gasConstant(yk), t = w.p / (w.rho * r);
+            h = std::max(h, medium.internalEnergy(t, yk) + r * t);
+          }
+          return h;
+        };
+        double before = largest(), rise = 0, dp = 0;
+        int steps = 0;
+        while (f.time() < 0.2 / u) {
+          f.step();
+          double now = largest();
+          rise = std::max(rise, (now - before) / before);
+          before = now;
+          ++steps;
+          for (int i = 0; i < n; ++i) dp = std::max(dp, std::abs(f.cellPrimitive(i).p / p - 1));
+        }
+        std::printf("  ramp %+.0f, flag %s: %d steps, largest rise of max h in a step %.4e (relative), max |p/p0-1| %.4e\n",
+                    sign, on ? "on " : "off", steps, rise, dp);
+        (on ? worstOn : worstOff) = std::max(on ? worstOn : worstOff, rise);
+      }
+    check(worstOn <= 1e-12, "flag on: largest rise of max h in a step", worstOn, 1e-12);
+    check(worstOff > 1e-12, "flag off: it rises (the check discriminates)", worstOff, 1e-12);
   }
 
   std::printf("%d failures\n", failures);

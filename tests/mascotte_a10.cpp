@@ -14,8 +14,10 @@
 // CRUCIBLE_BOUND_H Definition::boundedFaceEnthalpy, and CRUCIBLE_BOUND_B the same judged on the excess above
 // the mixing line (Flow::setBoundedExcess); CRUCIBLE_PRANDTL_T overrides the turbulent Prandtl
 // number (a diagnostic: Pr_t = Sc_t makes turbulent transport carry the excess enthalpy as one scalar);
-// CRUCIBLE_DELTA_H sets Definition::Turbulence::consistentFlux (the turbulent fluxes from the two cells'
-// differences of Y_k and h); CRUCIBLE_UNITY_LEWIS sets Definition::unityLewis (a discriminator, with it).
+// CRUCIBLE_UNITY_LEWIS sets Definition::unityLewis (a discriminator). Definition::Turbulence::consistentFlux (the
+// turbulent fluxes from the two cells' differences of Y_k and h) and Definition::extremumBoundedEnthalpy (its
+// extremum test on the excess above the mixing line) are on by default, the liquid runs' scheme since x2
+// (COST.md, lever 3); CRUCIBLE_DELTA_H=0 and CRUCIBLE_EXTREMUM_H=0 turn each off.
 // Usage: crucible_mascotte_a10 <size> <nz> <nr> <end s> <average from s> <threads> <prefix> <table|none>
 //                             [parcels per second] [table audit interval]
 //   size: blob (Reitz's blob, KH-RT atomises), or rr:<SMD um>:<q>:<core length mm> (Rosin-Rammler
@@ -123,8 +125,10 @@ int main(int argc, char** argv) {
     if (std::getenv("CRUCIBLE_RECONSTRUCT_T")) d.temperatureReconstruction = true;
     if (std::getenv("CRUCIBLE_BOUND_H") || std::getenv("CRUCIBLE_BOUND_B")) d.boundedFaceEnthalpy = true;
     if (const char* prt = std::getenv("CRUCIBLE_PRANDTL_T")) d.turbulence.prandtl = std::atof(prt);
-    if (std::getenv("CRUCIBLE_DELTA_H")) d.turbulence.consistentFlux = true;
+    const auto unlessZero = [](const char* name) { const char* v = std::getenv(name); return !v || std::string(v) != "0"; };
+    d.turbulence.consistentFlux = unlessZero("CRUCIBLE_DELTA_H");
     if (std::getenv("CRUCIBLE_UNITY_LEWIS")) d.unityLewis = true;
+    d.extremumBoundedEnthalpy = unlessZero("CRUCIBLE_EXTREMUM_H");
     Supply s;
     s.innerRadius = kAnnulusInner;
     s.outerRadius = kAnnulusOuter;
@@ -193,6 +197,8 @@ int main(int argc, char** argv) {
     std::printf("chemistry LocalEquilibrium, %s; LOX %.4g kg/m3 at %.4g K, %.4g m/s; H2 annulus %.4g mm2\n",
                 table ? tablePath.c_str() : "direct Cantera", liquid.density, kOxygenT,
                 kOxygenFlow / (liquid.density * kPi * kPostRadius * kPostRadius), area * 1e6);
+    std::printf("consistent turbulent fluxes %s, extremum-bounded face enthalpy %s\n",
+                d.turbulence.consistentFlux ? "on" : "off", d.extremumBoundedEnthalpy ? "on" : "off");
 
     FILE* history = std::fopen((prefix + "_history.csv").c_str(), "w");
     if (!history) throw std::runtime_error("cannot write " + prefix + "_history.csv");
@@ -295,9 +301,10 @@ int main(int argc, char** argv) {
       }
       std::fflush(budget);
     };
-    // CRUCIBLE_BOUND_B: the bound judges the excess above the mixing line (Flow::setBoundedExcess), from the
-    // first step with injected LOX (h_LOX is the spray's injected energy per kilogram); h before.
-    bool excessBound = !std::getenv("CRUCIBLE_BOUND_B");
+    // CRUCIBLE_BOUND_B (and extremumBoundedEnthalpy's extremum test): the excess above the mixing line
+    // (Flow::setBoundedExcess), from the first step with injected LOX (h_LOX is the spray's injected energy per
+    // kilogram); h before.
+    bool excessBound = !std::getenv("CRUCIBLE_BOUND_B") && !d.extremumBoundedEnthalpy;
     while (flow.time() < endTime) {
       if (!excessBound && spray.ledger().injectedMass > 0) {
         const double hLox = spray.ledger().injectedEnergy / spray.ledger().injectedMass;

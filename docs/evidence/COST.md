@@ -235,3 +235,71 @@ A rerun of low with `CRUCIBLE_HOT_TRACE=3450` (e18c710; it reproduces the origin
   - C1 eqtt 32×6 to 8 ms (`crucible_chamber_study eqtt 32 6 8e-3`), flag on against off: settled c*, vacuum Isp and thrust within 1e-3 relative.
   - The pipe (`crucible_turbulence_tests --pipe 16`), flag on against off: u_b, c_f and T_axis − T_wall within 1e-5 relative, and its criteria (a) to (c) still pass.
   - The nozzle (`crucible_convergence --levels 3`, 40×6 to 160×24, 8 ms): the entropy-L1 order from 80×12 to 160×24 with the flag on is not below the flag-off order by more than 0.1. Wall-row order is reported.
+
+**(m), the readout: confirmed (measured; inquiry2, 21 October, about 01:55 CDT).** (m) ran to 2.0 ms (exit 0, 31,546 steps). The corner cell's b peaks at 1.8672 ms (step 29,210; 6.89 MJ/kg, T 3,043 K), so W is 1.6 to 1.8672 ms. Readout: `budget_split.py /tmp/inq2c/m/m_budget.csv 1.6e-3 1.867222e-3 0:0 1:0 0:1`. The split closes to 4e-7 J/kg on every cell, with the worst interval at 1e-12 of its largest term.
+- **Over L** (43 intervals; the corner is first above both neighbours at 1.6318 ms), b rises 0.955 MJ/kg. Outflow supplies +2.03 MJ/kg, 99.3% of the positive contributions, all through the high-z face. Its mixture part is −8.7 kJ/kg (negative, so 0% of the supply). Diffusion removes 0.94 MJ/kg and inflow from above removes 0.11 MJ/kg. By the registered rule this is **confirmed**. The mixture part is far below 30%, so (x) as written applies, not the alternative.
+- **Over W** the corner's b rises 6.58 MJ/kg. Outflow supplies 49.9% (high-z face, +3.33 MJ/kg) and inflow from i 0, j 1 above supplies 47.6% (+3.40 MJ/kg). Cell i 0, j 1 rises 4.71 MJ/kg itself, 97.4% from outflow through its own high-z face (+7.20 MJ/kg). Cell i 1, j 0 (central slopes) rises 3.85 MJ/kg: outflow 56.5% and inflow 43.5%, with turbulent diffusion removing 3.42 MJ/kg.
+- **So the plate column's high-z faces make it (measured), consistent with the sharper candidate (inferred).** Those are the faces built from the one-sided axial slope. The excess rises in the face column through outflow below the cells' own b, reaches the corner by inflow from above, and the corner then keeps rising as a local maximum through the same outflow. (x)'s zero slope at a local extremum removes the face-column case directly; the mechanism in cells that are not extrema is ordinary upwinding of a gradient.
+
+**(x0): passes (measured).** The (x) build with the flag off, low to 0.04 ms (556 steps), equals the e20d6c6 build's history in all 19 compared columns, both with `CRUCIBLE_DELTA_H` (against `u0/new_dh`) and without it (against `u0/new_off`). The flag-on smoke (consistent fluxes on) ran the same 556 steps, with mass and energy budgets of 3.7e-14 and −1.9e-14.
+
+**(x1) as registered: fails (measured; backhouse, `/home/greff/crucible_x/xout/x1.log`).** Largest rise of the maximum cell h in a step, relative:
+
+| Ramp | Flag off | Flag on | max \|p/p0 − 1\|, off / on |
+|---|---|---|---|
+| +1 | 4.18e-5 | 0 exactly | 1.26e-5 / 1.37e-5 |
+| −1 | 3.42e-5 | 6.22e-6 | 2.46e-3 / 2.47e-3 |
+
+- Flag on breaks the 1e-12 tolerance in the −1 run, so x1 fails as registered. Flag off rises in both runs, so the check discriminates.
+- **The cause is in the test (inferred from the code, then measured by x1b below).** The duct's inflow takes `Definition::composition` (`core/flow.cpp:375`), which the test left at pure air. The −1 ramp has 2% helium at the inlet, so a variable-γ contact enters there. Its pressure waves, 200 times the +1 run's, cross the 0.3 m to the spot in about 1 ms and compress it. That moves h by about δp/ρ, the risk registered with x1.
+- **(x1b), registered before its run:** the same test, with the inflow composition set to the first cell's (`tests/mixture_tests.cpp` section 4, as corrected). Pass rule as x1. Expected (derived): the −1 run's |p/p0 − 1| falls to the +1 run's level, about 1e-5.
+
+**(x3), C1 eqtt 32×6: c* fails (measured; `xout/c1_off.log`, `c1_on.log` on backhouse).** Both runs settled (drift over the last ms 8e-8). Flag on against off:
+- c* 2,481.56 against 2,477.00 m/s: +1.84e-3, outside 1e-3.
+- Vacuum Isp 427.42 against 427.45 s: −7e-5.
+- Vacuum thrust 1,676.61 against 1,676.75 N: −8e-5.
+- Outlet mass flow 0.400000 kg/s in both, so the c* shift is a 0.18% higher chamber pressure.
+- Budgets: mass −6.7e-13 and energy 1.0e-11 (off: 1.0e-12 and −9.3e-13).
+- **Why it may be the grid and not a defect (derived).** (x) changes every interior face, not just the extremum cells. Face h comes from h's limited slope instead of from ρ's, which for one calorically perfect gas is temperature reconstruction. So at 32×6 the two runs are two second-order schemes with different truncation errors. The off run is itself +1.60% above the 2-D prediction at this grid (CHAMBER_C1.md: the coarse grid's known offset).
+- **(x3-C1b), registered before its run:** the same pair at 64×12 to 8 ms. It passes if the on/off c* difference is at most half its 32×6 value (≤ 9.2e-4, at least first-order shrinkage), and Isp and thrust stay within 1e-3. If not, the shift is (x)'s own, and adopting (x) is the Director's call with that number beside it.
+
+**(x1b): passes (measured; `xout/x1b.log`).** With the flag the maximum cell h never rises in a step in either run (0 exactly). Without it, it rises 4.18e-5 (+1 ramp) and 3.44e-5 (−1 ramp). The −1 run's max |p/p0 − 1| fell from 2.46e-3 to 1.14e-5, as derived, which confirms the inlet contact as x1's cause.
+
+**(x3), the nozzle: passes (measured; `xout/conv_off.csv`, `conv_on.csv`).** Entropy L1, 40×6 / 80×12 / 160×24:
+- Flag off: 8.307e-4 / 2.016e-4 / 5.005e-5, orders 2.043 and 2.010.
+- Flag on: 1.096e-3 / 2.587e-4 / 6.312e-5, orders 2.083 and 2.035.
+- Wall-row order: 2.019 and 1.998 off; 2.069 and 2.024 on.
+
+The order is not lower, but the entropy error is 26% larger with the flag at each grid. The total-enthalpy L1 is 28% smaller (1.72e-5 against 2.37e-5 at 160×24). Mass flow agrees with the flag-off value to 1e-7.
+
+**The side run (s), the b-bound with the consistent fluxes: passes (c2)'s rule (measured; `/tmp/inq2c/m/s_history.csv`, `s_budget.csv`, scored about 02:05 CDT).** Low to 2.5 ms, exit 0, with `CRUCIBLE_DELTA_H=1 CRUCIBLE_BOUND_B=1`.
+- 3,450 K is not crossed: no hot trace was written, and the largest T_max in the history is 3,418.8 K, at 1.2 ms.
+- T_max at the printed times: 3,406.7 K at 2.2 ms, 3,407.1 at 2.3, 3,406.6 at 2.4 and 3,407.3 K at 2.5 ms, all at most 3,420 K.
+- Table fallbacks 0. Budgets: mass 1.5e-14, energy 1.0e-14.
+- Reported alongside: the face column's largest excess b at 2.3 ms is 0.46 MJ/kg (j 6), against the baseline's 3.7 to 5.6 MJ/kg. Its largest from 2.2 to 2.5 ms is 0.49 MJ/kg. With no pocket, the registered readout's shares have nothing to attribute and are not run.
+- **This contradicts the derivation in *the mechanism*, which predicted a failure.** That derivation says a face's b inside its two cells' range can still sit below the upwind cell's own b, so the bound should not stop the outflow case. The face column's excess staying an order of magnitude below the baseline's makes timing luck unlikely (inferred). Why the bound works here is open (not measured).
+
+**(x3), the pipe: the on/off comparison passes; criterion (b)'s mass budget fails with and without the flag (measured; `xout/pipe_off.log`, `pipe_on.log`).** nr 16 to 4.0 ms, flag on against off:
+- u_b 105.13615366 against 105.13615775 m/s: −3.9e-8 relative.
+- c_f 0.0093808356 against 0.0093808352: +4.3e-8.
+- T_axis 304.782926 K in both, so T_axis − T_wall agrees to better than 2e-7.
+- (a), settledness and the force balance, passes in both (force balance 9.0e-9 on, 1.3e-9 off). (c), against the 1-D reference, passes in both (u_b 5.0e-5, c_f 1.0e-4, T_axis − T_wall 5.9e-5).
+- (b)'s mass budget fails in both: 1.48e-11 on and 4.07e-12 off, against 1e-12. That failure predates (x): TURBULENCE_C2.md records it at 5.7e-12 to 6.1e-11 (stored-density rounding, inferred). The flag-on value is 3.6 times the flag-off one but inside that recorded range. The momentum and energy budgets pass in both.
+- So "(a) to (c) still pass" holds for (a) and (c). (b) fails on and off alike, as before (x).
+
+**(x3-C1b), 64×12: passes (measured; `xout/c1b_off.log`, `c1b_on.log`).** Both runs settled (drift over the last ms at most 6.1e-8). Flag on against off:
+- c* 2,446.58 against 2,444.92 m/s: +6.79e-4, within the registered 9.2e-4. The shift fell by a factor of 2.7 from 32×6 (1.84e-3), between first- and second-order shrinkage.
+- Vacuum Isp 427.45 against 427.42 s: +7e-5. Vacuum thrust 1,676.74 against 1,676.63 N: +6.6e-5. Both within 1e-3.
+- Budgets: mass −4.5e-13 and energy 1.1e-11 on; −1.1e-12 and −3.3e-11 off.
+- Against the 2-D prediction: c* +0.29% off and +0.36% on.
+- So the 32×6 c* shift is consistent with truncation error that shrinks with the grid (derived), and (x3) is passed by all three cases on the registered rules: C1 through C1b, the pipe's comparison, and the nozzle.
+
+**(x2): passes (c2)'s rule (measured; backhouse `xout/x2.log`, `x2_history.csv`, `x2_budget.csv`; scored about 02:20 CDT).** The low case to 2.5 ms with the consistent fluxes and (x) (`CRUCIBLE_DELTA_H=1 CRUCIBLE_EXTREMUM_H=1`, CFL 0.8, hot trace at 3,450 K, probe `1.6e-3:0:3:0:7`), exit 0, 40,267 steps, 1,291 s of wall time on 5 threads.
+- 3,450 K is not crossed: no hot trace was written, and the largest T_max in the history is 3,417.7 K, at 1.6 ms.
+- T_max at the printed times: 3,396.4 K at 2.2 ms, 3,396.1 at 2.3, 3,396.0 at 2.4 and 3,398.1 K at 2.5 ms, all at most 3,420 K and within 7 K of the 3,392 K flame temperature (Cantera, 1 MPa).
+- Table fallbacks 0. Budgets at 2.5 ms: mass −2.4e-15, energy 1.3e-14.
+- Reported alongside: the face column's largest excess b at 2.3 ms is 0.28 MJ/kg (j 3), against the baseline's 3.7 to 5.6 MJ/kg. Its largest from 2.2 to 2.5 ms is 0.39 MJ/kg. With no pocket, the readout's shares are not run.
+- So x0, x1b, x2 and x3 pass. Against the side run (s) on the same rule, (x) runs 9 to 11 K cooler at the printed times and its face-column excess is lower, and its mechanism is the one (m) measured.
+
+**Adopted (the Director, 21 October, about 02:20 CDT): (x) with the consistent fluxes is the default scheme for liquid runs.** The engine's defaults do not change: `Definition::extremumBoundedEnthalpy` and `Definition::Turbulence::consistentFlux` stay off, so the gas cases (C1, the pipe, the nozzle and the verification suites) are unchanged. The Mascotte driver, the liquid runs' driver, now sets both on by default and prints the pair at its start; `CRUCIBLE_DELTA_H=0` and `CRUCIBLE_EXTREMUM_H=0` turn either off. Both go on together because x2 tested the pair, and (x) alone is untested on the low case. `crucible_spray_tests` keeps its own settings (its recorded S0 to S8 results stand).
+- **Check (measured, Mac, `/tmp/inq2c/x/def_cmp.txt`):** the low case to 0.04 ms (556 steps) with no flags set equals x0's flag-on smoke (both set by environment) in all 19 compared columns. With `CRUCIBLE_DELTA_H=0 CRUCIBLE_EXTREMUM_H=0` it equals x0's flag-off run, which equals the e20d6c6 build.
