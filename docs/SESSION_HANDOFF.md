@@ -264,21 +264,24 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 00:55 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT)
 
-- **Synced with `main`:** inquiry merged the branch (755bf30). inquiry2 fast-forwarded to `main` 67c9053 and committed on top (d79df48, 8aeacee, e20d6c6, and this handoff). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`.
+- **Synced with `main`:** inquiry merged the branch (755bf30). inquiry2 fast-forwarded to `main` 67c9053 and committed on top (d79df48, 8aeacee, e20d6c6, 28fb979, cb9d9ff, 4dbb3f1 and this handoff). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`.
 - **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
   - c1 passes as a diagnostic: the b-bound with the flag does not cross by 1.2 ms (3,419 K), so the inconsistency drove the bound's pocket.
   - c2 crosses 3,450 K at 2.0750 ms in i 0, j 2, 0.23 ms before the baseline, with T_max 3,524 K at 2.2 ms.
   - The face column's largest b at 2.3 ms is 2.44 MJ/kg, against the baseline's 3.7 to 5.6.
   - Readout from 2.2 ms: 96.6% inviscid, with no face value outside its cells' range. Its window opens after c2's crossing, so it says nothing of the onset.
   - The flag stays off by default; c3 was not run.
-- **Lever 3's backups: registered (8aeacee), (u)'s code in (e20d6c6, check u0 passes), both running detached on the Mac through `slot.py`.**
-  - (u) is unity Lewis number on the consistent fluxes with Pr_t = Sc_t = 0.7: `Definition::unityLewis`, `CRUCIBLE_UNITY_LEWIS=1`.
-  - (r) is every column 2× finer (nz 478), the baseline scheme otherwise. The mesh has one axial spacing, so the first column alone cannot be refined without a graded-mesh capability.
-  - Both run to 2.5 ms with the probe from 1.9 ms, judged by c2's rule.
-  - Script `/tmp/inq2c/dh/run_b.sh`; logs `r.log`, `u.log`; done-files `/tmp/inq2c/dh/r_done` and `u_done`. (r) took about 118 s of wall time per 0.1 ms at the start, so it finishes about 01:10 to 01:30 CDT. (u) was queued for a slot at 00:52.
-  - Scoring: the hot trace line in each log, `grep '^t '` for T_max, `cost/budget_block.py <run>_budget.csv 2300` for the face column, and `cost/budget_read.py <run>_budget.csv 1.9e-3 <crossing or 2.5e-3> 0:0-2` (for (r), `0:0-2` and `1:0-2`).
+- **Lever 3's backups: both fail, and the mechanism is named (COST.md, *Lever 3's backups measured*; 4dbb3f1; evidence `cost/bk_*`).**
+  - (r), every column 2× finer, crosses at 0.874 ms at the H2 stream's edge. That is the b-bound's pocket, which the consistent fluxes remove (c1).
+  - (u), unity Lewis on the consistent fluxes, crosses at 1.888 ms with the b maximum in the face/axis corner cell itself (5.88 MJ/kg at 1.9 ms).
+  - So the corner pocket is **not differential diffusion**. By elimination it is **numerical, in the corner's inviscid update** (inferred). The derived candidate: outflow at face b below the cell's own raises its specific b, because the face b is a nonlinear function of the reconstructed primitives.
+  - **Waiting on the Director:**
+    - (m) one ~35 min run of (u) with the probe from 1.6 ms, plus an outflow/inflow split in `budget_read.py`, to measure the formation; the cheap side run is the b-bound with the consistent fluxes to 2.5 ms.
+    - (x) the fix, `extremumBoundedEnthalpy` with checks x0 to x3, coded only after (m) confirms.
+    - S7: hold it until (m), or run it with `CRUCIBLE_DELTA_H=1` and report the corner as a known defect.
+  - Physical differential diffusion is +30 to +50 K at the flame (measured, confounded with Pr_t). It is not the pocket.
 - **AMR: nothing was lost in the reboot.** B2, 3(c) and the igniter had finished on backhouse on 14 October, and their results are in AMR.md (9878e86). Step C's setup is recorded (645e876) but has no code yet. Next: build it as recorded (`Amr::setTags`, the tags, the top-down sets with the nesting envelope, the fill's spatial part), then its five checks, 5(b) on backhouse when its load allows.
 - **The entropy method for `core/medium.*`: accepted as proposed** (the answer is under inquiry's proposal above).
 - **Held from the Director:** Penn State GO2/GH2 is the next validation case after the RL10 contour; the blind engine-set scraper drops outcome columns at ingest; spray subcycling is inquiry's.
