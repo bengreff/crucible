@@ -2,6 +2,76 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (21 October, about 01:55 CDT; night run, READY TO CLEAR)
+
+**The Director's brief on eca004b:**
+- (1) Table B over the RL10's declared ranges: recheck the gates, and run a C1-like check at RL10 conditions against CVODES with the same 0.2% bar.
+- (2) Both C1 runs to a settled state.
+- (3) One line per known ctest failure.
+
+Commits 33143d0, ed76456, c1c9f93, 9b5a65d. The results are in TABLE_B.md, from *R3 at a settled state* on.
+
+**DECISION NEEDED (the Director): how to read the 1% fallback bar where cells are off the manifold by cause.**
+- **The facts (measured):** on the RL10 development chamber, Table B passes the 0.2% bars (c* −0.081%, Isp_vac −0.138%, F_vac −0.139%), and the convergent and divergent are 100% table.
+- **The failure:** the chamber region is 73.2% table, because its face column is unburnt gas below a flame standing one column downstream.
+  - The cells are at 248 to 589 K with 0.7 to 7% H2O: numerical mixtures that no homogeneous reactor passes through.
+  - The design sends them to CVODES, which treats them exactly.
+  - They are 8 of the chamber region's 32 cells on this mesh, and 1.4% of all updates.
+- **Options:**
+  - (a) Keep the bar as written, which counts every fallback. Table B then fails on RL10, and Table A stays central. Tier 1's spray and transpired-H2 mixing layers will put far more off-manifold cells near the face, so it likely fails there too.
+  - (b) Split the bar.
+    - Fallbacks from table defects (refusals, flagged or frozen corners, integrator failures, a state inside the axes the table should hold) stay under 1% per region.
+    - Fallbacks by cause, off the manifold (off the curve, dY above dY_max, induction, outside the axes), are reported per region, not barred, since CVODES is exact there and the 0.2% bars already include them.
+    - A cost bar is added: Table B's reaction cost per cell update at most 1/3 of CVODES's on the same run. Here it is 12% (7.30 against 61.1 µs).
+  - (c) Put the face states on a table, which needs a mixing dimension: a new design, not tonight.
+- **Recommendation: (b).** The 1% bar was set after C1's frozen-corner refusals at the face, a table defect. The cells failing it now are not defects.
+- **Default taken (reversible):** nothing changes. Table A stays central (decision 1), and the work continues on what is not blocked.
+
+**Results:**
+1. **(2) C1 settled (c1c9f93):** both runs to 8 ms, thrust drift 7.6e-8 and 8.5e-8 per ms.
+   - c* −0.061%, Isp_vac −0.087%, F_vac −0.087%, injector face −0.047%.
+   - 100% table in every region over the last ms, with 0 refusals.
+   - 76 s against 937 s (12.3 times).
+   - The 4 ms gap in Isp and F (−0.13%) was partly the CVODES run's unsettled end (inferred; the runs are deterministic to every printed digit).
+2. **(1) The RL10 table (ed76456):** f_H at O/F 4.5 to 6.5, Z_N 0 and 0.3, Δη 0.1, 9 ln ρ nodes over 1e-3 to 80. The band is O/F 4.993 to 5.947, including the 5 to 15% transpired bracket's ring O/F, and 2.5 to 4.5 MPa, our tier 0 widened (guessed). It took 19 s.
+   - **Pass:** E2 (2.06 K), 2(b) (0.028 K), criterion 1.
+   - **Fail as written, at the C1 table's own places:**
+     - the turn-back, 7.3e-7 at η 0.1 to 0.2;
+     - 11 integrator failures at ρ 80 (derived: 190 to 215 MPa);
+     - 7 N-gate failures at η 1, ρ ≤ 0.017.
+   - None of these is reached live: 0 refusals.
+   - **Spacing (static error):** η carries it, ρ does not. Halving Δη takes the chamber from −9 K to −3 K and the mid-nozzle from −21 K to −5 K.
+   - But the Δη 0.05 table adds a turn-back of 6e-5 at η 0.15 and 1.1 to 4.7 MPa (1,432 K burnt gas), inside the band. Cooled wall gas in tier 1 would meet it.
+3. **(1) The C1-like check (9b5a65d):** rl10dev, fr, 76 × 8, 7 kJ igniter, both settled at 20 ms (drift 1.2e-5 per ms). The 0.2% bars pass and the chamber's fallback bar fails, as above.
+   - 290 s against 1,973 s.
+   - The dated note is in the RL10 plan.
+   - Seen, not chased (inquiry2's flow lane): the flame column's axis cell sits at 3.90 MPa between 2.76 and 2.89 MPa neighbours, in both runs.
+4. **(3) The four known ctest failures:** all are expected, none is debt (a Sonnet agent's read, spot-checked).
+   - **amr_verification:** criterion 0(d), geometry closure at fine levels, 8.1e-14 against 1e-14. Floating-point rounding, recorded as not met by decision (AMR.md:159-170, 13 October).
+   - **amr_subcycling_verification:**
+     - 3(b) is the pressure wave a shock emits crossing the coarse/fine jump. It does not converge, as for any cell-size jump.
+     - 3(a)'s order 1.59 and 1.53 is the base scheme's own order on that pulse.
+     - AMR.md:229-257 notes the criterion was written too strictly.
+   - **transport_verification:** the radial momentum's order near the axis, 1.218 and 1.444 against 1.8, the known near-axis mechanism (TRANSPORT_C2.md).
+   - **spray_verification:** S0(b), LOX NASA-7 against NIST, 1,245 J/kg at 75 K against a 1 kJ/kg band. The refit was declined on purpose: it would move the error into the hot-gas ledger, about a 1.4 K cold-film offset (SPRAY.md:138-144).
+
+**Running, detached, each writing `done` in its directory** (queued behind inquiry2's and fly2's slot jobs at 01:44):
+- `/tmp/r10tb21`: Table B on the Δη 0.05 table (`/tmp/tbs/rl10e21_s.bin`), the same case. It measures what the mid-nozzle's −21 K costs in Isp_vac.
+- `/tmp/r10rep`: R1, R2 and the static error replayed on the CVODES run's 60,800 samples (its last 2 ms).
+- `/tmp/r10cv562` and `/tmp/r10tb562`: the same check at the ring elements' O/F 5.62 (`CRUCIBLE_RL10_MIXTURE_RATIO`), CVODES and Table B.
+- Scripts: `/tmp/r10_run.sh`, `/tmp/r10_run562.sh`, `/tmp/r10_replay.sh`.
+
+**Next, in order:**
+1. Read the four done-files. Append the Δη 0.05 run, the replay and the O/F 5.62 pair to TABLE_B.md, under *The C1-like check at RL10 conditions*.
+2. Apply the Director's answer on the fallback bar. Under (b), restate the bar in TABLE_B.md (dated, before any further run) and re-judge both checks. Under (a), Table B is not the central case unless the face states get a design.
+3. `tier1_skeleton.md`: the cup's resolution criterion, before any tier-1 run (decision 5).
+4. R1's τ bar (8.7e-9 against a guessed 1e-9), and the per-cell entropy agreement with inquiry2 (below, unchanged).
+
+**Files not in git:**
+- `/tmp/tbs/rl10_s.bin`, `rl10e21_s.bin`, `rl10r17_s.bin`, built in 19 to 37 s by `/tmp/rl10s/build.sh`;
+- `/tmp/rl10s/`: the samples and the static replays (`static3.sh`);
+- `/tmp/r10cv/states.csv` (16 MB), the run directories above, and `/tmp/c1set_cv`, `/tmp/c1set_tb`.
+
 ## Stopped at (21 October, about 01:00 CDT; night run, READY TO CLEAR)
 
 **The Director's brief on 67c9053** (night to about 05:30):
