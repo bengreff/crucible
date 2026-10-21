@@ -59,7 +59,7 @@ Each is varied alone about the central case, as protocol §4 requires; the devia
 - **The transpired H2:** declared, choice 3.
 - **The igniter's dimensions** are missing; the porous face (choice 3) covers the centre inside r_1.
 
-## The cup's resolution criterion (decision 5), stated before any tier-1 run (21 October 2026, about 02:10 CDT)
+## The cup's resolution criterion (decision 5), stated before any tier-1 run (21 October 2026, about 02:00 CDT)
 
 The recess enters the central case as geometry (a cup) only if the tier-1 mesh resolves the cup (the plan's decision 5). The cup is the LOX slot's exit set back by the recess, 0.5 d_L = 1.77 mm at the central values. Its walls are the outer edges of the ring's two H2 slots. Its width runs from the inner H2 slot's inner edge to the outer H2 slot's outer edge: about 2.9 mm on ring 8 to 13.9 mm on ring 1 (derived, `tier1_setup.md`).
 

@@ -1,6 +1,6 @@
 # RL10A-3-3A tier 1: the central case's setup and its dry-run build
 
-Status: stated 21 October 2026, about 02:15 CDT, before its code and before any tier-1 run. It covers inputs and geometry only. It holds no predicted number and reads no measured value. It is governed by the skeleton (`tier1_skeleton.md`: choices 1 to 3, the element ranges, the cup's criterion), the plan's decisions of 21 October (`tier1_ensemble_plan.md`), and the protocol's §2 to §4. The run itself waits (the Director, 21 October): S7/Mascotte is still held behind inquiry2's corner fix.
+Status: stated 21 October 2026, about 02:00 CDT, before its code and before any tier-1 run. It covers inputs and geometry only. It holds no predicted number and reads no measured value. It is governed by the skeleton (`tier1_skeleton.md`: choices 1 to 3, the element ranges, the cup's criterion), the plan's decisions of 21 October (`tier1_ensemble_plan.md`), and the protocol's §2 to §4. The run itself waits (the Director, 21 October): S7/Mascotte is still held behind inquiry2's corner fix.
 
 ## What the dry run builds
 
@@ -59,7 +59,7 @@ Status: stated 21 October 2026, about 02:15 CDT, before its code and before any 
 - **So the expected finding:** the face needs a sub-cell inlet, which takes each slot's own mass, momentum and energy flux into the cell whose face holds it, with the rest of that face a wall. Resolving the slots would instead need about 0.1 mm rings, and so time steps about 10 times shorter.
 - The inlet sits in `supplyFace` (`core/flow.cpp`, inquiry2's lane). It is proposed, not coded here.
 
-## Results (21 October 2026, about 02:35 CDT; `tier1_dry_run_2026-10-21.log`, `tier1_dry_run_probe_2026-10-21.log`)
+## Results (21 October 2026, about 02:08 CDT; `tier1_dry_run_2026-10-21.log`, `tier1_dry_run_probe_2026-10-21.log`)
 
 `crucible_rl10_tier1` builds, runs in about 1 s, and reads no measured value. rl10dev's output after the contour moved to `tests/rl10_geometry.hpp` is byte-identical to before (`fr`, 76 × 8, to 30 µs: mesh, history, the three fields, and the log apart from wall times; measured: `cmp`).
 
@@ -99,7 +99,7 @@ Status: stated 21 October 2026, about 02:15 CDT, before its code and before any 
 - The cup fails G7.
 These are the outcomes expected before the code, except for the numbers.
 
-## Decision 5 applied (21 October 2026, about 02:35 CDT, before any tier-1 run)
+## Decision 5 applied (21 October 2026, about 02:08 CDT, before any tier-1 run)
 
 The cup is not resolved (G7), so the plan's decision 5 branch applies:
 - the central case takes the recess through the SMD correlation alone;

@@ -2,6 +2,50 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (21 October, about 02:20 CDT; night run, continuing on the dry-run build)
+
+**The Director's brief on 30483ac:**
+- the fallback bar is (b), split;
+- Table B is central and Table A a member;
+- (1) merge worktree-inquiry2 and run the fast ctest;
+- (2) read the four queued jobs;
+- (3) the tier-1 central case's setup as a dry-run build.
+
+Commits 5b4679f, 316a719 (the merge), 03cf8b4, 64bab89, 0b4542e, and the TABLE_B commit after them.
+
+1. **The split bar (5b4679f):** recorded in TABLE_B.md (*The fallback bar split*) and the RL10 plan. C1 and the RL10 check both pass under it. Table B is the central case's chemistry.
+2. **The merge (316a719):** clean, from the main checkout.
+   - The fast ctest gives the same 7 pass and 4 fail (amr, amr_subcycling, transport, spray).
+   - The sorted FAIL lines and the per-test failure counts are identical to the 01:00 run (`docs/evidence/merge_inquiry2_ctest_2026-10-21.txt`).
+3. **The four jobs** ran on backhouse (load was low; the Mac was RAM-bound). See TABLE_B.md, *The four queued jobs*:
+   - **machine control:** the Mac's steps, p, c*, Isp, F and last-ms tallies to every printed digit (budgets differ at round-off);
+   - **the Δη 0.05 table at O/F 5.055:** c* −0.029%, Isp −0.032% against CVODES. So halving Δη cuts the gap by about 0.1% of Isp;
+   - **the replays (both O/F):** the flame-column cells (1, 0) and (1, 1) are on the curve in the CVODES samples (dY at most 2.4e-4) and the face column is off the manifold (250 to 600 K), so the verdicts stand;
+   - **the O/F 5.62 pair (CVODES done 02:15):** c* −0.056%, Isp −0.133%, F −0.132% against CVODES (0.2% bars: pass); defects 0 in every region; by cause 26.8% in the chamber, 0 elsewhere; 188 s against 1,389 s (7.4 times, shared machine). **Pass** under (b).
+4. **(3) The tier-1 dry run (03cf8b4, 64bab89; `docs/validation/rl10a33a/tier1_setup.md`):** `crucible_rl10_tier1`, with the contour shared with rl10dev, whose output is byte-identical.
+   - **G1 to G3 pass** at the tier-1 meshes 149 × 16 and 1192 × 128.
+   - **G4:** V_L 6.05 m/s, V_H2 177 m/s, J 2.68, Burick's group 5.03.
+   - **G5 and G6:** `Flow` refuses choice 1's true slots below 1,280 rings, and the slots need over 5,120 rings to meet 5%. The merged bands pass at 1192 × 128, but with J at 5 to 34% of the elements'.
+   - **G7 fails,** so decision 5's branch is applied, dated before any run (plan 0b4542e). Burick's curve has no recess term, so members 11 and 11b are not run either; the recess's effect is a declared limit (c* and Isp low).
+
+**DECISION NEEDED (the Director): the face inlet for choice 1.** Recommended: **(a)**, an open-area sub-cell supply in `core/flow` (inquiry2's lane). It keeps each slot's mass flow, momentum and J at any mesh, and the rest of each ring's face is wall. The alternatives:
+- (b) merged bands, with J at 5 to 34% as a declared limit;
+- (c) resolved slots, unaffordable.
+
+The details are in `tier1_setup.md`, *Findings*. Also there, both engineering:
+- the supply turbulence's length scale: a pitch gives slot viscosity ratios of 46,000, and 0.07 D_h is proposed;
+- the face's wall temperature: a per-segment value or an adiabatic face is needed.
+
+**Next (straight line to RL10), while the decision is open:**
+- the LOX SMD central and bracket from Burick's Fig. 38 at group 5.03 (an input, not an outcome);
+- then the tier-1 run definition (settling, AMR tags) once inquiry2's corner fix and the inlet land.
+
+S7/Mascotte is still held behind inquiry2's corner fix.
+
+**Backhouse:**
+- `/home/greff/crucible_inq` (a git archive of 5b4679f, built Release), runs in `runs/` (tmux `inq_r10`, finished);
+- Mac copies in `/tmp/r10bh/`.
+
 ## Stopped at (21 October, about 01:55 CDT; night run, READY TO CLEAR)
 
 **The Director's brief on eca004b:**
@@ -11,7 +55,7 @@
 
 Commits 33143d0, ed76456, c1c9f93, 9b5a65d. The results are in TABLE_B.md, from *R3 at a settled state* on.
 
-**The fallback bar: decided by the Director after this stop, (b), the split bar** (recorded at about 02:00 in TABLE_B.md, *The fallback bar split*, and in the RL10 plan).
+**The fallback bar: decided by the Director after this stop, (b), the split bar** (recorded at about 01:48 in TABLE_B.md, *The fallback bar split*, and in the RL10 plan).
 
 **Results:**
 1. **(2) C1 settled (c1c9f93):** both runs to 8 ms, thrust drift 7.6e-8 and 8.5e-8 per ms.

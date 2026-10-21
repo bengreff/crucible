@@ -1086,7 +1086,7 @@ It also has 24 integrator failures: 23 at ρ 80 on the lower branch, and one on 
 
 **Verdict as written:** the 0.2% bars pass on the RL10's range at O/F 5.055. The 1% fallback bar fails in the chamber, by the face column alone. So Table B has not passed on the RL10's range as written, and Table A stays central (decision 1) until the bar's reading is decided. The question goes to the Director in the handoff.
 
-## The fallback bar split: the Director's decision (b), and both checks re-judged (21 October 2026, about 02:00 CDT)
+## The fallback bar split: the Director's decision (b), and both checks re-judged (21 October 2026, about 01:48 CDT)
 
 Recorded before any further run: none of the four queued jobs (`/tmp/r10tb21`, `/tmp/r10rep`, `/tmp/r10cv562`, `/tmp/r10tb562`) had started.
 
@@ -1114,8 +1114,43 @@ Recorded before any further run: none of the four queued jobs (`/tmp/r10tb21`, `
   - The face column, cells (0, 0) to (0, 7), on every update: 25.0% of the chamber's 224,000 updates. It is shown off the manifold: 248 to 589 K with Y_H2O 0.007 to 0.068, a state no homogeneous reactor passes through.
   - Cells (1, 0) and (1, 1), in the flame column, on 2,000 of 7,000 updates each: 1.8%, all "dY above dY_max". *Inferred:* their mid-step states mix the face column's unburnt inflow into burning gas.
   - The replay of the CVODES run's samples (`/tmp/r10rep`, queued) checks the curve at these two cells' states. If it shows the curve point wrong at a state the table should hold, these updates count as defects (1.8%, over the bar), and this verdict is reopened.
-- **So Table B passes its gates on C1 and on the RL10's range,** and by decision 1 it is the RL10 tier-1 central case's chemistry, with Table A (shifting equilibrium) a member (the plan's dated note of 02:00).
+- **So Table B passes its gates on C1 and on the RL10's range,** and by decision 1 it is the RL10 tier-1 central case's chemistry, with Table A (shifting equilibrium) a member (the plan's dated note of 01:48).
 - The queued runs (the Δη 0.05 table, and the O/F 5.62 pair) are judged by this split bar when they land.
+
+## The four queued jobs, judged by the split bar (21 October 2026, about 02:20 CDT)
+
+All four ran on backhouse (tree `crucible_inq` at 5b4679f, the code of 9b5a65d; 2 threads each, run together). The CVODES replay of each O/F's samples ran there too. Logs are in `table_b/`, with the `_backhouse_2026-10-21` suffix.
+
+| | O/F 5.055, Δη 0.05 table (`rl10e21_s.bin`) | O/F 5.62, `rl10_s.bin` |
+|---|---|---|
+| c*, Isp_vac, F_vac against CVODES (0.2% bars) | −0.029%, −0.032%, −0.032%: pass | −0.056%, −0.133%, −0.132%: pass |
+| Face pressure, p0 against CVODES | −0.031%, −0.030% | −0.055%, −0.056% |
+| Defect fallbacks over the last ms, chamber / convergent / divergent | 0 / 0 / 0: pass | 0 / 0 / 0: pass |
+| By-cause fallbacks over the last ms (reported) | 26.8% / 0 / 0 | 26.8% / 0 / 0 |
+| Wall time, Table B against all-CVODES (reported) | 205 s (the CVODES run is the Mac's 1,973 s, so no ratio) | 188 s against 1,389 s (7.4 times; four jobs shared the machine, so indicative) |
+| **Verdict under (b)** | **pass** | **pass** |
+
+- **The machine control** (`rl10_s.bin` at 5.055 on backhouse) reproduces the Mac run.
+  - The same 49,723 steps; p, c*, Isp and F agree to every printed digit; the last-ms tallies are identical.
+  - The budgets differ at round-off (mass 8.95e-15 against 4.34e-14).
+  - The over-the-run update count differs by 7,296 (12 steps of the 608 cells), not explained here. It does not touch the last-ms bar.
+  - So backhouse's Table B runs compare with the Mac's.
+- **The Δη 0.05 table** halves the η spacing.
+  - It moves the accuracy from −0.081/−0.138/−0.139% to −0.029/−0.032/−0.032%.
+  - Over the run, frozen reach falls from 0.077% to 0.039%, all in the start-up; 0 in the last ms.
+  - It costs 205 s against the control's 193 s on the same machine.
+  - *Inferred:* most of the Δη 0.1 table's Isp and F error is η interpolation in the nozzle, where the table carries 97 to 100% of the updates.
+- **The replays settle the chamber's by-cause share at both O/F.** Each replays the CVODES run's samples through the runtime's placement (60,800 samples, 100 per cell; R1 0 disagreements at both). Measured, per cell:
+
+  | Cells | O/F 5.055 | O/F 5.62 |
+  |---|---|---|
+  | Face column (0, 0) to (0, 7) | 248 to 589 K, Y_H2O 0.007 to 0.069; (0,0)–(0,3) below the blended start, (0,4)–(0,7) dY 0.22 to 0.25 | 250 to 600 K, Y_H2O 0.007 to 0.066; (0,0)–(0,4) below the blended start, (0,5)–(0,7) dY 0.53 to 0.55 |
+  | (1, 0) and (1, 1) | table, lower branch, dY at most 2.2e-4 (3,142 to 3,147 K) | table, upper branch, dY at most 2.4e-4 (3,255 to 3,262 K) |
+
+  - The face column is off the manifold at both O/F: cold, partly burnt mixtures that no homogeneous reactor passes through, so CVODES is exact for them.
+  - The curve holds (1, 0) and (1, 1) at their CVODES states. The criterion set at 01:48 (the curve wrong at a state the table should hold) is not met, so their 1.8% stays a by-cause share and the verdicts stand.
+  - The replay holds the end-of-step states only. The Table B runs flag these two cells at mid-step states, which were not sampled. The mixing explanation stays *inferred*.
+- **So Table B passes the split bar at both RL10 mixture ratios.** This supports its role as the tier-1 central case's chemistry across the ensemble's O/F bracket.
 
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 

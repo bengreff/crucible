@@ -1,0 +1,52 @@
+E0 replay: 60800 samples, 60800 inside the axes with usable corners (unweighted; fallback_rate.py weights by steps and applies the gates)
+  dY above dY_max: 400
+  off the curve (lower above the blended s_eq; upper above the blended s_eq): 22800
+  off the curve (lower below the blended start; upper below the blended start): 400
+  table (lower branch): 37200
+The N placement (unweighted): 0 placements with Illinois unconverged after 60 iterations
+  dY above dY_max (lower; w 1): 300
+  dY above dY_max (lower; w between): 100
+  off the curve in s (below the blended start; w 0): 400
+  table (lower; w 1): 46100
+  table (upper; w 1): 13900
+  Illinois iterations of the placed cells with w > 0: 1: 48900; 2: 100; 3: 10700; 4: 600; 6: 100;
+  dY of the placed point, (lower; w 1): 46400 cells, median 7.182e-04, 95% 1.064e-03, 99% 1.256e-03, max 2.535e-01
+  dY of the placed point, (lower; w between): 100 cells, median 2.158e-01, 95% 2.158e-01, 99% 2.158e-01, max 2.158e-01
+  dY of the placed point, (upper; w 1): 13900 cells, median 3.088e-04, 95% 4.112e-04, 99% 6.872e-04, max 6.968e-04
+R1 (the runtime's placement against the replay's): 0 kinds of disagreement; worst |tau| difference 1.373e-08 over 60000 samples placed by both on the same branch
+R2 (the step at the cell) on 1200 placed samples: (a) dt 0 not bit for bit in 0; (b) dt 1 s against the blended equilibrium, max |dY| 5.962e-05; (c) elements after 1e-6 s, worst relative 6.721e-16; (d) w 1, re-placed after 1e-6 s, worst |dtau| 9.548e-15 (0 not re-placed on the same branch); w < 1: worst |dtau| 0.000e+00 over 0
+  the 1e-6 s step's cause: table: 1200
+  (e) on the cells placed at w 1 (0 at w < 1 left out: (d) measures their re-placement)
+  (e) dt 1e-08 s: two halves against one step, worst |du| / max(u) 1.500e-07, max |dY| 1.233e-10 (at branch 1, u 1.501169e-02 to 1.321525e-02 in one step and 1.321525e-02 in two, 1 sub-steps in one, sample eta 0.5632, T 3332.0 K)
+  (e) dt 1e-07 s: two halves against one step, worst |du| / max(u) 8.659e-05, max |dY| 2.259e-08 (at branch 1, u 1.501169e-02 to 4.194519e-03 in one step and 4.194156e-03 in two, 1 sub-steps in one, sample eta 0.5632, T 3332.0 K)
+  (e) dt 1e-06 s: two halves against one step, worst |du| / max(u) 3.860e-03, max |dY| 3.431e-09 (at branch 0, u 1.236459e-02 to 1.099837e-02 in one step and 1.099835e-02 in two, 1 sub-steps in one, sample eta 0.3898, T 2659.4 K)
+  (e) dt 1e-05 s: two halves against one step, worst |du| / max(u) 1.000e+00, max |dY| 7.002e-07 (at branch 0, u 1.236459e-02 to 3.814024e-03 in one step and 3.810796e-03 in two, 1 sub-steps in one, sample eta 0.3898, T 2659.4 K)
+s_cell against Cantera's entropy_mass on 627 samples: worst |difference| 1.091e-11 J/(kg K)
+own s_eq (equilibrateUV) on 6080 samples: s_eq_own - blended lower s_eq: min -0.174, 5% 3.060, median 28.371, 95% 81.564, max 82.322 J/(kg K); s_eq_own - s_cell: min -1.145e-06, median 56.213, max 5703.577
+the samples against their own equilibrium (equilibrateUV at their e and rho): T_cell - T_own min -3566.04, 5% -151.02, median -122.57, 95% 0.00, max 0.25 K; max |Y_cell - Y_own| median 1.641e-03, 95% 5.122e-03, max 8.557e-01
+the static interpolation error (the blend's upper-branch equilibrium at the cell's e and rho, against the own equilibrium) on 6080 samples: T_blend - T_own min -23.26, 5% -18.17, median -2.20, 95% -0.68, max -0.17 K; max |Y_blend - Y_own| median 5.826e-05, 95% 1.668e-03, max 2.590e-03
+E4, the runtime (one thread): e from T (the timing's own input, not the runtime's) 16.4 ns; place 890.3 ns; advance over 1e-7 s 1610.1 ns per cell, each including e
+E4 (one thread, 60800 cells): s_cell 70.4 ns per cell; s_cell with the branch rule (16 corners, both branches) 297.0 ns per cell; s_cell with the N placement 847.7 ns per cell (Illinois on the whole branch), 3224.2 with the replay's monotone check (sink 0)
+	Command being timed: "./crucible_table_b_branch_rule /home/greff/crucible_inq/in/rl10_s.bin /home/greff/crucible_inq/tools/mechanisms/h2o2_highT.yaml /home/greff/crucible_inq/in/states.csv /home/greff/crucible_inq/runs/rep/replay.csv"
+	User time (seconds): 9.04
+	System time (seconds): 0.03
+	Percent of CPU this job got: 109%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:08.32
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 44432
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 6493
+	Voluntary context switches: 1
+	Involuntary context switches: 5
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 33648
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
