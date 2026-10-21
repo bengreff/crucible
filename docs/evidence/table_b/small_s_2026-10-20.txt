@@ -1,0 +1,13 @@
+candidate 3 (the specific entropy): worst turn-back 1.569e-09 at f_H 0.55595 Z_N 0.3000 eta 0.20000 rho 3.0000e+01; N-gate failures 26 (worst at f_H 0.55595 Z_N 0.3000 eta 1.00000 rho 3.0000e+01); 10 s
+  its 2(b) worst |dT| 0.015 K at f_H 0.55595 Z_N 0.0000 eta 0.20000 rho 3.0000e+01; 2(c) frozen lower 5, upper 0, integrator failures 0; criterion 1 |sum Y - 1| 2.22e-16, elements 3.13e-16 after projection
+  E2 (midpoints, bars 3 K and dY 0.01): worst |dT| 72.2125 K at f_H 0.11191 Z_N 0.0000 eta 1.00000 rho 1.0000e-03, worst max|dY| 2.935e-02 at f_H 0.11191 Z_N 0.0000 eta 1.00000 rho 1.0000e-03; last quarter of the span |dT| 72.2125 K, max|dY| 2.095e-02; 0 midpoint integration failures
+  E3 (span against 1e-9 |s_eq|): 30 nodes with a branch under it (stored as zero span); smallest span above it 2.393e-07 |s_eq|
+gate 2(a) (progress variable): FAIL (no candidate passed on every node)
+gate 2(b) (equilibrium end state vs equilibrateUV): worst |dT| 0.015 K at f_H 0.55595 Z_N 0.0000 eta 0.20000 rho 3.0000e+01 (limit 3.0 K): pass
+gate 2(c): frozen branches: lower 5, upper 0 (reported, not required zero); integrator failures 0 (must be 0): pass
+criterion 1 (node conservation): element error 1.47e-10 raw, 3.13e-16 after projection (worst at f_H 0.11191 Z_N 0.0000 eta 0.40000 rho 1.3161e-02), |sum Y - 1| 2.22e-16 (limit 1e-12): pass
+nodes: 120 degenerate, 30 with a zero-span branch, 0 outside the thermo range
+branch integration: 300 branches, mean 5.50 ms, worst 20.38 ms
+Table B built 2026-10-20 22:06 CDT by crucible_build_manifold_table from ../tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes (2 lean, 2 rich, 0 clustered), Z_N {0.000000,0.300000}, eta 6 over [0,1], ln rho 5 over [0.001, 30] kg/m3; progress variable the specific entropy; 300 nodes in 10 s on 2 threads; node element error 1.47e-10 raw, 3.13e-16 after projection, |sum Y - 1| 2.22e-16; gates: 2a FAIL, 2b pass, 2c pass, criterion 1 pass -- GATE FAILURE
+WRITING ANYWAY FOR INSPECTION (a gate failed; this table is not for use).
+wrote /tmp/tbs/small_s.bin (1.0 MB)

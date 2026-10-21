@@ -437,6 +437,18 @@ What E0 to E5 leave to the code, settled before it is written. No check or bar a
   - the nearer branch taken by max_k |ΔY_k|; CVODES, counted by cause, if the cell's s is on neither curve ("off the curve", including above the blended s_eq), if both ΔY exceed ΔY_max = 0.01, or on an exact tie.
 - **A prediction for E0, stated before it is measured (*derived*, the size *inferred*).** The blended curve's s is a weighted mean of the corners' s, and s is curved in η and ln ρ: at fixed composition ∂²s/∂e² = −1/(T² c_v). At the C1-range table's spacing (Δη 0.2, about 4.5 MJ/kg; Δ ln ρ 1.4) the blend's s_eq can sit tens of J/(kg K) from the cell's own. Near equilibrium s_eq − s is quadratic in the distance, so that offset is a large share of the composition distance. So E0 may reject many near-equilibrium cells (s above the blended s_eq, or ΔY above 0.01), in the chamber as well as the nozzle. If it does, the cause is measured first: the blend's s_eq against each sampled cell's own s_eq from `equilibrateUV`. The fix is not chosen before that.
 
+### E2 measured on the small table: linear in s fails, by a square root (20 October 2026, 22:15 CDT)
+
+The small table with s (`table_b/small_s_2026-10-20.txt`): E2 fails at 142 of 180 non-degenerate nodes. Worst |ΔT| 72 K (f_H 0.112, η 1, ρ 1e-3), median 26 K. Every worst case is in the last quarter of the span.
+- **The mechanism (*derived*, matches the measurement):** near equilibrium s_eq − s ∝ d², with d the composition distance. So Y is linear in d = √(s_eq − s), and has an infinite slope in s at s_eq.
+  - Linear interpolation in s on the last interval (from d_1 to 0) puts the s-midpoint's Y at d_1/2, where the trajectory is at d_1/√2. That is an error of 0.207 d_1.
+  - On the upper branch d_1 is 1/8 of the span. At η 1 the T span is 6,000 − 2,666 K, so the expected error is about 86 K, against 72 K measured.
+  - Adding nodes cannot fix this efficiently: about 230 uniform nodes per branch would be needed to reach 3 K.
+- **The alternative, stated before it is measured (engineering, bars unchanged):** the lookup interpolates the stored Y linearly in d = √(s_ref − s), with s_ref the branch's last point (s_eq, or a frozen branch's reach). Since every corner's points sit at s_eq − span (1 − ξ)², the blend's points keep the common ξ, and the cell's ξ comes from one square root.
+  - Checked at the d-midpoints, where interpolation in d errs most, with the same bars (3 K, ΔY 0.01, all midpoints and the last quarter). The builder now reports both.
+- **2(a) on the small table: one node over the bar, by round-off (measured):** a fall of 1.1e-11 J/(kg K) (1.7 ulp of s = 28,769 J/(kg K)) on an upper branch of span 0.007 J/(kg K), at f_H 0.556 (O/F 0.8), Z_N 0.3, η 0.2, ρ 30. That is not a second-law turn-back. The 1e-9 bar is below s's round-off for spans under about 0.1 J/(kg K). It is reported, not re-barred; the node is outside O/F 4 to 6.
+- The N gate fails at 26 nodes (f_H 0.556: 23; 0.056: 3; mostly η ≥ 0.6), outside O/F 4 to 6, as with Y_H2O. 2(b) passes (0.015 K), 2(c) has 0 integrator failures, and E3 finds 30 nodes with a branch under 1e-9 |s_eq| (stored as zero span).
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
