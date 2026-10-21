@@ -154,6 +154,9 @@ Chamber rl10dev(int nz) {
   c.chamberRadius = rc;
   c.massFlow = 16.7126;
   c.mixtureRatio = 5.055;
+  // CRUCIBLE_RL10_MIXTURE_RATIO (added 21 October 2026, development only): another premixed O/F at the same flow, for
+  // Table B's check at the ring elements' O/F (TABLE_B.md, "Table B on the RL10's range").
+  if (const char* v = std::getenv("CRUCIBLE_RL10_MIXTURE_RATIO")) c.mixtureRatio = std::atof(v);
   c.wallTemperature = 567;
   const double curvature = 0.5 * (1 / wall.secondLeft(throatNode) + 1 / wall.secondRight(throatNode)) / rt;
   const double exitAngle = std::atan(wall.slopes().back());
@@ -163,8 +166,8 @@ Chamber rl10dev(int nz) {
   c.development = true;
   std::printf("chamber: %s (pre-vaporized H2/O2 at 300 K; development only, never the reported case): r_t %.6f m, "
               "chamber radius %.6f m, injector face at %.4f in (throat station %d of %d), exit at %.2f in, "
-              "PCHIP R/r_t %.4f, exit wall angle %.3f deg, cone %.3f deg\n", c.name.c_str(), rt, rc, face, k, nz,
-              exitStation, curvature, exitAngle * 180 / kPi, cone * 180 / kPi);
+              "PCHIP R/r_t %.4f, exit wall angle %.3f deg, cone %.3f deg, O/F %.4f\n", c.name.c_str(), rt, rc, face, k,
+              nz, exitStation, curvature, exitAngle * 180 / kPi, cone * 180 / kPi, c.mixtureRatio);
   return c;
 }
 
@@ -608,6 +611,12 @@ int main(int argc, char** argv) {
     for (std::size_t k = 0; k < source.nSpecies(); ++k) std::fprintf(stateSamples, ",Y_%s", source.speciesName(k).c_str());
     std::fprintf(stateSamples, "\n");
   }
+  // CRUCIBLE_STATE_SAMPLES_FROM = t [s] and CRUCIBLE_STATE_SAMPLES_EVERY = n (added 21 October 2026): write only from
+  // t on, every n-th 2 us sample; the steps column then counts the flow steps since the last written sample.
+  double samplesFrom = 0;
+  long samplesEvery = 1, samplesSeen = 0;
+  if (const char* v = std::getenv("CRUCIBLE_STATE_SAMPLES_FROM")) samplesFrom = std::atof(v);
+  if (const char* v = std::getenv("CRUCIBLE_STATE_SAMPLES_EVERY")) samplesEvery = std::max(1L, std::atol(v));
   long stepsAtLastSample = 0;
   auto writeStates = [&]() {
     auto& th = *historySolution->thermo();
@@ -782,7 +791,10 @@ int main(int argc, char** argv) {
     reacting.advanceTo(target);
     if (flow.time() >= nextSample) {
       sample();
-      if (stateSamples) writeStates();
+      if (stateSamples) {
+        if (flow.time() < samplesFrom) stepsAtLastSample = reacting.stats().steps;
+        else if (samplesSeen++ % samplesEvery == 0) writeStates();
+      }
       nextSample += 2e-6;
       if (start && rows.size() % 25 == 0) settlingWindow();
       if (rows.size() % 250 == 0) {
