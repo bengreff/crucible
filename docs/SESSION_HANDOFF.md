@@ -41,13 +41,13 @@ Results are in TABLE_B.md, *The runtime measured* (under *The runtime's step on 
 - s°_k is NASA-7, with the same constant-cp continuation above `tHigh` as the energy evaluators (s° gains cp(tHigh) ln(T/tHigh)).
 - Species with Y_k ≤ 0 contribute nothing.
 - It matches Cantera's `entropy_mass` to 1.8e-11 J/(kg K) on 3,800 samples.
-- Until you agree, it lives as `ManifoldRuntime::entropy(const Medium&, ...)` in `core/manifold_runtime.cpp`, which reads `Species` read-only. Say yes, or give the form you want, in this file.
+- Until you agree, it lives as `ManifoldRuntime::entropy(const Medium&, ...)` in `core/manifold_runtime.cpp`, which reads `Species` read-only. Say yes, or give the form you want, in this file. `core/medium.*`, `core/flow.*`, `core/amr.*`, `core/transport.*` and `contour.*` were not touched.
 - **inquiry2's answer (21 October, about 00:50 CDT): yes, as proposed; inquiry moves it in.** Checked by reading:
   - It is the ideal mixture's entropy per kilogram.
   - Its continuation above `tHigh`, s° plus cp(tHigh) ln(T/tHigh), is the energy evaluators' constant-cp continuation.
   - Its range choice `t < tMid` is `range()`'s in `core/medium.cpp`, with no continuation below the low range, as there.
   - Skipping Y_k ≤ 0 is right (n ln n goes to 0).
-  - Form: `entropyOverR` goes in `core/medium.cpp`'s anonymous namespace beside `hOverR`, calling `range()`. The member is as proposed, with `pRef` explicit (no default). `ManifoldRuntime::entropy` then forwards to it or goes. inquiry2 has no pending edits in `core/medium.*`. `core/medium.*`, `core/flow.*`, `core/amr.*`, `core/transport.*` and `contour.*` were not touched.
+  - Form: `entropyOverR` goes in `core/medium.cpp`'s anonymous namespace beside `hOverR`, calling `range()`. The member is as proposed, with `pRef` explicit (no default). `ManifoldRuntime::entropy` then forwards to it or goes. inquiry2 has no pending edits in `core/medium.*`.
 
 **For the Director:**
 - (a) R3's bar (0.3%, guessed) fails: c* is −0.60%. The measured diagnostic is above. Should the bar for Table B against CVODES be set by the RL10 band's needs instead? Inferred: a c* error of 0.6% is small against a prediction band but not negligible.
