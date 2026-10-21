@@ -449,7 +449,7 @@ The small table with s (`table_b/small_s_2026-10-20.txt`): E2 fails at 142 of 18
 - **2(a) on the small table: one node over the bar, by round-off (measured):** a fall of 1.1e-11 J/(kg K) (1.7 ulp of s = 28,769 J/(kg K)) on an upper branch of span 0.007 J/(kg K), at f_H 0.556 (O/F 0.8), Z_N 0.3, η 0.2, ρ 30. That is not a second-law turn-back. The 1e-9 bar is below s's round-off for spans under about 0.1 J/(kg K). It is reported, not re-barred; the node is outside O/F 4 to 6.
 - The N gate fails at 26 nodes (f_H 0.556: 23; 0.056: 3; mostly η ≥ 0.6), outside O/F 4 to 6, as with Y_H2O. 2(b) passes (0.015 K), 2(c) has 0 integrator failures, and E3 finds 30 nodes with a branch under 1e-9 |s_eq| (stored as zero span).
 
-### E2 in the distance measured, the mechanism, and per-node refinement, stated before its code (20 October 2026, 22:45 CDT)
+### E2 in the distance measured, the mechanism, and per-node refinement, stated before its code (20 October 2026, about 22:16 CDT)
 
 **Measured.** On the small table, interpolating in d = √(s_ref − s) at the d-midpoints gives a worst |ΔT| of 25.9 K (f_H 0.056, η 1, ρ 0.013) and a worst ΔY of 0.030. 117 of 180 nodes fail, against 142 when linear in s. Median 4.1 K, 90% 10.6 K.
 
@@ -467,6 +467,19 @@ A per-pair dump (`CRUCIBLE_TABLE_B_E2_DUMP`) on f_H 0.056, Z_N 0, 6 η by 3 ρ:
   - The runtime takes the cell's ξ from one square root on the corners' blended s_eq and spans: ξ = 1 − √((s̄_eq − s_cell)/s̄pan). Every stored point satisfies s = s_eq − span (1 − ξ)² on its own corner, so this ξ is exact for the blend.
   - Each corner's segment then comes from its own search in d: 16 searches of up to 400 points, about 9 comparisons each (*inferred*: under 1 µs against the 155 µs cell update).
 - **The N gate runs on the final points.**
+
+### Midpoint refinement measured; the quarter points fail by an off-centre bend; refinement on three interior points, stated before its code (20 October 2026, 22:20 CDT)
+
+**Measured** on the small table (`table_b/small_s_refined_2026-10-20.txt`):
+- Refinement adds a median of 1 point per node and at most 11. No node reaches the cap. The final midpoints are at worst 2.996 K and ΔY 8.7e-3, under the bars by construction.
+- The independent quarter points fail. 8 of 12,064 checks are over a bar: worst |ΔT| 4.32 K (f_H 0.556, Z_N 0.3, η 0.6, ρ 1e-3) and worst ΔY 0.0124 (f_H 0.112, Z_N 0.3, η 1, ρ 1e-3). All 8 are on the lower branch.
+- **The mechanism (measured from the per-gap dump):** each failing gap is lopsided. One quarter point is 3.0 to 4.3 K off and the other 0.4 to 1.5 K.
+  - The deviation from the chord is not the symmetric parabola a midpoint test assumes. The curvature is concentrated near one end of the gap: the turn into the recombination approach, ignition, or the last gap into s_eq.
+  - So the midpoint underestimates the gap's worst error, by up to 1.5 times here.
+
+This is the second fix of this bug to fail, so the mechanism is written down above before any further code.
+
+**The change (engineering, bars unchanged).** A gap is refined if any of its three interior points (d at 1/4, 1/2 and 3/4) fails 3 K or ΔY 0.01. The new point goes at the worst of the three, with the trajectory's own state there. The independent check moves to the eighth points (1/8, 3/8, 5/8, 7/8) of every final gap. The cap and the report are otherwise unchanged.
 
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
