@@ -11,21 +11,7 @@
 
 Commits 33143d0, ed76456, c1c9f93, 9b5a65d. The results are in TABLE_B.md, from *R3 at a settled state* on.
 
-**DECISION NEEDED (the Director): how to read the 1% fallback bar where cells are off the manifold by cause.**
-- **The facts (measured):** on the RL10 development chamber, Table B passes the 0.2% bars (c* −0.081%, Isp_vac −0.138%, F_vac −0.139%), and the convergent and divergent are 100% table.
-- **The failure:** the chamber region is 73.2% table, because its face column is unburnt gas below a flame standing one column downstream.
-  - The cells are at 248 to 589 K with 0.7 to 7% H2O: numerical mixtures that no homogeneous reactor passes through.
-  - The design sends them to CVODES, which treats them exactly.
-  - They are 8 of the chamber region's 32 cells on this mesh, and 1.4% of all updates.
-- **Options:**
-  - (a) Keep the bar as written, which counts every fallback. Table B then fails on RL10, and Table A stays central. Tier 1's spray and transpired-H2 mixing layers will put far more off-manifold cells near the face, so it likely fails there too.
-  - (b) Split the bar.
-    - Fallbacks from table defects (refusals, flagged or frozen corners, integrator failures, a state inside the axes the table should hold) stay under 1% per region.
-    - Fallbacks by cause, off the manifold (off the curve, dY above dY_max, induction, outside the axes), are reported per region, not barred, since CVODES is exact there and the 0.2% bars already include them.
-    - A cost bar is added: Table B's reaction cost per cell update at most 1/3 of CVODES's on the same run. Here it is 12% (7.30 against 61.1 µs).
-  - (c) Put the face states on a table, which needs a mixing dimension: a new design, not tonight.
-- **Recommendation: (b).** The 1% bar was set after C1's frozen-corner refusals at the face, a table defect. The cells failing it now are not defects.
-- **Default taken (reversible):** nothing changes. Table A stays central (decision 1), and the work continues on what is not blocked.
+**The fallback bar: decided by the Director after this stop, (b), the split bar** (recorded at about 02:00 in TABLE_B.md, *The fallback bar split*, and in the RL10 plan).
 
 **Results:**
 1. **(2) C1 settled (c1c9f93):** both runs to 8 ms, thrust drift 7.6e-8 and 8.5e-8 per ms.

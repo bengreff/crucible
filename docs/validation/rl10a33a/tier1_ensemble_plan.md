@@ -28,7 +28,7 @@ The predicted quantities are the protocol's §3 list: F_vac, Isp_vac (on the cha
 | 12 | Outer ring radius r_8 | R_c − p/2 | R_c − p (1) | skeleton |
 | 13 | Inner ring radius r_1 | r_8 − 7p | the inner ring's clearance (1) | skeleton |
 | 14 | Transpired H2 fraction | 10% | 5%, 15% (2; the bracket is inferred, accepted 21 Oct) | skeleton choice 3 |
-| 15 | Chemistry | Table B, if it passes its gates before the prediction commit (decided 21 Oct; else Table A) | Table A to 6,000 K, shifting equilibrium (1) | skeleton, TABLE_B.md |
+| 15 | Chemistry | Table B (decided 21 Oct; it passed its gates under the split fallback bar, 21 Oct about 02:00) | Table A to 6,000 K, shifting equilibrium (1) | skeleton, TABLE_B.md |
 | 16 | SST property corrections | Hasan-Pecnik | none (1; decided 21 Oct) | WALL_FUNCTIONS.md |
 | 17 | Grid | the reported AMR grid | its finest level halved (1); the Richardson estimate is the member | protocol §4 |
 
@@ -86,6 +86,7 @@ Recorded before any tier-1 run and before any measured performance is read.
    - SST with the property corrections against without them is a member (16).
    - *Dated note, 21 October, about 00:45 CDT:* Table B passed these gates on C1 with the Δη 0.1 table, the corner drop and the induction cut (`TABLE_B.md`): c* −0.06%, Isp_vac −0.13%, F_vac −0.14%, 0% fallback in each region. It has not yet been built or checked on the RL10's own range, so this is not yet a pass for the central case.
    - *Dated note, 21 October, about 01:50 CDT:* on the RL10's range (`TABLE_B.md`, *The C1-like check at RL10 conditions*), the 0.2% bars pass on the development chamber at O/F 5.055 against CVODES, both settled: c* −0.081%, Isp_vac −0.138%, F_vac −0.139%. The chamber's 1% fallback bar fails: 26.8% of its updates, all from the face column's unburnt cells, which are off the manifold by cause. The convergent and divergent are at 0%. The bar's reading is with the Director. Until it is decided, Table A stays central.
+   - *Dated note, 21 October, about 02:00 CDT (the Director's decision (b) on 30483ac):* the fallback bar is split. Defect fallbacks (refused, flagged or frozen corners, integrator failures, states inside the axes the table should hold) stay barred at 1% per region. Off-manifold fallbacks by cause are reported per region and not barred, since CVODES is exact for them and the 0.2% bars include them. Each check also reports its wall time against an all-CVODES run. Re-judged from the logs (`TABLE_B.md`, *The fallback bar split*): C1 passes (0 defect and 0 by cause in every region; 76 s against 937 s). The RL10 check passes (0 defect in every region; by cause, chamber 26.8%, the face column and two flame-column cells; 290 s against 1,973 s). **So Table B is the central case's chemistry, and Table A (shifting equilibrium) is member 15's other value.** One named check follows: the queued replay of the CVODES run's samples tests the curve at the two flame-column cells (1.8% of the chamber's updates). If it shows a defect there, this is reopened.
 2. **The transpired fraction's bracket,** 5% to 15% about 10%: accepted.
 3. **Warm starts** for the deviations, with the one cold-start check on member 4's 834 K end: accepted.
 4. **Member 6** is carried from tier 0's sensitivity, with no tier-1 runs: accepted.

@@ -1086,6 +1086,37 @@ It also has 24 integrator failures: 23 at ρ 80 on the lower branch, and one on 
 
 **Verdict as written:** the 0.2% bars pass on the RL10's range at O/F 5.055. The 1% fallback bar fails in the chamber, by the face column alone. So Table B has not passed on the RL10's range as written, and Table A stays central (decision 1) until the bar's reading is decided. The question goes to the Director in the handoff.
 
+## The fallback bar split: the Director's decision (b), and both checks re-judged (21 October 2026, about 02:00 CDT)
+
+Recorded before any further run: none of the four queued jobs (`/tmp/r10tb21`, `/tmp/r10rep`, `/tmp/r10cv562`, `/tmp/r10tb562`) had started.
+
+**The Director's decision (b) on 30483ac:** the 1% bar is split by what a fallback says about the table. It stays a steady bar, over the last ms, with the start reported apart (decision 2 of 20 October).
+- **Defect fallbacks stay barred at 1% of updates in each region.** They are the causes that say the table fails a state it should hold:
+  - a corner refused (`CornerRefused`), or flagged outside the thermo range or degenerate (`CornerFlagged`);
+  - a frozen corner (`FrozenCorner`), or a frozen corner's gap in N (`FrozenReach`);
+  - the builder's integrator failures, which reach the runtime as refused corners; and a degenerate blend, with no fall in N (`NoFallInN`) or no rate at a corner (`NoRate`);
+  - a state inside the axes that the table should hold, under any cause.
+- **Off-manifold fallbacks by cause are reported per region, not barred.** These are: no H or O, outside the axes, argon, N below the blended N_cp, off the curve (above s_eq or below the blended start), dY above dY_max, and the induction part. CVODES is exact for them, and the 0.2% bars on c*, Isp_vac and F_vac already include whatever they cost.
+- **How "by cause" is shown:** where a region's by-cause share is above 1%, its cells are named from the per-cell count over the last ms, and their states are checked against the manifold. dY above dY_max is itself that measurement: the composition lies more than 0.01 from the curve point the cell is placed at. It would be a defect only if the curve point were wrong at a state the table should hold, which the static replay checks.
+- **The cost:** the 1% bar was always a cost proxy, so each check also reports its wall time against an all-CVODES run of the same case. The decision sets no cost bar.
+
+**Both checks re-judged, from their logs (no new run):**
+
+| | C1, settled (c1c9f93) | RL10 dev at O/F 5.055 (9b5a65d) |
+|---|---|---|
+| c*, Isp_vac, F_vac against CVODES (0.2% bars) | −0.061%, −0.087%, −0.087%: pass | −0.081%, −0.138%, −0.139%: pass |
+| Defect fallbacks over the last ms, chamber / convergent / divergent | 0 / 0 / 0: pass | 0 / 0 / 0: pass |
+| By-cause fallbacks over the last ms (reported) | 0 / 0 / 0 | 26.8% / 0 / 0 |
+| Wall time, Table B against all-CVODES (reported) | 76 s against 937 s (12.3 times) | 290 s against 1,973 s (6.8 times; the CVODES run shared the machine, so indicative) |
+| **Verdict under (b)** | **pass** | **pass** |
+
+- **The RL10 chamber's by-cause share** (measured, the per-cell count above):
+  - The face column, cells (0, 0) to (0, 7), on every update: 25.0% of the chamber's 224,000 updates. It is shown off the manifold: 248 to 589 K with Y_H2O 0.007 to 0.068, a state no homogeneous reactor passes through.
+  - Cells (1, 0) and (1, 1), in the flame column, on 2,000 of 7,000 updates each: 1.8%, all "dY above dY_max". *Inferred:* their mid-step states mix the face column's unburnt inflow into burning gas.
+  - The replay of the CVODES run's samples (`/tmp/r10rep`, queued) checks the curve at these two cells' states. If it shows the curve point wrong at a state the table should hold, these updates count as defects (1.8%, over the bar), and this verdict is reopened.
+- **So Table B passes its gates on C1 and on the RL10's range,** and by decision 1 it is the RL10 tier-1 central case's chemistry, with Table A (shifting equilibrium) a member (the plan's dated note of 02:00).
+- The queued runs (the Δη 0.05 table, and the O/F 5.62 pair) are judged by this split bar when they land.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
