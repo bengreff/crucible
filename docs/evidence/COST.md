@@ -242,3 +242,14 @@ A rerun of low with `CRUCIBLE_HOT_TRACE=3450` (e18c710; it reproduces the origin
 - **So the plate column's high-z faces make it (measured), consistent with the sharper candidate (inferred).** Those are the faces built from the one-sided axial slope. The excess rises in the face column through outflow below the cells' own b, reaches the corner by inflow from above, and the corner then keeps rising as a local maximum through the same outflow. (x)'s zero slope at a local extremum removes the face-column case directly; the mechanism in cells that are not extrema is ordinary upwinding of a gradient.
 
 **(x0): passes (measured).** The (x) build with the flag off, low to 0.04 ms (556 steps), equals the e20d6c6 build's history in all 19 compared columns, both with `CRUCIBLE_DELTA_H` (against `u0/new_dh`) and without it (against `u0/new_off`). The flag-on smoke (consistent fluxes on) ran the same 556 steps, with mass and energy budgets of 3.7e-14 and −1.9e-14.
+
+**(x1) as registered: fails (measured; backhouse, `/home/greff/crucible_x/xout/x1.log`).** Largest rise of the maximum cell h in a step, relative:
+
+| Ramp | Flag off | Flag on | max \|p/p0 − 1\|, off / on |
+|---|---|---|---|
+| +1 | 4.18e-5 | 0 exactly | 1.26e-5 / 1.37e-5 |
+| −1 | 3.42e-5 | 6.22e-6 | 2.46e-3 / 2.47e-3 |
+
+- Flag on breaks the 1e-12 tolerance in the −1 run, so x1 fails as registered. Flag off rises in both runs, so the check discriminates.
+- **The cause is in the test (inferred from the code, then measured by x1b below).** The duct's inflow takes `Definition::composition` (`core/flow.cpp:375`), which the test left at pure air. The −1 ramp has 2% helium at the inlet, so a variable-γ contact enters there. Its pressure waves, 200 times the +1 run's, cross the 0.3 m to the spot in about 1 ms and compress it. That moves h by about δp/ρ, the risk registered with x1.
+- **(x1b), registered before its run:** the same test, with the inflow composition set to the first cell's (`tests/mixture_tests.cpp` section 4, as corrected). Pass rule as x1. Expected (derived): the −1 run's |p/p0 − 1| falls to the +1 run's level, about 1e-5.

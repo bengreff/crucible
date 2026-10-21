@@ -21,6 +21,9 @@
 //      (no excess coefficients, no turbulence). With the flag, the largest cell h never rises by more than 1e-12
 //      relative in a step; without it, it rises by more than that in at least one of the two runs (the check
 //      discriminates). The largest |p/p0 - 1| is reported, since a variable-gamma contact moves pressure (item 3).
+//      Corrected the same night (x1b, registered before its run): the duct's inflow takes Definition::composition,
+//      which was pure air, so the -1 ramp (2% helium at the inlet) let a variable-gamma contact in at the inlet,
+//      and its pressure waves (|p/p0 - 1| 2.5e-3) compressed the spot. The inflow now has the first cell's composition.
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -230,6 +233,8 @@ int main() {
         Definition d = tube(n);
         d.experiment = Case::UniformDuct;
         d.extremumBoundedEnthalpy = on;
+        const double inflowHe = 0.01 + sign * 0.01 * std::tanh((0.5 / n - 0.3) / 0.02);
+        d.composition = {1 - inflowHe, inflowHe};
         Flow f(d);
         const Medium& medium = f.medium();
         const double u = 100, p = 1e5;
