@@ -1,0 +1,55 @@
+mechanism: ../tools/mechanisms/h2o2_highT.yaml
+Table B /tmp/tbs/c1r_s.bin: Table B built 2026-10-20 22:26 CDT by crucible_build_manifold_table from ../tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 3 nodes {0.142857,0.166667,0.200000} as given, Z_N {0.000000,0.300000}, eta 6 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 324 nodes in 8 s on 2 threads; node element error 5.77e-10 raw, 3.57e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE
+mesh 32x6: dz 5.208 mm, throat station 16 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 8 at z 0.0443 m
+chemistry fr; igniter 50 J over 1 ms from 0.2 ms
+t 0.500 ms  p_inj 1.4936 MPa  outlet 0.1568 kg/s  F_vac 628.7 N  steps 2936  wall 10 s  step 1.115e-07 s set by cell (16, 2), convective 3.586e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 1561344 cell updates, table 72.9587%; no H or O 0.7891%; outside the axes 11.7335%; frozen reach 0.5140%; off the curve in s (above the blended s_eq) 0.0510%; off the curve in s (below the blended start) 11.9448%; dY above dY_max 2.0088%
+t 1.000 ms  p_inj 2.7964 MPa  outlet 0.3247 kg/s  F_vac 1399.2 N  steps 7449  wall 17 s  step 1.178e-07 s set by cell (16, 5), convective 3.394e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2551296 cell updates, table 99.9582%; frozen reach 0.0067%; frozen corner on the branch 0.0352%
+t 1.500 ms  p_inj 3.1487 MPa  outlet 0.3766 kg/s  F_vac 1583.1 N  steps 11700  wall 34 s  step 1.195e-07 s set by cell (16, 5), convective 3.347e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400384 cell updates, table 98.5425%; frozen corner on the branch 1.4575%
+t 2.000 ms  p_inj 3.2545 MPa  outlet 0.3933 kg/s  F_vac 1635.7 N  steps 15950  wall 51 s  step 1.200e-07 s set by cell (16, 5), convective 3.334e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 98.0633%; frozen corner on the branch 1.9367%
+t 2.500 ms  p_inj 3.2866 MPa  outlet 0.3980 kg/s  F_vac 1653.1 N  steps 20200  wall 67 s  step 1.201e-07 s set by cell (16, 5), convective 3.330e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 97.5920%; frozen corner on the branch 2.4080%
+t 3.000 ms  p_inj 3.2955 MPa  outlet 0.3994 kg/s  F_vac 1659.9 N  steps 24450  wall 82 s  step 1.202e-07 s set by cell (16, 5), convective 3.329e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 97.5173%; frozen corner on the branch 2.4827%
+t 3.500 ms  p_inj 3.2985 MPa  outlet 0.3998 kg/s  F_vac 1659.3 N  steps 28700  wall 97 s  step 1.202e-07 s set by cell (16, 5), convective 3.328e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 97.4999%; frozen corner on the branch 2.5001%
+t 4.000 ms  p_inj 3.2996 MPa  outlet 0.4000 kg/s  F_vac 1659.6 N  steps 32950  wall 113 s  step 1.202e-07 s set by cell (16, 5), convective 3.328e+06 and diffusive 0.000e+00 per s
+  Table B since the last print: 2400000 cell updates, table 97.5017%; frozen corner on the branch 2.4983%
+
+end 4.000 ms after 32950 steps (30522 replans), wall 113 s
+budgets: mass 7.71e-14  energy 3.94e-12
+cost: 17.836 us of wall time per cell update on 2 threads, 28.2 s per simulated ms over the run
+step limit after 1 ms (1501 samples): mean step 1.199e-07 s; set in the wall row 100.0%, the axis row 0.0%, upstream of the throat 0.0%, at it (its two columns) 100.0%, downstream 0.0%; diffusive rate above convective 0.0%; last: step 1.202e-07 s set by cell (16, 5), convective 3.328e+06 and diffusive 0.000e+00 per s
+reaction wall 92.9 s (82.3% of the run), 14.678 us per cell update
+  Table B over the run: 18513024 cell updates, table 95.9916%; no H or O 0.0665%; outside the axes 0.9896%; frozen reach 0.0443%; off the curve in s (above the blended s_eq) 0.0043%; off the curve in s (below the blended start) 1.0074%; dY above dY_max 0.1694%; frozen corner on the branch 1.7269%
+  Table B: largest max|dY| of a placed point it stepped 9.997e-03; its updates placed at w < 1 (in part by s) 51
+  Table B chamber, over the run: 5206788 cell updates, table 93.4240%; no H or O 0.0056%; outside the axes 0.3083%; frozen reach 0.0011%; off the curve in s (above the blended s_eq) 0.0012%; off the curve in s (below the blended start) 1.5178%; dY above dY_max 0.1872%; frozen corner on the branch 4.5548%
+  Table B convergent, over the run: 4049724 cell updates, table 95.7287%; no H or O 0.0168%; outside the axes 0.7432%; frozen reach 0.1833%; off the curve in s (above the blended s_eq) 0.0118%; off the curve in s (below the blended start) 1.1756%; dY above dY_max 0.1024%; frozen corner on the branch 2.0382%
+  Table B divergent, over the run: 9256512 cell updates, table 97.5508%; no H or O 0.1226%; outside the axes 1.4806%; frozen reach 0.0077%; off the curve in s (above the blended s_eq) 0.0028%; off the curve in s (below the blended start) 0.6467%; dY above dY_max 0.1887%
+  Table B chamber, the last ms: 1350000 cell updates, table 93.4335%; frozen corner on the branch 6.5665%
+  Table B convergent, the last ms: 1050000 cell updates, table 97.0176%; frozen corner on the branch 2.9824%
+  Table B divergent, the last ms: 2400000 cell updates, table 100.0000%
+  Table B, the last ms: 84 cells took any fallback; the most:
+    cell (0, 5): 8500 of 25000 updates; frozen corner on the branch 8500
+    cell (0, 4): 8500 of 25000 updates; frozen corner on the branch 8500
+    cell (0, 3): 8500 of 25000 updates; frozen corner on the branch 8500
+    cell (0, 2): 8500 of 25000 updates; frozen corner on the branch 8500
+    cell (0, 1): 8500 of 25000 updates; frozen corner on the branch 8500
+    cell (0, 0): 8500 of 25000 updates; frozen corner on the branch 8500
+    cell (1, 5): 1971 of 25000 updates; frozen corner on the branch 1971
+    cell (1, 4): 1963 of 25000 updates; frozen corner on the branch 1963
+    cell (1, 3): 1963 of 25000 updates; frozen corner on the branch 1963
+    cell (1, 2): 1902 of 25000 updates; frozen corner on the branch 1902
+    cell (1, 1): 1895 of 25000 updates; frozen corner on the branch 1895
+    cell (1, 0): 1894 of 25000 updates; frozen corner on the branch 1894
+drift over last 1 ms: outlet mass flow 1.53e-03, injector pressure 1.18e-03, vacuum thrust 5.14e-03
+chamber end: static 3.11784 MPa, equilibrium stagnation p0 3.13453 MPa; injector face 3.29957 MPa
+simulated: mdot out 0.400005 kg/s (supply 0.400000), c* 2461.82 m/s, vacuum thrust 1659.60 N, vacuum Isp 423.08 s
+1-D ideal rocket at p0 (../tools/mechanisms/h2o2_highT.yaml thermo): Tc 3347.4 K, c* 2428.64 m/s, Isp_vac shifting 435.89 s, frozen 419.18 s, gamma 1.2072
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2437.28 m/s, Isp_vac shifting 429.01 s, frozen 412.51 s, F_vac 1682.89 N
+simulated/predicted - 1: c* +1.0069%, Isp_vac (shifting) -1.3840%

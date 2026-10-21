@@ -46,6 +46,7 @@ ReactionSource::~ReactionSource() = default;
 
 std::size_t ReactionSource::nSpecies() const { return impl_->gas->nSpecies(); }
 std::size_t ReactionSource::nElements() const { return impl_->gas->nElements(); }
+std::string ReactionSource::elementName(std::size_t m) const { return impl_->gas->elementName(m); }
 std::string ReactionSource::speciesName(std::size_t k) const { return impl_->gas->speciesName(k); }
 
 Medium ReactionSource::medium() const {

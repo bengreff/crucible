@@ -24,6 +24,11 @@ struct ReactingFlow::Worker {
   // Table A tallies of one reaction call.
   long table = 0, clamped = 0, fallbacks = 0, audited = 0;
   double auditT = 0, auditY = 0;
+  // Table B tallies of one reaction call, and its scratch.
+  std::array<long, static_cast<std::size_t>(ManifoldRuntime::Cause::Count)> causes{};
+  double snap = 0;
+  long partial = 0;
+  ManifoldRuntime::Work manifold;
   Worker(const std::string& mechanism, double rtol, double atol)
       : source(mechanism), step(source, rtol, atol), z(source.nSpecies() + 1), y(source.nSpecies()),
         out(source.nSpecies()) {}
@@ -67,9 +72,35 @@ void ReactingFlow::setMixingClosure(double cmix, const std::vector<std::string>&
     indices.push_back(k);
   }
   if (indices.empty()) throw std::invalid_argument("The PaSR closure needs at least one species.");
+  if (manifold_) throw std::invalid_argument("Table B under the PaSR closure is not coded yet.");
   closure_ = true;
   cmix_ = cmix;
   closureSpecies_ = std::move(indices);
+}
+
+void ReactingFlow::useManifoldTable(const ManifoldTable& table) {
+  if (chemistry_ != Chemistry::FiniteRate) throw std::invalid_argument("Table B needs FiniteRate chemistry.");
+  if (closure_) throw std::invalid_argument("Table B under the PaSR closure is not coded yet (TABLE_B.md, \"The runtime's step\").");
+  ReactionSource& source = workers_[0]->source;
+  const std::size_t ns = source.nSpecies(), ne = source.nElements();
+  std::size_t eH = ne, eO = ne, eN = ne;
+  for (std::size_t m = 0; m < ne; ++m) {
+    const auto name = source.elementName(m);
+    if (name == "H") eH = m;
+    else if (name == "O") eO = m;
+    else if (name == "N") eN = m;
+  }
+  if (eH == ne || eO == ne) throw std::invalid_argument("Table B needs H and O in the mechanism.");
+  std::vector<ManifoldRuntime::Elements> elements(ns);
+  std::vector<double> unit(ns, 0.0);
+  for (std::size_t k = 0; k < ns; ++k) {
+    unit[k] = 1;
+    const auto z = source.elementMassFractions(unit.data());
+    elements[k] = {z[eH], z[eO], eN < ne ? z[eN] : 0.0};
+    unit[k] = 0;
+  }
+  manifold_ = std::make_unique<ManifoldRuntime>(table, flow_.medium(), std::move(elements));
+  for (auto& w : workers_) w->manifold = manifold_->work();
 }
 
 void ReactingFlow::useEquilibriumTable(const EquilibriumTable& table, long audit) {
@@ -172,7 +203,14 @@ void ReactingFlow::react(double dt) {
   // Workers take small blocks of cells from a shared counter, so the hot cells of a flame or a
   // light-off do not all fall to one worker. Each cell's result is independent of which worker
   // takes it (the integrator is reinitialised per cell).
-  for (const auto& w : workers_) w->mismatch = w->clipped = 0;
+  for (const auto& w : workers_) {
+    w->mismatch = w->clipped = w->snap = 0;
+    w->partial = 0;
+    w->causes.fill(0);
+  }
+  const std::size_t nt = manifold_ ? flow_.turbulence().size() / cells : 0;
+  constexpr std::size_t kCauses = static_cast<std::size_t>(ManifoldRuntime::Cause::Count);
+  if (manifold_ && stats_.manifoldCellCauses.size() != cells * kCauses) stats_.manifoldCellCauses.assign(cells * kCauses, 0);
   // Under AMR step B2 the cells a level steps (Flow::stepCells), else every cell.
   const auto* list = flow_.stepCells();
   flow_.pool().blocks(list ? list->size() : cells, kBlock, [&](std::size_t begin, std::size_t end, int w) {
@@ -181,6 +219,23 @@ void ReactingFlow::react(double dt) {
       const std::size_t q = list ? (*list)[n] : n;
       const double rho = flow_.state()[q][0];
       auto y = flow_.massFractions(q);
+      if (manifold_) {
+        // Table B first; CVODES below for a cell it does not handle. e as reactTable takes it.
+        const auto& u = flow_.state()[q];
+        const double e = (u[3] - (u[1] * u[1] + u[2] * u[2]) / (2 * rho)) / rho - (nt ? flow_.turbulence()[q * nt] / rho : 0.0);
+        const auto placed = manifold_->advance(e, rho, flow_.temperature(q), y.data(), dt, worker.manifold);
+        ++worker.causes[static_cast<std::size_t>(placed.cause)];
+        ++stats_.manifoldCellCauses[q * kCauses + static_cast<std::size_t>(placed.cause)];  // one worker per cell
+        if (placed.cause == ManifoldRuntime::Cause::Table) {
+          worker.snap = std::max(worker.snap, placed.dY);
+          if (placed.w < 1) ++worker.partial;
+          double sum = 0;
+          for (double v : y) sum += v;
+          for (double& v : y) v /= sum;
+          flow_.setMassFractions(q, y.data());
+          continue;
+        }
+      }
       worker.z[0] = flow_.temperature(q);
       std::copy(y.begin(), y.end(), worker.z.begin() + 1);
       if (equilibrium) worker.source.equilibrateUV(rho, worker.z.data());
@@ -200,6 +255,9 @@ void ReactingFlow::react(double dt) {
   for (const auto& w : workers_) {
     stats_.maxTemperatureMismatch = std::max(stats_.maxTemperatureMismatch, w->mismatch);
     stats_.maxClippedFraction = std::max(stats_.maxClippedFraction, w->clipped);
+    for (std::size_t c = 0; c < w->causes.size(); ++c) stats_.manifoldCauses[c] += w->causes[c];
+    stats_.manifoldMaxSnap = std::max(stats_.manifoldMaxSnap, w->snap);
+    stats_.manifoldPartial += w->partial;
   }
 }
 

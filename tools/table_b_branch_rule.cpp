@@ -17,6 +17,9 @@
 // One output row per sample, in the samples' order, for tools/fallback_rate.py to join (it applies the
 // domain: the axes and the gates; E0_COLUMN picks the rule). Also E4: s per cell and each rule per cell,
 // timed on one thread.
+// R1 and R2 (TABLE_B.md, "The runtime's step on the placed point"): the runtime's own placement
+// (core/manifold_runtime.*) on every sample, against this replay's (columns n_runtime, tau_runtime); and its step at
+// the cell on every CRUCIBLE_R2_EVERY-th sample it places (default 50).
 // CRUCIBLE_E0_OWN_EQ_EVERY = N (default 20; 0 for none): every N-th sample inside the axes also gets its own
 // s_eq from Cantera's equilibrateUV, for E0's stated measurement of the blend's s_eq against the cell's.
 //
@@ -36,6 +39,7 @@
 
 #include "adapters/reaction.hpp"
 #include "cantera/core.h"
+#include "core/manifold_runtime.hpp"
 #include "core/manifold_table.hpp"
 #include "core/medium.hpp"
 
@@ -391,6 +395,34 @@ int main(int argc, char** argv) {
     for (std::size_t k = 0; k < ns; ++k) nPt[p] += y[k] / wR[k];
   }
   const std::vector<double> tauBase[2] = {baseTau(table, 0), baseTau(table, 1)};
+  // The runtime, with the species' element fractions from Cantera.
+  std::vector<crucible::ManifoldRuntime::Elements> elements(nsAll);
+  {
+    const std::size_t eH = gas->elementIndex("H"), eO = gas->elementIndex("O"), eN = gas->elementIndex("N");
+    for (std::size_t k = 0; k < nsAll; ++k) {
+      const double w = gas->molecularWeight(k);
+      elements[k] = {gas->nAtoms(k, eH) * gas->atomicWeight(eH) / w, gas->nAtoms(k, eO) * gas->atomicWeight(eO) / w,
+                     eN != Cantera::npos ? gas->nAtoms(k, eN) * gas->atomicWeight(eN) / w : 0.0};
+    }
+  }
+  const crucible::ManifoldRuntime runtime(table, medium, elements);
+  auto rwork = runtime.work();
+  using RCause = crucible::ManifoldRuntime::Cause;
+  long r2Every = 50;
+  if (const char* e = std::getenv("CRUCIBLE_R2_EVERY")) r2Every = std::atol(e);
+  // R1's tallies: cause disagreements by pair, and the worst |tau| difference where both place.
+  std::map<std::string, long> r1Mismatch;
+  double r1Tau = 0;
+  long r1Both = 0;
+  // R2's tallies.
+  struct R2 { long n = 0; long aFail = 0; double b = 0, c = 0, d = 0; long dN = 0; double dWLess = 0; long dWLessN = 0; };
+  R2 r2;
+  const double dts[] = {1e-8, 1e-7, 1e-6, 1e-5};
+  double r2e[4] = {0, 0, 0, 0}, r2eY[4] = {0, 0, 0, 0};
+  std::array<double, 7> r2eWorst[4] = {};
+  long r2ePartial = 0;
+  std::map<std::string, long> r2Causes;
+  long r2Placed = 0;
   long ownEvery = 20;
   if (const char* e = std::getenv("CRUCIBLE_E0_OWN_EQ_EVERY")) ownEvery = std::atol(e);
 
@@ -408,7 +440,7 @@ int main(int argc, char** argv) {
 
   std::FILE* out = std::fopen(argv[4], "w");
   if (!out) throw std::runtime_error(std::string("Cannot write ") + argv[4]);
-  std::fprintf(out, "e0,branch,s_cell,s_eq_lower,span_lower,xi_lower,dY_lower,s_eq_upper,span_upper,xi_upper,dY_upper,s_eq_own,n_rule,n_branch,phi_N,w,tau,dY_n\n");
+  std::fprintf(out, "e0,branch,s_cell,s_eq_lower,span_lower,xi_lower,dY_lower,s_eq_upper,span_upper,xi_upper,dY_upper,s_eq_own,n_rule,n_branch,phi_N,w,tau,dY_n,n_runtime,tau_runtime\n");
   std::vector<double> yc(ns), yb(ns), yr(ns);
   std::map<std::string, long> count, countN;
   long unconverged = 0;
@@ -423,9 +455,14 @@ int main(int argc, char** argv) {
     const auto& s = samples[n];
     std::array<Corner, 16> corners;
     const std::string domain = cornersOf(table, s.fH, s.zN, s.eta, s.rho, corners);
+    const double eCell = medium.internalEnergy(s.T, s.y.data());
+    const auto rp = runtime.place(eCell, s.rho, s.T, s.y.data(), rwork);
     if (!domain.empty()) {
       ++count["(domain) " + domain];
-      std::fprintf(out, "%s,-1,,,,,,,,,,,%s,-1,,,,\n", domain.c_str(), domain.c_str());
+      std::fprintf(out, "%s,-1,,,,,,,,,,,%s,-1,,,,,%s,\n", domain.c_str(), domain.c_str(), crucible::ManifoldRuntime::causeName(rp.cause));
+      if (rp.cause != RCause::OutsideAxes && rp.cause != RCause::NoHydrogenOrOxygen && rp.cause != RCause::CornerRefused &&
+          rp.cause != RCause::CornerFlagged)
+        ++r1Mismatch[std::string("replay domain '") + domain + "', runtime '" + crucible::ManifoldRuntime::causeName(rp.cause) + "'"];
       continue;
     }
     ++inside;
@@ -461,7 +498,81 @@ int main(int argc, char** argv) {
       reachWithFrozen += frozen;
     }
     if (nr.branch >= 0) dYByClass[nr.cause.substr(nr.cause.find('(') + 1)].push_back(nr.dY);
-    std::fprintf(out, "%s,%d,%.6e,%.6e,%.9e,%.6e\n", nr.cause.c_str(), nr.branch, nr.phi, nr.w, nr.tau, nr.dY);
+    std::fprintf(out, "%s,%d,%.6e,%.6e,%.9e,%.6e,%s,%.12e\n", nr.cause.c_str(), nr.branch, nr.phi, nr.w, nr.tau, nr.dY,
+                 crucible::ManifoldRuntime::causeName(rp.cause), rp.tau);
+    // R1: the replay's cause names the branch and w class; the runtime's names neither, and adds the frozen corner.
+    {
+      const bool replayTable = nr.cause.rfind("table", 0) == 0, runtimeTable = rp.cause == RCause::Table;
+      std::string replayBase = nr.cause.substr(0, nr.cause.find(" ("));
+      std::string runtimeBase = crucible::ManifoldRuntime::causeName(rp.cause);
+      runtimeBase = runtimeBase.substr(0, runtimeBase.find(" ("));
+      const bool frozenCorner = rp.cause == RCause::FrozenCorner && replayTable;
+      if (!frozenCorner && replayBase != runtimeBase) ++r1Mismatch["replay '" + nr.cause + "', runtime '" + crucible::ManifoldRuntime::causeName(rp.cause) + "'"];
+      if (frozenCorner) ++r1Mismatch["(new cause) frozen corner on the branch, replay '" + nr.cause + "'"];
+      if ((replayTable || frozenCorner) && (runtimeTable || frozenCorner) && rp.branch == nr.branch) {
+        r1Tau = std::max(r1Tau, std::fabs(rp.tau - nr.tau));
+        ++r1Both;
+      }
+      (void)runtimeTable;
+    }
+    // R2: the step at the cell.
+    if (rp.cause == RCause::Table && r2Every > 0 && (r2Placed++ % r2Every) == 0) {
+      ++r2.n;
+      // The samples' Y are printed to 10 digits (sums off 1 by up to 1e-10): R2 works on the cell renormalised.
+      std::vector<double> y0 = s.y, yq(ns);
+      {
+        double sum = 0;
+        for (double v : y0) sum += v;
+        for (double& v : y0) v /= sum;
+      }
+      std::vector<double> y1 = y0;
+      const auto rp0 = runtime.place(eCell, s.rho, s.T, y0.data(), rwork);
+      if (rp0.cause != RCause::Table) continue;
+      // (a) dt = 0 gives the placed point bit for bit.
+      runtime.advance(eCell, s.rho, s.T, y1.data(), 0.0, rwork);
+      runtime.curve(eCell, s.rho, y0.data(), rp0.branch, rp0.u, yq.data(), rwork);
+      for (std::size_t k = 0; k < ns; ++k) if (y1[reactingCol[k]] != yq[k]) { ++r2.aFail; break; }
+      // (b) dt = 1 s gives the blended equilibrium.
+      y1 = y0;
+      runtime.advance(eCell, s.rho, s.T, y1.data(), 1.0, rwork);
+      runtime.curve(eCell, s.rho, y0.data(), rp0.branch, 0.0, yq.data(), rwork);
+      for (std::size_t k = 0; k < ns; ++k) r2.b = std::max(r2.b, std::fabs(y1[reactingCol[k]] - yq[k]));
+      // (c) the elements, and (d) the re-placement, after dt = 1e-6 s.
+      y1 = y0;
+      const auto step = runtime.advance(eCell, s.rho, s.T, y1.data(), 1e-6, rwork);
+      ++r2Causes[crucible::ManifoldRuntime::causeName(step.cause)];
+      const auto z0 = source.elementMassFractions(y0.data()), z1 = source.elementMassFractions(y1.data());
+      for (std::size_t m = 0; m < z0.size(); ++m)
+        if (z0[m] > 1e-12) r2.c = std::max(r2.c, std::fabs(z1[m] - z0[m]) / z0[m]);
+      const double t1 = medium.temperature(eCell, y1.data(), s.T);
+      const auto again = runtime.place(eCell, s.rho, t1, y1.data(), rwork);
+      if (rp0.w == 1) {
+        if (again.cause == RCause::Table && again.branch == step.branch) r2.d = std::max(r2.d, std::fabs(again.tau - step.tau));
+        else ++r2.dN;
+      } else if (again.cause == RCause::Table) {
+        r2.dWLess = std::max(r2.dWLess, std::fabs(again.tau - step.tau));
+        ++r2.dWLessN;
+      }
+      // (e) two halves against one whole step.
+      for (int q = 0; q < 4; ++q) {
+        if (rp0.w < 1) { if (q == 0) ++r2ePartial; continue; }
+        std::vector<double> ya = y0, yb2 = y0;
+        const auto whole = runtime.advance(eCell, s.rho, s.T, ya.data(), dts[q], rwork);
+        const auto half = runtime.advance(eCell, s.rho, s.T, yb2.data(), dts[q] / 2, rwork);
+        if (whole.cause != RCause::Table || half.cause != RCause::Table) continue;
+        const double th = medium.temperature(eCell, yb2.data(), s.T);
+        const auto half2 = runtime.advance(eCell, s.rho, th, yb2.data(), dts[q] / 2, rwork);
+        if (half2.cause != RCause::Table || half2.branch != whole.branch) continue;
+        const double uw = whole.u, uh = half2.u;
+        if (uw > 0) r2e[q] = std::max(r2e[q], std::fabs(uh - uw) / std::max(uw, uh));
+        double dYq = 0;
+        for (std::size_t k = 0; k < ns; ++k) dYq = std::max(dYq, std::fabs(ya[reactingCol[k]] - yb2[reactingCol[k]]));
+        if (dYq > r2eY[q]) {
+          r2eY[q] = dYq;
+          r2eWorst[q] = {static_cast<double>(whole.branch), rp0.u, uw, uh, static_cast<double>(whole.substeps), s.eta, s.T};
+        }
+      }
+    }
   }
   std::fclose(out);
 
@@ -484,6 +595,17 @@ int main(int argc, char** argv) {
     std::printf("  dY of the placed point, (%s: %zu cells, median %.3e, 95%% %.3e, 99%% %.3e, max %.3e\n", cls.c_str(), v.size(),
                 pct(0.5), pct(0.95), pct(0.99), v.back());
   }
+  std::printf("R1 (the runtime's placement against the replay's): %zu kinds of disagreement; worst |tau| difference %.3e over %ld samples placed by both on the same branch\n",
+              r1Mismatch.size(), r1Tau, r1Both);
+  for (const auto& [what, k] : r1Mismatch) std::printf("  %s: %ld\n", what.c_str(), k);
+  std::printf("R2 (the step at the cell) on %ld placed samples: (a) dt 0 not bit for bit in %ld; (b) dt 1 s against the blended equilibrium, max |dY| %.3e; "
+              "(c) elements after 1e-6 s, worst relative %.3e; (d) w 1, re-placed after 1e-6 s, worst |dtau| %.3e (%ld not re-placed on the same branch); "
+              "w < 1: worst |dtau| %.3e over %ld\n", r2.n, r2.aFail, r2.b, r2.c, r2.d, r2.dN, r2.dWLess, r2.dWLessN);
+  for (const auto& [what, k] : r2Causes) std::printf("  the 1e-6 s step's cause: %s: %ld\n", what.c_str(), k);
+  std::printf("  (e) on the cells placed at w 1 (%ld at w < 1 left out: (d) measures their re-placement)\n", r2ePartial);
+  for (int q = 0; q < 4; ++q)
+    std::printf("  (e) dt %.0e s: two halves against one step, worst |du| / max(u) %.3e, max |dY| %.3e (at branch %.0f, u %.6e to %.6e in one step and %.6e in two, %.0f sub-steps in one, sample eta %.4f, T %.1f K)\n",
+                dts[q], r2e[q], r2eY[q], r2eWorst[q][0], r2eWorst[q][1], r2eWorst[q][2], r2eWorst[q][3], r2eWorst[q][4], r2eWorst[q][5], r2eWorst[q][6]);
   std::printf("s_cell against Cantera's entropy_mass on %ld samples: worst |difference| %.3e J/(kg K)\n", checked, worstSCheck);
   if (!ownEq.empty()) {
     std::vector<double> a, b;
@@ -540,6 +662,19 @@ int main(int argc, char** argv) {
       });
     };
     const double nsN = nTime(false), nsNCheck = nTime(true);
+    std::vector<double> ytmp;
+    const double nsPlace = timeIt([&](std::size_t q) {
+      const auto& s = samples[insideIdx[q]];
+      return static_cast<double>(runtime.place(medium.internalEnergy(s.T, s.y.data()), s.rho, s.T, s.y.data(), rwork).branch);
+    });
+    const double nsAdvance = timeIt([&](std::size_t q) {
+      const auto& s = samples[insideIdx[q]];
+      ytmp = s.y;
+      return static_cast<double>(runtime.advance(medium.internalEnergy(s.T, s.y.data()), s.rho, s.T, ytmp.data(), 1e-7, rwork).substeps);
+    });
+    const double nsEnergy = timeIt([&](std::size_t q) { const auto& s = samples[insideIdx[q]]; return medium.internalEnergy(s.T, s.y.data()); });
+    std::printf("E4, the runtime (one thread): e from T (the timing's own input, not the runtime's) %.1f ns; place %.1f ns; advance over 1e-7 s %.1f ns per cell, each including e\n",
+                nsEnergy, nsPlace, nsAdvance);
     std::printf("E4 (one thread, %zu cells): s_cell %.1f ns per cell; s_cell with the branch rule (16 corners, both branches) %.1f ns per cell; "
                 "s_cell with the N placement %.1f ns per cell (Illinois on the whole branch), %.1f with the replay's monotone check (sink %g)\n",
                 insideIdx.size(), nsS, nsRule, nsN, nsNCheck, sink > 0 ? 1.0 : 0.0);

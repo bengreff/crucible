@@ -33,6 +33,9 @@
 //        [igniter energy J] [igniter duration s]
 // "eqt" is "eq" with the equilibrium from Table A (docs/evidence/TABLE_A.md): the table file is
 // CRUCIBLE_EQ_TABLE, and CRUCIBLE_EQ_AUDIT (default 0, none) sets the audit's interval in reaction calls.
+// "fr" with CRUCIBLE_MANIFOLD_TABLE=<file> (added 21 October 2026; docs/evidence/TABLE_B.md, "The runtime's step on
+// the placed point") takes each cell's reaction from Table B (built with the specific entropy from the same
+// mechanism), and CVODES for the cells it does not handle; the counts by cause are printed every 0.5 ms and at the end.
 // CRUCIBLE_MECHANISM (default h2o2.yaml, added 20 October 2026) is the mechanism for the core thermo,
 // the transport and the reaction; eqt refuses a table whose provenance names another.
 // "eqtt" (added 5 October 2026) is "eqt" made viscous and turbulent as "frt" (no PaSR closure, and
@@ -60,6 +63,7 @@
 // The chamber volume for the s > 0.01 fraction is the cells upstream of the throat. The first-cell
 // y+ is the laminar estimate sqrt(rho |u| d / mu) at the wall row, d the wall distance.
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -78,6 +82,8 @@
 #include "adapters/thermo.hpp"
 #include "cantera/core.h"
 #include "core/contour.hpp"
+#include "core/manifold_runtime.hpp"
+#include "core/manifold_table.hpp"
 #include "tests/c1_geometry.hpp"
 
 using namespace crucible;
@@ -467,6 +473,31 @@ int main(int argc, char** argv) {
     reacting.useEquilibriumTable(table, audit);
     std::printf("table %s: %s\naudit every %ld reaction calls\n", path, table.provenance.c_str(), audit);
   }
+  ManifoldTable manifold;
+  const char* manifoldPath = chemistry == thermo::Chemistry::FiniteRate ? std::getenv("CRUCIBLE_MANIFOLD_TABLE") : nullptr;
+  if (manifoldPath) {
+    manifold = ManifoldTable::load(manifoldPath);
+    if (manifold.provenance.find(mechanism.substr(mechanism.find_last_of('/') + 1)) == std::string::npos)
+      throw std::runtime_error(std::string("the table ") + manifoldPath + " was not built from " + mechanism);
+    reacting.useManifoldTable(manifold);
+    std::printf("Table B %s: %s\n", manifoldPath, manifold.provenance.c_str());
+  }
+  // Table B's counts by cause since the last print.
+  using Cause = ManifoldRuntime::Cause;
+  constexpr std::size_t kCauses = static_cast<std::size_t>(Cause::Count);
+  std::array<long, kCauses> causesAtPrint{};
+  // Per cell, at the first print from 1 ms before the end: the last ms's fallback by region and by cell.
+  std::vector<long> cellCausesAtWindow;
+  bool cellWindowSet = false;
+  auto printCauses = [&](const std::array<long, kCauses>& since, const char* label) {
+    long total = 0;
+    for (long v : since) total += v;
+    if (!total) return;
+    std::printf("  Table B %s: %ld cell updates, table %.4f%%", label, total, 100.0 * since[0] / total);
+    for (std::size_t c = 1; c < kCauses; ++c)
+      if (since[c]) std::printf("; %s %.4f%%", ManifoldRuntime::causeName(static_cast<Cause>(c)), 100.0 * since[c] / total);
+    std::printf("\n");
+  };
   const auto& mesh = flow.mesh();
   double rMin = 1e9;
   int throatStation = 0;
@@ -757,6 +788,16 @@ int main(int argc, char** argv) {
         std::printf("t %.3f ms  p_inj %.4f MPa  outlet %.4f kg/s  F_vac %.1f N  steps %ld  wall %.0f s  %s\n",
                     flow.time() * 1e3, rows.back().pInj / 1e6, rows.back().outlet, rows.back().fVac,
                     reacting.stats().steps, wall, limitText().c_str());
+        if (manifoldPath) {
+          std::array<long, kCauses> since{};
+          for (std::size_t c = 0; c < kCauses; ++c) since[c] = reacting.stats().manifoldCauses[c] - causesAtPrint[c];
+          printCauses(since, "since the last print");
+          causesAtPrint = reacting.stats().manifoldCauses;
+          if (!cellWindowSet && flow.time() >= end - 1e-3 - 1e-9) {
+            cellCausesAtWindow = reacting.stats().manifoldCellCauses;
+            cellWindowSet = true;
+          }
+        }
         std::fflush(stdout);
         std::fflush(history);
       }
@@ -858,6 +899,54 @@ int main(int argc, char** argv) {
     const auto& st = reacting.stats();
     std::printf("reaction wall %.1f s (%.1f%% of the run), %.3f us per cell update\n", st.reactWall,
                 100 * st.reactWall / wall, 1e6 * st.reactWall / (static_cast<double>(st.steps) * flow.state().size()));
+    if (manifoldPath) {
+      printCauses(st.manifoldCauses, "over the run");
+      std::printf("  Table B: largest max|dY| of a placed point it stepped %.3e; its updates placed at w < 1 (in part by s) %ld\n", st.manifoldMaxSnap, st.manifoldPartial);
+      // By region (fallback_rate.py's: the chamber to its end column, the convergent, the divergent from the throat
+      // station), over the run and over the last ms; then the cells with the most fallback over the last ms.
+      const auto& cc = st.manifoldCellCauses;
+      if (cc.size() == flow.state().size() * kCauses) {
+        for (int window = 0; window < 2; ++window) {
+          if (window == 1 && !cellWindowSet) break;
+          const char* names[3] = {"chamber", "convergent", "divergent"};
+          for (int region = 0; region < 3; ++region) {
+            std::array<long, kCauses> sum{};
+            for (int i = 0; i < nz; ++i) {
+              const int rg = i <= endColumn ? 0 : i < throatStation ? 1 : 2;
+              if (rg != region) continue;
+              for (int j = 0; j < nr; ++j)
+                for (std::size_t c = 0; c < kCauses; ++c) {
+                  const std::size_t at = mesh.index(i, j) * kCauses + c;
+                  sum[c] += cc[at] - (window ? cellCausesAtWindow[at] : 0);
+                }
+            }
+            const std::string label = std::string(names[region]) + (window ? ", the last ms" : ", over the run");
+            printCauses(sum, label.c_str());
+          }
+        }
+        if (cellWindowSet) {
+          std::vector<std::pair<long, std::size_t>> worst;
+          for (std::size_t q = 0; q < flow.state().size(); ++q) {
+            long fb = 0;
+            for (std::size_t c = 1; c < kCauses; ++c) fb += cc[q * kCauses + c] - cellCausesAtWindow[q * kCauses + c];
+            if (fb) worst.emplace_back(fb, q);
+          }
+          std::sort(worst.rbegin(), worst.rend());
+          std::printf("  Table B, the last ms: %zu cells took any fallback; the most:\n", worst.size());
+          for (std::size_t n = 0; n < std::min<std::size_t>(worst.size(), 12); ++n) {
+            const std::size_t q = worst[n].second;
+            long all = 0;
+            for (std::size_t c = 0; c < kCauses; ++c) all += cc[q * kCauses + c] - cellCausesAtWindow[q * kCauses + c];
+            std::printf("    cell (%d, %d): %ld of %ld updates", static_cast<int>(q / nr), static_cast<int>(q % nr), worst[n].first, all);
+            for (std::size_t c = 1; c < kCauses; ++c) {
+              const long v = cc[q * kCauses + c] - cellCausesAtWindow[q * kCauses + c];
+              if (v) std::printf("; %s %ld", ManifoldRuntime::causeName(static_cast<Cause>(c)), v);
+            }
+            std::printf("\n");
+          }
+        }
+      }
+    }
     if (tabulated) {
       const double updates = static_cast<double>(st.tableCells + st.tableFallbacks);
       std::printf("table: %ld cell updates from it (%ld clamped at an axis end), %ld outside it took the direct call (%.3e)\n",

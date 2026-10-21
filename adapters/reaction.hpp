@@ -23,6 +23,7 @@ class ReactionSource {
 
   std::size_t nSpecies() const;
   std::size_t nElements() const;
+  std::string elementName(std::size_t m) const;  // in the order of elementMassFractions
   std::string speciesName(std::size_t k) const;
   // The mechanism's species as core thermally perfect species (NASA 7-coefficient data).
   Medium medium() const;

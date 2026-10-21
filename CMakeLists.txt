@@ -12,7 +12,7 @@ option(CRUCIBLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
 include(CTest)
 find_package(Threads REQUIRED)
 find_package(Eigen3 NO_MODULE)
-add_library(crucible_core core/amr.cpp core/contour.cpp core/equilibrium_table.cpp core/flow.cpp core/manifold_table.cpp
+add_library(crucible_core core/amr.cpp core/contour.cpp core/equilibrium_table.cpp core/flow.cpp core/manifold_runtime.cpp core/manifold_table.cpp
   core/medium.cpp core/pool.cpp core/session.cpp core/spray.cpp core/transport.cpp core/walls.cpp)
 target_include_directories(crucible_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(crucible_core PUBLIC Threads::Threads)

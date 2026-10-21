@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <limits>
 #include <memory>
@@ -8,6 +9,7 @@
 
 #include "core/equilibrium_table.hpp"
 #include "core/flow.hpp"
+#include "core/manifold_runtime.hpp"
 
 namespace crucible { class Spray; }
 
@@ -40,6 +42,14 @@ class ReactingFlow {
     long tableCells = 0, tableClamped = 0, tableFallbacks = 0, auditedCells = 0;
     double auditTemperature = 0, auditMassFraction = 0;
     double reactWall = 0;  // wall time inside react() [s]
+    // Table B (useManifoldTable): cell updates by cause (ManifoldRuntime::Cause; Table is the table's own,
+    // every other cause took CVODES), the largest max|dY| of a placed point the table stepped, and the table's
+    // updates placed at w < 1 (in part by s).
+    std::array<long, static_cast<std::size_t>(ManifoldRuntime::Cause::Count)> manifoldCauses{};
+    double manifoldMaxSnap = 0;
+    long manifoldPartial = 0;
+    // The same counts per cell: [q * Cause::Count + cause], q the flow's cell index (zeroed if the cell count changes).
+    std::vector<long> manifoldCellCauses;
   };
   // Sets the flow's thread count (Flow::setThreads), whose pool then runs the reaction loops too;
   // it must not change while this object lives.
@@ -65,6 +75,12 @@ class ReactingFlow {
   // difference in the stats; the table's result is kept. The table must list the mechanism's species
   // in order and outlive this object.
   void useEquilibriumTable(const EquilibriumTable& table, long audit = 0);
+  // Table B (TECHNICAL_PLAN, *Lightweight engine*; docs/evidence/TABLE_B.md, "The runtime's step on the placed
+  // point"): with FiniteRate and no PaSR closure, each cell is placed on the table's blended curve and advanced
+  // along it; a cell the table does not handle (counted by cause in the stats) is integrated by CVODES as
+  // without the table. The table must be built with the specific entropy from the same mechanism, and outlive
+  // this object.
+  void useManifoldTable(const ManifoldTable& table);
   void react(double dt);  // one reaction substep over every cell (equilibrium: dt is unused)
   // A liquid spray (core/spray.hpp) inside the shared step: it moves after the flow step with the
   // same dt, before the second reaction half (docs/evidence/SPRAY.md, Coupling). Null: none.
@@ -86,6 +102,7 @@ class ReactingFlow {
   std::vector<std::size_t> closureSpecies_;
   std::vector<double> mixingTime_, segregation_;
   const EquilibriumTable* table_ = nullptr;
+  std::unique_ptr<ManifoldRuntime> manifold_;
   long audit_ = 0, tableCalls_ = 0;
   void reactTable();
 };
