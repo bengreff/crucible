@@ -683,6 +683,56 @@ The same samples, table and joins as above; the replay's `n_rule` column (`table
   - the η spacing at the reactants' 200 K floor: the cold propellant.
 - Whether the 1% bar covers the start transient, and so whether these axes are extended, is the Director's.
 
+## The runtime's step on the placed point, stated before its code (21 October 2026, about 00:05 CDT)
+
+**The Director's decisions on 69bb304 (night brief, 20 October):**
+1. The N placement replaces the nearer-branch rule. The replay keeps both, for comparison.
+2. The 1% bar is a steady-state cost bar. A startup fallback is exact (CVODES), so it costs time, not accuracy. The startup share is reported separately. The two axis extensions (Z_N above 0.3; an η node at the reactants' 200 K floor) are done only if each takes under 30 minutes.
+3. E4's 5% bar applies to the entropy evaluation, which passes (1 to 2%). The placement's cost is recorded as measured; optimising it is later speed work.
+
+**The step, on the point the N placement gives** (engineering, within the design of *Stored values and lookup* and *The runtime*):
+- **The coordinate.** The placement gives the branch b and τ; u = 1 − τ on the lower branch and τ − 1 on the upper. Both branches rise in s to s_eq, so on both the reaction moves u toward 0. On the blended curve s̄_b(u) = s̄_eq,b − span̄_b u² holds exactly, since it holds on every corner at the same u.
+- **The rate.** λ̄_b(u) = exp(Σ′ w_q ln λ_q(u) / Σ′ w_q), with each corner's λ linear in u in the same bracket as its Y. This is the design's ln λ blended multilinearly across the other axes.
+  - New: Σ′ runs over the corners of nonzero weight whose branch has nonzero span. A zero-span branch stores λ = 0 and its equilibrium Y at every u, so it carries no rate.
+- **The update.** With d(s̄_eq − s̄)/dt = −λ̄ (s̄_eq − s̄), the coordinate obeys du/dt = −λ̄ u / 2. The exact exponential update is u_new = u exp(−κ_eff λ̄ Δt / 2), with κ_eff = 1 without PaSR.
+- **Sub-steps** never cross a base u of the branch: the builder's 40 slots, common to every corner (lower u = 1 − ξ_p, upper u = j/8). In each sub-step:
+  - λ̄ at its start, then a predictor to u_p (clamped at the next base u), then λ̄ at (u + u_p)/2, and the update with that λ̄;
+  - if the update would cross the next base u, the cell stops there, the time to it, 2 ln(u/u_b) / λ̄_m, is taken from Δt, and the next sub-step starts.
+  - The last interval ends at u = 0, which is never reached in finite time. So there are at most 40 sub-steps, and a stiff cell lands on the blended equilibrium at any Δt.
+- **The composition.** The reacting species' Y = Ȳ_b(u_new), the blend at the new u. This is the design's snap: the fast directions are taken as relaxed. N2 and AR are the cell's own (AR ≤ 1e-12). The elements are the blend's, which are bilinear, so they are the cell's to rounding. e and ρ are kept, and T comes from the core's inversion (`Flow::setMassFractions`).
+- **CVODES, counted by cause:** the placement's causes, and two new ones.
+  - **"frozen corner on the branch":** a corner of nonzero weight whose placed branch is frozen. Its end is its reach, not s_eq, and its stored λ is relative to s_eq, so it does not fit the update in u. This is the 03:10 frozen-reach rule, made concrete in u.
+  - **"no rate at a corner":** a corner in Σ′ whose λ at the cell's u is not positive and finite.
+- **The cell's inputs.**
+  - f_H and Z_N come from the element mass fractions. The species' element fractions are given by the adapter from Cantera at setup.
+  - η is from the cell's own complete-combustion products at 200 K and 6,000 K, on the core's `Medium` (as the chamber study's samples).
+  - s is from the core's NASA-7 data with the table's p° (the replay's evaluation, moved into the runtime's file until a `Medium` method is agreed with inquiry2).
+  - e is from the conserved state, as `reactTable` takes it.
+- **Where.**
+  - `core/manifold_runtime.*`, with no Cantera.
+  - `ReactingFlow::useManifoldTable` (FiniteRate) in the reaction adapter, with CVODES for every rejected cell.
+  - `crucible_chamber_study fr` reads the table from `CRUCIBLE_MANIFOLD_TABLE`.
+  - The PaSR closure under Table B (*The runtime*, κ_eff from τ_c along the curve) is not coded tonight, and `useManifoldTable` refuses a flow with the closure. C1 here is inviscid `fr` without it.
+
+**Checks, with bars, before any of the code:**
+- **R1. The runtime's placement is the replay's.** The replay's `n_rule` column is recomputed by the runtime's code on the same samples (`/tmp/c1s/states_torch50_TY.csv`, the C1-range table with s). Bar: the same cause for every sample; τ within 1e-9 where both place.
+- **R2. The step at the cell, on the C1-range table,** at sampled cells placed on each branch (chamber, convergent, divergent):
+  - (a) Δt = 0 returns the placed Ȳ(u_0) bit for bit.
+  - (b) Δt = 1 s returns the blended equilibrium Ȳ_b(0) to 1e-14.
+  - (c) The cell's H, O and N mass fractions are kept to 1e-12 relative.
+  - (d) A stepped cell at w = 1, placed again, reads back its branch and τ to 1e-9. So repeated calls do not move it by the placement alone.
+    - Measured, not barred: at w < 1 this cannot hold. There s_cell, the entropy of the blend's Y at the cell's (e, ρ), is not the blend's s̄, which is the chord found in E0.
+  - (e) Measured, not barred: two calls of Δt/2 against one of Δt, for Δt from 1e-8 to 1e-5 s.
+- **R3. C1 with Table B live,** against the CVODES run whose samples were replayed (`table_b/c1_torch50_highT_run_2026-10-20.log`): h2o2_highT, 32x6, `fr`, the 50 J torch, to 4 ms, 2 threads.
+  - **Reported:**
+    - c*, vacuum Isp and vacuum thrust at the end, and the injector pressure at each printed time, each against CVODES;
+    - the wall time, and the reaction's µs per cell update;
+    - Table B's share of cell updates, and CVODES's by cause, over the whole run and the last ms, with the share before 0.5 ms (the start) apart.
+  - **Expected (*inferred*):**
+    - The chamber's cells sit on the blended equilibrium of a table at Δη 0.2 and Δ ln ρ 1.4, where the placed ΔY was a median 3.3e-3 (lower branch) and 8.4e-4 (upper). If that is a temperature error of order 10 K at 3,350 K, c* moves by about 0.15%.
+    - The wall time is 40 to 90 s, against 451 s.
+  - **Bar (*guessed*): c*, Isp and thrust within 0.3% of the CVODES run.** A fail is measured before anything changes: the table's Y at the cells against their own Cantera equilibrium. The remedy would be the η and ln ρ spacing, not tuning.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
