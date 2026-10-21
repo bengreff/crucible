@@ -1,0 +1,49 @@
+# Table B's static interpolation error at RL10-range equilibrium states, on the C1 table (/tmp/tbs/c1r11_s.bin, d-eta 0.1)
+# Generated 21 October 2026 by docs/evidence/table_b/rl10_samples_gen.py (Cantera 3.2, h2o2_highT): HP equilibrium at p_c 2.5, 3.3, 4.5 MPa from 300 K gases and from the cold reactants (-0.396 MJ/kg O2, -1.40 MJ/kg H2), then shifting SP expansion.
+# ch_<f_H>: the chamber states (6 per f_H); nz_<f_H>: p/p_c 0.56, 0.1, 0.01, 1/600 (24 per f_H); st_<f_H>_<p/p_c>: per station (6 each).
+# Replay: CRUCIBLE_E0_OWN_EQ_EVERY=1 crucible_table_b_branch_rule <table> h2o2_highT.yaml <samples> <out>
+ch_0.142857: T_blend - T_own min -4.71, 5% -4.71, median -4.71, 95% -4.71, max -4.71 K; max |Y_blend - Y_own| median 2.992e-04, 95% 2.992e-04, max 2.992e-04
+ch_0.143950: T_blend - T_own min -6.05, 5% -6.05, median -5.13, 95% -4.66, max -4.10 K; max |Y_blend - Y_own| median 5.581e-04, 95% 5.618e-04, max 6.124e-04
+ch_0.151060: T_blend - T_own min -7.70, 5% -7.70, median -6.47, 95% -5.12, max -4.08 K; max |Y_blend - Y_own| median 1.271e-03, 95% 1.434e-03, max 1.441e-03
+ch_0.154762: T_blend - T_own min -9.87, 5% -9.87, median -7.61, 95% -5.41, max -4.85 K; max |Y_blend - Y_own| median 1.321e-03, 95% 1.786e-03, max 1.844e-03
+ch_0.158230: T_blend - T_own min -11.86, 5% -11.86, median -9.49, 95% -4.30, max -3.38 K; max |Y_blend - Y_own| median 1.145e-03, 95% 1.979e-03, max 2.053e-03
+ch_0.159740: T_blend - T_own min -12.28, 5% -12.28, median -9.89, 95% -5.56, max -4.62 K; max |Y_blend - Y_own| median 1.269e-03, 95% 1.974e-03, max 2.053e-03
+ch_0.165150: T_blend - T_own min -11.83, 5% -11.83, median -9.53, 95% -8.21, max -7.28 K; max |Y_blend - Y_own| median 1.317e-03, 95% 1.557e-03, max 1.653e-03
+ch_0.166850: T_blend - T_own min -11.19, 5% -11.19, median -9.89, 95% -8.58, max -7.68 K; max |Y_blend - Y_own| median 1.255e-03, 95% 1.351e-03, max 1.451e-03
+ch_0.166667: T_blend - T_own min -11.18, 5% -11.18, median -9.82, 95% -8.46, max -7.55 K; max |Y_blend - Y_own| median 1.230e-03, 95% 1.338e-03, max 1.439e-03
+ch_0.183333: T_blend - T_own min -8.39, 5% -8.39, median -7.02, 95% -6.79, max -6.16 K; max |Y_blend - Y_own| median 1.313e-03, 95% 1.382e-03, max 1.426e-03
+nz_0.142857: T_blend - T_own min -24.56, 5% -24.56, median -7.00, 95% -1.86, max -1.77 K; max |Y_blend - Y_own| median 6.944e-04, 95% 2.076e-03, max 2.232e-03
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 4
+nz_0.143950: T_blend - T_own min -24.30, 5% -22.70, median -8.14, 95% -2.01, max -1.71 K; max |Y_blend - Y_own| median 7.118e-04, 95% 1.813e-03, max 2.175e-03
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 6
+nz_0.151060: T_blend - T_own min -20.17, 5% -19.95, median -10.62, 95% -1.62, max -1.26 K; max |Y_blend - Y_own| median 1.303e-03, 95% 2.626e-03, max 2.782e-03
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 6
+nz_0.154762: T_blend - T_own min -23.69, 5% -23.06, median -10.95, 95% -1.39, max -1.04 K; max |Y_blend - Y_own| median 1.042e-03, 95% 2.846e-03, max 3.105e-03
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 6
+nz_0.158230: T_blend - T_own min -24.55, 5% -23.63, median -6.90, 95% -0.19, max -0.08 K; max |Y_blend - Y_own| median 6.435e-04, 95% 2.731e-03, max 3.043e-03
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 6
+nz_0.159740: T_blend - T_own min -24.28, 5% -23.27, median -5.10, 95% -0.38, max -0.34 K; max |Y_blend - Y_own| median 4.791e-04, 95% 2.753e-03, max 2.931e-03
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 6
+nz_0.165150: T_blend - T_own min -23.64, 5% -22.85, median -3.55, 95% -0.27, max -0.16 K; max |Y_blend - Y_own| median 2.882e-05, 95% 2.400e-03, max 2.645e-03
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 6
+nz_0.166850: T_blend - T_own min -23.37, 5% -22.48, median -1.31, 95% -0.45, max -0.37 K; max |Y_blend - Y_own| median 3.012e-05, 95% 2.266e-03, max 2.520e-03
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 6
+nz_0.166667: T_blend - T_own min -23.39, 5% -22.51, median -1.48, 95% -0.44, max -0.38 K; max |Y_blend - Y_own| median 2.994e-05, 95% 2.272e-03, max 2.522e-03
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 6
+nz_0.183333: T_blend - T_own min -16.65, 5% -16.32, median -3.37, 95% -0.00, max -0.00 K; max |Y_blend - Y_own| median 2.762e-05, 95% 2.268e-03, max 2.396e-03
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 4
+st_0.142857_0.00167: T_blend - T_own min -2.65, 5% -2.65, median -2.06, 95% -2.06, max -2.06 K; max |Y_blend - Y_own| median 7.721e-05, 95% 7.721e-05, max 1.006e-04
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 3
+st_0.142857_0.01: T_blend - T_own min -24.56, 5% -24.56, median -21.49, 95% -21.04, max -19.69 K; max |Y_blend - Y_own| median 1.879e-03, 95% 2.076e-03, max 2.232e-03
+st_0.142857_0.1: T_blend - T_own min -10.94, 5% -10.94, median -2.81, 95% -1.58, max -1.22 K; max |Y_blend - Y_own| median 1.569e-04, 95% 2.752e-04, max 1.452e-03
+st_0.142857_0.56: T_blend - T_own min -7.30, 5% -7.30, median -7.00, 95% -2.80, max -1.86 K; max |Y_blend - Y_own| median 3.390e-04, 95% 6.944e-04, max 8.312e-04
+st_0.154762_0.00167: T_blend - T_own min -1.85, 5% -1.85, median -1.40, 95% -1.22, max -1.04 K; max |Y_blend - Y_own| median 3.905e-05, 95% 4.706e-05, max 5.340e-05
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 6
+st_0.154762_0.01: T_blend - T_own min -14.04, 5% -14.04, median -10.95, 95% -4.56, max -3.67 K; max |Y_blend - Y_own| median 3.865e-04, 95% 9.270e-04, max 1.042e-03
+st_0.154762_0.1: T_blend - T_own min -23.69, 5% -23.69, median -21.53, 95% -15.48, max -14.99 K; max |Y_blend - Y_own| median 2.212e-03, 95% 3.014e-03, max 3.105e-03
+st_0.154762_0.56: T_blend - T_own min -11.61, 5% -11.61, median -11.24, 95% -8.91, max -8.14 K; max |Y_blend - Y_own| median 1.733e-03, 95% 2.126e-03, max 2.204e-03
+st_0.166667_0.00167: T_blend - T_own min -0.96, 5% -0.96, median -0.71, 95% -0.45, max -0.38 K; max |Y_blend - Y_own| median 1.115e-05, 95% 1.818e-05, max 2.080e-05
+    (new cause) frozen corner on the branch, replay 'table (upper; w 1)': 6
+st_0.166667_0.01: T_blend - T_own min -1.07, 5% -1.07, median -0.86, 95% -0.44, max -0.42 K; max |Y_blend - Y_own| median 1.331e-05, 95% 2.726e-05, max 2.994e-05
+st_0.166667_0.1: T_blend - T_own min -23.39, 5% -23.39, median -20.77, 95% -17.80, max -15.84 K; max |Y_blend - Y_own| median 1.979e-03, 95% 2.427e-03, max 2.522e-03
+st_0.166667_0.56: T_blend - T_own min -10.42, 5% -10.42, median -9.29, 95% -2.91, max -1.48 K; max |Y_blend - Y_own| median 3.039e-04, 95% 1.313e-03, max 1.325e-03

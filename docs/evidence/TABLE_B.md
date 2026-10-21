@@ -940,6 +940,88 @@ Command, from `build/`: `CRUCIBLE_MECHANISM=../tools/mechanisms/h2o2_highT.yaml 
 - **What is not covered:** the RL10's own range (O/F, pressure, the LOX spray's cold mixing). Its own node set is built and these checks rerun there before the tier-1 central case uses it.
 - **Still open as written:** R1's τ bar, and the build's turn-back, integrator and N-gate failures (not reached by C1).
 
+## Table B on the RL10's range: the ranges, the node set and the checks, stated before the build (21 October 2026, about 00:58 CDT)
+
+The Director's brief of 21 October: build Table B over the RL10's declared input ranges (its O/F band and pressure band, from the inputs only), with the transpired fraction's effect on the local mixture; recheck the gates there; run a C1-like check at RL10-like chamber conditions against CVODES with the same 0.2% bar. No measured RL10 value is read for any of it.
+
+**The ranges (from the inputs and our own tier 0 only).**
+- **O/F.** P1's combustion O/F 5.055, its engine-inlet O/F 4.993 and P2's design O/F 5.26 (`RL10A33A_INPUTS.md`). With the transpired H2 at 5%, 10% and 15% (the plan's member 14), the ring elements run at 5.055 / 0.95 = 5.32, 5.62 and 5.947 (derived). So f_H = 1/(1 + O/F) runs from 0.1440 to 0.1669.
+- **Pressure.** The chamber pressure is an outcome and is withheld from the inputs, so the band cannot come from them. It is taken from our own tier 0 (p_c 3.30 to 3.39 MPa, committed 13 October: a prediction, not a measurement) and widened to **2.5 to 4.5 MPa** (*guessed* margin for tier 1's losses).
+- **Density.** The table's axis is ρ, not p. *Derived* (Cantera, `h2o2_highT`): the chamber's equilibrium gas at O/F 5.055 and 3.3 MPa is 1.38 kg/m³ at 3,363 K. The shifting expansion to p/p_c = 1/600 (about ε 61) ends near 6.6e-3 kg/m³ and 1,225 K. Fresh gas at 300 K is about 12 kg/m³, the liquid LOX's cold vapour up to about 80 kg/m³, and the start's 1 kPa N2 0.011 kg/m³. The C1 table's axis, 1e-3 to 80 kg/m³, covers all of it.
+- **Outside the band, by design:** mixtures leaner or richer than the f_H axis (the LOX's own vapour, the transpired H2 layer before it mixes) go to CVODES as "outside the axes". Their share is measured when a tier-1 run exists.
+
+**The static error of the C1 table at RL10 states, measured** (`table_b/rl10_static_c1r11_2026-10-21.txt`). The samples are Cantera equilibrium states at f_H from 1/7 to 0.1833 (the nodes, the band's ends, 5.62 and the interval midpoints) and p_c 2.5, 3.3 and 4.5 MPa. The reactants are 300 K gases, and the same lowered by 0.396 MJ/kg of O2 and 1.40 MJ/kg of H2 for the liquid LOX at 101 K and H2 at 199.67 K (*derived*). Each is then expanded in shifting equilibrium to p/p_c 0.56, 0.1, 0.01 and 1/600. The check is the replay's static error: T_blend − T_own, the blend's upper-branch equilibrium at the sample's e and ρ.
+- **Chamber:** −4.7 K at f_H 1/7, the node, and −4.1 to −6.1 K at O/F 5.947; −4.9 to −9.9 K at the interval's midpoint; −7.3 to −11.8 K at O/F 5.055; −7.6 to −11.2 K at f_H 1/6, the node.
+  - So the f_H chord adds little, and the C1-like −8 to −10 K is the η and ln ρ chords at f_H's own node.
+- **Nozzle:** worst −21 to −24.6 K at the mid-nozzle stations (p/p_c 0.1 and 0.01), at the f_H nodes as well as between them, and under 3 K at the exit station.
+- **At the exit station (p/p_c 1/600),** 3 to 6 of the 6 samples meet a frozen corner and would go to CVODES.
+
+**The node set (engineering):**
+- f_H at O/F 4.5, 5, 5.5, 6 and 6.5 (f_H 0.1818, 0.1667, 0.1538, 0.1429, 0.1333): the band 0.1440 to 0.1669 with a node of margin on each side, and half the C1 table's f_H spacing.
+- Z_N 0 and 0.3 (the development chamber starts in N2, as C1).
+- 11 η nodes (Δη 0.1); 9 ln ρ nodes over 1e-3 to 80 kg/m³.
+- **Two spacing variants, built only to measure the static error against spacing:** Δη 0.05 (21 nodes), and half the Δ ln ρ (17 nodes). Their static error at the same samples says which axis carries the remaining −8 to −24 K before any finer table is chosen.
+
+**The gates, rechecked on the RL10 table as written:** E1 (the turn-back, 1e-9 of the span), E2 at the eighth points (3 K and 0.01), the N gate, and the integrator failures and refusals, each with its nodes named. The same rule as on C1 applies: a failure that the live run's cells never reach is reported with its location, not hidden.
+
+**The C1-like check at RL10 conditions:**
+- The case is `CRUCIBLE_CHAMBER=rl10dev`: TM-107318's contour, P1's flow (16.7126 kg/s) at O/F 5.055, pre-vaporized H2 and O2 at 300 K. It is development only (protocol §6), never the reported case.
+- Mode `fr` (inviscid, as C1), 76 × 8 (the face at −13.25 in, inside the bracket).
+- The igniter is C1's 50 J torch scaled by the core's volume (the chamber radius ratio 5.21, cubed, 141): **7 kJ over 1 ms from 0.2 ms**.
+- CVODES, against Table B from the RL10 table. Both run to a settled state: thrust drift under 1e-4 per ms. The CVODES run also writes state samples over its last 2 ms, every 10th 2 µs sample, for R1, R2 and the horizon bins on RL10 states.
+- **Bars, the same as C1's:** c*, Isp_vac and F_vac within 0.2% of CVODES, and the fallback under 1% of updates in each region (chamber, convergent, divergent) over the last ms.
+- *Expected (inferred):* the chamber's −8 to −10 K static error is about C1's, so c* lands near C1's −0.06%. The nozzle's larger mid-station error and the exit station's frozen corners are the risk to Isp_vac and to the divergent's fallback.
+
+### The RL10 tables' gates and the spacing, measured (21 October 2026, about 01:15 CDT)
+
+**Built at 01:00 CDT** (`table_b/rl10_s_build_2026-10-21.txt`, its nodes `rl10_s_nodes_2026-10-21.csv`; the two variants `rl10e21_s_build_...` and `rl10r17_s_build_...`). The node set is as stated above: rl10_s has 990 nodes (19 s), the Δη 0.05 variant 1,890 (37 s) and the 17-node ln ρ variant 1,870 (36 s).
+
+**The gates on rl10_s, as written** (measured):
+
+| Gate | Result | Where | Verdict |
+|---|---|---|---|
+| E2, eighth points (3 K, dY 0.01) | 2.06 K, 7.1e-3 | f_H 1/6, Z_N 0, η 0.5 and 0.4, ρ 1e-3 | pass |
+| 2(b), end state vs equilibrateUV (3 K) | 0.028 K | | pass |
+| Criterion 1 | ΣY−1 4.4e-16, elements 3.6e-16 after projection | | pass |
+| E1 / 2(a), the turn-back (1e-9 of the span) | worst 7.34e-7; 20 nodes over 1e-9 | 18 at η 0.1, 2 at η 0.2, all at ρ 1e-3, 4.1e-3 or 80 | FAIL |
+| 2(c), integrator failures (0) | 11 | all on the lower branch at ρ 80 and η 0.5 to 0.8 | FAIL |
+| The N gate | 7 | all at η 1 and ρ 1e-3 to 0.017 | FAIL |
+
+- **The same failures as the C1 table's, at the same places.** Its worst turn-back is the C1 table's own node and value (f_H 1/7, Z_N 0.3, η 0.1, ρ 4.1e-3: 7.34e-7). Its integrator failures include the C1 table's 5, at the shared f_H nodes. C1 live passed with these present and never reached them.
+- **Where they sit, derived** (Cantera at f_H 1/6):
+  - The ρ 80 integrator failures: their equilibrium is 3,410 to 3,830 K at 190 to 215 MPa (η 0.5 and 0.6).
+  - The N-gate nodes: 2,780 to 3,180 K at 2.5 to 47 kPa (η 1).
+  - The turn-back nodes at η 0.1 to 0.2: burnt gas near 1,000 to 1,400 K.
+  - Premixed gas at 300 K sits at η 0.681.
+- **Inferred:**
+  - No RL10 cell at 2.5 to 4.5 MPa reaches a ρ 80 hot node.
+  - The η 1, low-ρ corner could be met only at the start, when the igniter heats the 1 kPa N2.
+  - The low-η turn-back nodes are cooled burnt gas, which an inviscid run barely makes but tier 1's cooled wall layer will.
+  - The live run's refusal and flag counts measure the first two. The third is a tier-1 question.
+
+**The Δη 0.05 variant adds a real turn-back** (measured). There are 61 nodes over 1e-9; 41 of them are at η 0.15, a node the 0.1 table does not have. Eight exceed 1e-6, all at η 0.15 and f_H 1/6 or 0.1818:
+- 5.7e-5 at ρ 1.16 and 6.2e-5 at ρ 4.76 (*derived:* burnt gas at 1,432 K, 1.1 and 4.7 MPa, inside the RL10's pressure band);
+- 2.8e-3 at ρ 19.5;
+- 2.3e-2 at ρ 80.
+
+It also has 24 integrator failures: 23 at ρ 80 on the lower branch, and one on the upper branch at f_H 0.1818, Z_N 0.3, η 0.25, ρ 80. And it has 10 N-gate failures (η 0.95 and 1, ρ ≤ 0.017). The 17-node ln ρ variant fails the same three gates in the same places as rl10_s (turn-back 7.5e-7, 11 integrator, 11 N-gate).
+
+**The static error against spacing** (measured; `table_b/rl10_static_spacing_2026-10-21.txt`, with `rl10_static_c1r11_2026-10-21.txt`). The figure is the median T_blend − T_own in K, with the range over the 6 samples:
+
+| Samples | C1 table | rl10_s | Δη 0.05 | 17 ln ρ |
+|---|---|---|---|---|
+| Chamber, O/F 5.055 | −9.5 (−11.8, −7.3) | −9.2 (−11.5, −7.0) | −3.0 (−4.1, −1.2) | −9.1 (−9.9, −6.9) |
+| Chamber, O/F 5.947 | −5.1 | −4.8 | −1.6 | −4.8 |
+| Chamber, O/F 5.32 (f_H 0.1582) | −9.5 (−11.9, −3.4) | −7.7 (−10.1, −1.5) | −2.7 (−4.3, −1.0) | −7.6 |
+| p/p_c 0.1, f_H 1/6 | −20.8 (−23.4, −15.8) | −20.8 | −5.4 (−7.3, −2.5) | −20.5 |
+| p/p_c 0.1, f_H 0.1548 | −21.5 | −20.6 | −5.8 | −20.5 |
+| p/p_c 0.01, f_H 1/7 | −21.5 (−24.6, −19.7) | −21.5 | −3.3 | −21.3 |
+| Exit, p/p_c 1/600 | −0.7 to −2.3 | −0.7 to −2.3 | −0.04 to −0.6 | −0.7 to −2.3 |
+
+- **η carries the error, ρ does not.** Halving Δη cuts it about 3 times in the chamber and about 4 times in the nozzle. Halving Δ ln ρ moves it under 1.2 K. Halving the f_H spacing (C1 table against rl10_s) helps only between the C1 table's nodes (−9.5 to −7.7 K at O/F 5.32).
+- **At the exit station,** every RL10 table meets a frozen corner on 3 to 6 of the 6 samples per f_H. Those cells would go to CVODES. This is for shifting-equilibrium states; the live nozzle's composition is finite-rate, so the live share is measured, not inferred from this.
+- **Inferred:** the Δη 0.05 table would remove most of the mid-nozzle's −21 K, but it brings the η 0.15 turn-back inside the band. So the 0.1 table is checked live first. The 0.05 table runs beside it to measure what the nozzle's −21 K costs in Isp_vac.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
