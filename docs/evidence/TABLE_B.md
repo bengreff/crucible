@@ -492,6 +492,25 @@ This is the second fix of this bug to fail, so the mechanism is written down abo
 - The refinement's target is 2/3 of the bars: 2 K and ΔY 0.0067. The eighth-point check stays at the full bars.
 - The margin covers a smooth profile's peak between samples (measured at up to 6.7% here). 2/3 leaves room for sharper profiles than these; that factor is *guessed*.
 
+### Refinement to 2/3 measured; capped nodes from a time coordinate that stands still; the search seeded from the rate, stated before its code (20 October 2026, 22:35 CDT)
+
+**Measured.** On the small table, the eighth points pass: worst 2.17 K and ΔY 6.3e-3. Refinement adds a median of 4 points per node and at most 23, and no node reaches the cap.
+
+The O/F 4 to 6 table (0.3 to 80 kg/m³) and the C1-range table (1e-3 to 80) both fail. They have 10 and 13 nodes at the cap, each with 360 points added, and the eighth points reach 8.5 and 9.9 K.
+
+The capped nodes are f_H 1/7 at η 0.8 and f_H 0.2 at η 0.6, both Z_N 0, at every ρ. On one of them (f_H 0.2, η 0.6, ρ 80), the refinement inserted the same state 341 times, at a c below its left neighbour's.
+
+**The mechanism, measured.** The E2 search returned a state far from its target without saying so. It now throws if it does not converge, and the throw names its numbers.
+- The lower branch starts at 467 K and induces for 8.3e7 s (about 2.6 years) before it ignites. Ignition needs internal steps h below the double-precision spacing of t, which is about 1.5e-8 s there. So t + h == t.
+- CVODES advances the state while the recorded time stands still: 2,105 of 10,895 raw steps share a time with the next.
+- The system is autonomous at fixed (u, ρ), so the state path, and hence the stored points, is unaffected. 2(b) passes at 0.011 K.
+- The search, however, integrates from a raw step over the recorded time to the next. That interval is 0, so the bracket collapses.
+
+**The fix.**
+- The search keeps integrating locally from the raw step's state, starting at t = 0.
+- Where the recorded interval is not positive, the first trial step comes from the rate there: (s_target − s_a)/(ds/dt), with ds/dt = λ (s_eq − s_a). The bracket then grows by doubling, up to 100 times.
+- A search that still fails throws, and the node is counted as an E2 failure; it is never stored.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
