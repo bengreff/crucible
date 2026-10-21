@@ -23,8 +23,8 @@ The predicted quantities are the protocol's §3 list: F_vac, Isp_vac (on the cha
 | 8 | LOX post inner diameter d_L | 3.54 mm | 2.62, 4.78 mm (2) | skeleton |
 | 9 | Post tip wall t | 0.272 d_L | 0.20, 0.37 d_L (2) | skeleton |
 | 10 | H2 annulus gap h | 0.268 d_L | 0.09, 0.80 d_L (2) | skeleton |
-| 11 | Post recess | 0.5 d_L, as geometry: the LOX slot's exit set back inside a cup (decided 21 Oct) | 0, 1.0 d_L, as geometry (2) | skeleton |
-| 11b | How the recess enters | the cup in the geometry | through the SMD correlation only, no cup (1; decided 21 Oct) | skeleton |
+| 11 | Post recess | 0.5 d_L, as geometry: the LOX slot's exit set back inside a cup (decided 21 Oct) | 0, 1.0 d_L, as geometry (2); not run: the cup is not resolved and Burick's curve has no recess term (21 Oct, about 02:35; `tier1_setup.md`) | skeleton |
+| 11b | How the recess enters | the cup in the geometry | through the SMD correlation only, no cup (1; decided 21 Oct); now the central case's treatment, not run (21 Oct, about 02:35) | skeleton |
 | 12 | Outer ring radius r_8 | R_c − p/2 | R_c − p (1) | skeleton |
 | 13 | Inner ring radius r_1 | r_8 − 7p | the inner ring's clearance (1) | skeleton |
 | 14 | Transpired H2 fraction | 10% | 5%, 15% (2; the bracket is inferred, accepted 21 Oct) | skeleton choice 3 |
@@ -92,6 +92,7 @@ Recorded before any tier-1 run and before any measured performance is read.
 4. **Member 6** is carried from tier 0's sensitivity, with no tier-1 runs: accepted.
 5. **The recess** enters the central case geometrically, as the LOX slot's exit set back inside a cup, if the mesh resolves it. The treatment through the SMD correlation alone (no cup) is a deviation member (11b).
    - The resolution criterion for the cup (cells across its depth and width) is stated in `tier1_skeleton.md` before any run.
+   - **Applied 21 October 2026, about 02:35 CDT, before any tier-1 run** (`tier1_setup.md`, *Decision 5 applied*): the dry run's G7 fails (1.41 cells across the depth at the finest planned level, and `Mesh` has no cells behind the face plane), so the branch below holds. Burick's curve has no recess term, so member 11 would repeat the central case and is not run either. The recess's whole effect is a declared limit: c* and Isp biased low.
    - If the tier-1 mesh does not resolve the cup, the central case takes the SMD correlation alone, member 11b is not run, and the missing cup is a declared limit with its stated direction. That is decided and dated before any run.
 
 The budget's basis rows are on Table A. Table B's cost per cell update on RL10 is measured with the central case's cold start, when the budget is restated.
