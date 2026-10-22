@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <vector>
 #include "core/medium.hpp"
 #include "core/pool.hpp"
@@ -24,7 +25,8 @@ enum class Case { Nozzle, UniformDuct, ShockTube, Chamber };
 enum class LowMach { None, Thornber, HllcLm };
 // A propellant stream through the injector face (z = 0) of a Chamber. The face rings whose centre
 // radius lies in [innerRadius, outerRadius) carry it with a uniform mass flux, so its delivered
-// mass flow is exact and its area is the mesh's ring area. Imposed: mass flow, frozen total enthalpy
+// mass flow is exact and its area is the mesh's ring area (under Definition::openAreaSupplies, its
+// true annulus, shared with the rings it overlaps). Imposed: mass flow, frozen total enthalpy
 // (stagnation temperature) and composition; the static pressure follows from the interior along the
 // outgoing characteristic. A face that would need supersonic inflow delivers the same flow as a
 // sonic (choked) stream. The valve raises the flow linearly from zero at `opens` to full at
@@ -106,6 +108,15 @@ struct Definition {
     bool unityLewis{false};
     bool wallSlip{false};
     double wallTemperature{0};
+    // The injector plate's wall temperature (Chamber): empty, wallTemperature; zero, adiabatic.
+    std::optional<double> plateTemperature;
+    // Chamber: false, each face ring carries the supply holding its centre radius (above). True, every
+    // supply enters on its true annulus (docs/evidence/FACE_INLET.md): each face ring takes each
+    // supply's flux in proportion to the share phi of its area the supply covers, the rest of the ring
+    // (w = 1 - sum phi) being the plate; a ring counts as plate for the stencil, the wall distance and
+    // the wall functions' first cell if w >= 1/2, else as its largest supply. A supply's mass flow and
+    // face velocity are then its own at any mesh. A zero-flow supply is a closed port (pressure only).
+    bool openAreaSupplies{false};
     // Subsonic outlet (Nozzle and Chamber). Zero: the boundary state takes backPressure, a pressure
     // node that reflects every acoustic wave. Positive: partially non-reflecting (Poinsot and Lele
     // 1992); the incoming characteristic relaxes the outlet pressure toward backPressure at the rate
@@ -223,6 +234,8 @@ struct Measurements {
     double inletMomentumFlux{}, outletMomentumFlux{}, wallAxialForce{}, bodyAxialForce{}, ambientAxialForce{};
     double deviceThrust{}, exitPlaneThrust{}, axialMomentum{}, momentumBalanceError{};
     double mass{}, energy{}, massBalanceError{}, energyBalanceError{};
+    // The same three balance errors from the compensated exchange sums (AMR.md, the tagged run's mass error).
+    double compensatedMassBalanceError{}, compensatedEnergyBalanceError{}, compensatedMomentumBalanceError{};
     double exitMach{}, minPressure{}, maxPressure{}, maxMach{};
     // Chamber: scheduled supply flow (the Isp denominator), igniter power and energy delivered so
     // far, and the area-averaged pressure of the cells on the injector face.
@@ -322,8 +335,9 @@ public:
     [[nodiscard]] const std::vector<std::size_t>* stepCells() const { return region(1); }
     // Wall functions: per no-slip wall face (the side wall by column, then the plate rings), its cell,
     // whether it is on the plate, and the first cell's y+ = rho_w u_tau d / mu_w from the last
-    // transport evaluation, the second stage of the last step (empty without wall functions).
-    struct WallYPlus { std::size_t cell; bool plate; double yPlus; };
+    // transport evaluation, the second stage of the last step, with its q_w and T_w (the recovery
+    // temperature on an adiabatic wall; empty without wall functions).
+    struct WallYPlus { std::size_t cell; bool plate; double yPlus, heat, temperature; };
     [[nodiscard]] std::vector<WallYPlus> wallYPlus() const;
     // The PaSR closure's inputs per cell at the current state (TECHNICAL_PLAN step 7, "PaSR"; needs
     // turbulence): the mixing time tau_mix = cmix sqrt(nu_eff / epsilon), nu_eff = (mu + mu_t) / rho,
@@ -348,6 +362,14 @@ public:
     void transportDerivative(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative,
                              std::vector<double>& turbulenceDerivative);
     [[nodiscard]] double time() const { return time_; }
+    // A Chamber's injector-face convective flux per unit area, per ring, at the current state and time
+    // (verification; docs/evidence/FACE_INLET.md, F4).
+    [[nodiscard]] std::vector<Conserved> injectorFluxes();
+    // The largest relative difference, over the owned wall-function cells, between rho k and rho omega
+    // and the law's at the current state (verification; AMR.md, step D, D2); 0 without wall functions.
+    [[nodiscard]] double prescriptionResidual();
+    // Each supply's area on the injector face (its rings' areas, or under openAreaSupplies its shares').
+    [[nodiscard]] const std::vector<double>& supplyAreas() const { return supplyArea_; }
     // Next schedule discontinuity (valve opens or finishes opening, igniter on or off) after `time`,
     // infinity if none. A step that would cross one ends on it instead.
     [[nodiscard]] double nextEvent(double time) const;
@@ -453,10 +475,26 @@ private:
     // (docs/evidence/AMR.md, Before step C).
     double heatCompensation_{};
     [[nodiscard]] double deliveredHeat() const { return integratedHeat_+heatCompensation_; }
+    // The exchange sums carry the same compensation beside their plain values, which stay as they were
+    // (AMR.md, the tagged run's mass error): a level's sum can run to the whole throughput.
+    double massCompensation_{}, energyCompensation_{}, correctionCompensation_{}, momentumCompensation_{};
+    [[nodiscard]] double compensatedMassFlux() const { return integratedMassFlux_+massCompensation_; }
+    [[nodiscard]] double compensatedEnergyFlux() const { return integratedEnergyFlux_+energyCompensation_; }
+    [[nodiscard]] double compensatedCorrection() const { return integratedCorrection_+correctionCompensation_; }
+    [[nodiscard]] double compensatedMomentumSource() const { return integratedMomentumSource_+momentumCompensation_; }
     // Chamber: supply index of each injector-face ring (-1: plate), each supply's ring area, the
     // igniter's cells and their total volume.
     std::vector<int> faceSupply_;
     std::vector<double> supplyArea_;
+    // Under openAreaSupplies: each face ring's supply shares (ring, supply, phi) in ring order from
+    // shareBegin_[j], its wall share w (plateShare_), and from the last right-hand side the plate
+    // share's axial momentum flux per unit area (plateMomentum_).
+    struct FaceShare { int ring, supply; double phi; };
+    std::vector<FaceShare> faceShares_;
+    std::vector<std::size_t> shareBegin_;
+    std::vector<double> plateShare_, plateMomentum_;
+    void openAreaShares();
+    [[nodiscard]] double plateTemperature() const { return definition_.plateTemperature.value_or(definition_.wallTemperature); }
     std::vector<std::size_t> igniterCells_;
     double igniterVolume_{}, igniterPower_{};
     std::uint64_t steps_{}, rejectedSteps_{};
@@ -604,7 +642,7 @@ private:
     // cell's k and omega (the nearer, the side wall on a tie); per ring the plate face (-1: none); per
     // cell whether its turbulence is prescribed, and the rho k V the last prescription added.
     struct WallFace { std::size_t cell; bool plate; double nz, nr, distance; };
-    struct WallSolution { double tz{}, tr{}, heat{}, eddy{}, omega{}, yPlus{}; };
+    struct WallSolution { double tz{}, tr{}, heat{}, eddy{}, omega{}, yPlus{}, temperature{}; };
     std::vector<WallFace> wallFaces_;
     std::vector<WallSolution> wallSolutions_;
     std::vector<std::size_t> wallCellFace_;
@@ -619,13 +657,20 @@ private:
     // then not admissible.
     bool prescribeWallTurbulence(const std::vector<Conserved>& state, const std::vector<double>& species,
                                  std::vector<double>& turbulence);
+    // The same for wallCells_[n] alone, with one worker's scratch and mass-fraction buffer y.
+    bool prescribeCell(std::size_t n, const std::vector<Conserved>& state, const std::vector<double>& species,
+                       std::vector<double>& turbulence, TransportScratch& scratch, double* y);
+    // Under AMR, after a reflux: the wall-function cells marked in touched (per cell) prescribed again
+    // at the current state, the owned cells' change booked in prescribedTurbulentEnergy_ (AMR.md,
+    // step D); false if one is then not admissible.
+    bool represcribe(const std::vector<char>& touched);
     void prepareTransport();
     // Over N_depth, with the wall-face omega of the wall cells among them.
     void transportProperties(int depth);
     // Gradient field f of a cell (u_z, u_r, T, the mole fractions, then k and omega) and its value
     // on a wall face with unit normal (nz, nr).
     [[nodiscard]] double transportValue(std::size_t q, std::size_t f) const;
-    [[nodiscard]] double wallValue(std::size_t q, std::size_t f, double nz, double nr) const;
+    [[nodiscard]] double wallValue(std::size_t q, std::size_t f, double nz, double nr, bool plate) const;
     // The gradients over N_depth, from the field values gathered over N_(depth + 1).
     void transportGradients(int depth);
     // Eddy viscosity and diffusivities from the current gradients over N_depth; with sources, also sources_.

@@ -19,6 +19,9 @@
 // weights from each species' H content. It prints the regrids that changed the pattern and level 1's active cells,
 // and judges check 2 over every regrid (so including the first after light-off): the largest fill content error below
 // 1e-14, over the parent's content as stated and over the children's gross content (AMR.md, Step C: results).
+// Step D's checks (AMR.md, Step D: setup): wall turns on the wall functions (law) and the property corrections
+// (hp) on every run, and prints the largest D2 residual over every base step (Flow::prescriptionResidual, each
+// level's owned wall-function cells, and the single level's beside); inert drops the reaction step on every run.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -138,11 +141,13 @@ struct Tracker {
 int main(int argc, char** argv) {
   double end = 8e-3;
   int threads = 4, ghost = 0, positional = 0;
-  bool b1 = false, amrOnly = false, tagged = false;
+  bool b1 = false, amrOnly = false, tagged = false, wall = false, inert = false;
   std::string dumpPath;
   for (int k = 1; k < argc; ++k) {
     const std::string a = argv[k];
     if (a == "b1") b1 = true;
+    else if (a == "wall") wall = true;
+    else if (a == "inert") inert = true;
     else if (a == "amr") amrOnly = true;
     else if (a == "tags") tagged = true;
     else if (a.rfind("ghost=", 0) == 0) ghost = std::atoi(a.c_str() + 6);
@@ -154,7 +159,11 @@ int main(int argc, char** argv) {
   if (!path) throw std::runtime_error("crucible_amr_budget needs CRUCIBLE_EQ_TABLE (Table A's file)");
   const EquilibriumTable table = EquilibriumTable::load(path);
   thermo::ReactionSource source("h2o2.yaml");
-  const Definition d = c1eqtt(source, 32, 6);
+  Definition d = c1eqtt(source, 32, 6);
+  if (wall) d.turbulence.wallFunctions = d.turbulence.propertyCorrections = true;
+  if (wall || inert)
+    std::printf("step D: %s%s\n", wall ? "wall functions (law) and property corrections (hp)" : "resolved walls",
+                inert ? ", inert (no reaction step)" : "");
   std::printf("AMR criterion 2 on %s: C1 eqtt (resolved walls), base 32 x 6 plus one level, to %.4g ms, %d threads%s%s\n", b1 ? "B1" : "B2",
               end * 1e3, threads, ghost > 0 ? (", ghost width " + std::to_string(ghost)).c_str() : "",
               tagged ? ", step C's tags and regridding" : "");
@@ -169,7 +178,8 @@ int main(int argc, char** argv) {
                                                               thermo::Chemistry::LocalEquilibrium));
     reacting.back()->useEquilibriumTable(table, 0);
   }
-  amr.setAfterStep([&](int l, double dt) { reacting[static_cast<std::size_t>(l)]->react(dt); });
+  if (!inert) amr.setAfterStep([&](int l, double dt) { reacting[static_cast<std::size_t>(l)]->react(dt); });
+  double prescriptionWorst = 0, singlePrescriptionWorst = 0;
   const Mesh& base = amr.level(0).mesh();
   const Mesh& fine = amr.level(1).mesh();
   std::vector<unsigned char> active(fine.cells.size(), 0);
@@ -226,6 +236,8 @@ int main(int argc, char** argv) {
   double nextPrint = 5e-4;
   while (amr.time() < end) {
     amr.step(end - amr.time());
+    if (wall)
+      for (int l = 0; l < amr.levels(); ++l) prescriptionWorst = std::max(prescriptionWorst, amr.level(l).prescriptionResidual());
     if (amr.regrids() != regrids) {
       regrids = amr.regrids();
       fillWorst = std::max(fillWorst, amr.fillError());
@@ -270,6 +282,7 @@ int main(int argc, char** argv) {
     if (tagged)
       std::printf("AMR only, not judged: %llu regrids, fill error largest %.3e, over the gross content %.3e\n",
                   static_cast<unsigned long long>(regrids), fillWorst, fillGrossWorst);
+    if (wall) std::printf("AMR only, not judged: D2's largest residual %.3e\n", prescriptionWorst);
     return 0;
   }
 
@@ -277,23 +290,29 @@ int main(int argc, char** argv) {
   Flow single(d, Mesh(base));
   thermo::ReactingFlow singleReacting(single, "h2o2.yaml", threads, 1e-6, 1e-12, thermo::Chemistry::LocalEquilibrium);
   singleReacting.useEquilibriumTable(table, 0);
-  Tracker alone;
+  Tracker alone, alonePlain;
   const auto m0 = single.measurements();
   alone.content(m0.mass, m0.energy);
   const auto clock1 = std::chrono::steady_clock::now();
   while (single.time() < end) {
-    singleReacting.step(end - single.time());
+    if (inert) single.step(end - single.time());
+    else singleReacting.step(end - single.time());
+    if (wall) singlePrescriptionWorst = std::max(singlePrescriptionWorst, single.prescriptionResidual());
     const auto m = single.measurements();
     alone.content(m.mass, m.energy);
-    alone.errors(m.massBalanceError * m0.mass / alone.largestMass, m.energyBalanceError * m0.energy / alone.largestEnergy,
-                 m.momentumBalanceError);
+    // Judged on the compensated sums, as the AMR's budget now reads them; the plain ones printed (AMR.md, the tagged run's mass error).
+    alone.errors(m.compensatedMassBalanceError * m0.mass / alone.largestMass,
+                 m.compensatedEnergyBalanceError * m0.energy / alone.largestEnergy, m.compensatedMomentumBalanceError);
+    alonePlain.errors(m.massBalanceError * m0.mass / alone.largestMass, m.energyBalanceError * m0.energy / alone.largestEnergy,
+                      m.momentumBalanceError);
   }
   const double singleWall = seconds(clock1);
   const auto ms = single.measurements();
   std::printf("contents: AMR mass %.9e to %.9e kg, energy %.9e to %.9e J; single level mass %.9e to %.9e kg, energy %.9e to %.9e J\n",
               start.mass, final.mass, start.energy, final.energy, m0.mass, ms.mass, m0.energy, ms.energy);
-  const double singleMass = ms.massBalanceError * m0.mass / alone.largestMass;
-  const double singleEnergy = ms.energyBalanceError * m0.energy / alone.largestEnergy;
+  const double singleMass = ms.compensatedMassBalanceError * m0.mass / alone.largestMass;
+  const double singleEnergy = ms.compensatedEnergyBalanceError * m0.energy / alone.largestEnergy;
+  const double singleMomentum = ms.compensatedMomentumBalanceError;
   const double singleCstar = columnStagnation(single, gas, endColumn) * at / ms.outletMassFlow;
   const double singleFVac = ms.inletMomentumFlux + ms.wallAxialForce + ms.bodyAxialForce;
 
@@ -308,19 +327,37 @@ int main(int argc, char** argv) {
   check(std::abs(amrEnergy) <= 10 * std::abs(singleEnergy), "  the same against 10 x the single-level run's",
         std::abs(amrEnergy), 10 * std::abs(singleEnergy));
   check(std::abs(amrMomentum) < 1e-12, "composite axial momentum balance error / gross exchange", std::abs(amrMomentum), 1e-12);
-  check(std::abs(amrMomentum) <= 10 * std::abs(ms.momentumBalanceError), "  the same against 10 x the single-level run's",
-        std::abs(amrMomentum), 10 * std::abs(ms.momentumBalanceError));
+  check(std::abs(amrMomentum) <= 10 * std::abs(singleMomentum), "  the same against 10 x the single-level run's",
+        std::abs(amrMomentum), 10 * std::abs(singleMomentum));
   // Criterion 2 says "exact to 1e-14 relative"; the first run judged 1e-14 J, twice as loose (AMR.md, criterion 2 results).
   const double igniterError = std::abs(final.igniterEnergy - kIgniter) / kIgniter;
   check(igniterError <= 1e-14, "composite igniter energy, |E / 0.5 J - 1|", igniterError, 1e-14);
+  if (wall) {
+    check(prescriptionWorst <= 1e-12, "step D, D2: owned wall-function cells' rho k, rho omega against the law's, largest", prescriptionWorst, 1e-12);
+    std::printf("      printed, not judged: the single level's largest %.3e\n", singlePrescriptionWorst);
+  }
   if (tagged) {
     check(fillWorst <= 1e-14, "step C check 2: the largest fill content error over the regrids", fillWorst, 1e-14);
     check(fillGrossWorst <= 1e-14, "  the same over the children's gross content", fillGrossWorst, 1e-14);
     std::printf("      printed, not judged: %llu regrids changed the pattern; level 1 ends with %zu of %zu active\n",
                 static_cast<unsigned long long>(regrids), activeCells(1), amr.active(1).size());
   }
+  // The tagged run's mass error (AMR.md): T2, the largest over the run; T1 and T3 printed.
+  check(composite.worstMass <= 2.07e-14, "T2: the largest mass error over the run, below a tenth of check 4's 2.070e-13",
+        composite.worstMass, 2.07e-14);
+  check(composite.worstMass <= 10 * alone.worstMass, "  the same against 10 x the single level's largest over the run",
+        composite.worstMass, 10 * alone.worstMass);
+  for (int l = 0; l < amr.levels(); ++l)
+    std::printf("      T1, printed: level %d's integrated mass exchange %.6e kg, %.3f times the largest mass\n", l, amr.massExchange(l),
+                amr.massExchange(l) / composite.largestMass);
+  if (tagged)
+    std::printf("      T3, printed: the filled parents' summed mass change over the regrids / largest mass %.3e\n",
+                amr.fillMassChange() / composite.largestMass);
+  std::printf("      printed, not judged: single level, the plain sums: mass %.3e, energy %.3e, momentum %.3e at the end; largest %.3e, %.3e, %.3e\n",
+              ms.massBalanceError * m0.mass / alone.largestMass, ms.energyBalanceError * m0.energy / alone.largestEnergy,
+              ms.momentumBalanceError, alonePlain.worstMass, alonePlain.worstEnergy, alonePlain.worstMomentum);
   std::printf("      printed, not judged: AMR igniter |E - 0.5 J| %.3e J; single level mass %.3e, energy %.3e, momentum %.3e, igniter |E - 0.5 J| %.3e J\n",
-              std::abs(final.igniterEnergy - kIgniter), singleMass, singleEnergy, ms.momentumBalanceError,
+              std::abs(final.igniterEnergy - kIgniter), singleMass, singleEnergy, singleMomentum,
               std::abs(ms.igniterEnergy - kIgniter));
   std::printf("      printed, not judged: largest over the run, AMR mass %.3e, energy %.3e, momentum %.3e; single level %.3e, %.3e, %.3e\n",
               composite.worstMass, composite.worstEnergy, composite.worstMomentum, alone.worstMass, alone.worstEnergy, alone.worstMomentum);

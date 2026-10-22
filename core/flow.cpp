@@ -64,6 +64,10 @@ std::vector<double> Definition::massFractions() const {
 void Definition::validate() const {
     if(unityLewis && !(turbulence.enabled && turbulence.consistentFlux && !transport.viscosity.empty()))
         throw std::invalid_argument("Unity Lewis number needs transport and turbulence with the consistent turbulent fluxes.");
+    if((openAreaSupplies || plateTemperature) && experiment!=Case::Chamber)
+        throw std::invalid_argument("Open-area supplies and the plate temperature are a Chamber's.");
+    if(plateTemperature && (!(*plateTemperature>=0) || !std::isfinite(*plateTemperature)))
+        throw std::invalid_argument("The plate temperature must be finite and non-negative.");
     if(nz<4 || nr<1 || static_cast<std::uint64_t>(nz)*nr>16000000)
         throw std::invalid_argument("Mesh must have at least 4 axial / 1 radial cells and at most 16 million cells.");
     for(double x:{length,inletRadius,throatRadius,exitRadius,totalPressure,totalTemperature,
@@ -104,8 +108,7 @@ void Definition::validate() const {
             if(!(x>0) || !std::isfinite(x)) throw std::invalid_argument("Turbulent Prandtl and Schmidt numbers, the wall omega factor and the ambient omega must be positive.");
         if(!(t.ambientK>=0) || !std::isfinite(t.ambientK)) throw std::invalid_argument("Ambient k must be finite and non-negative.");
         if(t.wallFunctions) {
-            if(wallSlip || !(wallTemperature>0))
-                throw std::invalid_argument("Wall functions need no-slip isothermal walls (the adiabatic law is not implemented).");
+            if(wallSlip) throw std::invalid_argument("Wall functions need no-slip walls.");
             if(!(t.wallKappa>0) || !std::isfinite(t.wallKappa) || !std::isfinite(t.wallB))
                 throw std::invalid_argument("Wall-function kappa must be positive and B finite.");
         }
@@ -422,16 +425,19 @@ Flow::Flow(Definition d,Mesh mesh):definition_(d),mesh_(std::move(mesh)),medium_
         ambient_=inletComposition_;
         if(nt_) { ambient_.push_back(d.turbulence.ambientK);ambient_.push_back(d.turbulence.ambientOmega); }
         faceSupply_.assign(d.nr,-1);supplyArea_.assign(d.supplies.size(),0);
-        for(int j=0;j<d.nr;++j) {
-            double centre=mesh_.ringMiddle(0,j);
-            for(std::size_t s=0;s<d.supplies.size();++s)
-                if(centre>=d.supplies[s].innerRadius && centre<d.supplies[s].outerRadius) {
-                    if(faceSupply_[j]>=0) throw std::invalid_argument("Supplies overlap at the injector face.");
-                    faceSupply_[j]=static_cast<int>(s);supplyArea_[s]+=mesh_.axialArea(0,j);
-                }
+        if(d.openAreaSupplies) openAreaShares();
+        else {
+            for(int j=0;j<d.nr;++j) {
+                double centre=mesh_.ringMiddle(0,j);
+                for(std::size_t s=0;s<d.supplies.size();++s)
+                    if(centre>=d.supplies[s].innerRadius && centre<d.supplies[s].outerRadius) {
+                        if(faceSupply_[j]>=0) throw std::invalid_argument("Supplies overlap at the injector face.");
+                        faceSupply_[j]=static_cast<int>(s);supplyArea_[s]+=mesh_.axialArea(0,j);
+                    }
+            }
+            for(double a:supplyArea_)
+                if(!(a>0)) throw std::invalid_argument("A supply contains no injector-face ring centre; widen it or refine the radial mesh.");
         }
-        for(double a:supplyArea_)
-            if(!(a>0)) throw std::invalid_argument("A supply contains no injector-face ring centre; widen it or refine the radial mesh.");
         const auto& g=d.igniter;
         if(g.energy>0) {
             for(std::size_t q=0;q<count;++q) {
@@ -453,6 +459,45 @@ Flow::Flow(Definition d,Mesh mesh):definition_(d),mesh_(std::move(mesh)),medium_
     for(std::size_t q=0;q<count;++q) fractions.insert(fractions.end(),inletComposition_.begin(),inletComposition_.end());
     setInitialState(cells,fractions);
 }
+// Each face ring's shares of the supplies' true annuli (docs/evidence/FACE_INLET.md): a_sj the overlap
+// of supply s with ring j (the ring's own area when the supply covers it whole, so an aligned layout
+// keeps the ring areas bit for bit), phi_sj = a_sj / the ring's area, the supply's area the sum of its
+// a_sj, the wall share w_j = 1 - sum phi (0 below 1e-12), and the ring's kind: the plate if w_j >= 1/2,
+// else its largest supply (the lower index on a tie).
+void Flow::openAreaShares() {
+    const auto& d=definition_;const auto& m=mesh_;
+    const double face=m.radius[0];
+    std::vector<std::size_t> order(d.supplies.size());
+    for(std::size_t s=0;s<order.size();++s) order[s]=s;
+    std::sort(order.begin(),order.end(),[&](std::size_t a,std::size_t b) { return d.supplies[a].innerRadius<d.supplies[b].innerRadius; });
+    for(std::size_t n=1;n<order.size();++n)
+        if(d.supplies[order[n]].innerRadius<d.supplies[order[n-1]].outerRadius) throw std::invalid_argument("Supplies overlap at the injector face.");
+    for(const auto& s:d.supplies)
+        if(s.outerRadius>face*(1+1e-12)) throw std::invalid_argument("A supply reaches past the injector face's wall radius.");
+    faceShares_.clear();shareBegin_.assign(static_cast<std::size_t>(m.nr)+1,0);
+    plateShare_.assign(m.nr,1.0);plateMomentum_.assign(m.nr,0.0);
+    for(int j=0;j<m.nr;++j) {
+        shareBegin_[j]=faceShares_.size();
+        const double lo=face*m.fraction[j],hi=face*m.fraction[j+1];
+        const double area=m.axialArea(0,j);
+        double covered=0,largest=0;
+        for(std::size_t s=0;s<d.supplies.size();++s) {
+            const auto& u=d.supplies[s];
+            double a=u.innerRadius<=lo && u.outerRadius>=hi?area:pi*(sq(std::min(u.outerRadius,hi))-sq(std::max(u.innerRadius,lo)));
+            if(!(a>0)) continue;
+            const double phi=a/area;
+            faceShares_.push_back({j,static_cast<int>(s),phi});supplyArea_[s]+=a;covered+=phi;
+            if(phi>largest) { largest=phi;faceSupply_[j]=static_cast<int>(s); }
+        }
+        double w=1-covered;
+        if(w<1e-12) w=0;
+        plateShare_[j]=w;
+        if(w>=0.5) faceSupply_[j]=-1;
+    }
+    shareBegin_[m.nr]=faceShares_.size();
+    for(double a:supplyArea_)
+        if(!(a>0)) throw std::invalid_argument("A supply has no area on the injector face.");
+}
 void Flow::setThreads(int threads) {
     pool_=std::make_unique<Pool>(threads);
     const auto n=static_cast<std::size_t>(pool_->threads());
@@ -462,6 +507,7 @@ void Flow::setThreads(int threads) {
 }
 void Flow::setBudgetProbe(std::vector<std::size_t> cells,std::vector<double> weights) {
     if(!active_.empty()) throw std::logic_error("Flow::setBudgetProbe: single level only.");
+    if(definition_.openAreaSupplies) throw std::logic_error("Flow::setBudgetProbe: the probe books the ring-centre supplies' faces only.");
     if(weights.size()!=ns_) throw std::invalid_argument("Flow::setBudgetProbe: one weight per species.");
     for(std::size_t q:cells) if(q>=state_.size()) throw std::out_of_range("Flow::setBudgetProbe: no such cell.");
     probe_.cells=std::move(cells);probe_.weights=std::move(weights);
@@ -566,6 +612,7 @@ void Flow::resetAccounting() {
         initialEnergy_+=state_[q][3]*mesh_.cells[q].volume;
     }
     integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=heatCompensation_=clippedTurbulentEnergy_=prescribedTurbulentEnergy_=integratedCorrection_=0;
+    massCompensation_=energyCompensation_=correctionCompensation_=momentumCompensation_=0;
     exchangedMass_=exchangedEnergy_=exchangedMomentum_=0;
     lastRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
 }
@@ -1137,7 +1184,28 @@ void Flow::axialFace(int i,int j,double time,std::vector<double>& yl,std::vector
     double area=axialArea_[f];
     if(i==0 && d.experiment==Case::Chamber) {
         // Injector face: a supply ring (its species flux is g Y_supply, g = flux[0]) or the closed
-        // plate (a slip wall, no species flux).
+        // plate (a slip wall, no species flux). Open-area supplies: phi_sj of each supply's face and w_j
+        // of the plate's, the species and rho k, rho omega fluxes stored per unit area.
+        if(d.openAreaSupplies) {
+            Conserved sum{};
+            std::fill(transported,transported+nw_,0.0);
+            for(std::size_t n=shareBegin_[j];n<shareBegin_[j+1];++n) {
+                const auto& share=faceShares_[n];const auto& supply=d.supplies[static_cast<std::size_t>(share.supply)];
+                const double g=supply.massFlow*supply.opening(time)/supplyArea_[static_cast<std::size_t>(share.supply)];
+                const auto face=supplyFace(supply,g,r,yr.data());
+                for(int k=0;k<4;++k) sum[k]+=share.phi*face.flux[k];
+                for(std::size_t k=0;k<ns_;++k) transported[k]+=share.phi*face.flux[0]*supply.composition[k];
+                for(std::size_t k=0;k<nt_;++k) transported[ns_+k]+=share.phi*face.turbulenceFlux[k];
+            }
+            plateMomentum_[j]=0;
+            if(const double w=plateShare_[j];w>0) {
+                Thermal t=faceThermal(r,yr.data());
+                const auto plate=faceFlux(d.lowMach,reflect(r,1,0),t,r,t,1,0,true);
+                plateMomentum_[j]=w*plate[1];sum[1]+=plateMomentum_[j];sum[2]+=w*plate[2];
+            }
+            stored=sum;
+            return;
+        }
         if(int s=faceSupply_[j];s>=0) {
             const auto& supply=d.supplies[s];
             double g=supply.massFlow*supply.opening(time)/supplyArea_[s];
@@ -1165,6 +1233,14 @@ void Flow::axialFace(int i,int j,double time,std::vector<double>& yl,std::vector
     stored=faceFlux(d.lowMach,l,tl,r,tr,1,0,i>0 && i<m.nz);
     const auto& y=stored[0]>=0?yl:yr;
     for(std::size_t k=0;k<nw_;++k) transported[k]=area*stored[0]*y[k];
+}
+std::vector<Conserved> Flow::injectorFluxes() {
+    if(definition_.experiment!=Case::Chamber) throw std::logic_error("Flow::injectorFluxes: a Chamber's.");
+    refresh(state_,species_,turbulence_,kWhole);
+    axialSlopes(0,0,mesh_.nr);
+    std::vector<Conserved> out(static_cast<std::size_t>(mesh_.nr));
+    for(int j=0;j<mesh_.nr;++j) { axialFace(0,j,time_,faceFractions_[0],faceFractions_[1]);out[j]=axialFlux_[j]; }
+    return out;
 }
 void Flow::radialFace(int i,int j,std::vector<double>& yl,std::vector<double>& yr) {
     const auto& m=mesh_;
@@ -1212,7 +1288,8 @@ void Flow::gather(std::size_t q,std::vector<Conserved>& derivative,std::vector<d
     derivative[q]=u;
     for(std::size_t k=0;k<nw_;++k) {
         double s=0;
-        if(supply>=0) {
+        if(injector && definition_.openAreaSupplies) s+=axialArea_[a0]*axialTransported_[a0*nw_+k];
+        else if(supply>=0) {
             const double area=axialArea_[a0],g=axialFlux_[a0][0];
             if(k<ns_) s+=area*g*definition_.supplies[supply].composition[k];
             else s+=area*axialTransported_[a0*nw_+k];
@@ -1285,6 +1362,12 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
     for(int j=0;j<m.nr;++j) {
         if(!isOwned(m.index(0,j))) continue;
         const auto& flux=axialFlux_[j];const double area=axialArea_[j];
+        if(d.experiment==Case::Chamber && d.openAreaSupplies) {
+            // The plate share's pressure force is the wall's; the supplies' shares (closed ports too) the inlet's.
+            rates.wallAxial+=area*plateMomentum_[j];
+            rates.mass+=area*flux[0];rates.energy+=area*flux[3];rates.inlet+=area*flux[0];rates.inletMomentum+=area*(flux[1]-plateMomentum_[j]);
+            continue;
+        }
         if(d.experiment==Case::Chamber && faceSupply_[j]<0) { rates.wallAxial+=area*flux[1];continue; }
         rates.mass+=area*flux[0];rates.energy+=area*flux[3];rates.inlet+=area*flux[0];rates.inletMomentum+=area*flux[1];
     }
@@ -1319,24 +1402,50 @@ bool Flow::prescribeWallTurbulence(const std::vector<Conserved>& state,const std
     std::fill(workerOk_.begin(),workerOk_.end(),char{1});
     pool_->blocks(wallCells_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
         auto& s=transportScratch_[worker];double* y=faceFractions_[2*worker].data();
-        for(std::size_t n=begin;n<end;++n) {
-            const std::size_t q=wallCells_[n];const auto& u=state[q];
-            prescribedChange_[q]=0;
-            normalise(species.data()+q*ns_,ns_,y);
-            const double k=turbulence[q*nt_]/u[0];
-            if(!admissibleBulk(u,medium_.energyFloor(y)+k)) { workerOk_[worker]=0;continue; }
-            const double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y,temperature_[q]);
-            const Primitive w{u[0],u[1]/u[0],u[2]/u[0],u[0]*medium_.gasConstant(y)*t};
-            const double mu1=medium_.transport(t,w.p,y,s.diffusion.data(),s.work).viscosity;
-            const auto law=wallSolve(wallFaces_[wallCellFace_[n]],w,t,y,mu1,s);
-            // rho k = omega mu_t.
-            const double rhoK=law.omega*law.eddy;
-            prescribedChange_[q]=(rhoK-turbulence[q*nt_])*mesh_.cells[q].volume;
-            turbulence[q*nt_]=rhoK;turbulence[q*nt_+1]=u[0]*law.omega;
-            if(!admissible(u,species.data()+q*ns_,turbulence.data()+q*nt_)) workerOk_[worker]=0;
-        }
+        for(std::size_t n=begin;n<end;++n)
+            if(!prescribeCell(n,state,species,turbulence,s,y)) workerOk_[worker]=0;
     });
     return std::find(workerOk_.begin(),workerOk_.end(),char{0})==workerOk_.end();
+}
+bool Flow::prescribeCell(std::size_t n,const std::vector<Conserved>& state,const std::vector<double>& species,
+                         std::vector<double>& turbulence,TransportScratch& s,double* y) {
+    const std::size_t q=wallCells_[n];const auto& u=state[q];
+    prescribedChange_[q]=0;
+    normalise(species.data()+q*ns_,ns_,y);
+    const double k=turbulence[q*nt_]/u[0];
+    if(!admissibleBulk(u,medium_.energyFloor(y)+k)) return false;
+    const double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y,temperature_[q]);
+    const Primitive w{u[0],u[1]/u[0],u[2]/u[0],u[0]*medium_.gasConstant(y)*t};
+    const double mu1=medium_.transport(t,w.p,y,s.diffusion.data(),s.work).viscosity;
+    const auto law=wallSolve(wallFaces_[wallCellFace_[n]],w,t,y,mu1,s);
+    // rho k = omega mu_t.
+    const double rhoK=law.omega*law.eddy;
+    prescribedChange_[q]=(rhoK-turbulence[q*nt_])*mesh_.cells[q].volume;
+    turbulence[q*nt_]=rhoK;turbulence[q*nt_+1]=u[0]*law.omega;
+    return admissible(u,species.data()+q*ns_,turbulence.data()+q*nt_);
+}
+double Flow::prescriptionResidual() {
+    if(!(nt_ && definition_.turbulence.wallFunctions)) return 0;
+    std::vector<double> law=turbulence_;
+    const auto change=prescribedChange_;
+    (void)prescribeWallTurbulence(state_,species_,law);
+    prescribedChange_=change;
+    double worst=0;
+    for(std::size_t q:wallCells_) if(isOwned(q)) for(std::size_t k=0;k<nt_;++k) {
+        const double a=turbulence_[q*nt_+k],b=law[q*nt_+k];
+        worst=std::max(worst,std::abs(a-b)/std::max(std::abs(b),std::numeric_limits<double>::min()));
+    }
+    return worst;
+}
+bool Flow::represcribe(const std::vector<char>& touched) {
+    bool admitted=true;
+    for(std::size_t n=0;n<wallCells_.size();++n) {
+        const std::size_t q=wallCells_[n];
+        if(!touched[q]) continue;
+        if(!prescribeCell(n,state_,species_,turbulence_,transportScratch_[0],faceFractions_[0].data())) admitted=false;
+        if(isOwned(q)) prescribedTurbulentEnergy_+=prescribedChange_[q];
+    }
+    return admitted;
 }
 // One step: SSPRK2 on the fluxes. With turbulence the SST sources are Strang-split around it: half a
 // step of source (coefficients frozen at the start, from stableDt), the flux step, and half a step
@@ -1361,13 +1470,14 @@ void Flow::clipTurbulence(std::vector<double>& turbulence,std::size_t q) {
 }
 void Flow::sumClipped(Attempt& attempt) const {
     if(!nt_) return;
-    if(const auto* active=region(0)) for(std::size_t q:*active) attempt.clipped-=clippedCell_[q];
+    // Under AMR the owned cells' only (AMR.md, step D).
+    if(const auto* active=region(0)) { for(std::size_t q:*active) if(isOwned(q)) attempt.clipped-=clippedCell_[q]; }
     else for(double c:clippedCell_) attempt.clipped-=c;
 }
 bool Flow::prescribe(std::vector<Conserved>& state,std::vector<double>& species,std::vector<double>& turbulence,Attempt& attempt) {
     if(!(nt_ && definition_.turbulence.wallFunctions)) return true;
     const bool admitted=prescribeWallTurbulence(state,species,turbulence);
-    for(std::size_t q:wallCells_) attempt.prescribed+=prescribedChange_[q];
+    for(std::size_t q:wallCells_) if(isOwned(q)) attempt.prescribed+=prescribedChange_[q];
     return admitted;
 }
 bool Flow::firstStage(double dt,Attempt& attempt) {
@@ -1450,16 +1560,18 @@ void Flow::accept(double dt,double newTime,const Attempt& attempt) {
     time_=newTime;dt_=dt;++steps_;
     for(std::size_t n=0;n<probeAttempt_.size();++n) probe_.sums[n]+=probeAttempt_[n];
     lastRates_=BoundaryRates::average(attempt.first,attempt.second);
-    {
-        const double term=dt*lastRates_.heat,sum=integratedHeat_+term;
-        heatCompensation_+=std::abs(integratedHeat_)>=std::abs(term)?(integratedHeat_-sum)+term:(term-sum)+integratedHeat_;
-        integratedHeat_=sum;
-    }
+    // Neumaier: the plain sum as before, and its rounding gathered beside it.
+    auto add=[](double& plain,double& compensation,double term) {
+        const double sum=plain+term;
+        compensation+=std::abs(plain)>=std::abs(term)?(plain-sum)+term:(term-sum)+plain;
+        plain=sum;
+    };
+    add(integratedHeat_,heatCompensation_,dt*lastRates_.heat);
     clippedTurbulentEnergy_+=attempt.clipped;prescribedTurbulentEnergy_+=attempt.prescribed;
-    integratedMassFlux_+=dt*lastRates_.mass;
-    integratedEnergyFlux_+=dt*lastRates_.energy;
-    integratedCorrection_+=dt*lastRates_.correction;
-    integratedMomentumSource_+=dt*lastRates_.netMomentum();
+    add(integratedMassFlux_,massCompensation_,dt*lastRates_.mass);
+    add(integratedEnergyFlux_,energyCompensation_,dt*lastRates_.energy);
+    add(integratedCorrection_,correctionCompensation_,dt*lastRates_.correction);
+    add(integratedMomentumSource_,momentumCompensation_,dt*lastRates_.netMomentum());
     integratedMomentumGross_+=dt*lastRates_.grossMomentum();
 }
 // The convective face fluxes, and with transport the viscous ones (stored alone by transportFluxes in
@@ -1548,6 +1660,9 @@ Measurements Flow::measurements() const {
     result.momentumBalanceError=(result.axialMomentum-initialMomentum_-integratedMomentumSource_-exchangedMomentum_)/result.momentumBalanceScale;
     result.massBalanceError=(result.mass-initialMass_-integratedMassFlux_-exchangedMass_)/initialMass_;
     result.energyBalanceError=(result.energy-initialEnergy_-integratedEnergyFlux_-integratedCorrection_-exchangedEnergy_)/initialEnergy_;
+    result.compensatedMomentumBalanceError=(result.axialMomentum-initialMomentum_-compensatedMomentumSource()-exchangedMomentum_)/result.momentumBalanceScale;
+    result.compensatedMassBalanceError=(result.mass-initialMass_-compensatedMassFlux()-exchangedMass_)/initialMass_;
+    result.compensatedEnergyBalanceError=(result.energy-initialEnergy_-compensatedEnergyFlux()-compensatedCorrection()-exchangedEnergy_)/initialEnergy_;
     result.correctionEnergy=integratedCorrection_;
     if(corrections_) {
         double weight=0,floored=0;

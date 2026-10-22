@@ -1,0 +1,23 @@
+contents: AMR mass 2.814362153e-06 to 1.780924844e-04 kg, energy -2.450409221e-01 to -4.192781379e+02 J; single level mass 2.814362153e-06 to 1.801701162e-04 kg, energy -2.450409221e-01 to -4.237801127e+02 J
+at 8.0000 ms (largest mass 1.780925e-04 kg and |energy| 4.192784e+02 J over the AMR run's base steps; 1.801701e-04 and 4.237801e+02 alone)
+  composite mass budget error / largest mass                                 0.000e+00 (limit 1e-12)  PASS
+    the same against 10 x the single-level run's                             0.000e+00 (limit 3.01e-15)  PASS
+  composite energy budget error / largest |energy|                           2.169e-15 (limit 1e-12)  PASS
+    the same against 10 x the single-level run's                             2.169e-15 (limit 1.74e-14)  PASS
+  composite axial momentum balance error / gross exchange                    0.000e+00 (limit 1e-12)  PASS
+    the same against 10 x the single-level run's                             0.000e+00 (limit 3.64e-17)  PASS
+  composite igniter energy, |E / 0.5 J - 1|                                  2.776e-15 (limit 1e-14)  PASS
+  step C check 2: the largest fill content error over the regrids            5.128e-16 (limit 1e-14)  PASS
+    the same over the children's gross content                               4.298e-16 (limit 1e-14)  PASS
+      printed, not judged: 1173 regrids changed the pattern; level 1 ends with 500 of 768 active
+  T2: the largest mass error over the run, below a tenth of check 4's 2.070e-13 4.874e-15 (limit 2.07e-14)  PASS
+    the same against 10 x the single level's largest over the run            4.874e-15 (limit 5.72e-14)  PASS
+      T1, printed: level 0's integrated mass exchange 2.988378e-03 kg, 16.780 times the largest mass
+      T1, printed: level 1's integrated mass exchange -2.813100e-03 kg, -15.796 times the largest mass
+      T3, printed: the filled parents' summed mass change over the regrids / largest mass -1.111e-16
+      printed, not judged: single level, the plain sums: mass 6.018e-16, energy 4.024e-15, momentum 1.138e-17 at the end; largest 1.511e-14, 1.107e-14, 1.622e-15
+      printed, not judged: AMR igniter |E - 0.5 J| 1.388e-15 J; single level mass -3.009e-16, energy 1.744e-15, momentum 3.640e-18, igniter |E - 0.5 J| 0.000e+00 J
+      printed, not judged: largest over the run, AMR mass 4.874e-15, energy 6.337e-15, momentum 1.384e-15; single level 5.717e-15, 9.094e-15, 1.636e-15
+      printed, not judged: AMR c* 2446.43 m/s, vacuum thrust 1676.79 N, mdot out 0.400001 kg/s, 67699 base steps, 564.7 s of wall
+      printed, not judged: single level c* 2477.43 m/s, vacuum thrust 1681.83 N, mdot out 0.400000 kg/s, 67624 steps, 42.7 s of wall
+PASSED (0 failures)

@@ -538,6 +538,105 @@ The code follows the setup: `Amr::setTags`, `Amr::regrid`, and `Amr::spread`, th
     - c* 2554.92 m/s, vacuum thrust 1408.02 N and 8,429 base steps are the same.
     - The budget errors change only at rounding: mass -5.503e-16 against 4.586e-16, and energy 2.361e-15 against 1.653e-15.
 - **Step C is complete to its five checks.** The open items are criterion 2's two ten-times comparisons, which also fail with the fixed pattern, and the tagged run's 23-fold mass error, whose cause is inferred, not tested.
+- **Settled since (below, *the tagged run's mass error*):** the cause was the budget's plain sums, not the regrid; with compensated sums, criterion 2 passes as stated on the tagged run.
+
+## Step C: the tagged run's mass error, the test (recorded 21 October, about 21:35 CDT, before its code; 60c8aa4's text said 04:20, a misreading of the clock)
+
+Check 4's tagged run has a mass error 23 times the fixed pattern's (1.753e-13 against 7.540e-15 at 8 ms; largest over the run 2.070e-13). Its momentum error is 11 times, and its energy error 28 times. Criterion 2 is not settled until the cause is known. There are two candidates.
+
+- **H1, the regrid's rounding** (the inference recorded above). Each refinement fills a parent's children, which hold its content to rounding. The next average-down then replaces newly covered base cells.
+  - *Arithmetic:* check 2 bounds each filled parent's error at 5.1e-16 of its content. A cell holds about 1/192 of the gas, and the pattern changes by about one parent per regrid (level 1 moves between 500 and 504 active cells). So 1,173 regrids give at most about 1e-14 of the gas's mass even with every error of one sign (derived). That is below what was measured.
+- **H2, the budget's own sums.** Each level adds dt times its owned boundary rates to a plain running sum (`Flow::accept`, `core/flow.cpp:1459`). The composite residual is the base's content less the sum of every level's.
+  - Suppose the tags put the whole injector face on level 1 while the base owns most of the outlet. Then level 1's sum climbs towards +ṁ t and the base's towards −ṁ t, and the residual is their difference.
+  - ṁ t is 0.4 kg/s × 8 ms = 3.2e-3 kg, 18 times the gas's largest mass (1.78e-4 kg; measured).
+  - So each addition rounds at about 1e-19 kg, set by the throughput, not the gas. About 2e5 additions (one per level step) walk to about 6e-17 kg, 3e-13 of the gas's mass (derived). That is the measured size.
+  - With the fixed pattern, level 1 owns rows 0, 1 and 5 of the face and only row 5 of the outlet. Its net is a fraction of the throughput, so its sums stay smaller.
+  - The state itself would then be conserving all along.
+
+**The test.**
+- Each level's integrated mass, energy, correction and momentum exchanges get the igniter's Neumaier compensation (`core/flow.cpp:1453-1456`).
+  - The plain sums stay as they are, bit for bit. A compensation term per sum sits beside each.
+  - `Amr::budget` reads the compensated values.
+  - `Flow::measurements` keeps its plain balance errors, so every existing output stays identical. It adds the compensated ones beside them.
+- The regrid also adds up, signed and compensated, each filled parent's mass change (the children's content less the parent's), to measure H1 directly.
+- Run criterion 2's tagged case to 8 ms on 4 threads, as check 4 did, with the single-level run beside it. Then run the fixed pattern to 8 ms.
+
+**Judged:**
+- **T0, nothing else moves.**
+  - The tagged run's c*, vacuum thrust, base steps, regrids and printed contents equal check 4's to every printed digit.
+  - C1 `eqtt` 64 x 12 to 1 ms, single level: the state dump is `cmp`-identical to the build before.
+  - The fast ctest's 7 pass and 4 fail, with sorted FAIL lines identical to af91015's record.
+- **T1, H2's mechanism.** At 8 ms, H2 predicts that level 1's and the base's integrated mass exchanges each exceed 5 times the gas's largest mass, with opposite signs (printed per level).
+- **T2, decisive for H2.** With compensation, the tagged run's largest mass error over the run is:
+  - at most 2.07e-14, ten times below the uncompensated 2.070e-13; and
+  - at most 10 times the single level's largest over the run, the single level also compensated. This is B1's recorded reading.
+  - The energy and momentum errors are printed beside, with the same reading.
+- **T3, H1 measured.** The summed fill mass change over the regrids, over the gas's largest mass. H1 is excluded as the cause if it is below 1e-14.
+- **Criterion 2 as written** (10 times the single level's error at the 8 ms instant) is judged again and printed. It may still fail on the single level's luck at that instant (B1).
+
+**Outcomes.**
+- If T2 passes, the excess was the budget's arithmetic, not the state. The compensated sums are then kept, and criterion 2 is read on them.
+- If T2 fails, H2 is rejected, and the cause is looked for in the step and the regrid with the per-step residual.
+
+## Step C: the tagged run's mass error, results (21 October, about 21:50 CDT)
+
+The runs are on the Mac, 4 threads, with three jobs at once under a load of about 10. The code is the registered test, uncommitted on 60c8aa4 when it ran; it is committed with this section. Evidence: `docs/evidence/amr_c/` (the logs' judged lines).
+
+**The cause is H2, the budget's own sums. The state was conserving all along.**
+
+- **T1 (measured).** At 8 ms the base's integrated mass exchange is +2.988e-3 kg, 16.8 times the gas's largest mass, and level 1's is −2.813e-3 kg (−15.8 times). They have opposite signs, each above 5 times. Met.
+  - The direction is the reverse of the narrative in the registration. The base owns the inflow and level 1 the outflow (the wall strip and throat tags put the outlet's rows on level 1), not the face on level 1. The judged prediction did not depend on the sign.
+  - With the fixed pattern the two are −1.39 and +2.37 times the gas, which is why its plain error was 23 times smaller.
+- **T2 (measured).** With compensation, the tagged run's largest mass error over the run is 4.874e-15, against 2.070e-13 plain: 42 times lower. The limit was 2.07e-14. Met.
+  - Against ten times the single level's largest (5.717e-15, also compensated), the limit is 5.72e-14. Met.
+  - Energy 6.337e-15 against 9.094e-15 alone, and momentum 1.384e-15 against 1.636e-15. The AMR's largest errors are now below the single level's.
+- **T3 (measured).** The filled parents' summed mass change over the 1,173 regrids is −1.111e-16 of the gas's largest mass. That is below 1e-14, so H1 is excluded as the cause.
+- **T0.**
+  - The tagged run's c* 2446.43 m/s, vacuum thrust 1676.79 N, 67,699 base steps, 1,173 regrids and both printed contents equal check 4's to every printed digit. Met.
+  - C1 `eqtt` 64 x 12 to 1 ms: the state dump is `cmp`-identical to the build before. Met.
+  - The fast ctest: the same 7 pass and 4 fail as af91015, and the 15 sorted FAIL lines of the rerun are identical, values included (`amr_c/ctest_mass_error_2026-10-21.txt`). Met.
+- **Criterion 2 as stated, on the tagged run: every line passes, the ten-times comparisons included.**
+
+  | At 8 ms | AMR | Bound | Verdict |
+  |---|---|---|---|
+  | Mass | 0.000e+00 | 1e-12; 10 x single 3.01e-15 | met; met |
+  | Energy | 2.169e-15 | 1e-12; 10 x single 1.74e-14 | met; met |
+  | Axial momentum | 0.000e+00 | 1e-12; 10 x single 3.64e-17 | met; met |
+  | Igniter | 2.776e-15 | 1e-14 | met |
+  | Check 2 (fill) | 5.128e-16 | 1e-14 | met |
+
+- **The fixed pattern (B2's case), with the same sums, printed.**
+  - At the 8 ms instant, its mass error is 3.619e-15, against ten times the single level's 3.01e-15: not met as written.
+  - Its largest over the run is 6.334e-15, against the single level's 5.717e-15 (B1's recorded reading: met).
+  - Energy and momentum are met at the instant (8.679e-16 against 1.74e-14, and 0 against 3.64e-17).
+  - So the one remaining failure as written is B's fixed pattern at one instant, where the single level's walk sits at 3.0e-16. That is the luck B1 described, now at a fifth of its old size.
+- **Kept.** `Amr::budget` reads the compensated sums. `Flow::measurements` keeps its plain errors, and prints the compensated ones beside.
+- **Wall time** is 565 s here against 227 s in check 4, from the load. It says nothing about cost.
+
+## Step D: the wall functions and the property corrections across levels, setup (recorded 22 October, about 02:20 CDT, before any of its code)
+
+`Amr` refuses both today (`core/amr.cpp:25-26`), and tier 1 needs both. What the code does on one level, read on 22 October:
+
+- **The corrections are not a face flux.** The corrected k and omega diffusion is formed per cell: the cell's F1, S_n/mu, 1/sqrt(rho) and rho/mu weight the sums of the face values in `axialCorrection_` and `radialCorrection_` (`core/transport.cpp:676-705`). Two cells sharing a face weigh it differently, so even on one level it is not conservative. Its difference from the conventional k sum, Phi_k, enters E and is booked as `correctionEnergy` over the owned cells (`transport.cpp:762`). The design above lists "the property-correction fluxes" among the refluxed arrays, but there is no such flux to reflux. That line is amended here: what is refluxed is the conventional k and omega diffusion the correction replaces, which the registers already carry.
+- **The prescription.** After each stage, each wall cell's rho k and rho omega are set from the law at its state, with E unchanged, and their change is booked as `prescribedTurbulentEnergy` (`core/flow.cpp:1400-1454`). A prescribed cell has no k or omega equation (its turbulence derivative is set to 0). Under `Amr`, `Amr::reflux` then changes the coarse cells beside a finer level after their last prescription, in every component.
+- **The ledgers.** The prescribed and the clipped turbulent energy are summed over all wall cells and all active cells (`flow.cpp:1447, 1453`), covered cells included. Both move energy between k and the internal energy with E unchanged, so neither enters the energy budget; they are reported.
+- **The wall-strip tag** reads the laminar y+ (`core/amr.cpp:369-375`), where the design says the wall function's u_tau.
+
+What step D builds:
+
+1. **Corrections:** Phi_k and Phi_omega stay cell sources from each level's own faces, as on one level, and are not refluxed. The refusal goes for `propertyCorrections`.
+2. **Prescription after the reflux:** after `Amr::reflux(l)`, every prescribed cell of level l the reflux touched is prescribed again from the law at its new state (E unchanged, the change booked), and its admissibility checked. Then at the end of every level step each owned prescribed cell holds the law's k and omega at its state, as on one level. Covered cells keep their children's mean, as every covered cell does. The refusal goes for `wallFunctions`.
+3. **Ledgers over owned cells:** under `Amr` the prescribed and clipped energies are summed over owned cells only. One level is unchanged (its `owned_` is empty, so every cell counts).
+4. **The tag:** with the wall functions on, the wall strip reads the law's y+ at the first cell; otherwise the laminar estimate as now.
+
+Checks, judged as written:
+
+- **D0, nothing else moves.** Without the wall functions and corrections, criterion 2's fixed-pattern dump and check 3's run are `cmp`-identical to 566b12c; C1 `eqtt` 64 x 12 to 1 ms with `law` and `hp` on one level is `cmp`-identical. The fast ctest gives 8 pass and 4 fail, with the sorted FAIL lines identical to the same machine's record: `face_inlet/ctest_2026-10-22_backhouse.txt` on backhouse, `amr_c/ctest_mass_error_2026-10-21.txt` on the Mac.
+- **D1, the budgets with both on.** Criterion 2's tagged case (C1 `eqtt` 32 x 6 plus one level, to 8 ms) with `law` and `hp`. Mass and energy budget errors (the energy net of the summed correction energy) below 1e-12 of the gas's largest mass and largest |energy|; the axial momentum balance below 1e-12 of the largest gross exchange; the igniter exact to 1e-14. The single-level 32 x 6 run's errors with `law` and `hp` are printed beside, and the ten-times comparisons are reported.
+- **D2, the prescription holds.** At the end of every base step, every owned prescribed cell's rho k and rho omega equal the law's at its state to 1e-12 relative, on every level. *Amended 22 October, about 02:25 CDT, while coding and before any run:* this is judged on criterion 2's fixed pattern with the reaction step off (`crucible_amr_budget wall inert`), not on D1's run. The reaction step after each level step and the regrid's new cells move the state after the prescription on one level too, so on D1's run the bound would fail without any defect. The single level's value is printed beside as the control, and D1's run prints its own value, not judged.
+- **D3, determinism:** D1's run on 1 and 4 threads gives `memcmp`-identical states and budgets.
+- **D4, the face inlet on levels with both on:** F3's AMR case (149 x 16, 3 levels) with the wall functions and corrections on passes F3's per-ring and per-supply checks to 1e-12 (`docs/evidence/FACE_INLET.md`).
+- **Reported, not gated:** D1's c*, thrust and light-off time against the uniform 64 x 12 run with `law` and `hp`. Criterion 4 itself still waits for the tag thresholds.
 
 ## Deviations from the plan's text
 

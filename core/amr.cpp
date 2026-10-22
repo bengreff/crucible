@@ -23,8 +23,6 @@ Amr::Amr(const Definition& base,int finer) {
     }
     const Flow& b=level(0);
     ghost_=b.nt_?3:2;
-    if(b.nt_ && (base.turbulence.wallFunctions || base.turbulence.propertyCorrections))
-        throw std::invalid_argument("AMR does not yet carry the wall functions' prescription or the SST property corrections across levels.");
     for(int l=0;l<=finer;++l) {
         Flow& f=level(l);
         f.recordFaces_=true;
@@ -33,7 +31,8 @@ Amr::Amr(const Definition& base,int finer) {
         levels_[static_cast<std::size_t>(l)].fineSum.assign(f.faceIntegral_.size(),0.0);
         f.active_.assign(f.mesh_.cells.size(),0);
         // A fine injector ring takes its base parent ring's supply, so the supply areas are the base's.
-        if(base.experiment==Case::Chamber) {
+        // Open-area supplies: each level keeps the shares its own face rings gave it (FACE_INLET.md).
+        if(base.experiment==Case::Chamber && !base.openAreaSupplies) {
             std::fill(f.supplyArea_.begin(),f.supplyArea_.end(),0.0);
             for(int j=0;j<f.mesh_.nr;++j) {
                 const int s=f.faceSupply_[static_cast<std::size_t>(j)]=b.faceSupply_[static_cast<std::size_t>(j>>l)];
@@ -332,6 +331,13 @@ void Amr::regrid(bool initial) {
         }
         const bool wall=tg.wallYPlus>0 && l+1<=tg.throatLevel;
         if(wall && !first && f.viscosity_.size()<count) throw std::invalid_argument("The wall strip needs molecular transport.");
+        // With the wall functions, the law's y+ at each side-wall cell from the last transport
+        // evaluation (AMR.md, step D); -1 where there is none.
+        std::vector<double> lawYPlus;
+        if(wall && !first && f.nt_ && f.definition_.turbulence.wallFunctions && f.wallSolutions_.size()==f.wallFaces_.size()) {
+            lawYPlus.assign(count,-1.0);
+            for(std::size_t n=0;n<f.wallFaces_.size();++n) if(!f.wallFaces_[n].plate) lawYPlus[f.wallFaces_[n].cell]=f.wallSolutions_[n].yPlus;
+        }
         for(int i=0;i<m.nz;++i) for(int j=0;j<m.nr;++j) {
             if(!on(i,j)) continue;
             const std::size_t q=m.index(i,j);
@@ -364,6 +370,7 @@ void Amr::regrid(bool initial) {
             if(tg.custom && tg.custom(l,i,j)) tag[q]=1;
             if(wall && j==m.nr-1) {
                 if(first) tag[q]=1;
+                else if(!lawYPlus.empty() && lawYPlus[q]>=0) { if(lawYPlus[q]>tg.wallYPlus) tag[q]=1; }
                 else {
                     // Laminar y+: u_tau from mu |u_t| / y, y the centroid's distance to the wall segment.
                     const double r0=m.radius[static_cast<std::size_t>(i)],r1=m.radius[static_cast<std::size_t>(i+1)];
@@ -440,6 +447,11 @@ void Amr::regrid(bool initial) {
                 double sum=0,gross=0;
                 for(auto q:child) { const double v=m.cells[q].volume*f.state_[q][k];sum+=v;gross+=std::abs(v); }
                 error(sum,vol*vp[k],k==1 || k==2?momentum:std::abs(vol*vp[k]),gross);
+                if(k==0) {
+                    const double term=sum-vol*vp[0],total=fillMassChange_+term;
+                    fillMassCompensation_+=std::abs(fillMassChange_)>=std::abs(term)?(fillMassChange_-total)+term:(term-total)+fillMassChange_;
+                    fillMassChange_=total;
+                }
             }
             for(std::size_t k=0;k<ns;++k) {
                 double sum=0,gross=0;
@@ -484,6 +496,13 @@ bool Amr::reflux(int l) {
         const std::size_t fc=naC+static_cast<std::size_t>(I)*(cm.nr+1)+J;
         const std::size_t f0=naF+static_cast<std::size_t>(2*I)*(fm.nr+1)+2*J,f1=f0+(fm.nr+1);
         if(low) correct(cm.index(I,J),1,fc,f0,f1); else correct(cm.index(I,J-1),-1,fc,f0,f1);
+    }
+    // A wall-function cell has no k or omega equation: the law sets them again at its refluxed state
+    // (AMR.md, step D).
+    if(nt && c.definition_.turbulence.wallFunctions) {
+        std::vector<char> mark(cm.cells.size(),0);
+        for(auto u:touched) mark[u]=1;
+        if(!c.represcribe(mark)) return false;
     }
     for(auto u:touched)
         if(!c.admissible(c.state_[u],c.species_.data()+u*ns,nt?c.turbulence_.data()+u*nt:nullptr)) return false;
@@ -532,6 +551,7 @@ void Amr::save() {
         s.time=f.time_;s.dt=f.dt_;s.heat=f.integratedHeat_;s.heatCompensation=f.heatCompensation_;s.mass=f.integratedMassFlux_;s.energy=f.integratedEnergyFlux_;
         s.correction=f.integratedCorrection_;s.momentum=f.integratedMomentumSource_;s.gross=f.integratedMomentumGross_;
         s.clipped=f.clippedTurbulentEnergy_;s.prescribed=f.prescribedTurbulentEnergy_;s.steps=f.steps_;
+        s.massCompensation=f.massCompensation_;s.energyCompensation=f.energyCompensation_;s.correctionCompensation=f.correctionCompensation_;s.momentumCompensation=f.momentumCompensation_;
     }
 }
 void Amr::restore() {
@@ -541,6 +561,7 @@ void Amr::restore() {
         f.time_=s.time;f.dt_=s.dt;f.integratedHeat_=s.heat;f.heatCompensation_=s.heatCompensation;f.integratedMassFlux_=s.mass;f.integratedEnergyFlux_=s.energy;
         f.integratedCorrection_=s.correction;f.integratedMomentumSource_=s.momentum;f.integratedMomentumGross_=s.gross;
         f.clippedTurbulentEnergy_=s.clipped;f.prescribedTurbulentEnergy_=s.prescribed;f.steps_=s.steps;
+        f.massCompensation_=s.massCompensation;f.energyCompensation_=s.energyCompensation;f.correctionCompensation_=s.correctionCompensation;f.momentumCompensation_=s.momentumCompensation;
     }
 }
 Amr::Budget Amr::content() const {
@@ -552,14 +573,18 @@ Amr::Budget Amr::content() const {
     }
     return c;
 }
+double Amr::massExchange(int l) const {
+    const Flow& f=level(l);
+    return f.compensatedMassFlux()+f.exchangedMass_;
+}
 Amr::Budget Amr::budget() const {
     Budget c=content();
     c.massResidual=c.mass-initial_.mass;c.energyResidual=c.energy-initial_.energy;c.momentumResidual=c.momentum-initial_.momentum;
     for(const auto& v:levels_) {
         const Flow& f=*v.flow;
-        c.massResidual-=f.integratedMassFlux_+f.exchangedMass_;
-        c.energyResidual-=f.integratedEnergyFlux_+f.integratedCorrection_+f.exchangedEnergy_;
-        c.momentumResidual-=f.integratedMomentumSource_+f.exchangedMomentum_;
+        c.massResidual-=f.compensatedMassFlux()+f.exchangedMass_;
+        c.energyResidual-=f.compensatedEnergyFlux()+f.compensatedCorrection()+f.exchangedEnergy_;
+        c.momentumResidual-=f.compensatedMomentumSource()+f.exchangedMomentum_;
         c.momentumGross+=f.integratedMomentumGross_;c.igniterEnergy+=f.deliveredHeat();
     }
     return c;

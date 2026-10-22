@@ -1,0 +1,54 @@
+# Fast ctest (ctest -LE slow -j 2, then ctest --rerun-failed --output-on-failure), backhouse WSL, Release,
+# 22 October 2026, about 02:00 to 02:45 CDT, load about 25 (other users' jobs).
+# crucible_fi = 566b12c (the face inlet); crucible_fi0 = d9e2684 (its registration, the parent), built and run beside it.
+# --- crucible_fi ctest summary (face_inlet is the 12th test, new in 566b12c)
+ 1/12 Test  #2: wall_function_verification .......   Passed    0.30 sec
+ 2/12 Test  #4: amr_verification .................***Failed    0.03 sec
+ 3/12 Test  #1: core_verification ................   Passed   61.15 sec
+ 4/12 Test  #6: thermo_cea_verification ..........   Passed   74.64 sec
+ 5/12 Test  #7: reaction_verification ............   Passed    1.23 sec
+ 6/12 Test  #5: amr_subcycling_verification ......***Failed  307.82 sec
+ 7/12 Test  #9: turbulence_verification ..........   Passed   86.95 sec
+ 8/12 Test #11: wall_function_threads ............   Passed    0.68 sec
+ 9/12 Test #12: face_inlet .......................   Passed    4.94 sec
+10/12 Test #14: spray_verification ...............***Failed  118.36 sec
+11/12 Test #15: mixture_verification .............   Passed    8.63 sec
+12/12 Test  #8: transport_verification ...........***Failed  419.74 sec
+67% tests passed, 4 tests failed out of 12
+	  4 - amr_verification (Failed)
+	  5 - amr_subcycling_verification (Failed)
+	  8 - transport_verification (Failed)
+	 14 - spray_verification (Failed)
+# crucible_fi0 (d9e2684): 64% tests passed, 4 tests failed out of 11; the same four.
+# --- crucible_fi rerun FAIL lines, leading blanks stripped, sorted (LC_ALL=C)
+(b) KH-RT: liquid mass through every child and RT event                        1.044e-12 (limit 1e-13)  FAIL
+(b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.657e-03 (limit 0.001)  FAIL
+256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.384e-03 (limit 0.001)  FAIL
+4b. radial momentum: observed order (two finest grids)     1.444e+00 (limit 1.8e+00)  FAIL
+64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.458e-03 (limit 0.001)  FAIL
+FAIL: 2 failure(s)
+FAILED (3 failures)
+FAILED (5 failures)
+The following tests FAILED:
+level 1 (300 x 32) closure, relative to the faces                          1.912e-14 (limit 1e-14)  FAIL
+level 2 (600 x 64) closure, relative to the faces                          3.943e-14 (limit 1e-14)  FAIL
+level 3 (1200 x 128) closure, relative to the faces                        8.024e-14 (limit 1e-14)  FAIL
+observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL
+# --- diff against crucible_fi0's sorted rerun FAIL lines: empty (16 lines each, identical, values included)
+# --- diff of docs/evidence/amr_c/ctest_mass_error_2026-10-21.txt's sorted FAIL lines (the Mac, <) against crucible_fi's (backhouse, >)
+0a1
+> (b) KH-RT: liquid mass through every child and RT event                        1.044e-12 (limit 1e-13)  FAIL
+6c7
+< FAIL: 1 failure(s)
+---
+> FAIL: 2 failure(s)
+11,12c12,13
+< level 2 (600 x 64) closure, relative to the faces                          3.938e-14 (limit 1e-14)  FAIL
+< level 3 (1200 x 128) closure, relative to the faces                        8.132e-14 (limit 1e-14)  FAIL
+---
+> level 2 (600 x 64) closure, relative to the faces                          3.943e-14 (limit 1e-14)  FAIL
+> level 3 (1200 x 128) closure, relative to the faces                        8.024e-14 (limit 1e-14)  FAIL
+# The same differences appear with crucible_fi0, so they come from the machine, not from 566b12c (measured). That the cause is the Linux compiler and libm against the Mac's is inferred, not tested.

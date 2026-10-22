@@ -98,11 +98,12 @@ Blending blending(double k,double omega,double rho,double nu,double inverseDista
 }
 // A least-squares neighbour of a cell: an interior cell, the mirror image across the axis, or a
 // boundary face midpoint (a wall or an open boundary). (dz, dr) is its displacement from the
-// centroid; (nz, nr) is a wall's unit normal (either orientation).
+// centroid; (nz, nr) is a wall's unit normal (either orientation); plate marks the injector plate.
 struct Neighbour {
     enum Kind { Cell, Axis, Wall, Open, Supply } kind;
     std::size_t cell;
     double dz, dr, nz, nr;
+    bool plate{false};
 };
 std::array<Neighbour, 4> neighbours(const Mesh& m, bool chamber, const std::vector<int>& faceSupply, int i, int j) {
     const auto& c=m.cells[m.index(i,j)];
@@ -114,7 +115,7 @@ std::array<Neighbour, 4> neighbours(const Mesh& m, bool chamber, const std::vect
     // claim a radial derivative of zero and bias the end columns' radial gradients).
     auto axial=[&](int face) {
         auto kind=face==0 && chamber?(faceSupply[j]<0?Neighbour::Wall:Neighbour::Supply):Neighbour::Open;
-        return Neighbour{kind,0,face*m.dz-c.z,kind==Neighbour::Wall?m.ringMiddle(face,j)-c.r:0.0,-1,0};
+        return Neighbour{kind,0,face*m.dz-c.z,kind==Neighbour::Wall?m.ringMiddle(face,j)-c.r:0.0,-1,0,kind==Neighbour::Wall};
     };
     out[0]=i>0?cell(i-1,j):axial(0);
     out[1]=i<m.nz-1?cell(i+1,j):axial(m.nz);
@@ -163,13 +164,14 @@ void Flow::prepareTransport() {
                 wallFaces_.push_back({mesh_.index(i,j),plate,nz,nr,n.dz*nz+n.dr*nr});
             };
             for(int i=0;i<mesh_.nz;++i) face(i,mesh_.nr-1,3,false);
+            // Open-area supplies: a supply ring with a wall share has its plate face too, its cell not prescribed.
             if(chamber) for(int j=0;j<mesh_.nr;++j)
-                if(faceSupply_[j]<0) { plateWallFace_[j]=static_cast<int>(wallFaces_.size());face(0,j,0,true); }
+                if(faceSupply_[j]<0 || (definition_.openAreaSupplies && plateShare_[j]>0)) { plateWallFace_[j]=static_cast<int>(wallFaces_.size());face(0,j,0,true); }
             for(const auto& f:wallFaces_) if(!(f.distance>0)) throw std::runtime_error("A wall face's normal distance is not positive.");
             for(std::size_t q:wallCells_) {
                 const int i=static_cast<int>(q/mesh_.nr),j=static_cast<int>(q%mesh_.nr);
                 std::size_t f=j==mesh_.nr-1?static_cast<std::size_t>(i):static_cast<std::size_t>(plateWallFace_[j]);
-                if(j==mesh_.nr-1 && i==0 && plateWallFace_[j]>=0 && wallFaces_[plateWallFace_[j]].distance<wallFaces_[f].distance)
+                if(j==mesh_.nr-1 && i==0 && faceSupply_[j]<0 && plateWallFace_[j]>=0 && wallFaces_[plateWallFace_[j]].distance<wallFaces_[f].distance)
                     f=static_cast<std::size_t>(plateWallFace_[j]);
                 wallCellFace_.push_back(f);prescribedCell_[q]=1;
             }
@@ -214,10 +216,12 @@ void Flow::transportProperties(int depth) {
             const double* y=fractions_.data()+q*nw_;
             double nu=viscosity_[q]/primitives_[q].rho;
             if(corrections_) { wallDensity_[q]=primitives_[q].rho;wallViscosity_[q]=viscosity_[q]; }
-            if(d.wallTemperature>0) {
-                auto t=medium_.transport(d.wallTemperature,primitives_[q].p,y,s.diffusion.data(),s.work);
-                nu=t.viscosity*medium_.gasConstant(y)*d.wallTemperature/primitives_[q].p;
-                if(corrections_) { wallDensity_[q]=primitives_[q].p/(medium_.gasConstant(y)*d.wallTemperature);wallViscosity_[q]=t.viscosity; }
+            // The side wall's cells (the corner's too) at wallTemperature, the plate's at its own.
+            const double tw=static_cast<int>(q%mesh_.nr)==mesh_.nr-1?d.wallTemperature:plateTemperature();
+            if(tw>0) {
+                auto t=medium_.transport(tw,primitives_[q].p,y,s.diffusion.data(),s.work);
+                nu=t.viscosity*medium_.gasConstant(y)*tw/primitives_[q].p;
+                if(corrections_) { wallDensity_[q]=primitives_[q].p/(medium_.gasConstant(y)*tw);wallViscosity_[q]=t.viscosity; }
             }
             wallOmega_[q]=d.turbulence.wallOmegaFactor*6*nu/(beta1*sq(wallDistance_[q]));
         }
@@ -227,14 +231,14 @@ double Flow::transportValue(std::size_t q,std::size_t f) const {
     if(f>=3+ns_+nt_) return correctionFields_[q*4+f-(3+ns_+nt_)];
     return f==0?primitives_[q].uz:f==1?primitives_[q].ur:f==2?temperature_[q]:f<3+ns_?moles_[q*ns_+f-3]:fractions_[q*nw_+f-3];
 }
-double Flow::wallValue(std::size_t q,std::size_t f,double nz,double nr) const {
+double Flow::wallValue(std::size_t q,std::size_t f,double nz,double nr,bool plate) const {
     const auto& d=definition_;
     if(f<2) {
         if(!d.wallSlip) return 0.0;
         const auto& w=primitives_[q];double un=w.uz*nz+w.ur*nr;
         return f==0?w.uz-un*nz:w.ur-un*nr;
     }
-    if(f==2 && d.wallTemperature>0) return d.wallTemperature;
+    if(const double tw=plate?plateTemperature():d.wallTemperature;f==2 && tw>0) return tw;
     // The correction fields at a no-slip wall: psi_w, rho k = 0, sqrt(rho_w) omega_w and mu_w omega_w.
     if(f>=3+ns_+nt_ && !d.wallSlip && !d.turbulence.wallFunctions) {
         const double root=std::sqrt(wallDensity_[q]);
@@ -270,7 +274,7 @@ void Flow::transportGradients(int depth) {
             switch(n.kind) {
                 case Neighbour::Cell: { const double* u=&fieldValues_[n.cell*nf];for(std::size_t f=0;f<nf;++f) delta[f]=u[f]-v[f];break; }
                 case Neighbour::Axis: for(std::size_t f=0;f<nf;++f) delta[f]=f==1?-2*v[f]:0;break;
-                case Neighbour::Wall: for(std::size_t f=0;f<nf;++f) delta[f]=wallValue(q,f,n.nz,n.nr)-v[f];break;
+                case Neighbour::Wall: for(std::size_t f=0;f<nf;++f) delta[f]=wallValue(q,f,n.nz,n.nr,n.plate)-v[f];break;
                 case Neighbour::Open: case Neighbour::Supply: std::fill(delta,delta+nf,0.0);break;
             }
             const double d2=n.dz*n.dz+n.dr*n.dr;
@@ -380,7 +384,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
     // AMR step B2: properties over N_2, gradients and mu_t over N_1, the faces with an active cell on a
     // side and the sums over the active cells.
     transportProperties(2);
-    const bool law=nt_ && d.turbulence.wallFunctions;
+    const bool law=nt_ && d.turbulence.wallFunctions,open=chamber && d.openAreaSupplies;
     if(law) pool_->blocks(wallFaces_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
         for(std::size_t n=begin;n<end;++n) {
             const std::size_t q=wallFaces_[n].cell;
@@ -404,7 +408,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
         const bool boundary=wall!=nullptr;
         double dz=boundary?wall->dz:m.cells[b].z-m.cells[a].z,dr=boundary?wall->dr:m.cells[b].r-m.cells[a].r;
         double len=std::hypot(dz,dr),ez=dz/len,er=dr/len;
-        auto other=[&](std::size_t f){ return boundary?wallValue(a,f,wall->nz,wall->nr):value(b,f); };
+        auto other=[&](std::size_t f){ return boundary?wallValue(a,f,wall->nz,wall->nr,wall->plate):value(b,f); };
         auto gradient=[&](std::size_t f,double& gz,double& gr) {
             const double* ga=&gradients_[(a*nf+f)*2];
             gz=ga[0];gr=ga[1];
@@ -464,7 +468,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
         if(boundary) {
             // A slip wall carries the normal stress only; an adiabatic wall no heat; no wall passes species.
             if(d.wallSlip) { double normal=fz*nz+fr*nr;fz=normal*nz;fr=normal*nr; }
-            if(!(d.wallTemperature>0)) { heat=0;if(parts) parts[1]=parts[2]=0; }
+            if(!((wall->plate?plateTemperature():d.wallTemperature)>0)) { heat=0;if(parts) parts[1]=parts[2]=0; }
         } else {
             if(nt_) heat+=tn[0];  // k is part of E
             if(parts && nt_) parts[3]=tn[0];
@@ -580,6 +584,25 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
             auto q=m.index(i==0?0:m.nz-1,j);
             auto n=neighbours(m,chamber,faceSupply_,i==0?0:m.nz-1,j)[i==0?0:1];
             Conserved flux{};
+            if(i==0 && open) {
+                // Open-area supplies: w_j of the plate's wall flux; a plate ring's whole, a supply ring's
+                // momentum and heat only (its k and omega follow the supply share's zero-gradient face).
+                std::fill(jn,jn+nv,0.0);
+                if(const double w=plateShare_[j];w>0) {
+                    if(law) flux=lawFlux(static_cast<std::size_t>(plateWallFace_[j]),jn);
+                    else if(n.kind==Neighbour::Wall) flux=faceFlux(q,0,&n,1,0,rf,false,jn,tn,hn,s);
+                    else {
+                        const Neighbour wall{Neighbour::Wall,0,n.dz,m.ringMiddle(0,j)-m.cells[q].r,-1,0,true};
+                        flux=faceFlux(q,0,&wall,1,0,rf,false,jn,tn,nullptr,s);
+                        std::fill(jn,jn+nv,0.0);
+                    }
+                    for(int k=1;k<4;++k) flux[k]*=w;
+                    for(std::size_t k=0;k<nv;++k) jn[k]*=w;
+                    if(hn) for(int k=0;k<4;++k) hn[k]*=w;
+                }
+                axialViscous_[f]=flux;
+                continue;
+            }
             if(n.kind==Neighbour::Wall) flux=law?lawFlux(static_cast<std::size_t>(plateWallFace_[j]),jn):faceFlux(q,0,&n,1,0,rf,false,jn,tn,hn,s);
             else if(n.kind!=Neighbour::Supply) {
                 // Zero normal gradient: tau_zz = -2/3 mu (du_r/dr + u_r/r), tau_zr = mu du_z/dr, no heat,
@@ -741,11 +764,12 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
     // then the side wall by column; under AMR only beside owned cells.
     for(int i:{0,m.nz}) for(int j=0;j<m.nr;++j) {
         const auto kind=endKind(i,j);
-        if(kind==Neighbour::Supply || !isOwned(m.index(i==0?0:m.nz-1,j))) continue;
+        const bool share=i==0 && open;  // open-area supplies: the face's viscous flux is its wall share's
+        if((share?!(plateShare_[j]>0):kind==Neighbour::Supply) || !isOwned(m.index(i==0?0:m.nz-1,j))) continue;
         const auto f=static_cast<std::size_t>(i)*m.nr+j;
         const double sign=i==0?1:-1,area=axialArea_[f];const auto& flux=axialViscous_[f];
         rates.energy+=sign*area*flux[3];
-        if(kind==Neighbour::Wall) { rates.wallAxial+=area*flux[1];rates.wallHeat+=area*flux[3]; }
+        if(share || kind==Neighbour::Wall) { rates.wallAxial+=area*flux[1];rates.wallHeat+=area*flux[3]; }
         else if(i==0) rates.inletMomentum+=area*flux[1];
         else rates.outletMomentum+=area*flux[1];
     }
@@ -758,21 +782,41 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
 }
 Flow::WallSolution Flow::wallSolve(const WallFace& f,const Primitive& w,double t1,const double* y,double mu1,
                                    TransportScratch& s) const {
-    const auto& d=definition_;const auto& tu=d.turbulence;const double tw=d.wallTemperature;
-    if(t1>11*tw) throw std::runtime_error("Wall function: T_1 / T_w above 11, where the law folds back.");
+    const auto& d=definition_;const auto& tu=d.turbulence;
+    const double fixed=f.plate?plateTemperature():d.wallTemperature;
     const double normal=w.uz*f.nz+w.ur*f.nr,uz=w.uz-normal*f.nz,ur=w.ur-normal*f.nr,u1=std::hypot(uz,ur);
-    const auto wall=medium_.transport(tw,w.p,y,s.diffusion.data(),s.work);
-    const auto atWall=medium_.properties(tw,y);
-    const double cpW=atWall.cv+atWall.r,rhoW=w.p/(atWall.r*tw);
-    // The layer's mean cp; below 1e-3 T_w apart the difference of enthalpies would round, and cp at the
-    // mean temperature is used.
-    double cp;
-    if(std::abs(t1-tw)>1e-3*tw) cp=(medium_.enthalpy(t1,y)-medium_.enthalpy(tw,y))/(t1-tw);
-    else { const auto m=medium_.properties(0.5*(t1+tw),y);cp=m.cv+m.r; }
+    // The layer at wall temperature tw: mu_w and k_w, cp_w, and the layer's mean cp (below 1e-3 T_w apart
+    // the difference of enthalpies would round, and cp at the mean temperature is used).
+    Medium::Transport wall{};double cpW=0,rhoW=0,cp=0;
+    auto layer=[&](double tw) {
+        wall=medium_.transport(tw,w.p,y,s.diffusion.data(),s.work);
+        const auto atWall=medium_.properties(tw,y);
+        cpW=atWall.cv+atWall.r;rhoW=w.p/(atWall.r*tw);
+        if(std::abs(t1-tw)>1e-3*tw) cp=(medium_.enthalpy(t1,y)-medium_.enthalpy(tw,y))/(t1-tw);
+        else { const auto m=medium_.properties(0.5*(t1+tw),y);cp=m.cv+m.r; }
+    };
+    // An adiabatic wall (temperature 0): beta = 0, so Crocco-Busemann at the first cell puts T_w at the
+    // recovery temperature T_1 + r u_1^2 / (2 cp), r = Pr_w^(1/3) (WALL_FUNCTIONS.md, eq. 10.8), solved by
+    // fixed point with the layer's properties at T_w; the isothermal law at that T_w then has beta = 0
+    // and q_w = 0 to rounding.
+    double tw=fixed;
+    if(!(fixed>0)) {
+        tw=t1;
+        for(int n=0;;++n) {
+            layer(tw);
+            const double next=t1+std::cbrt(cpW*wall.viscosity/wall.conductivity)*u1*u1/(2*cp);
+            const bool done=std::abs(next-tw)<=1e-13*next;
+            tw=next;
+            if(done) break;
+            if(n==50) throw std::runtime_error("Wall function: the adiabatic wall's recovery temperature did not converge.");
+        }
+    }
+    if(t1>11*tw) throw std::runtime_error("Wall function: T_1 / T_w above 11, where the law folds back.");
+    layer(tw);
     const wallLaw::Constants c{tu.wallKappa,tu.wallB};
     const auto law=wallLaw::solveIsothermal({u1,f.distance,t1,tw,rhoW,wall.viscosity,wall.conductivity,cp,
                                              std::cbrt(cpW*wall.viscosity/wall.conductivity)},c);
-    WallSolution out;
+    WallSolution out;out.temperature=tw;
     if(u1>0) { const double scale=law.shear/u1;out.tz=-scale*uz;out.tr=-scale*ur; }
     out.heat=law.heat;out.yPlus=law.yPlus;
     const double ratio=mu1/wall.viscosity;
@@ -785,7 +829,7 @@ Flow::WallSolution Flow::wallSolve(const WallFace& f,const Primitive& w,double t
 }
 std::vector<Flow::WallYPlus> Flow::wallYPlus() const {
     std::vector<WallYPlus> out;out.reserve(wallFaces_.size());
-    for(std::size_t n=0;n<wallFaces_.size();++n) out.push_back({wallFaces_[n].cell,wallFaces_[n].plate,wallSolutions_[n].yPlus});
+    for(std::size_t n=0;n<wallFaces_.size();++n) out.push_back({wallFaces_[n].cell,wallFaces_[n].plate,wallSolutions_[n].yPlus,wallSolutions_[n].heat,wallSolutions_[n].temperature});
     return out;
 }
 void Flow::transportDerivative(std::vector<Conserved>& derivative,std::vector<double>& speciesDerivative) {

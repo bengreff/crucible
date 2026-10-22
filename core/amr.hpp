@@ -74,6 +74,10 @@ public:
     [[nodiscard]] std::uint64_t regrids() const { return regrids_; }
     [[nodiscard]] double fillError() const { return fillError_; }
     [[nodiscard]] double fillGross() const { return fillGross_; }
+    // The filled parents' mass change (children's content less the parent's), signed and summed over every regrid.
+    [[nodiscard]] double fillMassChange() const { return fillMassChange_+fillMassCompensation_; }
+    // Level l's integrated mass exchange over its owned boundaries (compensated), as the budget takes it.
+    [[nodiscard]] double massExchange(int l) const;
     // The composite budget (AMR.md, criterion 2 (b)): the base's content, which holds the composite
     // after average-down and reflux, less its content at the first step and every level's exchanges
     // booked at its owned cells since (boundary faces, igniter, corrections, spray). The residuals are
@@ -90,6 +94,7 @@ private:
         std::vector<Conserved> state;
         std::vector<double> species, turbulence, temperature;
         double time{}, dt{}, heat{}, heatCompensation{}, mass{}, energy{}, correction{}, momentum{}, gross{}, clipped{}, prescribed{};
+        double massCompensation{}, energyCompensation{}, correctionCompensation{}, momentumCompensation{};
         std::uint64_t steps{};
     };
     struct Level {
@@ -128,7 +133,7 @@ private:
     Tags tags_;
     bool tagged_{false}, regridded_{false};
     std::uint64_t regrids_{};
-    double fillError_{}, fillGross_{};
+    double fillError_{}, fillGross_{}, fillMassChange_{}, fillMassCompensation_{};
     void averageDown(int l);
     bool reflux(int l);
     void save();
