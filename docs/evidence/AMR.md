@@ -638,6 +638,50 @@ Checks, judged as written:
 - **D4, the face inlet on levels with both on:** F3's AMR case (149 x 16, 3 levels) with the wall functions and corrections on passes F3's per-ring and per-supply checks to 1e-12 (`docs/evidence/FACE_INLET.md`).
 - **Reported, not gated:** D1's c*, thrust and light-off time against the uniform 64 x 12 run with `law` and `hp`. Criterion 4 itself still waits for the tag thresholds.
 
+## Step D: results (22 October, about 04:40 CDT; backhouse, 4 threads, at load about 24)
+
+Run by `bh_stepd.sh` in `/home/greff/crucible_sd` (inquiry2 at b84ae3a, code as 2ff039f), with D0's parent built in `/home/greff/crucible_fi/build` (566b12c, code as 4a7178c). The raw outputs are in `amr_d/` (`d0.txt` to `d4.txt`). All values are measured unless labelled.
+
+**In short:** D3 and D4 are met. D1 and D2 are not met as written: D1 on the igniter, and D2 fails on one level as well, by more. D0 is met on the runs finished; its fast ctest and check 3 were still running at parking (how to score them is below).
+
+- **D0: met on the runs finished. The fast ctest and check 3 are pending.**
+  - Criterion 2's fixed-pattern dump to 1 ms is `cmp`-identical to the parent's. The printed budgets, c* 2554.92 m/s, vacuum thrust 1408.02 N and 8,429 base steps are equal too.
+  - C1 `eqtt` 64 x 12 to 1 ms with `law` and `hp`, one level: the state dump and the history are `cmp`-identical.
+  - Check 3's run (new and parent, dumps compared) and the fast ctest were still running at about 04:40, in that order after the reported 64 x 12 run.
+  - To score them: `bash /home/greff/crucible_sd/score_sd.sh` on backhouse, once `out/all_done` and `out/c3_done` exist. Met if three things hold:
+    - the ctest gives 8 pass and 4 fail of 12, and the sorted rerun FAIL lines (16) are identical to `face_inlet/ctest_2026-10-22_backhouse.txt`'s;
+    - `out/d0_c3.txt` reads "check 3 dump identical";
+    - the two c3 logs differ only in wall time.
+- **D1: not met as written, on the igniter.** The tagged case to 8 ms, `law` and `hp`, 181 regrids; level 1 ends with 636 of 768 active.
+  - Mass 2.441e-15, energy 7.360e-15 and momentum 0 against 1e-12: met.
+  - Igniter |E / 0.5 J − 1| = 2.143e-14 against 1e-14: not met. Step C's tagged run without the wall functions gave 2.776e-15 (check 4), and step D's inert fixed pattern with them gives 3.331e-15 (D2's run).
+  - The igniter fires from 0.2 to 0.4 ms. By 0.5 ms the run had 121 regrids, and the delivered energy stays at 0.499999999999989 J from then on. The cause is not established. *Guessed:* the igniter's split between the levels while the pattern changes during the deposit.
+  - Reported: the ten-times comparisons all hold (mass 2.441e-15 against 5.27e-14, energy 7.360e-15 against 1.94e-14, momentum 0 against 6.11e-18). The single level's errors: mass 5.265e-15, energy −1.938e-15, momentum 6.108e-19, igniter 0.
+  - Also met: step C's check 2 (the largest fill error, 4.182e-16) and T2 (the largest mass error over the run, 5.493e-15 against 2.07e-14).
+- **D2: not met as written, and the single-level control fails it by more.**
+  - The inert fixed pattern to 8 ms, over 25,564 base steps: the largest relative residual is 6.458e-4 on AMR, against 1e-12. The single level, same case: 4.373e-3.
+  - So D2's premise ("as on one level") is false for this measure: one level does not hold its wall cells at the law's k and ω at their state to 1e-12. AMR's residual is below one level's.
+  - The wall law itself solves to 1e-13 in u+ and keeps no history between calls (`core/walls.cpp:111-145`, read), so its tolerance is not the cause.
+  - *Inferred, not tested:* the two causes below.
+    - The prescription takes the cell's temperature with its k before the prescription, and E stays fixed. So afterwards the temperature differs by the change in k over cv, and the law at the new state differs.
+    - The law's eddy viscosity is μ_w max(ratio, 0), a difference of near-equal terms close to the sublayer. There ρk tends to 0, and a relative residual is ill-conditioned.
+  - D1's run shows the extreme case: 1.985e+307 on AMR and 1.773e+307 on one level. That is a cell where the law gives ρk = 0 exactly, against a stored 0.44 (derived: 1.985e307 × 2.2e-308).
+  - The inert run's budgets all pass: mass 1.937e-15, energy 3.475e-16, momentum 0, igniter 3.331e-15, the ten-times comparisons included.
+  - The 2ff039f driver also printed D1's D2 value as a failed check line. By the amendment it is not judged there, so the driver now judges D2 only with `wall inert` on the fixed pattern and prints it otherwise. That change was made after these runs and is in the results commit.
+  - *Proposed for next session, to register before it runs (amending D2 is the Director's call):* check what D2 is meant to show directly. Each owned prescribed cell's state, species, ρk and ρω at the end of every base step should be bitwise what its last prescription (or re-prescription after the reflux) left. Run it on AMR and on one level.
+- **D3: met.** D1's run on 1 and 4 threads gives `cmp`-identical dumps, which carry the states and the composite budget. The printed budgets, c* and thrust are equal.
+- **D4: met.** F3's AMR case (149 x 16, 3 levels) with the wall functions and the corrections on:
+  - per ring: 5.76e-16, 1.71e-15 and 7.32e-15;
+  - per supply: 1.01e-15, 3e-15 and 1.2e-15;
+  - supply areas: 8.57e-16, 3.06e-15 and 1.19e-15 (limit 1e-12).
+  - These equal F3's record with them off, digit for digit (`face_inlet/f3.txt`), and `Amr` now builds with them on.
+  - The dry run's G5, G6 and G7 failures are tier 1's standing mesh gaps, as in that record.
+- **Reported, not gated:**
+  - D1 (AMR 32 x 6 plus one level, `law` and `hp`): c* 2425.21 m/s, vacuum thrust 1633.34 N. The single level 32 x 6 with both: 2459.99 m/s, 1633.47 N.
+  - The uniform 64 x 12 with both to 8 ms (136,265 steps): c* 2426.18 m/s, vacuum thrust 1630.67 N. So AMR's c* is 0.04% below it and its thrust 0.16% above. The single level 32 x 6 is 1.39% and 0.17% above (derived). Its log and history are in `/home/greff/crucible_sd/out/u64/`.
+  - `crucible_amr_budget` prints no light-off time, so none is reported.
+  - Wall time: D1 2,352 s on AMR against 186 s on one level, at load about 24. It says nothing about cost.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.

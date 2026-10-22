@@ -1,0 +1,28 @@
+# AMR step D, D0 on backhouse: inquiry2 at b84ae3af2fe5af682b69e5b4c30b84ca996f3177 (code as 2ff039f) against /home/greff/crucible_fi/build (566b12c, code as 4a7178c)
+# Criterion 2's fixed pattern to 1 ms (no wall functions or corrections): crucible_amr_budget 1e-3 4 amr dump=...
+# C1 eqtt 64 x 12 to 1 ms, one level, CRUCIBLE_WALL_FUNCTIONS=law CRUCIBLE_SST_CORRECTION=hp, CRUCIBLE_STATE_DUMP=...
+# cmp results (a line per identical pair; cmp prints nothing else when identical):
+fixed pattern dump identical
+C1 law hp state identical
+C1 law hp history identical
+-rw-r--r-- 1 greff greff  57416 Oct 22 02:50 d0b/amr_dump.txt
+-rw-r--r-- 1 greff greff 100548 Oct 22 02:52 d0b/c1_history.csv
+-rw-r--r-- 1 greff greff  98304 Oct 22 02:52 d0b/c1_state.bin
+-rw-r--r-- 1 greff greff  57416 Oct 22 02:41 d0n/amr_dump.txt
+-rw-r--r-- 1 greff greff 100548 Oct 22 02:43 d0n/c1_history.csv
+-rw-r--r-- 1 greff greff  98304 Oct 22 02:43 d0n/c1_state.bin
+# new build, fixed pattern log tail:
+  AMR t 1.0000 ms, 8429 base steps (0 redone), 306 s: mass 1.01e-15, energy -4.25e-16, momentum 0.00e+00; igniter 0.499999999999999 J
+  level 0: table cells 1613545, clamped 51683, outside (direct) 4823
+  level 1: table cells 6018306, clamped 152819, outside (direct) 0
+AMR only, not judged: mass 1.009e-15, energy -4.250e-16, momentum 0.000e+00 at the end (largest 2.795e-15, 6.613e-15, 1.579e-15); igniter |E - 0.5 J| 6.661e-16 J; c* 2554.92 m/s, vacuum thrust 1408.02 N; 8429 base steps, 305.9 s of wall
+# parent build, fixed pattern log tail:
+  AMR t 1.0000 ms, 8429 base steps (0 redone), 451 s: mass 1.01e-15, energy -4.25e-16, momentum 0.00e+00; igniter 0.499999999999999 J
+  level 0: table cells 1613545, clamped 51683, outside (direct) 4823
+  level 1: table cells 6018306, clamped 152819, outside (direct) 0
+AMR only, not judged: mass 1.009e-15, energy -4.250e-16, momentum 0.000e+00 at the end (largest 2.795e-15, 6.613e-15, 1.579e-15); igniter |E - 0.5 J| 6.661e-16 J; c* 2554.92 m/s, vacuum thrust 1408.02 N; 8429 base steps, 451.0 s of wall
+# u64 and ctest status at Thu Oct 22 04:36:31 CDT 2026:
+ls: cannot access 'u64_done': No such file or directory
+ls: cannot access 'all_done': No such file or directory
+t 3.500 ms  p_inj 3.2500 MPa  outlet 0.3998 kg/s  F_vac 1630.1 N  steps 59765  wall 226 s  step 5.915e-08 s set by cell (33, 8), convective 6.758e+06 and diffusive 5.428e+03 per s
+t 4.000 ms  p_inj 3.2507 MPa  outlet 0.4000 kg/s  F_vac 1630.5 N  steps 68265  wall 254 s  step 5.915e-08 s set by cell (33, 8), convective 6.757e+06 and diffusive 5.426e+03 per s

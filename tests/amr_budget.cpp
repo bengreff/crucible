@@ -332,10 +332,12 @@ int main(int argc, char** argv) {
   // Criterion 2 says "exact to 1e-14 relative"; the first run judged 1e-14 J, twice as loose (AMR.md, criterion 2 results).
   const double igniterError = std::abs(final.igniterEnergy - kIgniter) / kIgniter;
   check(igniterError <= 1e-14, "composite igniter energy, |E / 0.5 J - 1|", igniterError, 1e-14);
-  if (wall) {
+  // D2 is judged on the inert fixed pattern only (AMR.md, step D, the amendment); elsewhere it is printed.
+  if (wall && inert && !tagged)
     check(prescriptionWorst <= 1e-12, "step D, D2: owned wall-function cells' rho k, rho omega against the law's, largest", prescriptionWorst, 1e-12);
-    std::printf("      printed, not judged: the single level's largest %.3e\n", singlePrescriptionWorst);
-  }
+  else if (wall)
+    std::printf("      printed, not judged: step D's D2 residual, largest %.3e\n", prescriptionWorst);
+  if (wall) std::printf("      printed, not judged: the single level's largest %.3e\n", singlePrescriptionWorst);
   if (tagged) {
     check(fillWorst <= 1e-14, "step C check 2: the largest fill content error over the regrids", fillWorst, 1e-14);
     check(fillGrossWorst <= 1e-14, "  the same over the children's gross content", fillGrossWorst, 1e-14);

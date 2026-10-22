@@ -478,7 +478,7 @@ int main(int argc, char** argv) {
         // face mass flow against sum_s a_sj mdot_s / A_s (a_sj and A_s the true annuli's, computed here);
         // each supply's face mass flow, sum_j a_sj (rho u)_sj, with rho u from supplyFace against ring j's
         // first cell, against mdot_s; the engine's supply areas against the true. On AMR (3 levels, every
-        // cell active) the wall functions and the corrections are off, which AMR refuses.
+        // cell active) the wall functions and the corrections stay on (AMR.md, step D, D4).
         auto open = [&]() {
           Definition dm = define(nz, nr, false);
           dm.openAreaSupplies = true;

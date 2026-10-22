@@ -638,9 +638,9 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT; the face inlet 22 October about 02:45 CDT, READY TO CLEAR)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT; the face inlet 22 October about 02:45 CDT; AMR step D judged about 04:40 CDT, parked, READY TO CLEAR)
 
-- **Synced with `main`:** on 22 October at about 02:20 CDT, inquiry2 rebased onto `main` 9294aa6. The rebase was clean, and `main` had changed only docs. Earlier, the Director merged step C at 02:47 on 21 October (af91015). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`. This session's worktree guard refuses git commands on the main checkout, so inquiry2 cannot fast-forward `main` itself.
+- **Synced with `main`:** on 22 October at about 02:20 CDT, inquiry2 rebased onto `main` 9294aa6, and at about 04:38 onto `main` 880d362 (the Director's merge of b84ae3a, with the engine DB's round 3). Both rebases were clean. Earlier, the Director merged step C at 02:47 on 21 October (af91015). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`. This session's worktree guard refuses git commands on the main checkout, so inquiry2 cannot fast-forward `main` itself.
 - **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
   - c1 passes as a diagnostic: the b-bound with the flag does not cross by 1.2 ms (3,419 K), so the inconsistency drove the bound's pocket.
   - c2 crosses 3,450 K at 2.0750 ms in i 0, j 2, 0.23 ms before the baseline, with T_max 3,524 K at 2.2 ms.
@@ -692,7 +692,23 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
   - the prescribed and clipped ledgers over owned cells;
   - the wall-strip tag on the law's y+.
   - Checks D0 to D4. D1 to D3 are heavy, so run them on backhouse. `crucible_amr_budget` needs a switch for `law` and `hp`.
-  - **Coded in 2ff039f (22 October, about 02:28 CDT), not yet compiled anywhere.** `crucible_amr_budget` takes `wall` (law and hp) and `inert` (no reaction step), and D2 is amended before any run (AMR.md). Built and run on backhouse in `/home/greff/crucible_sd`, tmux `inq2sd`, script `bh_stepd.sh`, outputs in `out/` with a done-file per check and `out/all_done`; D0's parent is `/home/greff/crucible_fi/build`. Judge each check as AMR.md writes it, then record the results there.
+  - **Coded in 2ff039f (22 October, about 02:28 CDT).** `crucible_amr_budget` takes `wall` (law and hp) and `inert` (no reaction step), and D2 was amended before any run (AMR.md). Built and run on backhouse in `/home/greff/crucible_sd` (tmux `inq2sd`, script `bh_stepd.sh`, outputs in `out/`). D0's parent is `/home/greff/crucible_fi/build`.
+  - **Judged (22 October, about 04:40 CDT; AMR.md, *Step D: results*; raw outputs in `docs/evidence/amr_d/`):**
+    - D3 and D4 are met.
+    - D1 is not met as written, on the igniter: 2.143e-14 against 1e-14. Mass, energy and momentum are 2.4e-15, 7.4e-15 and 0, and the ten-times comparisons hold. Step C's tagged run without the wall functions gave 2.8e-15; the cause is not established.
+    - D2 is not met as written: 6.5e-4 on AMR, and the single-level control gives 4.4e-3. So the measure fails on one level too; inferred causes are recorded. A bitwise "untouched since the last prescription" check is proposed in its place; amending D2 is the Director's call.
+    - D0 is met on the dump and C1 comparisons.
+  - **Still running at parking (leave them):** the fast ctest (tmux `inq2sd`; the 64 x 12 finished at about 04:38, its numbers in AMR.md), then check 3, new and parent (tmux `inq2sdc3`, waiting on `out/all_done`). **To score next session:** when `out/all_done` and `out/c3_done` exist, run `printf 'bash /home/greff/crucible_sd/score_sd.sh' | ssh backhouse "wsl bash -l"`. D0 is met if three things hold:
+    - the ctest gives 8 pass and 4 fail, and the 16 sorted rerun FAIL lines are identical to `face_inlet/ctest_2026-10-22_backhouse.txt`'s (the script prints the diff);
+    - `d0_c3.txt` says "check 3 dump identical";
+    - the c3 logs differ only in wall time.
+    - Then record D0's verdict and the 64 x 12's c* and thrust in AMR.md's *Step D: results*, and copy `out/ctest.txt` and `out/ctest_rerun.txt` into `docs/evidence/amr_d/`.
+  - **Can the RL10 central run launch next session? No.** Still missing:
+    1. The driver's run mode. `crucible_rl10_tier1` is still a dry run. The run definition must set `openAreaSupplies`, the LOX slots as closed ports and `plateTemperature` (the F3 block shows the form), and replace G5 and G6 by F3. That is inquiry's line, per `tier1_run_definition.md`.
+    2. Protocol §4's two amendments, inquiry2's: choice 1's face, and decision 7's length scale (the protocol still says "one element pitch"). Both go in before the prediction run.
+    3. The Director's call on step D's two verdicts (D1's igniter, D2's measure) and D0's pending ctest. Also still open: the AMR tag thresholds and the y+ target (criterion 4).
+    4. The budget's two measurements (the spray's cost on S7, the gas-side cost on AMR), the RL10 table rebuilt with its data hash recorded, and the Director's go on the restated budget.
+    - Items 2 and 3 are short. Item 1 is the longest.
 - **The entropy method for `core/medium.*`: accepted as proposed** (the answer is under inquiry's proposal above).
 - **Held from the Director:** Penn State GO2/GH2 is the next validation case after the RL10 contour; the blind engine-set scraper drops outcome columns at ingest; spray subcycling is inquiry's.
 - **Earlier, still standing:** RL10A-3-3A tier 0 is committed, and no measured performance may be read until tier 1 is committed. The failing AMR criteria (0(d), 3(a)'s order, 3(b)'s peak, criterion 2's ten-times comparisons) are the Director's call. The Mascotte driver with average-from 0 segfaults after writing the stations: use average-from 1.

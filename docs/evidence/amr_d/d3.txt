@@ -1,0 +1,42 @@
+step D: wall functions (law) and property corrections (hp)
+AMR criterion 2 on B2: C1 eqtt (resolved walls), base 32 x 6 plus one level, to 8 ms, 1 threads, step C's tags and regridding
+table /home/greff/crucible_wf/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+throat station 16, chamber-end column 8; level 1: 256 of 768 cells active; igniter centroids: 20 fine, 4 base
+  AMR t 0.5000 ms, 4042 base steps (0 redone), 69 s: mass 1.82e-16, energy -1.29e-16, momentum 2.48e-17; igniter 0.499999999999989 J
+    regrids 121, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 1.0000 ms, 8396 base steps (0 redone), 141 s: mass -5.53e-16, energy -6.99e-16, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 1.5001 ms, 12658 base steps (0 redone), 210 s: mass -8.03e-16, energy 1.38e-16, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 2.0000 ms, 16895 base steps (0 redone), 279 s: mass 8.32e-16, energy 7.80e-16, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 2.5001 ms, 21126 base steps (0 redone), 348 s: mass 1.25e-15, energy -1.28e-15, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 3.0001 ms, 25355 base steps (0 redone), 417 s: mass 2.14e-15, energy 6.36e-16, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 3.5001 ms, 29583 base steps (0 redone), 484 s: mass 2.14e-15, energy 0.00e+00, momentum -2.55e-17; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 4.0001 ms, 33811 base steps (0 redone), 550 s: mass 3.20e-15, energy -7.62e-16, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 4.5001 ms, 38039 base steps (0 redone), 616 s: mass 4.43e-15, energy -6.35e-16, momentum -1.89e-17; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 5.0001 ms, 42267 base steps (0 redone), 682 s: mass 3.05e-15, energy -1.14e-15, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 5.5001 ms, 46495 base steps (0 redone), 747 s: mass 3.05e-15, energy 1.90e-15, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 6.0001 ms, 50723 base steps (0 redone), 813 s: mass 1.83e-15, energy -2.54e-16, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 6.5001 ms, 54951 base steps (0 redone), 879 s: mass 3.05e-15, energy 2.54e-16, momentum -2.49e-17; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 7.0001 ms, 59179 base steps (0 redone), 945 s: mass 1.83e-15, energy 1.65e-15, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 7.5001 ms, 63407 base steps (0 redone), 1010 s: mass -2.44e-15, energy 6.73e-15, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  AMR t 8.0000 ms, 67635 base steps (0 redone), 1076 s: mass 2.44e-15, energy 7.36e-15, momentum 0.00e+00; igniter 0.499999999999989 J
+    regrids 181, level 1 active 636 of 768, fill error largest 4.182e-16 (gross 4.258e-16)
+  level 0: table cells 12985920, clamped 53821, outside (direct) 0
+  level 1: table cells 90018886, clamped 273630, outside (direct) 0
+AMR only, not judged: mass 2.441e-15, energy 7.360e-15, momentum 0.000e+00 at the end (largest 5.493e-15, 9.137e-15, 1.685e-15); igniter |E - 0.5 J| 1.071e-14 J; c* 2425.21 m/s, vacuum thrust 1633.34 N; 67635 base steps, 1075.9 s of wall
+AMR only, not judged: 181 regrids, fill error largest 4.182e-16, over the gross content 4.258e-16
+AMR only, not judged: D2's largest residual 1.985e+307
+D3: 1 and 4 threads identical
