@@ -637,7 +637,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
     - 5(b) is met: the 1- and 4-thread dumps are `cmp`-identical.
     - B2's regressions match the recorded values: the same five failures as written, the fixed pattern's c*, thrust and steps identical, and check 3 still passes.
   - **Next for AMR:** the cause of the tagged run's mass error (a test of the inference), then step D's thresholds and criterion 4.
-- **The tagged run's mass error is settled (21 October, about 21:35 to 22:05 CDT; AMR.md, *the tagged run's mass error*, registered c163ee0 before code).**
+- **The tagged run's mass error is settled (21 October, about 21:35 to 22:05 CDT; AMR.md, *the tagged run's mass error*, registered 60c8aa4 before code).**
   - The cause was the budget's plain running sums, not the regrid. The base's owned exchange ran to +16.8 times the gas's mass and level 1's to −15.8 times, so their rounding was set by the throughput. That is H2, measured as T1.
   - With Neumaier compensation (`Flow::accept`; `Amr::budget` reads it), the tagged run's mass error at 8 ms is 0. Its largest over the run is 4.87e-15, against 2.07e-13 plain (T2 met). The fill's summed mass change is −1.1e-16 (T3: H1 excluded).
   - **Criterion 2 passes as stated on the tagged run**, the ten-times comparisons included. The fixed pattern's at-instant mass comparison still fails narrowly (3.6e-15 against 3.0e-15, the single level's luck).

@@ -1,4 +1,4 @@
-# Fast ctest (ctest -LE slow) on 9501b77's code (the compensated exchange sums), Mac, 21 October 2026, about 21:50 to 22:20 CDT, then ctest --rerun-failed --output-on-failure. The build exited 0.
+# Fast ctest (ctest -LE slow) on 0c2c327's code (the compensated exchange sums), Mac, 21 October 2026, about 21:50 to 22:20 CDT, then ctest --rerun-failed --output-on-failure. The build exited 0.
 # The same 7 pass and 4 fail (amr, amr_subcycling, transport, spray) as af91015's record. The 15 sorted FAIL lines of the rerun are identical to that record's, values included (measured: diff; the only differences are the record's header comment and its 'The following tests FAILED:' line).
 Test project /Users/ben/inquiry-project/.claude/worktrees/inquiry2/build
       Start  1: core_verification

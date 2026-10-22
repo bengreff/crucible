@@ -540,7 +540,7 @@ The code follows the setup: `Amr::setTags`, `Amr::regrid`, and `Amr::spread`, th
 - **Step C is complete to its five checks.** The open items are criterion 2's two ten-times comparisons, which also fail with the fixed pattern, and the tagged run's 23-fold mass error, whose cause is inferred, not tested.
 - **Settled since (below, *the tagged run's mass error*):** the cause was the budget's plain sums, not the regrid; with compensated sums, criterion 2 passes as stated on the tagged run.
 
-## Step C: the tagged run's mass error, the test (recorded 21 October, about 21:35 CDT, before its code; c163ee0's text said 04:20, a misreading of the clock)
+## Step C: the tagged run's mass error, the test (recorded 21 October, about 21:35 CDT, before its code; 60c8aa4's text said 04:20, a misreading of the clock)
 
 Check 4's tagged run has a mass error 23 times the fixed pattern's (1.753e-13 against 7.540e-15 at 8 ms; largest over the run 2.070e-13). Its momentum error is 11 times, and its energy error 28 times. Criterion 2 is not settled until the cause is known. There are two candidates.
 
@@ -580,7 +580,7 @@ Check 4's tagged run has a mass error 23 times the fixed pattern's (1.753e-13 ag
 
 ## Step C: the tagged run's mass error, results (21 October, about 21:50 CDT)
 
-The runs are on the Mac, 4 threads, with three jobs at once under a load of about 10. The code is the registered test, uncommitted on c163ee0 when it ran; it is committed with this section. Evidence: `docs/evidence/amr_c/` (the logs' judged lines).
+The runs are on the Mac, 4 threads, with three jobs at once under a load of about 10. The code is the registered test, uncommitted on 60c8aa4 when it ran; it is committed with this section. Evidence: `docs/evidence/amr_c/` (the logs' judged lines).
 
 **The cause is H2, the budget's own sums. The state was conserving all along.**
 
