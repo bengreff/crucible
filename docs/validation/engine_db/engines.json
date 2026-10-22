@@ -254,11 +254,11 @@
         "chamber_pressure_mpa": {
           "value": 5.2607,
           "provenance": "printed",
-          "source": "s2",
-          "locator": "infobox, field 'chamber_pressure'",
-          "original": "763 psi",
+          "source": "s5",
+          "locator": "unpaginated specs list (p.1), row 'CHAMBER PRESSURE (Pc)'",
+          "original": "763 psia",
           "basis": "rated",
-          "note": "Secondary source (Wikipedia infobox); its cited underlying reference is an archived NASA MSFC 'J-2 engine' fact page, not independently verified here."
+          "note": "Round 3: primary source found. NASA's own fact sheet (the document Wikipedia's infobox footnote 'J2fact' cites) prints the identical figure as the secondary infobox (763 psia); treated as confirmation rather than a disagreement. The round-2 flag against NASA SP-8120's separate 700-psi figure for a differently-described point stands unresolved."
         },
         "pressure_station": {
           "value": null,
@@ -268,15 +268,16 @@
         "mixture_ratio": {
           "value": 5.5,
           "provenance": "printed",
-          "source": "s2",
-          "locator": "infobox, field 'mixture_ratio'",
+          "source": "s5",
+          "locator": "unpaginated specs list (p.1), row 'MIXTURE RATIO'; corroborated in body text, p. 6-4 ('propellant utilization' section)",
           "basis": "rated",
-          "note": "Corroborated by s3 (Astronautix, 'Oxidizer to Fuel Ratio: 5.5'), also a secondary site."
+          "note": "Round 3: primary source found, same value as the secondary infobox/Astronautix figures already on file.",
+          "original": "5.5:1 oxidizer to fuel"
         },
         "mixture_ratio_basis": {
           "value": "engine",
           "provenance": "inferred",
-          "note": "Sources do not distinguish engine vs. thrust-chamber mixture ratio."
+          "note": "Sources do not distinguish engine vs. thrust-chamber mixture ratio. Round 3: the primary fact sheet also does not label this engine-level vs. thrust-chamber-only; it describes the propellant-utilization valve varying overall oxidizer flow, consistent with an engine/tank-level ratio, but this is not an explicit statement of the schema's distinction. Provenance left as inferred."
         }
       },
       "geometry": {
@@ -336,14 +337,18 @@
       },
       "injector": {
         "type": {
-          "value": null,
-          "provenance": "missing",
-          "note": "Injector element pattern/type not located in available sources within time budget."
+          "value": "coaxial_shear",
+          "provenance": "inferred",
+          "note": "Round 3: primary fact sheet describes hollow oxidizer posts with fuel nozzles installed over them forming concentric orifices (a coaxial element). It does not say whether a swirl insert is used; no swirl mechanism is mentioned, so recorded as shear-coaxial by inference, not as a printed statement of 'shear' vs 'swirl'.",
+          "source": "s5",
+          "locator": "p. 6-1, 'Thrust Chamber Injector'"
         },
         "element_count": {
-          "value": null,
-          "provenance": "missing",
-          "note": "Not found."
+          "value": 614,
+          "provenance": "printed",
+          "note": "Not found.",
+          "source": "s5",
+          "locator": "p. 6-1, 'Thrust Chamber Injector' ('Six hundred and fourteen hollow oxidizer posts')"
         }
       },
       "temperatures": {
@@ -382,6 +387,12 @@
           "citation": "NASA, Liquid Rocket Engine Nozzles, NASA Space Vehicle Design Criteria (Chemical Propulsion), NASA SP-8120, 1976 (NTRS 19770009165)",
           "url": "https://ntrs.nasa.gov/api/citations/19770009165/downloads/19770009165.pdf",
           "accessed": "2026-10-21"
+        },
+        {
+          "id": "s5",
+          "citation": "NASA Marshall Space Flight Center, \"J-2 Engine Fact Sheet,\" Saturn V News Reference (changed December 1968)",
+          "url": "https://web.archive.org/web/20200808233218/https://www.nasa.gov/centers/marshall/pdf/499245main_J2_Engine_fs.pdf",
+          "accessed": "2026-10-22"
         }
       ],
       "outcome_pointers": [
@@ -424,10 +435,6 @@
           "reason": "Not located."
         },
         {
-          "field": "injector.type",
-          "reason": "Not located in available sources."
-        },
-        {
           "field": "temperatures.fuel_injection_k",
           "reason": "Not located."
         },
@@ -438,9 +445,17 @@
         {
           "field": "cycle.turbine_exhaust",
           "reason": "Important for predictor: turbine exhaust is dumped into the diverging nozzle section near the exit, well downstream of the throat, not combusted in the chamber."
+        },
+        {
+          "field": "injector.type",
+          "reason": "Round 3: coaxial element geometry is printed, but shear vs. swirl is not stated; recorded as coaxial_shear by inference."
+        },
+        {
+          "field": "geometry.expansion_ratio",
+          "reason": "Round 3: another primary-ish source (NASA 'J-2 Engine Fact Sheet', Saturn V News Reference, Dec 1968) prints 27.5:1 for the same bell nozzle, slightly different from the record's printed 27.15 (heroicrelics/R-5860 training-aid figure). Not reconciled; the more specific R-5860 figure is kept."
         }
       ],
-      "notes": "Final, uprated flight version only, per Wikipedia's SA-208/SA-504 label; do not mix with the lower-mixture-ratio early-flight data point (SA-201 to SA-207) mentioned in secondary sources, which is a different operating point of the same engine. Round 2 (21 Oct 2026): throat_diameter_m upgraded from a derived value (exit diameter / sqrt(expansion ratio)) to a printed value from NASA SP-8120 Sec. 2.1.3, which states the J-2's large-scale tube-wall nozzle has a 14.7-in. throat diameter (tolerance +/-0.030 in.). The same source's separate mention of a 700-psi chamber pressure at area ratio 27 (vs. this record's printed 763 psi) is recorded only as a flag; the operating point was not changed."
+      "notes": "Final, uprated flight version only, per Wikipedia's SA-208/SA-504 label; do not mix with the lower-mixture-ratio early-flight data point (SA-201 to SA-207) mentioned in secondary sources, which is a different operating point of the same engine. Round 2 (21 Oct 2026): throat_diameter_m upgraded from a derived value (exit diameter / sqrt(expansion ratio)) to a printed value from NASA SP-8120 Sec. 2.1.3, which states the J-2's large-scale tube-wall nozzle has a 14.7-in. throat diameter (tolerance +/-0.030 in.). The same source's separate mention of a 700-psi chamber pressure at area ratio 27 (vs. this record's printed 763 psi) is recorded only as a flag; the operating point was not changed.Round 3 (22 Oct 2026): chamber_pressure_mpa and mixture_ratio upgraded to primary provenance via the NASA 'J-2 Engine Fact Sheet' (Saturn V News Reference, Dec 1968), obtained as an image-scanned PDF and read by OCR; this is the same document Wikipedia's infobox cites as its source, and its printed figures match the secondary ones exactly. That fact sheet also newly supplies the injector element count and a coaxial element description. Its text separately references 'vehicle 503' for one quoted figure, where the record's existing label cites SA-208/SA-504; the chamber pressure and mixture ratio figures are the engine's standard uprated-production values common to that vehicle run, so the record's single operating point is kept unchanged."
     },
     {
       "id": "j2x_100pct_pl",
@@ -3131,15 +3146,15 @@
         }
       },
       "operating_point": {
-        "label": "nominal design point (distinct from the 112-130 psia flight/ground-test band reported in s1)",
+        "label": "nominal design point (NASA TN D-7400, Table I: nominal design and operating characteristics for a nominal 460-second duty cycle)",
         "chamber_pressure_mpa": {
-          "value": 0.827,
+          "value": 0.848,
           "provenance": "printed",
-          "source": "s2",
-          "locator": "infobox",
-          "original": "120 pounds per square inch (8.3 bar)",
-          "basis": "design",
-          "note": "secondary source; corroborated qualitatively by s1's report of 112 to 130 psia observed across flight/ground tests (s1, Flight-qualification results, item 1), which does not itself give a single nominal value"
+          "source": "s3",
+          "locator": "Table I, 'Ascent-Engine Design Characteristics and Nominal Performance', row 'Chamber pressure'",
+          "original": "84.8 N/cm^2 (123 psia)",
+          "basis": "nominal",
+          "note": "secondary source (Wikipedia, s2) gave 120 psia (0.827 MPa) for this field; kept here only as a note per round-3 rule, replaced by this primary table value"
         },
         "pressure_station": {
           "value": null,
@@ -3162,10 +3177,10 @@
       },
       "geometry": {
         "throat_diameter_m": {
-          "value": 0.116,
+          "value": 0.1165,
           "provenance": "derived",
-          "derivation": "exit_diameter_m / sqrt(expansion_ratio) = 0.7874 / sqrt(46)",
-          "note": "exit_diameter_m and expansion_ratio both from secondary source s2"
+          "derivation": "exit_diameter_m / sqrt(expansion_ratio) = 0.787 / sqrt(45.6)",
+          "note": "exit_diameter_m is still from secondary source s2 (overall engine diameter, inner/outer lip unstated); expansion_ratio is now from primary source s3 (NASA TN D-7400, Table I)"
         },
         "contraction_ratio": {
           "value": null,
@@ -3173,10 +3188,13 @@
           "note": "no chamber diameter found in either source"
         },
         "expansion_ratio": {
-          "value": 46,
+          "value": 45.6,
           "provenance": "printed",
-          "source": "s2",
-          "locator": "infobox"
+          "source": "s3",
+          "locator": "Table I, 'Ascent-Engine Design Characteristics and Nominal Performance', row 'Expansion-area ratio'",
+          "original": "45.6:1",
+          "basis": "nominal",
+          "note": "secondary source (Wikipedia, s2) gave 46:1 for this field; kept here only as a note per round-3 rule, replaced by this primary table value"
         },
         "exit_diameter_m": {
           "value": 0.787,
@@ -3240,6 +3258,12 @@
           "citation": "Wikipedia, 'Ascent Propulsion System' article (secondary source)",
           "url": "https://en.wikipedia.org/wiki/Ascent_Propulsion_System",
           "accessed": "2026-10-21"
+        },
+        {
+          "id": "s3",
+          "citation": "J. C. Hooper III, Performance Analysis of the Ascent Propulsion System of the Apollo Spacecraft, NASA TN D-7400 (JSC S-354), 1973",
+          "url": "https://ntrs.nasa.gov/api/citations/19740005391/downloads/19740005391.pdf",
+          "accessed": "2026-10-22"
         }
       ],
       "outcome_pointers": [
@@ -3259,7 +3283,7 @@
       "flags": [
         {
           "field": "operating_point.chamber_pressure_mpa",
-          "reason": "the primary engine report gives only a flight/ground-test-observed band (112-130 psia), not a single nominal value; the point value used here is from a secondary source"
+          "reason": "round 3: now primary (NASA TN D-7400, Table I), but differs slightly from the secondary source's value, which is kept only in the field's note"
         },
         {
           "field": "operating_point.pressure_station",
@@ -3271,7 +3295,7 @@
         },
         {
           "field": "geometry.throat_diameter_m",
-          "reason": "derived from a secondary source's exit diameter, whose inner/outer lip identity is not stated"
+          "reason": "derived from a secondary source's exit diameter (inner/outer lip unstated); the expansion ratio used is now primary (NASA TN D-7400)"
         },
         {
           "field": "geometry.contour_type",
@@ -3284,6 +3308,10 @@
         {
           "field": "temperatures",
           "reason": "printed value is a bulk-propellant requirement band, not a measured injector-face temperature"
+        },
+        {
+          "field": "operating_point.expansion_ratio",
+          "reason": "round 3: now primary (NASA TN D-7400, Table I), but differs slightly from the secondary source's value, which is kept only in the field's note"
         }
       ],
       "notes": null
@@ -3332,7 +3360,7 @@
           "locator": "infobox",
           "original": "110 psi (760 kPa)",
           "basis": "design",
-          "note": "secondary source; the primary engine report (s1) shows chamber pressure only as an unlabelled strip-chart figure (fig. 18b) with no printed number"
+          "note": "secondary source; the primary engine report (s1) shows chamber pressure only as an unlabelled strip-chart figure (fig. 18b) with no printed number. round 3: no primary source found (searched: NASA TN D-7143, which shows only an unlabelled chamber-pressure strip chart (fig. 18b) with no printed number; NASA TN D-7400's design-characteristics table, the analogous ascent-engine source, has no descent-engine counterpart found; the Apollo 12 DPS final flight evaluation supplement (NTRS 19730078844) notes a chamber-pressure transducer drift/bias error during the FTP analysis and gives no clean corrected design or flight value in the text; no primary value found, secondary value retained)."
         },
         "pressure_station": {
           "value": null,
@@ -3340,12 +3368,13 @@
           "note": "not stated by either source"
         },
         "mixture_ratio": {
-          "value": 1.6,
+          "value": 1.598,
           "provenance": "printed",
-          "source": "s2",
-          "locator": "infobox",
-          "basis": "design",
-          "note": "not found as a number in the primary engine report (s1), which discusses mixture-ratio control only qualitatively"
+          "source": "s3",
+          "locator": "text, engine performance corrected to standard inlet conditions for the FTP portion of the Descent Burn (Apollo 12/LM-6 flight, pre-extended 47.5:1 nozzle)",
+          "original": "1.598",
+          "basis": "test",
+          "note": "secondary source (Wikipedia, s2) gave 1.6 for this field; kept here only as a note per round-3 rule, replaced by this primary flight-measured value"
         },
         "mixture_ratio_basis": {
           "value": "thrust_chamber",
@@ -3427,6 +3456,12 @@
           "citation": "Wikipedia, 'Descent Propulsion System' article (secondary source)",
           "url": "https://en.wikipedia.org/wiki/Descent_Propulsion_System",
           "accessed": "2026-10-21"
+        },
+        {
+          "id": "s3",
+          "citation": "Apollo 12 Mission Report, Supplement 5: Descent Propulsion System Final Flight Evaluation, NASA MSC-01855, 1972",
+          "url": "https://ntrs.nasa.gov/api/citations/19730078844/downloads/19730078844.pdf",
+          "accessed": "2026-10-22"
         }
       ],
       "outcome_pointers": [
@@ -3441,16 +3476,28 @@
           "locator": "infobox",
           "quantity": "isp_vacuum",
           "label": "catalog value, full throttle"
+        },
+        {
+          "source": "s3",
+          "locator": "text, engine performance corrected to standard inlet conditions for the FTP portion of the Descent Burn",
+          "quantity": "thrust_vacuum",
+          "label": "test (Apollo 12 flight, FTP, corrected to standard inlet conditions)"
+        },
+        {
+          "source": "s3",
+          "locator": "text, engine performance corrected to standard inlet conditions for the FTP portion of the Descent Burn",
+          "quantity": "isp_vacuum",
+          "label": "test (Apollo 12 flight, FTP, corrected to standard inlet conditions)"
         }
       ],
       "flags": [
         {
           "field": "operating_point.chamber_pressure_mpa",
-          "reason": "primary source shows only an unlabelled chart of chamber pressure vs time; the point value used is from a secondary source"
+          "reason": "round 3: searched for a primary source (see field note) and found none with a clean printed value; the point value used here remains from a secondary source"
         },
         {
           "field": "operating_point.mixture_ratio",
-          "reason": "not given as a number in the primary source; value is from a secondary source"
+          "reason": "round 3: now primary (Apollo 12 DPS final flight evaluation, NTRS 19730078844, FTP flight value corrected to standard inlet conditions), but differs slightly from the secondary source's value, which is kept only in the field's note"
         },
         {
           "field": "operating_point.pressure_station",
@@ -3471,6 +3518,10 @@
         {
           "field": "temperatures",
           "reason": "propellant injection/bulk temperature not found in either source"
+        },
+        {
+          "field": "operating_point.mixture_ratio",
+          "reason": "round 3 (Director's worker): the mixture ratio is now a flight-measured FTP value corrected to standard inlet conditions, while the chamber pressure is still a secondary design value; the two inputs are not from one measured point."
         }
       ],
       "notes": "The 210/246 psia figures in s1 are the helium pressurization system's regulated (tank/feed) pressure, not chamber pressure; not used as chamber_pressure_mpa."
@@ -3518,7 +3569,8 @@
           "source": "s1",
           "locator": "engine summary table",
           "original": "Chamber Pressure: 54.00 bar (also given as 53.3 atm)",
-          "basis": "unknown"
+          "basis": "unknown",
+          "note": " round 3: no primary source found (searched: NASA NTRS, for 'LR87-AJ-5' and 'LR91-AJ-5' specifically, no matching report; DTIC AD0260333 'Titan II Storable Propellant Handbook' and AD0850432, both inaccessible (HTTP 403) from this environment; Huzel & Huang does not cover the Titan II engines; an AIAA/engine-history survey page was found with engine-design figures, but only for the later -AJ-7 variant, a different operating point not used here per the one-point rule; no primary source found for this -AJ-5 variant; secondary value retained)."
         },
         "pressure_station": {
           "value": null,
@@ -3531,7 +3583,8 @@
           "source": "s1",
           "locator": "engine summary table",
           "original": "Mixture Ratio: 1.93:1 / Oxidizer to Fuel Ratio: 1.93",
-          "basis": "unknown"
+          "basis": "unknown",
+          "note": " round 3: no primary source found (searched: NASA NTRS, for 'LR87-AJ-5' and 'LR91-AJ-5' specifically, no matching report; DTIC AD0260333 'Titan II Storable Propellant Handbook' and AD0850432, both inaccessible (HTTP 403) from this environment; Huzel & Huang does not cover the Titan II engines; an AIAA/engine-history survey page was found with engine-design figures, but only for the later -AJ-7 variant, a different operating point not used here per the one-point rule; no primary source found for this -AJ-5 variant; secondary value retained)."
         },
         "mixture_ratio_basis": {
           "value": "engine",
@@ -3555,7 +3608,8 @@
           "provenance": "printed",
           "source": "s1",
           "locator": "engine summary table",
-          "original": "Expansion Ratio: 8:1 / Area Ratio: 8"
+          "original": "Expansion Ratio: 8:1 / Area Ratio: 8",
+          "note": " round 3: no primary source found (searched: NASA NTRS, for 'LR87-AJ-5' and 'LR91-AJ-5' specifically, no matching report; DTIC AD0260333 'Titan II Storable Propellant Handbook' and AD0850432, both inaccessible (HTTP 403) from this environment; Huzel & Huang does not cover the Titan II engines; an AIAA/engine-history survey page was found with engine-design figures, but only for the later -AJ-7 variant, a different operating point not used here per the one-point rule; no primary source found for this -AJ-5 variant; secondary value retained)."
         },
         "contour_type": {
           "value": null,
@@ -3651,6 +3705,18 @@
         {
           "field": "sources",
           "reason": "only a secondary source (Astronautix) was available for this engine; no primary source opened"
+        },
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "round 3: searched for a primary source for this -AJ-5 variant and found none accessible; the value used here remains from a secondary source (Astronautix)"
+        },
+        {
+          "field": "operating_point.mixture_ratio",
+          "reason": "round 3: searched for a primary source for this -AJ-5 variant and found none accessible; the value used here remains from a secondary source (Astronautix)"
+        },
+        {
+          "field": "geometry.expansion_ratio",
+          "reason": "round 3: searched for a primary source for this -AJ-5 variant and found none accessible; the value used here remains from a secondary source (Astronautix)"
         }
       ],
       "notes": "LR87 is a twin-chamber engine with individual turbopumps per chamber; the values here are treated as per-chamber (standard practice for this source), except the overall engine 'Diameter' figure, which is not used because of the twin-chamber ambiguity noted above."
@@ -3698,7 +3764,8 @@
           "source": "s1",
           "locator": "engine summary table",
           "original": "Chamber Pressure: 56.20 bar",
-          "basis": "unknown"
+          "basis": "unknown",
+          "note": " round 3: no primary source found (searched: NASA NTRS, for 'LR87-AJ-5' and 'LR91-AJ-5' specifically, no matching report; DTIC AD0260333 'Titan II Storable Propellant Handbook' and AD0850432, both inaccessible (HTTP 403) from this environment; Huzel & Huang does not cover the Titan II engines; an AIAA/engine-history survey page was found with engine-design figures, but only for the later -AJ-7 variant, a different operating point not used here per the one-point rule; no primary source found for this -AJ-5 variant; secondary value retained)."
         },
         "pressure_station": {
           "value": null,
@@ -3711,7 +3778,8 @@
           "source": "s1",
           "locator": "engine summary table",
           "original": "Mixture Ratio: 1.80 / Oxidizer to Fuel Ratio: 1.8",
-          "basis": "unknown"
+          "basis": "unknown",
+          "note": " round 3: no primary source found (searched: NASA NTRS, for 'LR87-AJ-5' and 'LR91-AJ-5' specifically, no matching report; DTIC AD0260333 'Titan II Storable Propellant Handbook' and AD0850432, both inaccessible (HTTP 403) from this environment; Huzel & Huang does not cover the Titan II engines; an AIAA/engine-history survey page was found with engine-design figures, but only for the later -AJ-7 variant, a different operating point not used here per the one-point rule; no primary source found for this -AJ-5 variant; secondary value retained)."
         },
         "mixture_ratio_basis": {
           "value": "engine",
@@ -3736,7 +3804,8 @@
           "provenance": "printed",
           "source": "s1",
           "locator": "engine summary table",
-          "original": "Area Ratio: 49.2"
+          "original": "Area Ratio: 49.2",
+          "note": " round 3: no primary source found (searched: NASA NTRS, for 'LR87-AJ-5' and 'LR91-AJ-5' specifically, no matching report; DTIC AD0260333 'Titan II Storable Propellant Handbook' and AD0850432, both inaccessible (HTTP 403) from this environment; Huzel & Huang does not cover the Titan II engines; an AIAA/engine-history survey page was found with engine-design figures, but only for the later -AJ-7 variant, a different operating point not used here per the one-point rule; no primary source found for this -AJ-5 variant; secondary value retained)."
         },
         "exit_diameter_m": {
           "value": 1.68,
@@ -3834,6 +3903,18 @@
         {
           "field": "sources",
           "reason": "only a secondary source (Astronautix) was available for this engine; no primary source opened"
+        },
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "round 3: searched for a primary source for this -AJ-5 variant and found none accessible; the value used here remains from a secondary source (Astronautix)"
+        },
+        {
+          "field": "operating_point.mixture_ratio",
+          "reason": "round 3: searched for a primary source for this -AJ-5 variant and found none accessible; the value used here remains from a secondary source (Astronautix)"
+        },
+        {
+          "field": "geometry.expansion_ratio",
+          "reason": "round 3: searched for a primary source for this -AJ-5 variant and found none accessible; the value used here remains from a secondary source (Astronautix)"
         }
       ],
       "notes": null
@@ -4215,7 +4296,7 @@
           "locator": "specifications infobox ('Chamber pressure: 3.7 MPa (37 bar)')",
           "original": "3.7 MPa (37 bar)",
           "basis": "rated",
-          "note": "secondary source (Wikipedia); the same article's narrative text elsewhere gives a different figure, 3.5 MPa, for what appears to be the same rated point -- an internal inconsistency in this secondary source. The primary source (s1, Isselhorst 2010) only plots simulated/measured transient chamber pressure traces (Fig. III-1, axis in bar) during start-up and never prints a single steady-state design number, so no primary value could be substituted"
+          "note": "secondary source (Wikipedia); the same article's narrative text elsewhere gives a different figure, 3.5 MPa, for what appears to be the same rated point -- an internal inconsistency in this secondary source. The primary source (s1, Isselhorst 2010) only plots simulated/measured transient chamber pressure traces (Fig. III-1, axis in bar) during start-up and never prints a single steady-state design number, so no primary value could be substituted. round 3: no primary source found (searched: A. Isselhorst, AIAA 2010-7047 (ESPSS sim. paper, s1 -- plots only transient start-up/shutdown pressure traces, Fig. III-1/III-7, no steady design figure printed); Ariane 5 User's Manual, Issue 5 Rev. 2, Oct. 2016 (Arianespace) -- HM7B entry gives only envelope dims and outcome figures, no chamber-pressure or mixture-ratio table; Mansouri, Lekeux & Pander, 'From Qualification to 4th Year of Exploitation: HM7B on Ariane 5 ECA,' 45th AIAA/ASME/SAE/ASEE JPC, 2009 -- located but full text behind an access wall, not opened))"
         },
         "pressure_station": {
           "value": "unspecified",
@@ -4228,7 +4309,7 @@
           "source": "s2",
           "locator": "specifications infobox ('Mixture ratio: 5:1')",
           "basis": "rated",
-          "note": "secondary source (Wikipedia)"
+          "note": "secondary source (Wikipedia). round 3: no primary source found (searched: A. Isselhorst, AIAA 2010-7047 (ESPSS sim. paper, s1 -- plots only transient start-up/shutdown pressure traces, Fig. III-1/III-7, no steady design figure printed); Ariane 5 User's Manual, Issue 5 Rev. 2, Oct. 2016 (Arianespace) -- HM7B entry gives only envelope dims and outcome figures, no chamber-pressure or mixture-ratio table; Mansouri, Lekeux & Pander, 'From Qualification to 4th Year of Exploitation: HM7B on Ariane 5 ECA,' 45th AIAA/ASME/SAE/ASEE JPC, 2009 -- located but full text behind an access wall, not opened))"
         },
         "mixture_ratio_basis": {
           "value": "unspecified",
@@ -4252,12 +4333,19 @@
           "provenance": "printed",
           "source": "s2",
           "locator": "specifications infobox ('Nozzle ratio: 83.1:1')",
-          "note": "secondary source (Wikipedia); no primary confirmation found"
+          "note": "secondary source (Wikipedia); no primary confirmation found. round 3: no primary source found (searched: A. Isselhorst, AIAA 2010-7047 (ESPSS sim. paper, s1 -- plots only transient start-up/shutdown pressure traces, Fig. III-1/III-7, no steady design figure printed); Ariane 5 User's Manual, Issue 5 Rev. 2, Oct. 2016 (Arianespace) -- HM7B entry gives only envelope dims and outcome figures, no chamber-pressure or mixture-ratio table; Mansouri, Lekeux & Pander, 'From Qualification to 4th Year of Exploitation: HM7B on Ariane 5 ECA,' 45th AIAA/ASME/SAE/ASEE JPC, 2009 -- located but full text behind an access wall, not opened))"
         },
         "contour_type": {
           "value": null,
           "provenance": "missing",
           "note": "not stated in either source"
+        },
+        "chamber_cooling": {
+          "value": "combined",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. II, HM7B schematic component list ('1 regenerative cooled combustion chamber incl. gaseous hydrogen tap-of'; '1 dump-cooled supersonic nozzle extension')",
+          "note": "primary source (s1, Isselhorst AIAA 2010-7047): the thrust chamber proper is regeneratively cooled (with a gaseous-hydrogen tap-off for LH2-tank pressurization), while the supersonic nozzle extension downstream is dump-cooled (an open, expendable coolant flow, dumped overboard, distinct from the closed regenerative circuit on the chamber)."
         }
       },
       "injector": {
@@ -4345,9 +4433,13 @@
         {
           "field": "cycle.turbine_exhaust",
           "reason": "predictor should know the gas-generator turbine exhaust is dumped overboard through its own nozzle, separate from the main thrust-chamber nozzle, and so is not part of the thrust-chamber expansion that a nozzle-flow model would compute"
+        },
+        {
+          "field": "geometry.chamber_cooling",
+          "reason": "the chamber (regenerative) and the nozzle extension (dump-cooled) use different cooling schemes; a predictor must not treat the whole nozzle as regeneratively cooled, and the dump-cooling flow is an open loss not recirculated to the injector."
         }
       ],
-      "notes": "HM7B is the weakest-documented record of this batch: beyond the gas-generator cycle fact and the turbopump exhaust-routing detail (both primary, from s1), every other field rests on a single secondary source (s2, Wikipedia) that is internally inconsistent on chamber pressure."
+      "notes": "HM7B is the weakest-documented record of this batch: beyond the gas-generator cycle fact and the turbopump exhaust-routing detail (both primary, from s1), every other field rests on a single secondary source (s2, Wikipedia) that is internally inconsistent on chamber pressure. Round 3: searched for primary confirmation of the operating point (none found, see per-field notes); added a primary-sourced (s1) chamber-cooling split (regenerative chamber / dump-cooled nozzle extension) not previously recorded."
     },
     {
       "id": "vinci_a5me_full",
@@ -4777,7 +4869,7 @@
           "source": "s3",
           "locator": "article text, 'oxidizer-to-fuel ratio is 1.65-to-1'",
           "basis": "rated",
-          "note": "secondary source (Wikipedia); the maker data sheet (s1) and the primary design-history paper (s2) do not print a mixture ratio for this engine specifically"
+          "note": "secondary source (Wikipedia, s3); the maker data sheet's AJ10-190 block (s1) prints no mixture-ratio row at all (only an adjacent, separate AJ10-220 reaction-control-thruster block on the same page prints a mixture ratio, a different engine); the primary design-history paper (s2, AIAA-85-1694) prints a mixture ratio only for an early concept configuration using a derivative of the LM engine, not the final flight AJ10-190, so it is not used here. round 3: no primary source found (searched: maker data sheet s1's AJ10-190 block; AIAA-85-1694 s2, full text; AIAA 2014-3882, cited by s1 as a further reference, not accessible)."
         },
         "mixture_ratio_basis": {
           "value": "thrust_chamber",
@@ -4917,7 +5009,7 @@
       "flags": [
         {
           "field": "operating_point.mixture_ratio",
-          "reason": "only found in a secondary source (Wikipedia); neither primary source prints a mixture ratio for this engine"
+          "reason": "round 3: searched for a primary source (see field note) and found none specific to this engine; the point value used here remains from a secondary source"
         },
         {
           "field": "geometry.throat_diameter_m",
@@ -5244,7 +5336,7 @@
           "source": "s1",
           "locator": "infobox, 'Chamber pressure: 11 bar'",
           "original": "11 bar",
-          "note": "secondary source (Wikipedia); no primary ESA/Astrium document opened in the time available restates this figure",
+          "note": "secondary source (Wikipedia); no primary ESA/Astrium document opened in the time available restates this figure. round 3: no primary source found (searched: G. Schmidt, G. Langel & H. Zewen, 'Development status of the Ariane 5 upper-stage AESTUS engine,' AIAA 93-2131, 29th AIAA/ASME/SAE/ASEE JPC, 1993 -- located, names the actual flight engine, but full text behind an access wall, not opened; AIAA 97-3347 'Storable upper stage engine for global applications -- Aestus II' -- located but covers the Aestus II derivative, a different engine, and is also paywalled; DLR IAC-11-D2.4.8 (on file, s3) -- its Table 1 figures are for the 'AESTUS 2' and 'BERTA' concept studies, not the flight Aestus, so not usable for this variant; C. Maeding et al., EUCASS 2011 (on file, s2) -- injector-technology survey, names the AESTUS injector type but prints no chamber pressure or mixture ratio; NATO RTO-EN-AVT-150 (Haidn, 'Advanced Rocket Engines') lecture notes tabulate an AESTUS chamber pressure, but the table's stated sources are Isakowitz's compiled guide and Astronautix -- both secondary -- so not used as primary))",
           "basis": "nominal"
         },
         "pressure_station": {
@@ -5258,7 +5350,7 @@
           "source": "s1",
           "locator": "infobox, 'Mixture ratio: 1.9'",
           "original": "1.9",
-          "note": "secondary source; the infobox labels this only 'mixture ratio' without stating oxidizer:fuel or fuel:oxidizer ordering explicitly, though oxidizer:fuel is the conventional reading for this engine class",
+          "note": "secondary source; the infobox labels this only 'mixture ratio' without stating oxidizer:fuel or fuel:oxidizer ordering explicitly, though oxidizer:fuel is the conventional reading for this engine class. round 3: no primary source found (searched: G. Schmidt, G. Langel & H. Zewen, 'Development status of the Ariane 5 upper-stage AESTUS engine,' AIAA 93-2131, 29th AIAA/ASME/SAE/ASEE JPC, 1993 -- located, names the actual flight engine, but full text behind an access wall, not opened; AIAA 97-3347 'Storable upper stage engine for global applications -- Aestus II' -- located but covers the Aestus II derivative, a different engine, and is also paywalled; DLR IAC-11-D2.4.8 (on file, s3) -- its Table 1 figures are for the 'AESTUS 2' and 'BERTA' concept studies, not the flight Aestus, so not usable for this variant; C. Maeding et al., EUCASS 2011 (on file, s2) -- injector-technology survey, names the AESTUS injector type but prints no chamber pressure or mixture ratio; NATO RTO-EN-AVT-150 (Haidn, 'Advanced Rocket Engines') lecture notes tabulate an AESTUS chamber pressure, but the table's stated sources are Isakowitz's compiled guide and Astronautix -- both secondary -- so not used as primary))",
           "basis": "nominal"
         },
         "mixture_ratio_basis": {
@@ -5433,7 +5525,7 @@
           "reason": "not printed anywhere opened"
         }
       ],
-      "notes": "Geometry for this engine proved thin within the time available: no primary ESA/Astrium document with a dimensioned drawing or chamber/throat table was located (a thesis-appendix table with a candidate throat-diameter figure was found via search but not opened, and was not used in any case because it appeared to originate from a performance/cycle model rather than a printed hardware dimension). The operating-point and element-count figures therefore rest on a single secondary source (Wikipedia); the injector element type is independently corroborated by s2, a conference paper from the engine's prime contractor (Astrium) that names the AESTUS flight engine directly, but s2 is a generic injector-survey paper and does not itself print Aestus chamber pressure, mixture ratio, expansion ratio, or any performance figure. No source opened for this engine prints a performance number beside a geometry figure."
+      "notes": "Geometry for this engine proved thin within the time available: no primary ESA/Astrium document with a dimensioned drawing or chamber/throat table was located (a thesis-appendix table with a candidate throat-diameter figure was found via search but not opened, and was not used in any case because it appeared to originate from a performance/cycle model rather than a printed hardware dimension). The operating-point and element-count figures therefore rest on a single secondary source (Wikipedia); the injector element type is independently corroborated by s2, a conference paper from the engine's prime contractor (Astrium) that names the AESTUS flight engine directly, but s2 is a generic injector-survey paper and does not itself print Aestus chamber pressure, mixture ratio, expansion ratio, or any performance figure. No source opened for this engine prints a performance number beside a geometry figure. Round 3: an AIAA paper naming the actual flight AESTUS engine (Schmidt, Langel & Zewen, AIAA 93-2131, 1993) and the Aestus II follow-on paper (AIAA 97-3347) were both located by search but neither could be opened (access wall) within the time available; no operating-point or geometry field could be upgraded to primary as a result."
     },
     {
       "id": "viking_4b",
@@ -5473,13 +5565,13 @@
       "operating_point": {
         "label": "nominal (secondary-source variant table)",
         "chamber_pressure_mpa": {
-          "value": 5.927,
+          "value": 5.85,
           "provenance": "printed",
-          "source": "s2",
-          "locator": "Viking 4B row, 'Chamber pressure: 58.5 atm'",
-          "original": "58.5 atm",
-          "note": "secondary source; a different secondary source (s1) gives a single, variant-undifferentiated figure of '5.5 MPa (800 psi)' for the Viking family, about 7% lower than this variant-specific figure; a third source (s3, a NASA translation of a contemporaneous program survey) states chamber pressure was raised 'from 53.5 to 58.5 bar' across Ariane generations, which is close to, and corroborates the magnitude of, this source's 58.5 figure for the later (4B) configuration, modulo the atm-vs-bar unit question noted in s2's own units",
-          "basis": "nominal"
+          "source": "s3",
+          "locator": "Sec. 1 (ARIANE 2 development narrative, original pagination mark '/3'), sentence '...to eliminate combustion chamber pressure fluctuations while increasing combustion chamber pressure (from 53.5 to 58.5 bar)'",
+          "original": "58.5 bar",
+          "basis": "nominal",
+          "note": "round 3: upgraded to a primary source. s3 (NASA TM-77683, an English translation of a contemporaneous German-language Ariane programme survey) states the Viking chamber pressure for this generation directly as '58.5 bar', confirming the unit as bar rather than atm. The secondary source used previously (s2, Braeunig) printed the same digits, '58.5', but labelled them 'atm', giving a value about 1.3% higher (5.927 MPa) than this bar-based reading (5.85 MPa); s2's value is kept here only as a superseded secondary reading, now resolved by s3 as a probable unit mislabelling in s2. Separately (carried over from an earlier round's note): a different secondary source (s1) gives a single, variant-undifferentiated figure of '5.5 MPa (800 psi)' for the Viking family, about 7% lower than this variant-specific figure; a third source (s3, a NASA translation of a contemporaneous program survey) states chamber pressure was raised 'from 53.5 to 58.5 bar' across Ariane generations, which is close to, and corroborates the magnitude of, this source's 58.5 figure for the later (4B) configuration, modulo the atm-vs-bar unit question noted in s2's own units"
         },
         "pressure_station": {
           "value": null,
@@ -5492,7 +5584,7 @@
           "source": "s2",
           "locator": "Viking 4B row, 'Mixture ratio: 1.70'",
           "original": "1.70",
-          "note": "corroborated by s1, '...in ratio 1.70:1'; ordering (oxidizer:fuel vs. fuel:oxidizer) not explicitly stated by either source, though oxidizer:fuel is the conventional reading",
+          "note": "corroborated by s1, '...in ratio 1.70:1'; ordering (oxidizer:fuel vs. fuel:oxidizer) not explicitly stated by either source, though oxidizer:fuel is the conventional reading. round 3: no primary source found (searched: NASA TM-77683 (s3, on file) -- names Viking and prints the chamber-pressure figure above, but no mixture-ratio or expansion-ratio figure; searched for AIAA/SEP papers on the Viking engine directly (SEP authored several Ariane propulsion papers at JPC in the early 1980s) but none were found accessible by search within the time available; NATO RTO-EN-AVT-150 (Haidn) tabulates Viking 5C/6 (not 4B) figures sourced to Isakowitz/Astronautix, both secondary, so not used)",
           "basis": "nominal"
         },
         "mixture_ratio_basis": {
@@ -5519,7 +5611,7 @@
           "source": "s2",
           "locator": "Viking 4B row, 'Expansion ratio: 30.8:1'",
           "original": "30.8:1",
-          "note": "corroborated exactly by s1's infobox 'Nozzle ratio: 30.8' for the same variant"
+          "note": "corroborated exactly by s1's infobox 'Nozzle ratio: 30.8' for the same variant. round 3: no primary source found (searched: NASA TM-77683 (s3, on file) -- names Viking and prints the chamber-pressure figure above, but no mixture-ratio or expansion-ratio figure; searched for AIAA/SEP papers on the Viking engine directly (SEP authored several Ariane propulsion papers at JPC in the early 1980s) but none were found accessible by search within the time available; NATO RTO-EN-AVT-150 (Haidn) tabulates Viking 5C/6 (not 4B) figures sourced to Isakowitz/Astronautix, both secondary, so not used)"
         },
         "chamber_diameter_m": {
           "value": null,
@@ -5680,9 +5772,17 @@
         {
           "field": "temperatures.oxidizer_injection_k",
           "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "round 3: s3 (primary, NASA TM-77683) prints '58.5 bar' for this value, resolving a unit ambiguity in the previously-used secondary source (s2, Braeunig), which printed the same digits labelled 'atm' (about 1.3% higher once converted). The s2 reading is superseded."
+        },
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "round 3 (Director's worker): the primary chamber pressure (NASA TM-77683) is stated for the Ariane 2 generation's Viking; this record's variant is the Ariane 4 second stage's Viking 4B, so the value is taken to carry over (inferred)."
         }
       ],
-      "notes": "Of the two commonly suggested baseline variants, Viking 4B (second stage) was chosen over Viking 5C (first stage) because s2 tabulates both side by side, allowing the cross-variant throat-consistency check described in geometry.exit_diameter_m's note; no geometry beyond that cross-checked exit/throat pair could be sourced (no chamber diameter, contraction ratio, chamber length, L*, nozzle length, contour, injector type/count, or injection temperatures were printed in any source opened). Source s1 (Wikipedia) and source s2 (Braeunig's compiled specs page) both print thrust and specific-impulse figures directly beside the chamber-pressure, mixture-ratio and expansion-ratio figures used here; those performance figures were read but are not recorded anywhere in this file."
+      "notes": "Of the two commonly suggested baseline variants, Viking 4B (second stage) was chosen over Viking 5C (first stage) because s2 tabulates both side by side, allowing the cross-variant throat-consistency check described in geometry.exit_diameter_m's note; no geometry beyond that cross-checked exit/throat pair could be sourced (no chamber diameter, contraction ratio, chamber length, L*, nozzle length, contour, injector type/count, or injection temperatures were printed in any source opened). Source s1 (Wikipedia) and source s2 (Braeunig's compiled specs page) both print thrust and specific-impulse figures directly beside the chamber-pressure, mixture-ratio and expansion-ratio figures used here; those performance figures were read but are not recorded anywhere in this file. Round 3: the chamber pressure is now primary-sourced (s3, NASA TM-77683), which also resolved a bar-vs-atm unit ambiguity in the secondary source used previously for the same digits. No primary source was found for mixture ratio, expansion ratio, or any geometry/injector/temperature field beyond what was already on file."
     },
     {
       "id": "rd_253",
@@ -5711,9 +5811,9 @@
         "type": {
           "value": "staged_combustion_oxidizer_rich",
           "provenance": "printed",
-          "source": "s1",
-          "locator": "text, 'The RD-253 uses an oxidiser-rich staged combustion cycle'",
-          "note": "corroborated by s2's description of the engine as a closed-cycle ('замкнутой схемы') design"
+          "source": "s3",
+          "locator": "Introduction, para. 3: 'NPO Energomash embarked on a course to develop high pressure, staged combustion, oxidizer rich turbine drive gas rocket engines, and the RD-253...was the first engine of this type'",
+          "note": "round 3: upgraded to a primary source -- this AIAA paper is authored by NPO Energomash's own General Director/General Designer and Chief Designer, the RD-253's maker, and names the RD-253 directly as the first of their oxidizer-rich staged-combustion engines. Previously sourced only to s1 (Wikipedia, secondary); s1's description is corroborated by, and now superseded in provenance by, this primary account."
         },
         "turbine_exhaust": {
           "value": "into_main_chamber",
@@ -5729,7 +5829,7 @@
           "source": "s1",
           "locator": "infobox, 'Chamber pressure: 14.7 MPa (2,130 psi; 147 bar)'",
           "original": "14.7 MPa",
-          "note": "secondary source; s2's infobox gives a conflicting figure, '168,5 атм' (about 17.1 MPa), for what it labels the same engine -- possibly reflecting a later uprated production batch or an infobox mismatch between RD-253 and an uprated derivative (RD-275/RD-275M, for which s1 separately lists higher pressures); the lower, explicitly RD-253-labelled figure from s1 was used",
+          "note": "secondary source; s2's infobox gives a conflicting figure, '168,5 атм' (about 17.1 MPa), for what it labels the same engine -- possibly reflecting a later uprated production batch or an infobox mismatch between RD-253 and an uprated derivative (RD-275/RD-275M, for which s1 separately lists higher pressures); the lower, explicitly RD-253-labelled figure from s1 was used. round 3: no primary source found (searched: B. I. Katorgin & F. J. Chelkis (NPO Energomash) et al., AIAA 93-2415 (s3, on file, the RD-253's own maker) -- states in text that the RD-253 'operated at over 2000 psia' (about 13.8 MPa and up) and plots it on a chamber-pressure-vs-first-flight-year history chart (Figure 1), corroborating the existing value's general magnitude but printing no exact design figure usable to replace it; G. P. Sutton, 'History of Liquid-Propellant Rocket Engines in Russia, Formerly the Soviet Union,' Journal of Propulsion and Power, 2003 -- located, an AIAA/JPP survey paper by Sutton (an explicitly acceptable primary-tier author per the compile rules), but full text behind an access wall, not opened; NATO RTO-EN-AVT-150 (Haidn, 'Advanced Rocket Engines') lecture-note survey tabulates a different figure, but cites Isakowitz's compiled guide and Astronautix for its data, both secondary, so not used; NPO Energomash's own web site and Russian-language technical journals were searched for but not located within the time available)",
           "basis": "nominal"
         },
         "pressure_station": {
@@ -5743,7 +5843,7 @@
           "source": "s1",
           "locator": "infobox, 'Mixture ratio: 2.67'",
           "original": "2.67",
-          "note": "corroborated approximately by s2's rounded '2,6'",
+          "note": "corroborated approximately by s2's rounded '2,6'. round 3: no primary source found (searched: B. I. Katorgin & F. J. Chelkis (NPO Energomash) et al., AIAA 93-2415 (s3, on file, the RD-253's own maker) -- states in text that the RD-253 'operated at over 2000 psia' (about 13.8 MPa and up) and plots it on a chamber-pressure-vs-first-flight-year history chart (Figure 1), corroborating the existing value's general magnitude but printing no exact design figure usable to replace it; G. P. Sutton, 'History of Liquid-Propellant Rocket Engines in Russia, Formerly the Soviet Union,' Journal of Propulsion and Power, 2003 -- located, an AIAA/JPP survey paper by Sutton (an explicitly acceptable primary-tier author per the compile rules), but full text behind an access wall, not opened; NATO RTO-EN-AVT-150 (Haidn, 'Advanced Rocket Engines') lecture-note survey tabulates a different figure, but cites Isakowitz's compiled guide and Astronautix for its data, both secondary, so not used; NPO Energomash's own web site and Russian-language technical journals were searched for but not located within the time available)",
           "basis": "nominal"
         },
         "mixture_ratio_basis": {
@@ -5769,7 +5869,8 @@
           "provenance": "printed",
           "source": "s1",
           "locator": "infobox, 'Nozzle ratio: 26.2'",
-          "original": "26.2"
+          "original": "26.2",
+          "note": "round 3: round 3: no primary source found (searched: B. I. Katorgin & F. J. Chelkis (NPO Energomash) et al., AIAA 93-2415 (s3, on file, the RD-253's own maker) -- states in text that the RD-253 'operated at over 2000 psia' (about 13.8 MPa and up) and plots it on a chamber-pressure-vs-first-flight-year history chart (Figure 1), corroborating the existing value's general magnitude but printing no exact design figure usable to replace it; G. P. Sutton, 'History of Liquid-Propellant Rocket Engines in Russia, Formerly the Soviet Union,' Journal of Propulsion and Power, 2003 -- located, an AIAA/JPP survey paper by Sutton (an explicitly acceptable primary-tier author per the compile rules), but full text behind an access wall, not opened; NATO RTO-EN-AVT-150 (Haidn, 'Advanced Rocket Engines') lecture-note survey tabulates a different figure, but cites Isakowitz's compiled guide and Astronautix for its data, both secondary, so not used; NPO Energomash's own web site and Russian-language technical journals were searched for but not located within the time available)"
         },
         "chamber_diameter_m": {
           "value": null,
@@ -5851,6 +5952,12 @@
           "citation": "Russian Wikipedia, 'RD-253' article (secondary)",
           "url": "https://ru.wikipedia.org/wiki/%D0%A0%D0%94-253",
           "accessed": "2026-10-21"
+        },
+        {
+          "id": "s3",
+          "citation": "B. I. Katorgin & F. J. Chelkis (NPO Energomash), C. D. Limerick (Pratt & Whitney), 'The RD-170, A Different Approach to Launch Vehicle Propulsion,' AIAA 93-2415, 29th AIAA/ASME/SAE/ASEE Joint Propulsion Conference, 1993",
+          "url": null,
+          "accessed": "2026-10-22"
         }
       ],
       "outcome_pointers": [
@@ -5870,7 +5977,7 @@
       "flags": [
         {
           "field": "operating_point.chamber_pressure_mpa",
-          "reason": "two secondary sources disagree substantially (14.7 MPa vs. about 17.1 MPa); possibly a variant/production-batch mismatch, not resolved within the time available"
+          "reason": "two secondary sources disagree substantially (14.7 MPa vs. about 17.1 MPa); possibly a variant/production-batch mismatch, not resolved within the time available; round 3 found a primary source (s3, the engine's own maker) that corroborates only the general magnitude ('over 2000 psia'), and a survey (Haidn/NATO RTO) with a third, secondary-sourced figure (15.2 MPa) -- neither resolves the original disagreement, so the field is unchanged."
         },
         {
           "field": "geometry.exit_diameter_m",
@@ -5929,7 +6036,7 @@
           "reason": "not printed anywhere opened"
         }
       ],
-      "notes": "No primary Energomash/Russian technical-document geometry (chamber diameter, chamber length, L*, cooling, injector) could be located and verified within the time available; a search turned up an unverified secondary claim of a throat diameter on the order of a few centimetres, which is inconsistent with this engine's thrust class by simple order-of-magnitude reasoning and was not used. Both s1 and s2 print thrust and specific-impulse figures directly beside the chamber-pressure, mixture-ratio and dimension figures used here; those performance figures were read but are not recorded anywhere in this file beyond the locator-only outcome_pointers above."
+      "notes": "No primary Energomash/Russian technical-document geometry (chamber diameter, chamber length, L*, cooling, injector) could be located and verified within the time available; a search turned up an unverified secondary claim of a throat diameter on the order of a few centimetres, which is inconsistent with this engine's thrust class by simple order-of-magnitude reasoning and was not used. Both s1 and s2 print thrust and specific-impulse figures directly beside the chamber-pressure, mixture-ratio and dimension figures used here; those performance figures were read but are not recorded anywhere in this file beyond the locator-only outcome_pointers above. Round 3: a genuine primary source was found and used to upgrade cycle.type's provenance (s3, AIAA 93-2415 by the RD-253's own NPO Energomash designers); the same paper corroborates the chamber pressure's magnitude but not its exact value, and the three-way disagreement on chamber pressure across sources (s1, s2, and now a NATO survey citing secondary compilations) remains unresolved. No primary source was found for mixture ratio, expansion ratio, or any geometry/injector/temperature field."
     },
     {
       "id": "h1b",
@@ -5975,13 +6082,13 @@
       "operating_point": {
         "label": "Saturn IB S-IB stage, 'SA-206 and subsequent' effectivity (uprated production block); nominal values from a specifications table",
         "chamber_pressure_mpa": {
-          "value": 4.365,
+          "value": 4.8263,
           "provenance": "printed",
-          "source": "s2",
-          "locator": "Specifications table, row 'Nominal chamber pressure'",
-          "original": "633 psi (4.36 MPa)",
+          "source": "s4",
+          "locator": "Specifications table, row 'Chamber Pressure'",
+          "original": "700 psia",
           "basis": "nominal",
-          "note": "a separate infobox elsewhere in the same article gives 700 psi (4800 kPa) for an unstated point; the two secondary-source figures disagree and are not reconciled here"
+          "note": "Round 3: primary source found (Rocketdyne manufacturer data sheet). Its printed chamber pressure (700 psia) differs from the secondary Wikipedia specifications-table figure previously on file (633 psi / 4.365 MPa); per the round-1 flag, Wikipedia's own article separately carries a 700-psi figure elsewhere, which this primary sheet corroborates. Record now carries the primary value; the secondary 633-psi figure is kept here only as a note, not as the record's value."
         },
         "pressure_station": {
           "value": "unspecified",
@@ -5993,17 +6100,18 @@
         "mixture_ratio": {
           "value": 2.23,
           "provenance": "printed",
-          "source": "s2",
-          "locator": "Specifications table, row 'Mixture ratio'",
-          "original": "2.23 +/- 2%",
-          "basis": "nominal"
+          "source": "s4",
+          "locator": "Specifications table, row 'Mixture Ratio (O/F)'",
+          "original": "2.23:1",
+          "basis": "nominal",
+          "note": "Round 3: primary source found, same value (2.23:1) as the secondary specifications table already on file."
         },
         "mixture_ratio_basis": {
           "value": "unspecified",
           "provenance": "printed",
-          "source": "s2",
+          "source": "s4",
           "locator": "Specifications table",
-          "note": "table gives one engine-level figure without distinguishing thrust-chamber-only ratio"
+          "note": "Round 3: the primary Rocketdyne data sheet also gives one undifferentiated 'Mixture Ratio (O/F)' figure, same as the secondary table; neither source distinguishes an engine-level from a thrust-chamber-only ratio."
         }
       },
       "geometry": {
@@ -6020,10 +6128,10 @@
         "expansion_ratio": {
           "value": 8.0,
           "provenance": "printed",
-          "source": "s2",
-          "locator": "Specifications table, row 'Exit-to-throat area ratio'",
+          "source": "s4",
+          "locator": "Specifications table, row 'Area Ratio'",
           "original": "8:1",
-          "note": "corroborated by s3 (secondary), which separately gives the same area ratio for this block"
+          "note": "Round 3: upgraded to the primary Rocketdyne data sheet, which prints the same 8:1 figure as the secondary table and Astronautix."
         },
         "chamber_diameter_m": {
           "value": null,
@@ -6074,7 +6182,7 @@
           "provenance": "printed",
           "source": "s2",
           "locator": "Description section",
-          "note": "sources call this a 'waterfall' injector (many small individual fuel orifices); no schema enum matches this specific historical term, recorded as 'other'"
+          "note": "sources call this a 'waterfall' injector (many small individual fuel orifices); no schema enum matches this specific historical term, recorded as 'other' Round 3: a primary 1964 NASA contractor report on an earlier H-1 production block (NTRS 19650013470, s5) describes the injector face as divided into alternating fuel/LOX supply rings with a baffle pattern (a copper ring baffle and six radial baffles dividing the face into seven zones); this does not match any schema enum cleanly either, and is for a different engine block than this record's chosen point, so the record's enum value is left as 'other' rather than changed."
         },
         "element_count": {
           "value": null,
@@ -6112,6 +6220,18 @@
           "citation": "H-1b, Encyclopedia Astronautica (Mark Wade; secondary site)",
           "url": "http://www.astronautix.com/h/h-1b.html",
           "accessed": "2026-10-21"
+        },
+        {
+          "id": "s4",
+          "citation": "Rockwell International, Rocketdyne Division, H-1 Rocket Engine (data sheet, Pub. 571-M-80e, New 1-87, Jan. 1987); scan of an item in the Saturn V Collection, Dept. of Archives/Special Collections, M. Louis Salmon Library, University of Alabama in Huntsville (reproduced by heroicrelics.org)",
+          "url": "http://heroicrelics.org/info/h-1/h-1-fact-sheet/H-1%20Rocket%20Engine%20Fact%20Sheet%20(small).pdf",
+          "accessed": "2026-10-22"
+        },
+        {
+          "id": "s5",
+          "citation": "Chrysler Corporation Space Division (for MSFC), Saturn I Launch Vehicle SA-10 and Launch Complex 37B Functional Systems Description, Volume VIII: H-1 Engine and Hydraulic System Functional Description (SDES-64-415 Vol. VIII / NASA-CR-62503, 1964) (NTRS 19650013470)",
+          "url": "https://ntrs.nasa.gov/api/citations/19650013470/downloads/19650013470.pdf",
+          "accessed": "2026-10-22"
         }
       ],
       "outcome_pointers": [
@@ -6126,6 +6246,18 @@
           "locator": "Specifications table, row 'Thrust (sea level)'",
           "quantity": "thrust_sea_level",
           "label": "rated, SA-206 and subsequent"
+        },
+        {
+          "source": "s4",
+          "locator": "Specifications table, row 'Specific Impulse'",
+          "quantity": "isp_sea_level",
+          "label": "rated"
+        },
+        {
+          "source": "s4",
+          "locator": "Specifications table, row 'Thrust'",
+          "quantity": "thrust_sea_level",
+          "label": "rated"
         }
       ],
       "flags": [
@@ -6139,7 +6271,7 @@
         },
         {
           "field": "operating_point.chamber_pressure_mpa",
-          "reason": "a different secondary-source figure (700 psi) exists for an unstated point in the same article; not reconciled"
+          "reason": "Round 3: the record's chamber pressure now follows a primary Rocketdyne data sheet (700 psia), which disagrees with the secondary Wikipedia specifications-table figure (633 psi) originally on file; the 700-psi figure is corroborated by a separate figure elsewhere in the same Wikipedia article."
         },
         {
           "field": "operating_point.pressure_station",
@@ -6192,9 +6324,13 @@
         {
           "field": "temperatures.oxidizer_injection_k",
           "reason": "assumed from LOX boiling point, not engine-specific"
+        },
+        {
+          "field": "injector.type",
+          "reason": "Round 3: a primary source for an earlier H-1 production block describes a baffled, concentric-ring injector face, which does not map cleanly to a schema enum either; not applied because it is a different block from this record's point."
         }
       ],
-      "notes": "RL10 sources were not opened in researching this engine. The chosen Rocketdyne technical manual for H-1C/H-1D engine data (the H-1 counterpart to the F-1's R-3896 manual) could not be retrieved from its hosting library site within available time; this record therefore rests on a 1959 design-features memo plus secondary compilations, and its geometry is correspondingly thin."
+      "notes": "RL10 sources were not opened in researching this engine. The chosen Rocketdyne technical manual for H-1C/H-1D engine data (the H-1 counterpart to the F-1's R-3896 manual) could not be retrieved from its hosting library site within available time; this record therefore rests on a 1959 design-features memo plus secondary compilations, and its geometry is correspondingly thin.Round 3 (22 Oct 2026): chamber_pressure_mpa, mixture_ratio and expansion_ratio upgraded to a primary Rocketdyne manufacturer data sheet (s4); its chamber pressure differs from, and supersedes, the secondary figure previously on file (see flag), while mixture ratio and area ratio agree with the secondary figures already on file. A separate 1964 primary contractor report on an earlier H-1 block (s5) was also consulted for injector detail; its figures are not used for the operating point because it describes a different production block."
     },
     {
       "id": "rs27a",
@@ -6246,7 +6382,7 @@
           "locator": "'Combustion Chamber Pressure: 48 atm at injector end'",
           "original": "48 atm at injector end",
           "basis": "nominal",
-          "note": "the same source separately lists 'Chamber Pressure: 49.00 bar' elsewhere on the page; the two figures are close but not identical, and are not reconciled here"
+          "note": "the same source separately lists 'Chamber Pressure: 49.00 bar' elsewhere on the page; the two figures are close but not identical, and are not reconciled here. Round 3: no primary source found (searched: NTRS query 'RS-27A engine' [0 results], NTRS query 'RS-27 rocket engine' [3 results, none on-topic], NTRS query 'MB-3 rocket engine' [2 results, none on-topic], NTRS doc 19730022101 (Delta Model 2914 series description, 1973, RS-27 predecessor, no chamber data), NTRS doc 19760012115 (NASA press kit, Delta/NATO 3-A, no chamber data), NTRS doc 19950017013 (Delta CFD plume paper, passing mention only), ULA Delta II Payload Planner's Guide Dec 2006 [s3] (expansion ratio and cooling only, no chamber pressure or mixture ratio), heroicrelics.org [no RS-27/RS-27A page found], Huzel & Huang SP-125 [no RS-27 mentions found])."
         },
         "pressure_station": {
           "value": "injector_face",
@@ -6260,12 +6396,13 @@
           "source": "s1",
           "locator": "'Mixture Ratio: 2.245:1'",
           "original": "2.245:1",
-          "basis": "nominal"
+          "basis": "nominal",
+          "note": "round 3: no primary source found (searched: NTRS query 'RS-27A engine' [0 results], NTRS query 'RS-27 rocket engine' [3 results, none on-topic], NTRS query 'MB-3 rocket engine' [2 results, none on-topic], NTRS doc 19730022101 (Delta Model 2914 series description, 1973, RS-27 predecessor, no chamber data), NTRS doc 19760012115 (NASA press kit, Delta/NATO 3-A, no chamber data), NTRS doc 19950017013 (Delta CFD plume paper, passing mention only), ULA Delta II Payload Planner's Guide Dec 2006 [s3] (expansion ratio and cooling only, no chamber pressure or mixture ratio), heroicrelics.org [no RS-27/RS-27A page found], Huzel & Huang SP-125 [no RS-27 mentions found])."
         },
         "mixture_ratio_basis": {
           "value": "engine",
           "provenance": "inferred",
-          "note": "source gives one overall 'Mixture Ratio' figure for the gas-generator-cycle engine; not explicitly labelled thrust-chamber-only vs engine-level"
+          "note": "source gives one overall 'Mixture Ratio' figure for the gas-generator-cycle engine; not explicitly labelled thrust-chamber-only vs engine-level round 3: no primary source found (searched: NTRS query 'RS-27A engine' [0 results], NTRS query 'RS-27 rocket engine' [3 results, none on-topic], NTRS query 'MB-3 rocket engine' [2 results, none on-topic], NTRS doc 19730022101 (Delta Model 2914 series description, 1973, RS-27 predecessor, no chamber data), NTRS doc 19760012115 (NASA press kit, Delta/NATO 3-A, no chamber data), NTRS doc 19950017013 (Delta CFD plume paper, passing mention only), ULA Delta II Payload Planner's Guide Dec 2006 [s3] (expansion ratio and cooling only, no chamber pressure or mixture ratio), heroicrelics.org [no RS-27/RS-27A page found], Huzel & Huang SP-125 [no RS-27 mentions found])."
         }
       },
       "geometry": {
@@ -6282,9 +6419,9 @@
         "expansion_ratio": {
           "value": 12.0,
           "provenance": "printed",
-          "source": "s1",
-          "locator": "'Area Ratio: 12'",
-          "note": "Wikipedia's RS-27 article separately confirms the RS-27A's nozzle was extended to increase area ratio from 8:1 (base RS-27) to 12:1"
+          "source": "s3",
+          "locator": "'The Rocketdyne RS-27A main engine has a 12:1 expansion ratio'",
+          "note": "round 3: upgraded to a primary source (s3); value unchanged from the secondary figure already on file (Astronautix, s1, and corroborated by Wikipedia, s2, as the extension from RS-27's 8:1 to RS-27A's 12:1)."
         },
         "chamber_diameter_m": {
           "value": null,
@@ -6319,8 +6456,9 @@
         "chamber_cooling": {
           "value": "regenerative",
           "provenance": "printed",
-          "source": "s1",
-          "locator": "'Thrust Chamber Cooling: regenerative, two passes of fuel through 292 tubes'"
+          "source": "s3",
+          "locator": "'a regeneratively cooled thrust chamber and nozzle'",
+          "note": "round 3: upgraded to a primary source (s3), 'a regeneratively cooled thrust chamber and nozzle,' for the cooling type itself; the specific implementation detail (two-pass, 292 tubes) remains from the secondary source (s1) only, and is not confirmed by s3."
         },
         "film_cooling_fraction": {
           "value": null,
@@ -6364,6 +6502,12 @@
           "citation": "RS-27, Wikipedia (secondary site)",
           "url": "https://en.wikipedia.org/wiki/RS-27",
           "accessed": "2026-10-21"
+        },
+        {
+          "id": "s3",
+          "citation": "Delta II Payload Planner's Guide, United Launch Alliance, December 2006",
+          "url": "https://www.ulalaunch.com/docs/default-source/rockets/deltaiipayloadplannersguide2007.pdf",
+          "accessed": "2026-10-22"
         }
       ],
       "outcome_pointers": [

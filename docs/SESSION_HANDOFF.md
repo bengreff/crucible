@@ -2,6 +2,46 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (22 October, about 02:30 CDT; READY TO CLEAR)
+
+**The Director's second decision is done: b2's rules and round 3.**
+
+**b2_crucible's RULES.md is committed (9294aa6, 02:03), before any CRUCIBLE run of these engines** (`docs/validation/engine_db/predictions/b2_crucible/RULES.md`).
+- **What it is:** CRUCIBLE's full engine, as for the RL10, on b1's 27 engines at cfd6f12.
+  - Missing geometry is filled by batch-wide rules, each value labelled printed, derived or inferred.
+  - Each inferred source is marked confirmed, secondary or memory. The L* rows other than LOX/RP-1 and the wall temperatures are from memory, and are said so.
+- **The rules:**
+  - the throat's size by cycle class;
+  - CR by the Humble fit;
+  - L* by family;
+  - SP-8120's convergent section and throat arcs;
+  - a Rao 80% bell with 60 and 90% members;
+  - the injection states and the preburner stream;
+  - a generic coax or doublet by phase;
+  - the wall temperature by cooling type;
+  - p_c hit by iterating the mass flow;
+  - b1's engine-basis and sea-level rules.
+- **The prerequisites table:**
+  - The 8 LOX/LH2 engines need the RL10 pipeline, plus the preburner stream for rs25 and le7a.
+  - CH4 (3), kerosene (6) and the storables (10) also need their tables, a liquid-fuel spray and doublets.
+- **Setup items to commit before each family's first run** (*Amendments*):
+  - the SP-8120 Fig. 5 θn/θe readout;
+  - the doublet drop-size correlations (Dickerson; not read yet);
+  - each family's mechanism or surrogate (inquiry2's lane).
+- **The runs wait for the RL10 pipeline.** The sealed step waits for b2's P.
+- **The header says "about 02:10"; git says 02:03.** ENGINE_DB.md notes this.
+
+**Round 3 is done (02:05 to 02:25; ENGINE_DB.md, *Round 3*).** Three Sonnet agents ran in the foreground. Their files passed the screen (0 schema errors; the new masked hits are labels and locators only).
+- **The merge** is committed with this handoff. `engines.json` SHA-256 `0283a115...90e6`.
+- **Now all-primary:** j2_sa208_504, lm_ascent_engine and h1b. h1b's p_c is now 700 psia, b1's member.
+- **9 stay in S,** with the searches noted per field.
+- **b1 and b2 still cite cfd6f12,** with S at 12. A later batch on the new version would have S at 9.
+
+**Next:**
+1. **The RL10 pipeline (inquiry2's lane)** gates every b2 run. After it, the LOX/LH2 family's pilot (rule 13) runs, with the preburner stream built first for rs25 and le7a.
+2. **S7 at about 17:00 CDT,** when low's and high's 35 ms windows land (the steps below, unchanged). No measured value may be read before then.
+3. **Optional, light:** a round 4 for the 9 S engines, from sources that need DTIC or AIAA access. That is for Ben, since it needs access; it is not urgent.
+
 ## Stopped at (22 October, about 01:55 CDT; READY TO CLEAR)
 
 **The engine database's first batch, b1_tier0, is predicted and registered.** This is the Director's brief: Q1 (a), Q2 (a) now and (c) later.

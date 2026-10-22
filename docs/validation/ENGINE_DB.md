@@ -12,6 +12,7 @@ Status: started 21 October 2026, about 03:10 CDT, independent of inquiry2's RL10
 | `compile_rules.md` | The rules the compiling agents were given, verbatim. |
 | `compile_brief_2026-10-21.md` | The rerun's common brief (clock, save per engine), verbatim. |
 | `compile_brief_2026-10-21_round2.md` | Round 2's brief (the same, with the night's clock), verbatim. |
+| `compile_brief_2026-10-22_round3.md` | Round 3's brief (primary sources for group S's 12 records), verbatim. |
 | `sealed_outcome.schema.json` | The outcome schema. Its files (`sealed/<batch>.json`) are written only by the sealed step, after the batch's prediction commit. None exists yet. |
 | `PREDICTION_PROTOCOL.md` | How a blind prediction is committed and later scored. |
 | `predictions/<batch>/` | A batch's RULES.md, its script, its run log and `predictions.json`. |
@@ -201,6 +202,49 @@ As in round 1, only the agents saw those values.
 - **For LOX/kerosene, equilibrium puts that ratio at about 0.08.**
 
 Neither changes the batch: the rules are as committed, and both are in `predictions.json`.
+
+## Batch b2_crucible: rules only (22 October 2026, committed 02:03 CDT by git; the file's header says about 02:10)
+
+**`predictions/b2_crucible/RULES.md` (9294aa6) was committed before any CRUCIBLE run of these engines.** It is a file of its own, since b1's RULES.md is frozen at its P.
+- **The model:** CRUCIBLE's full engine, the same as for the RL10 (the Director, 22 October), on the same 27 engines at cfd6f12.
+- **The fills:** missing geometry is filled by batch-wide rules, each value labelled printed, derived or inferred, with its source's status (confirmed, secondary or memory):
+  - the throat's size by cycle class, from the batch's own printed throats;
+  - CR (Humble's fit), L* by family (Huzel & Huang), the convergent section and throat arcs (SP-8120);
+  - a Rao 80% bell (60 and 90% members);
+  - the injection states, the preburner stream, a generic coax or doublet by phase, the wall temperature by cooling type.
+- **p_c** is hit by iterating the mass flow.
+- **Prerequisites:** a table per propellant family.
+  - Only the 8 LOX/LH2 engines are close: the RL10 pipeline, plus the preburner stream for rs25 and le7a.
+  - CH4, kerosene and the storables need new tables, a liquid-fuel spray and doublets.
+- **The runs wait for the RL10 pipeline.** The sealed step waits for b2's P.
+
+## Round 3: primary sources for group S (22 October 2026, about 02:05 to 02:25 CDT)
+
+**Three Sonnet compilers, run in the foreground under `engine_db/compile_brief_2026-10-22_round3.md`, worked on the 12 group-S records.** Their files passed the screen:
+- `check_specs.py`: 0 errors;
+- `--counts`, then `--masked` on the new strings only: no outcome value, only labels and locators;
+- then the full read of the changed input fields.
+
+Their records replace the 12 in a new `engines.json`. The other 19 records are unchanged, as checked by parsing.
+
+**Under b1's group rule, 3 of the 12 now have p_c, the mixture ratio and ε all from primary sources:**
+- **j2_sa208_504:** the NASA J-2 fact sheet. It also adds the injector (coax) and its post count.
+- **lm_ascent_engine:** NASA TN D-7400, Table I.
+- **h1b:** Rocketdyne's data sheet for the SA-206-on block. Its p_c, 700 psia, is b1's rule-8 member, which replaces the secondary 633 psi.
+
+**9 stay in S, each field noted "round 3: no primary source found (searched: ...)":**
+- **Partly primary now:**
+  - lm_descent_engine: its mixture ratio is a flight-measured value, flagged as not from the same point as its secondary p_c;
+  - aj10_190_oms;
+  - viking_4b: its p_c is from NASA TM-77683, the Ariane 2 generation's figure, flagged as carried over to the 4B;
+  - rs27a.
+- **All three still secondary:** lr87_aj_5, lr91_aj_5, hm7b_rated, aestus_eps and rd_253.
+
+The agents note that DTIC was blocked, and that several AIAA papers they found were inaccessible.
+
+**b1 and b2 are unaffected:** both cite cfd6f12, with S at 12. A later batch on the new version recomputes the groups (S would have 9).
+
+**Blindness:** the compilers read sources that print performance beside the inputs: Wikipedia, Braeunig, the Arianespace manual, the AJ10-190 maker sheet and the Apollo 12 descent evaluation. They recorded none of it, and their messages carried no numbers.
 
 ## Declarations
 
