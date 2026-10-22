@@ -594,7 +594,7 @@ The runs are on the Mac, 4 threads, with three jobs at once under a load of abou
 - **T0.**
   - The tagged run's c* 2446.43 m/s, vacuum thrust 1676.79 N, 67,699 base steps, 1,173 regrids and both printed contents equal check 4's to every printed digit. Met.
   - C1 `eqtt` 64 x 12 to 1 ms: the state dump is `cmp`-identical to the build before. Met.
-  - The fast ctest: see below.
+  - The fast ctest: the same 7 pass and 4 fail as af91015, and the 15 sorted FAIL lines of the rerun are identical, values included (`amr_c/ctest_mass_error_2026-10-21.txt`). Met.
 - **Criterion 2 as stated, on the tagged run: every line passes, the ten-times comparisons included.**
 
   | At 8 ms | AMR | Bound | Verdict |

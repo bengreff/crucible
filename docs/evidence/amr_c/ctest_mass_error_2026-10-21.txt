@@ -1,0 +1,54 @@
+# Fast ctest (ctest -LE slow) on 9501b77's code (the compensated exchange sums), Mac, 21 October 2026, about 21:50 to 22:20 CDT, then ctest --rerun-failed --output-on-failure. The build exited 0.
+# The same 7 pass and 4 fail (amr, amr_subcycling, transport, spray) as af91015's record. The 15 sorted FAIL lines of the rerun are identical to that record's, values included (measured: diff; the only differences are the record's header comment and its 'The following tests FAILED:' line).
+Test project /Users/ben/inquiry-project/.claude/worktrees/inquiry2/build
+      Start  1: core_verification
+ 1/11 Test  #1: core_verification ................   Passed   34.48 sec
+      Start  2: wall_function_verification
+ 2/11 Test  #2: wall_function_verification .......   Passed    0.21 sec
+      Start  4: amr_verification
+ 3/11 Test  #4: amr_verification .................***Failed    0.12 sec
+      Start  5: amr_subcycling_verification
+ 4/11 Test  #5: amr_subcycling_verification ......***Failed   77.91 sec
+      Start  6: thermo_cea_verification
+ 5/11 Test  #6: thermo_cea_verification ..........   Passed   42.67 sec
+      Start  7: reaction_verification
+ 6/11 Test  #7: reaction_verification ............   Passed    1.15 sec
+      Start  8: transport_verification
+ 7/11 Test  #8: transport_verification ...........***Failed  219.45 sec
+      Start  9: turbulence_verification
+ 8/11 Test  #9: turbulence_verification ..........   Passed   50.60 sec
+      Start 11: wall_function_threads
+ 9/11 Test #11: wall_function_threads ............   Passed    0.29 sec
+      Start 13: spray_verification
+10/11 Test #13: spray_verification ...............***Failed   18.81 sec
+      Start 14: mixture_verification
+11/11 Test #14: mixture_verification .............   Passed    4.66 sec
+
+64% tests passed, 4 tests failed out of 11
+
+Total Test time (real) = 450.35 sec
+
+The following tests FAILED:
+	  4 - amr_verification (Failed)
+	  5 - amr_subcycling_verification (Failed)
+	  8 - transport_verification (Failed)
+	 13 - spray_verification (Failed)
+Errors while running CTest
+Output from these tests are in: /Users/ben/inquiry-project/.claude/worktrees/inquiry2/build/Testing/Temporary/LastTest.log
+Use "--rerun-failed --output-on-failure" to re-run the failed cases verbosely.
+# --- rerun FAIL lines, sorted
+(b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.657e-03 (limit 0.001)  FAIL
+256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.384e-03 (limit 0.001)  FAIL
+4b. radial momentum: observed order (two finest grids)     1.444e+00 (limit 1.8e+00)  FAIL
+64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.458e-03 (limit 0.001)  FAIL
+FAIL: 1 failure(s)
+FAILED (3 failures)
+FAILED (5 failures)
+level 1 (300 x 32) closure, relative to the faces                          1.912e-14 (limit 1e-14)  FAIL
+level 2 (600 x 64) closure, relative to the faces                          3.938e-14 (limit 1e-14)  FAIL
+level 3 (1200 x 128) closure, relative to the faces                        8.132e-14 (limit 1e-14)  FAIL
+observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL
+The following tests FAILED:

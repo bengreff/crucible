@@ -641,7 +641,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
   - The cause was the budget's plain running sums, not the regrid. The base's owned exchange ran to +16.8 times the gas's mass and level 1's to −15.8 times, so their rounding was set by the throughput. That is H2, measured as T1.
   - With Neumaier compensation (`Flow::accept`; `Amr::budget` reads it), the tagged run's mass error at 8 ms is 0. Its largest over the run is 4.87e-15, against 2.07e-13 plain (T2 met). The fill's summed mass change is −1.1e-16 (T3: H1 excluded).
   - **Criterion 2 passes as stated on the tagged run**, the ten-times comparisons included. The fixed pattern's at-instant mass comparison still fails narrowly (3.6e-15 against 3.0e-15, the single level's luck).
-  - T0: the state is unchanged (c*, thrust, steps, regrids and contents equal check 4's; C1 64 x 12 `cmp`-identical). The fast ctest result is in the commit after this one (or pending in `/tmp/inq2c/m/ctest.log`, done-file `/tmp/inq2c/m/t_done`).
+  - T0: the state is unchanged (c*, thrust, steps, regrids and contents equal check 4's; C1 64 x 12 `cmp`-identical). The fast ctest gives the same 7 pass and 4 fail, with identical FAIL lines (`docs/evidence/amr_c/ctest_mass_error_2026-10-21.txt`). T0 met.
 - **Next (task 2, the face inlet (a)), not started.** The code sites, found tonight:
   - ring to supply: `core/flow.cpp:424-434` (the refusals at 431 and 433-434);
   - the wall distance's plate: 448;
