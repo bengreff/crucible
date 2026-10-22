@@ -613,6 +613,31 @@ The runs are on the Mac, 4 threads, with three jobs at once under a load of abou
 - **Kept.** `Amr::budget` reads the compensated sums. `Flow::measurements` keeps its plain errors, and prints the compensated ones beside.
 - **Wall time** is 565 s here against 227 s in check 4, from the load. It says nothing about cost.
 
+## Step D: the wall functions and the property corrections across levels, setup (recorded 22 October, about 02:30 CDT, before any of its code)
+
+`Amr` refuses both today (`core/amr.cpp:25-26`), and tier 1 needs both. What the code does on one level, read on 22 October:
+
+- **The corrections are not a face flux.** The corrected k and omega diffusion is formed per cell: the cell's F1, S_n/mu, 1/sqrt(rho) and rho/mu weight the sums of the face values in `axialCorrection_` and `radialCorrection_` (`core/transport.cpp:676-705`). Two cells sharing a face weigh it differently, so even on one level it is not conservative. Its difference from the conventional k sum, Phi_k, enters E and is booked as `correctionEnergy` over the owned cells (`transport.cpp:762`). The design above lists "the property-correction fluxes" among the refluxed arrays, but there is no such flux to reflux. That line is amended here: what is refluxed is the conventional k and omega diffusion the correction replaces, which the registers already carry.
+- **The prescription.** After each stage, each wall cell's rho k and rho omega are set from the law at its state, with E unchanged, and their change is booked as `prescribedTurbulentEnergy` (`core/flow.cpp:1400-1454`). A prescribed cell has no k or omega equation (its turbulence derivative is set to 0). Under `Amr`, `Amr::reflux` then changes the coarse cells beside a finer level after their last prescription, in every component.
+- **The ledgers.** The prescribed and the clipped turbulent energy are summed over all wall cells and all active cells (`flow.cpp:1447, 1453`), covered cells included. Both move energy between k and the internal energy with E unchanged, so neither enters the energy budget; they are reported.
+- **The wall-strip tag** reads the laminar y+ (`core/amr.cpp:369-375`), where the design says the wall function's u_tau.
+
+What step D builds:
+
+1. **Corrections:** Phi_k and Phi_omega stay cell sources from each level's own faces, as on one level, and are not refluxed. The refusal goes for `propertyCorrections`.
+2. **Prescription after the reflux:** after `Amr::reflux(l)`, every prescribed cell of level l the reflux touched is prescribed again from the law at its new state (E unchanged, the change booked), and its admissibility checked. Then at the end of every level step each owned prescribed cell holds the law's k and omega at its state, as on one level. Covered cells keep their children's mean, as every covered cell does. The refusal goes for `wallFunctions`.
+3. **Ledgers over owned cells:** under `Amr` the prescribed and clipped energies are summed over owned cells only. One level is unchanged (its `owned_` is empty, so every cell counts).
+4. **The tag:** with the wall functions on, the wall strip reads the law's y+ at the first cell; otherwise the laminar estimate as now.
+
+Checks, judged as written:
+
+- **D0, nothing else moves.** Without the wall functions and corrections, criterion 2's fixed-pattern dump and check 3's run are `cmp`-identical to 566b12c; C1 `eqtt` 64 x 12 to 1 ms with `law` and `hp` on one level is `cmp`-identical. The fast ctest gives 8 pass and 4 fail, with the sorted FAIL lines identical to the same machine's record: `face_inlet/ctest_2026-10-22_backhouse.txt` on backhouse, `amr_c/ctest_mass_error_2026-10-21.txt` on the Mac.
+- **D1, the budgets with both on.** Criterion 2's tagged case (C1 `eqtt` 32 x 6 plus one level, to 8 ms) with `law` and `hp`. Mass and energy budget errors (the energy net of the summed correction energy) below 1e-12 of the gas's largest mass and largest |energy|; the axial momentum balance below 1e-12 of the largest gross exchange; the igniter exact to 1e-14. The single-level 32 x 6 run's errors with `law` and `hp` are printed beside, and the ten-times comparisons are reported.
+- **D2, the prescription holds.** On D1's run, at the end of every base step, every owned prescribed cell's rho k and rho omega equal the law's at its state to 1e-12 relative, on every level.
+- **D3, determinism:** D1's run on 1 and 4 threads gives `memcmp`-identical states and budgets.
+- **D4, the face inlet on levels with both on:** F3's AMR case (149 x 16, 3 levels) with the wall functions and corrections on passes F3's per-ring and per-supply checks to 1e-12 (`docs/evidence/FACE_INLET.md`).
+- **Reported, not gated:** D1's c*, thrust and light-off time against the uniform 64 x 12 run with `law` and `hp`. Criterion 4 itself still waits for the tag thresholds.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.

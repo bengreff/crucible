@@ -598,7 +598,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT, READY TO CLEAR)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT; the face inlet 22 October about 02:45 CDT, READY TO CLEAR)
 
 - **Synced with `main`:** the Director merged step C at 02:47 (af91015). inquiry2 rebased onto `main` 6674eef and committed on top (70b3dae, AMR.md, and this handoff). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`. This session's worktree guard refuses git commands on the main checkout, so inquiry2 cannot fast-forward `main` itself.
 - **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
@@ -642,16 +642,16 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
   - With Neumaier compensation (`Flow::accept`; `Amr::budget` reads it), the tagged run's mass error at 8 ms is 0. Its largest over the run is 4.87e-15, against 2.07e-13 plain (T2 met). The fill's summed mass change is −1.1e-16 (T3: H1 excluded).
   - **Criterion 2 passes as stated on the tagged run**, the ten-times comparisons included. The fixed pattern's at-instant mass comparison still fails narrowly (3.6e-15 against 3.0e-15, the single level's luck).
   - T0: the state is unchanged (c*, thrust, steps, regrids and contents equal check 4's; C1 64 x 12 `cmp`-identical). The fast ctest gives the same 7 pass and 4 fail, with identical FAIL lines (`docs/evidence/amr_c/ctest_mass_error_2026-10-21.txt`). T0 met.
-- **Next (task 2, the face inlet (a)), not started.** The code sites, found tonight:
-  - ring to supply: `core/flow.cpp:424-434` (the refusals at 431 and 433-434);
-  - the wall distance's plate: 448;
-  - reconstruction at the face: 487 and 1200 (`supply=injector?faceSupply_[j]:-1`);
-  - the inviscid face: 1139-1153;
-  - rates (plate to wall force): 1289;
-  - transport: `neighbours(mesh_,chamber,faceSupply_,...)` at `core/transport.cpp` 161, 181, 266, 567, 581, 612, 710 and 730; the plate's wall faces at 155-173; the law on the plate at 583;
-  - AMR's fine supply: `core/amr.cpp:33-41`;
-  - the adiabatic-law refusal: `core/flow.cpp:107-108`.
-  - Proposed shape: keep `faceSupply_[j]` as the ring's kind for reconstruction, transport and the wall distance (plate if w_j ≥ 1/2, else the supply with the largest φ_sj). Add φ_sj and w_j for the inviscid mixture, the rates and the wall share. Register F1 to F5 (handoff spec) with this choice before coding.
+- **The face inlet (a) and the plate temperature are built and pass F1 to F5 (22 October, about 02:45 CDT; `docs/evidence/FACE_INLET.md` sections 1 to 4).** Registered in d9e2684 before code; code in 566b12c; results in the commit after it (IDs before the rebase onto `main` that follows them; the commit after the rebase maps them).
+  - `Definition::openAreaSupplies` (default off) gives each supply its true annulus on the injector face: ring j takes the share φ_sj of supply s, and its wall share is w_j = 1 − Σφ. A ring is plate if w_j ≥ 1/2, else the supply with the largest φ. A zero-flow supply is a closed port. `Definition::plateTemperature` is empty (use `wallTemperature`) or 0 (adiabatic: the law's recovery form).
+  - Measured on backhouse: F2 3.3e-14 to 4.4e-14 against the ring-centre code; F3 on tier 1's true slots at 149 x 16, 1192 x 128 and 3 AMR levels to 2.5e-14 at most (Flow accepts the true slots, which the ring-centre code refuses); F4 2.9e-16 to 4.6e-16; F5 bit-identical when empty, and the adiabatic plate's q_w is 1e-16 of the side wall's. F1: rl10dev is `cmp`-identical and tier 1's dry run is unchanged. The fast ctest gives 8 pass and 4 fail of 12 (`face_inlet` passes), with the FAIL lines identical to the parent's on backhouse. As written, the Mac record differs in three lines, and the parent gives the same three on backhouse: a second spray KH-RT failure at 1.04e-12, and amr's closures in the third digit. So that difference is the machine's. Backhouse's FAIL lines are now recorded in `face_inlet/ctest_2026-10-22_backhouse.txt`.
+  - The tier-1 driver can now set the switch, the LOX slots as closed ports and `plateTemperature` (its F3 block, `CRUCIBLE_T1_OPEN_AREA=1`, shows the form). The run definition is not changed here.
+- **Next: AMR step D, the wall functions and the corrections across levels, registered in AMR.md (*Step D: ... setup*, 22 October) before any code.** Four pieces:
+  - the corrections stay per-level cell sources, which amends the design's "refluxed correction fluxes";
+  - re-prescribe the prescribed cells the reflux touched;
+  - the prescribed and clipped ledgers over owned cells;
+  - the wall-strip tag on the law's y+.
+  - Checks D0 to D4. D1 to D3 are heavy, so run them on backhouse. `crucible_amr_budget` needs a switch for `law` and `hp`.
 - **The entropy method for `core/medium.*`: accepted as proposed** (the answer is under inquiry's proposal above).
 - **Held from the Director:** Penn State GO2/GH2 is the next validation case after the RL10 contour; the blind engine-set scraper drops outcome columns at ingest; spray subcycling is inquiry's.
 - **Earlier, still standing:** RL10A-3-3A tier 0 is committed, and no measured performance may be read until tier 1 is committed. The failing AMR criteria (0(d), 3(a)'s order, 3(b)'s peak, criterion 2's ten-times comparisons) are the Director's call. The Mascotte driver with average-from 0 segfaults after writing the stations: use average-from 1.
