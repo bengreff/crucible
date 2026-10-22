@@ -2,6 +2,50 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (21 October, about 22:55 CDT; READY TO CLEAR)
+
+**S7 (Mascotte A-10) is not scored: none of the four 25 ms runs is settled, so each is being extended by 10 ms, as section 2 registers** (21e8bf9).
+- **The runs at 25 ms** are in `/home/greff/crucible_s7x/runs`. The brief's `/home/greff/crucible_s7/runs` holds the old pre-change runs, which are not used. All four exited 0.
+- **The half-to-half drift at r <= 20 mm, against the 50 K limit:** low 93.4 K, high 117.5 K, blob 620.7 K, blob-fine 380.6 K (measured). The tables and logs are in `docs/evidence/mascotte/s7_25ms/`.
+- **low and high are steady in mass,** so their drift is the flow's own unsteadiness. The blob legs are still filling with liquid: 0.65 and 0.59 g held, rising 11 to 12 g/s.
+- **The extension** restarts from t = 0, since the driver has no restart. It uses the same code plus `CRUCIBLE_WINDOW`, which writes consecutive 10 ms windows, each as it closes (`<name>_to25_*`, `_to35_*`, ...).
+  - Launched 21:45 CDT in tmux `inqs7z` from `/home/greff/crucible_s7z`.
+  - low and high run to 55 ms and the blob legs to 85 ms, on 4, 4, 4 and 6 threads.
+  - Done-files: `runs/<name>_done` and `all_done`.
+- **Pace (measured at 22:37):** about 2 to 2.2 times slower than the 25 ms runs. Those had 5, 5, 5 and 9 threads. Load now is 26, with three fly `smoke_live.py` jobs on the box.
+- **The 35 ms windows, if this pace holds (inferred from the 25 ms runs' rates):** low and high about 17:00 CDT on 22 October; the blob legs about 36 to 39 h after launch, around 09:00 to 13:00 CDT on 23 October.
+- **The blob legs may hit the 4-day timeout before 85 ms (guessed).** The windows written by then are kept.
+- **Next for S7:**
+  1. Take the first window of each run whose halves differ by 50 K or less.
+  2. Run `tools/mascotte_band.py` on those prefixes.
+  3. Commit section 6.
+  4. Only then, a Sonnet agent digitises [N]'s CARS and [R]'s OH image.
+  5. Judge per section 5 in SPRAY.md S7.
+- Status: `ssh backhouse "wsl bash -l"` with `ls -la /home/greff/crucible_s7z/runs` and the logs' last lines.
+
+**The engine database's round 2 is committed (cfd6f12, S1): 31 engines, 0 schema errors.** `engines.json` SHA-256 is `f6cda983…4c47`.
+- **Added:** LE-5B-3, LE-7A, HM7B, Vinci and CE-20; OMS AJ10-190, R-4D, Aestus, Viking 4B and RD-253; H-1, RS-27A and RD-107.
+- **Usable:** tier0_isp 27, tier0_thrust 14, tier1 none.
+- **The screen:** one value redacted unread (viking_4b's MR-basis note), and the counts reconcile (`docs/evidence/engine_db_screen_round2_2026-10-21.txt`).
+- **The throat agent improved J-2 only.** NASA SP-8120 prints a 14.7 in throat; the same source's 700 psi, against the record's 763 psi, is flagged. ENGINE_DB.md, *Round 2*, has the details.
+- **Primary versus secondary sources:** of the 27 tier0_isp engines, about 15 have an operating point (p_c, MR, ε) from primary sources (16 if OMS's Wikipedia MR is allowed). The other 11 rest on Wikipedia, Astronautix or Braeunig (derived from the records' source fields).
+
+**Next (exact): the batch's RULES.md** (PREDICTION_PROTOCOL §2) before any prediction. It waits on the questions in the reply of 22:55, which are restated here.
+- **Q1 (tiers and blindness):** opening the sealed file ends blindness for every later tier. The recommendation is to commit a tier-0 prediction (RocketCEA ideal rocket plus declared ranges, as RL10's `tier0.py`) for every tier0_isp engine, then hold the sealed step until CRUCIBLE's own prediction on the same engines is committed. One sealing would then score both.
+- **Q2 (secondary-only engines):** recommended: they count, but are scored as a separate group, with a round 3 to find primary sources.
+- **Rules it needs** (each the same for every engine, with a central value and a range):
+  - the missing pressure station;
+  - the open-cycle MR basis, and the turbine flow fraction;
+  - turbine exhaust into the nozzle extension;
+  - throats from envelope or lip-unstated diameters;
+  - missing injection temperatures (normal boiling point or storage);
+  - an unknown contour (the divergence factor's bracket);
+  - shifting versus frozen;
+  - sea-level points and separation;
+  - the CUIP rig, which is c* only;
+  - HM7B's, H-1's and RS-27A's conflicting secondary p_c values.
+- **Ben's direction (goals.md, 20 and 21 October):** "a central value plus a range from rerunning across declared input ranges and model options", after the RL10.
+
 ## Stopped at (21 October, about 03:47 CDT; READY TO CLEAR)
 
 **The blind engine database's specs are committed (caf3051, S0).** The first compile run was killed at 03:19 (worker rule 18) and wrote no spec. The rerun's four Sonnet compilers ran in the foreground, 03:22 to 03:42.
