@@ -33,7 +33,8 @@ Amr::Amr(const Definition& base,int finer) {
         levels_[static_cast<std::size_t>(l)].fineSum.assign(f.faceIntegral_.size(),0.0);
         f.active_.assign(f.mesh_.cells.size(),0);
         // A fine injector ring takes its base parent ring's supply, so the supply areas are the base's.
-        if(base.experiment==Case::Chamber) {
+        // Open-area supplies: each level keeps the shares its own face rings gave it (FACE_INLET.md).
+        if(base.experiment==Case::Chamber && !base.openAreaSupplies) {
             std::fill(f.supplyArea_.begin(),f.supplyArea_.end(),0.0);
             for(int j=0;j<f.mesh_.nr;++j) {
                 const int s=f.faceSupply_[static_cast<std::size_t>(j)]=b.faceSupply_[static_cast<std::size_t>(j>>l)];

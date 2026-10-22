@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "adapters/reaction.hpp"
+#include "core/amr.hpp"
 #include "core/flow.hpp"
 #include "core/spray.hpp"
 #include "tests/rl10_geometry.hpp"
@@ -469,6 +470,87 @@ int main(int argc, char** argv) {
                                                     dm.supplies.size(), settings.injectors.size(), flow.mesh().cells.size()));
         } catch (const std::exception& e) {
           check("G6", false, std::string(name) + ": " + e.what());
+        }
+      }
+      if (std::getenv("CRUCIBLE_T1_OPEN_AREA")) {
+        // F3 (docs/evidence/FACE_INLET.md): the true layout under openAreaSupplies, each ring's LOX slot a
+        // closed port, the valves open (ramp 0) so the face carries every supply's flow at t = 0. Each ring's
+        // face mass flow against sum_s a_sj mdot_s / A_s (a_sj and A_s the true annuli's, computed here);
+        // each supply's face mass flow, sum_j a_sj (rho u)_sj, with rho u from supplyFace against ring j's
+        // first cell, against mdot_s; the engine's supply areas against the true. On AMR (3 levels, every
+        // cell active) the wall functions and the corrections are off, which AMR refuses.
+        auto open = [&](bool amr) {
+          Definition dm = define(nz, nr, false);
+          dm.openAreaSupplies = true;
+          for (int i = 0; i < kRings; ++i) {
+            Supply p = dm.supplies.front();
+            p.innerRadius = rings[i].loxInner;
+            p.outerRadius = rings[i].loxOuter;
+            p.massFlow = 0;
+            p.composition = o2;
+            dm.supplies.push_back(p);
+          }
+          for (Supply& p : dm.supplies) p.ramp = 0;
+          if (amr) dm.turbulence.wallFunctions = dm.turbulence.propertyCorrections = false;
+          return dm;
+        };
+        auto judge = [&](Flow& flow, const std::string& label) {
+          const Definition& dm = flow.definition();
+          const Mesh& fm = flow.mesh();
+          const double face = fm.radius[0];
+          const auto flux = flow.injectorFluxes();
+          auto share = [&](const Supply& p, int j) {
+            const double lo = face * fm.fraction[j], hi = face * fm.fraction[j + 1];
+            return std::max(0.0, kPi * (std::pow(std::min(p.outerRadius, hi), 2) - std::pow(std::max(p.innerRadius, lo), 2)));
+          };
+          double ringError = 0, supplyError = 0, areaError = 0;
+          int touched = 0;
+          for (int j = 0; j < fm.nr; ++j) {
+            double expected = 0;
+            for (const Supply& p : dm.supplies) expected += share(p, j) * p.massFlow * p.opening(0) / (kPi * (p.outerRadius * p.outerRadius - p.innerRadius * p.innerRadius));
+            const double got = fm.axialArea(0, j) * flux[static_cast<std::size_t>(j)][0];
+            ringError = std::max(ringError, expected == 0 ? (got == 0 ? 0.0 : 1.0) : rel(got, expected));
+          }
+          for (std::size_t s = 0; s < dm.supplies.size(); ++s) {
+            const Supply& p = dm.supplies[s];
+            const double area = kPi * (p.outerRadius * p.outerRadius - p.innerRadius * p.innerRadius);
+            areaError = std::max(areaError, rel(flow.supplyAreas()[s], area));
+            const double g = p.massFlow * p.opening(0) / flow.supplyAreas()[s];
+            double sum = 0;
+            for (int j = 0; j < fm.nr; ++j) {
+              const double a = share(p, j);
+              if (!(a > 0)) continue;
+              const std::size_t q = fm.index(0, j);
+              const auto y = flow.massFractions(q);
+              const double rhoU = flow.supplyFace(p, g, flow.cellPrimitive(q), y.data()).flux[0];
+              sum += a * rhoU;
+              if (p.massFlow > 0) { supplyError = std::max(supplyError, rel(rhoU * area, p.massFlow)); ++touched; }
+              else if (rhoU != 0) supplyError = 1;
+            }
+            if (p.massFlow > 0) supplyError = std::max(supplyError, rel(sum, p.massFlow));
+          }
+          check("F3", ringError < 1e-12 && supplyError < 1e-12 && areaError < 1e-12,
+                label + fmt(": %.0f supplies; per ring, face mass flow to %.3g; per supply, face mass flow and rho u A_true "
+                            "(%.0f supply-rings)", dm.supplies.size(), ringError, touched) +
+                    fmt(" to %.3g; supply areas to %.3g (limit 1e-12)", supplyError, areaError));
+        };
+        try {
+          Flow flow(open(false));
+          judge(flow, fmt("%.0f x ", nz) + fmt("%.0f, wall functions and corrections", nr));
+          flow.step();
+          const auto m = flow.measurements();
+          std::printf("     one step: dt %.3e s, budgets mass %.3e, energy %.3e\n", m.dt, m.massBalanceError, m.energyBalanceError);
+        } catch (const std::exception& e) {
+          check("F3", false, std::string("Flow: ") + e.what());
+        }
+        if (nz == 149 && nr == 16) {
+          try {
+            Amr amr(open(true), 2);
+            for (int l = 1; l < amr.levels(); ++l) amr.setActive(l, std::vector<unsigned char>(amr.level(l).mesh().cells.size(), 1));
+            for (int l = 0; l < amr.levels(); ++l) judge(amr.level(l), fmt("AMR level %.0f", l));
+          } catch (const std::exception& e) {
+            check("F3", false, std::string("AMR: ") + e.what());
+          }
         }
       }
       if (nz == meshes.back().first && nr == meshes.back().second) {

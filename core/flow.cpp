@@ -64,6 +64,10 @@ std::vector<double> Definition::massFractions() const {
 void Definition::validate() const {
     if(unityLewis && !(turbulence.enabled && turbulence.consistentFlux && !transport.viscosity.empty()))
         throw std::invalid_argument("Unity Lewis number needs transport and turbulence with the consistent turbulent fluxes.");
+    if((openAreaSupplies || plateTemperature) && experiment!=Case::Chamber)
+        throw std::invalid_argument("Open-area supplies and the plate temperature are a Chamber's.");
+    if(plateTemperature && (!(*plateTemperature>=0) || !std::isfinite(*plateTemperature)))
+        throw std::invalid_argument("The plate temperature must be finite and non-negative.");
     if(nz<4 || nr<1 || static_cast<std::uint64_t>(nz)*nr>16000000)
         throw std::invalid_argument("Mesh must have at least 4 axial / 1 radial cells and at most 16 million cells.");
     for(double x:{length,inletRadius,throatRadius,exitRadius,totalPressure,totalTemperature,
@@ -104,8 +108,7 @@ void Definition::validate() const {
             if(!(x>0) || !std::isfinite(x)) throw std::invalid_argument("Turbulent Prandtl and Schmidt numbers, the wall omega factor and the ambient omega must be positive.");
         if(!(t.ambientK>=0) || !std::isfinite(t.ambientK)) throw std::invalid_argument("Ambient k must be finite and non-negative.");
         if(t.wallFunctions) {
-            if(wallSlip || !(wallTemperature>0))
-                throw std::invalid_argument("Wall functions need no-slip isothermal walls (the adiabatic law is not implemented).");
+            if(wallSlip) throw std::invalid_argument("Wall functions need no-slip walls.");
             if(!(t.wallKappa>0) || !std::isfinite(t.wallKappa) || !std::isfinite(t.wallB))
                 throw std::invalid_argument("Wall-function kappa must be positive and B finite.");
         }
@@ -422,16 +425,19 @@ Flow::Flow(Definition d,Mesh mesh):definition_(d),mesh_(std::move(mesh)),medium_
         ambient_=inletComposition_;
         if(nt_) { ambient_.push_back(d.turbulence.ambientK);ambient_.push_back(d.turbulence.ambientOmega); }
         faceSupply_.assign(d.nr,-1);supplyArea_.assign(d.supplies.size(),0);
-        for(int j=0;j<d.nr;++j) {
-            double centre=mesh_.ringMiddle(0,j);
-            for(std::size_t s=0;s<d.supplies.size();++s)
-                if(centre>=d.supplies[s].innerRadius && centre<d.supplies[s].outerRadius) {
-                    if(faceSupply_[j]>=0) throw std::invalid_argument("Supplies overlap at the injector face.");
-                    faceSupply_[j]=static_cast<int>(s);supplyArea_[s]+=mesh_.axialArea(0,j);
-                }
+        if(d.openAreaSupplies) openAreaShares();
+        else {
+            for(int j=0;j<d.nr;++j) {
+                double centre=mesh_.ringMiddle(0,j);
+                for(std::size_t s=0;s<d.supplies.size();++s)
+                    if(centre>=d.supplies[s].innerRadius && centre<d.supplies[s].outerRadius) {
+                        if(faceSupply_[j]>=0) throw std::invalid_argument("Supplies overlap at the injector face.");
+                        faceSupply_[j]=static_cast<int>(s);supplyArea_[s]+=mesh_.axialArea(0,j);
+                    }
+            }
+            for(double a:supplyArea_)
+                if(!(a>0)) throw std::invalid_argument("A supply contains no injector-face ring centre; widen it or refine the radial mesh.");
         }
-        for(double a:supplyArea_)
-            if(!(a>0)) throw std::invalid_argument("A supply contains no injector-face ring centre; widen it or refine the radial mesh.");
         const auto& g=d.igniter;
         if(g.energy>0) {
             for(std::size_t q=0;q<count;++q) {
@@ -453,6 +459,45 @@ Flow::Flow(Definition d,Mesh mesh):definition_(d),mesh_(std::move(mesh)),medium_
     for(std::size_t q=0;q<count;++q) fractions.insert(fractions.end(),inletComposition_.begin(),inletComposition_.end());
     setInitialState(cells,fractions);
 }
+// Each face ring's shares of the supplies' true annuli (docs/evidence/FACE_INLET.md): a_sj the overlap
+// of supply s with ring j (the ring's own area when the supply covers it whole, so an aligned layout
+// keeps the ring areas bit for bit), phi_sj = a_sj / the ring's area, the supply's area the sum of its
+// a_sj, the wall share w_j = 1 - sum phi (0 below 1e-12), and the ring's kind: the plate if w_j >= 1/2,
+// else its largest supply (the lower index on a tie).
+void Flow::openAreaShares() {
+    const auto& d=definition_;const auto& m=mesh_;
+    const double face=m.radius[0];
+    std::vector<std::size_t> order(d.supplies.size());
+    for(std::size_t s=0;s<order.size();++s) order[s]=s;
+    std::sort(order.begin(),order.end(),[&](std::size_t a,std::size_t b) { return d.supplies[a].innerRadius<d.supplies[b].innerRadius; });
+    for(std::size_t n=1;n<order.size();++n)
+        if(d.supplies[order[n]].innerRadius<d.supplies[order[n-1]].outerRadius) throw std::invalid_argument("Supplies overlap at the injector face.");
+    for(const auto& s:d.supplies)
+        if(s.outerRadius>face*(1+1e-12)) throw std::invalid_argument("A supply reaches past the injector face's wall radius.");
+    faceShares_.clear();shareBegin_.assign(static_cast<std::size_t>(m.nr)+1,0);
+    plateShare_.assign(m.nr,1.0);plateMomentum_.assign(m.nr,0.0);
+    for(int j=0;j<m.nr;++j) {
+        shareBegin_[j]=faceShares_.size();
+        const double lo=face*m.fraction[j],hi=face*m.fraction[j+1];
+        const double area=m.axialArea(0,j);
+        double covered=0,largest=0;
+        for(std::size_t s=0;s<d.supplies.size();++s) {
+            const auto& u=d.supplies[s];
+            double a=u.innerRadius<=lo && u.outerRadius>=hi?area:pi*(sq(std::min(u.outerRadius,hi))-sq(std::max(u.innerRadius,lo)));
+            if(!(a>0)) continue;
+            const double phi=a/area;
+            faceShares_.push_back({j,static_cast<int>(s),phi});supplyArea_[s]+=a;covered+=phi;
+            if(phi>largest) { largest=phi;faceSupply_[j]=static_cast<int>(s); }
+        }
+        double w=1-covered;
+        if(w<1e-12) w=0;
+        plateShare_[j]=w;
+        if(w>=0.5) faceSupply_[j]=-1;
+    }
+    shareBegin_[m.nr]=faceShares_.size();
+    for(double a:supplyArea_)
+        if(!(a>0)) throw std::invalid_argument("A supply has no area on the injector face.");
+}
 void Flow::setThreads(int threads) {
     pool_=std::make_unique<Pool>(threads);
     const auto n=static_cast<std::size_t>(pool_->threads());
@@ -462,6 +507,7 @@ void Flow::setThreads(int threads) {
 }
 void Flow::setBudgetProbe(std::vector<std::size_t> cells,std::vector<double> weights) {
     if(!active_.empty()) throw std::logic_error("Flow::setBudgetProbe: single level only.");
+    if(definition_.openAreaSupplies) throw std::logic_error("Flow::setBudgetProbe: the probe books the ring-centre supplies' faces only.");
     if(weights.size()!=ns_) throw std::invalid_argument("Flow::setBudgetProbe: one weight per species.");
     for(std::size_t q:cells) if(q>=state_.size()) throw std::out_of_range("Flow::setBudgetProbe: no such cell.");
     probe_.cells=std::move(cells);probe_.weights=std::move(weights);
@@ -1138,7 +1184,28 @@ void Flow::axialFace(int i,int j,double time,std::vector<double>& yl,std::vector
     double area=axialArea_[f];
     if(i==0 && d.experiment==Case::Chamber) {
         // Injector face: a supply ring (its species flux is g Y_supply, g = flux[0]) or the closed
-        // plate (a slip wall, no species flux).
+        // plate (a slip wall, no species flux). Open-area supplies: phi_sj of each supply's face and w_j
+        // of the plate's, the species and rho k, rho omega fluxes stored per unit area.
+        if(d.openAreaSupplies) {
+            Conserved sum{};
+            std::fill(transported,transported+nw_,0.0);
+            for(std::size_t n=shareBegin_[j];n<shareBegin_[j+1];++n) {
+                const auto& share=faceShares_[n];const auto& supply=d.supplies[static_cast<std::size_t>(share.supply)];
+                const double g=supply.massFlow*supply.opening(time)/supplyArea_[static_cast<std::size_t>(share.supply)];
+                const auto face=supplyFace(supply,g,r,yr.data());
+                for(int k=0;k<4;++k) sum[k]+=share.phi*face.flux[k];
+                for(std::size_t k=0;k<ns_;++k) transported[k]+=share.phi*face.flux[0]*supply.composition[k];
+                for(std::size_t k=0;k<nt_;++k) transported[ns_+k]+=share.phi*face.turbulenceFlux[k];
+            }
+            plateMomentum_[j]=0;
+            if(const double w=plateShare_[j];w>0) {
+                Thermal t=faceThermal(r,yr.data());
+                const auto plate=faceFlux(d.lowMach,reflect(r,1,0),t,r,t,1,0,true);
+                plateMomentum_[j]=w*plate[1];sum[1]+=plateMomentum_[j];sum[2]+=w*plate[2];
+            }
+            stored=sum;
+            return;
+        }
         if(int s=faceSupply_[j];s>=0) {
             const auto& supply=d.supplies[s];
             double g=supply.massFlow*supply.opening(time)/supplyArea_[s];
@@ -1166,6 +1233,14 @@ void Flow::axialFace(int i,int j,double time,std::vector<double>& yl,std::vector
     stored=faceFlux(d.lowMach,l,tl,r,tr,1,0,i>0 && i<m.nz);
     const auto& y=stored[0]>=0?yl:yr;
     for(std::size_t k=0;k<nw_;++k) transported[k]=area*stored[0]*y[k];
+}
+std::vector<Conserved> Flow::injectorFluxes() {
+    if(definition_.experiment!=Case::Chamber) throw std::logic_error("Flow::injectorFluxes: a Chamber's.");
+    refresh(state_,species_,turbulence_,kWhole);
+    axialSlopes(0,0,mesh_.nr);
+    std::vector<Conserved> out(static_cast<std::size_t>(mesh_.nr));
+    for(int j=0;j<mesh_.nr;++j) { axialFace(0,j,time_,faceFractions_[0],faceFractions_[1]);out[j]=axialFlux_[j]; }
+    return out;
 }
 void Flow::radialFace(int i,int j,std::vector<double>& yl,std::vector<double>& yr) {
     const auto& m=mesh_;
@@ -1213,7 +1288,8 @@ void Flow::gather(std::size_t q,std::vector<Conserved>& derivative,std::vector<d
     derivative[q]=u;
     for(std::size_t k=0;k<nw_;++k) {
         double s=0;
-        if(supply>=0) {
+        if(injector && definition_.openAreaSupplies) s+=axialArea_[a0]*axialTransported_[a0*nw_+k];
+        else if(supply>=0) {
             const double area=axialArea_[a0],g=axialFlux_[a0][0];
             if(k<ns_) s+=area*g*definition_.supplies[supply].composition[k];
             else s+=area*axialTransported_[a0*nw_+k];
@@ -1286,6 +1362,12 @@ Flow::BoundaryRates Flow::rhs(const std::vector<Conserved>& state,const std::vec
     for(int j=0;j<m.nr;++j) {
         if(!isOwned(m.index(0,j))) continue;
         const auto& flux=axialFlux_[j];const double area=axialArea_[j];
+        if(d.experiment==Case::Chamber && d.openAreaSupplies) {
+            // The plate share's pressure force is the wall's; the supplies' shares (closed ports too) the inlet's.
+            rates.wallAxial+=area*plateMomentum_[j];
+            rates.mass+=area*flux[0];rates.energy+=area*flux[3];rates.inlet+=area*flux[0];rates.inletMomentum+=area*(flux[1]-plateMomentum_[j]);
+            continue;
+        }
         if(d.experiment==Case::Chamber && faceSupply_[j]<0) { rates.wallAxial+=area*flux[1];continue; }
         rates.mass+=area*flux[0];rates.energy+=area*flux[3];rates.inlet+=area*flux[0];rates.inletMomentum+=area*flux[1];
     }
