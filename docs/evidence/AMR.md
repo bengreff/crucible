@@ -539,6 +539,44 @@ The code follows the setup: `Amr::setTags`, `Amr::regrid`, and `Amr::spread`, th
     - The budget errors change only at rounding: mass -5.503e-16 against 4.586e-16, and energy 2.361e-15 against 1.653e-15.
 - **Step C is complete to its five checks.** The open items are criterion 2's two ten-times comparisons, which also fail with the fixed pattern, and the tagged run's 23-fold mass error, whose cause is inferred, not tested.
 
+## Step C: the tagged run's mass error, the test (recorded 21 October, about 04:20 CDT, before its code)
+
+Check 4's tagged run has a mass error 23 times the fixed pattern's (1.753e-13 against 7.540e-15 at 8 ms; largest over the run 2.070e-13). Its momentum error is 11 times, and its energy error 28 times. Criterion 2 is not settled until the cause is known. There are two candidates.
+
+- **H1, the regrid's rounding** (the inference recorded above). Each refinement fills a parent's children, which hold its content to rounding. The next average-down then replaces newly covered base cells.
+  - *Arithmetic:* check 2 bounds each filled parent's error at 5.1e-16 of its content. A cell holds about 1/192 of the gas, and the pattern changes by about one parent per regrid (level 1 moves between 500 and 504 active cells). So 1,173 regrids give at most about 1e-14 of the gas's mass even with every error of one sign (derived). That is below what was measured.
+- **H2, the budget's own sums.** Each level adds dt times its owned boundary rates to a plain running sum (`Flow::accept`, `core/flow.cpp:1459`). The composite residual is the base's content less the sum of every level's.
+  - Suppose the tags put the whole injector face on level 1 while the base owns most of the outlet. Then level 1's sum climbs towards +ṁ t and the base's towards −ṁ t, and the residual is their difference.
+  - ṁ t is 0.4 kg/s × 8 ms = 3.2e-3 kg, 18 times the gas's largest mass (1.78e-4 kg; measured).
+  - So each addition rounds at about 1e-19 kg, set by the throughput, not the gas. About 2e5 additions (one per level step) walk to about 6e-17 kg, 3e-13 of the gas's mass (derived). That is the measured size.
+  - With the fixed pattern, level 1 owns rows 0, 1 and 5 of the face and only row 5 of the outlet. Its net is a fraction of the throughput, so its sums stay smaller.
+  - The state itself would then be conserving all along.
+
+**The test.**
+- Each level's integrated mass, energy, correction and momentum exchanges get the igniter's Neumaier compensation (`core/flow.cpp:1453-1456`).
+  - The plain sums stay as they are, bit for bit. A compensation term per sum sits beside each.
+  - `Amr::budget` reads the compensated values.
+  - `Flow::measurements` keeps its plain balance errors, so every existing output stays identical. It adds the compensated ones beside them.
+- The regrid also adds up, signed and compensated, each filled parent's mass change (the children's content less the parent's), to measure H1 directly.
+- Run criterion 2's tagged case to 8 ms on 4 threads, as check 4 did, with the single-level run beside it. Then run the fixed pattern to 8 ms.
+
+**Judged:**
+- **T0, nothing else moves.**
+  - The tagged run's c*, vacuum thrust, base steps, regrids and printed contents equal check 4's to every printed digit.
+  - C1 `eqtt` 64 x 12 to 1 ms, single level: the state dump is `cmp`-identical to the build before.
+  - The fast ctest's 7 pass and 4 fail, with sorted FAIL lines identical to af91015's record.
+- **T1, H2's mechanism.** At 8 ms, H2 predicts that level 1's and the base's integrated mass exchanges each exceed 5 times the gas's largest mass, with opposite signs (printed per level).
+- **T2, decisive for H2.** With compensation, the tagged run's largest mass error over the run is:
+  - at most 2.07e-14, ten times below the uncompensated 2.070e-13; and
+  - at most 10 times the single level's largest over the run, the single level also compensated. This is B1's recorded reading.
+  - The energy and momentum errors are printed beside, with the same reading.
+- **T3, H1 measured.** The summed fill mass change over the regrids, over the gas's largest mass. H1 is excluded as the cause if it is below 1e-14.
+- **Criterion 2 as written** (10 times the single level's error at the 8 ms instant) is judged again and printed. It may still fail on the single level's luck at that instant (B1).
+
+**Outcomes.**
+- If T2 passes, the excess was the budget's arithmetic, not the state. The compensated sums are then kept, and criterion 2 is read on them.
+- If T2 fails, H2 is rejected, and the cause is looked for in the step and the regrid with the per-step residual.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.
