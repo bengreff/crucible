@@ -26,6 +26,8 @@
 // Writes <prefix>_history.csv (every 0.1 ms), <prefix>_stations.csv (T at the CARS stations,
 // time-averaged over [average from, end] and over its two halves), <prefix>_field.csv (time-averaged
 // T, Y_OH and rho Y_OH per cell) and <prefix>_oh.csv (the radially integrated OH per unit length).
+// CRUCIBLE_WINDOW=<s> instead averages over consecutive windows of that length from <average from>, and writes
+// each as <prefix>_to<end ms>_{stations,field,oh}.csv when it closes (section 2's 10 ms extensions in one run).
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -206,10 +208,69 @@ int main(int argc, char** argv) {
                  "t,steps,dt,wall_s,inlet,outlet,p_injector,T_max,parcels,liquid_mass,evaporated,liquid_out,"
                  "mass_budget,energy_budget,liquid_mass_err,liquid_energy_err,table_cells,table_clamped,"
                  "table_fallbacks,audit_T,spray_wall_s\n");
-    Averages all, first, second;
-    const double middle = 0.5 * (averageFrom + endTime);
+    // The averaging windows, in sample indices from averageFrom (one sample per kSample): one window, averageFrom
+    // to endTime, written to <prefix>_*; or, with CRUCIBLE_WINDOW=<s>, consecutive windows of that length from
+    // averageFrom, each written to <prefix>_to<end ms>_* when it closes. That is MASCOTTE_A10_PREDICTION.md
+    // section 2's extension by 10 ms, repeated, in one run. A sample on a boundary belongs to both windows, as it
+    // would to a run ending there and to one averaging from there.
+    struct Window {
+      long from, to;
+      Averages all, first, second;
+      bool written = false;
+    };
+    const char* windowEnv = std::getenv("CRUCIBLE_WINDOW");
+    const long perWindow = std::lround((windowEnv ? std::atof(windowEnv) : endTime - averageFrom) / kSample);
+    std::vector<Window> windows;
+    for (long a = 0; averageFrom + (a + perWindow) * kSample <= endTime + 1e-12; a += perWindow)
+      windows.push_back({a, a + perWindow});
+    if (windows.empty()) windows.push_back({0, perWindow});
     const auto t0 = std::chrono::steady_clock::now();
     double nextPrint = 0, nextSample = averageFrom;
+    long sample = 0;
+    const auto writeWindow = [&](const Window& w) {
+      char end[32];
+      std::snprintf(end, sizeof end, "_to%g", (averageFrom + w.to * kSample) * 1e3);
+      const std::string out = windowEnv ? prefix + end : prefix;
+      FILE* f = std::fopen((out + "_stations.csv").c_str(), "w");
+      std::fprintf(f, "z_mm,r_mm,T,T_first_half,T_second_half\n");
+      double drift = 0;
+      for (double z : kStations)
+        for (int jr = 0; jr < nr; ++jr) {
+          const double r = mesh.cells[mesh.index(0, jr)].r;
+          const double a = station(mesh, w.all, z, jr), b = station(mesh, w.first, z, jr), c = station(mesh, w.second, z, jr);
+          if (r <= 0.020) drift = std::max(drift, std::abs(b - c));
+          std::fprintf(f, "%.1f,%.4f,%.2f,%.2f,%.2f\n", z * 1e3, r * 1e3, a, b, c);
+        }
+      std::fclose(f);
+      f = std::fopen((out + "_field.csv").c_str(), "w");
+      std::fprintf(f, "i,j,z_mm,r_mm,T,Y_OH,rhoY_OH\n");
+      for (int i = 0; i < nz; ++i)
+        for (int jr = 0; jr < nr; ++jr) {
+          const std::size_t q = mesh.index(i, jr);
+          std::fprintf(f, "%d,%d,%.4f,%.4f,%.2f,%.6e,%.6e\n", i, jr, mesh.cells[q].z * 1e3, mesh.cells[q].r * 1e3,
+                       w.all.at(w.all.t, q), w.all.at(w.all.yoh, q), w.all.at(w.all.rhoyoh, q));
+        }
+      std::fclose(f);
+      // OH per unit length, its peak and the downstream half-maximum.
+      f = std::fopen((out + "_oh.csv").c_str(), "w");
+      std::fprintf(f, "z_mm,OH_kg_per_m\n");
+      std::vector<double> line(nz, 0.0);
+      for (int i = 0; i < nz; ++i) {
+        for (int jr = 0; jr < nr; ++jr) {
+          const std::size_t q = mesh.index(i, jr);
+          line[i] += w.all.at(w.all.rhoyoh, q) * mesh.cells[q].volume / mesh.dz;
+        }
+        std::fprintf(f, "%.4f,%.6e\n", (i + 0.5) * mesh.dz * 1e3, line[i]);
+      }
+      std::fclose(f);
+      const int peak = static_cast<int>(std::max_element(line.begin(), line.end()) - line.begin());
+      int half = peak;
+      while (half + 1 < nz && line[half + 1] >= 0.5 * line[peak]) ++half;
+      std::printf("averaged %.4g to %.4g ms (%.0f samples); station T drift between halves (r <= 20 mm): %.1f K\n",
+                  (averageFrom + w.from * kSample) * 1e3, (averageFrom + w.to * kSample) * 1e3, w.all.weight, drift);
+      std::printf("OH per unit length: peak at z %.1f mm, half maximum downstream at z %.1f mm\n",
+                  (peak + 0.5) * mesh.dz * 1e3, (half + 1) * mesh.dz * 1e3);
+    };
     long steps = 0;
     // CRUCIBLE_HOT_TRACE=<K>: the hottest cell, every step, kept in a ring of the last kRing steps; when it
     // first passes <K>, the ring, the next kRing steps and its 9x9 neighbourhood are written to
@@ -364,9 +425,15 @@ int main(int argc, char** argv) {
       } else if (budget && steps % 10 == 0) budgetLines();
       const double now = flow.time();
       if (now >= nextSample - 1e-12 && now >= averageFrom) {
-        all.add(flow, oh, 1);
-        (now < middle ? first : second).add(flow, oh, 1);
+        for (auto& w : windows)
+          if (sample >= w.from && sample <= w.to) {
+            w.all.add(flow, oh, 1);
+            (2 * (sample - w.from) < w.to - w.from ? w.first : w.second).add(flow, oh, 1);
+          }
+        ++sample;
         nextSample += kSample;
+        for (auto& w : windows)
+          if (!w.written && sample > w.to && windowEnv) writeWindow(w), w.written = true;
       }
       if (now >= nextPrint - 1e-12 || now >= endTime) {
         const auto m = flow.measurements();
@@ -394,47 +461,11 @@ int main(int argc, char** argv) {
       budgetLines();
       std::fclose(budget);
     }
-    if (all.weight == 0) return 0;
-
-    FILE* f = std::fopen((prefix + "_stations.csv").c_str(), "w");
-    std::fprintf(f, "z_mm,r_mm,T,T_first_half,T_second_half\n");
-    double drift = 0;
-    for (double z : kStations)
-      for (int jr = 0; jr < nr; ++jr) {
-        const double r = mesh.cells[mesh.index(0, jr)].r;
-        const double a = station(mesh, all, z, jr), b = station(mesh, first, z, jr), c = station(mesh, second, z, jr);
-        if (r <= 0.020) drift = std::max(drift, std::abs(b - c));
-        std::fprintf(f, "%.1f,%.4f,%.2f,%.2f,%.2f\n", z * 1e3, r * 1e3, a, b, c);
-      }
-    std::fclose(f);
-    f = std::fopen((prefix + "_field.csv").c_str(), "w");
-    std::fprintf(f, "i,j,z_mm,r_mm,T,Y_OH,rhoY_OH\n");
-    for (int i = 0; i < nz; ++i)
-      for (int jr = 0; jr < nr; ++jr) {
-        const std::size_t q = mesh.index(i, jr);
-        std::fprintf(f, "%d,%d,%.4f,%.4f,%.2f,%.6e,%.6e\n", i, jr, mesh.cells[q].z * 1e3, mesh.cells[q].r * 1e3,
-                     all.at(all.t, q), all.at(all.yoh, q), all.at(all.rhoyoh, q));
-      }
-    std::fclose(f);
-    // OH per unit length, its peak and the downstream half-maximum.
-    f = std::fopen((prefix + "_oh.csv").c_str(), "w");
-    std::fprintf(f, "z_mm,OH_kg_per_m\n");
-    std::vector<double> line(nz, 0.0);
-    for (int i = 0; i < nz; ++i) {
-      for (int jr = 0; jr < nr; ++jr) {
-        const std::size_t q = mesh.index(i, jr);
-        line[i] += all.at(all.rhoyoh, q) * mesh.cells[q].volume / mesh.dz;
-      }
-      std::fprintf(f, "%.4f,%.6e\n", (i + 0.5) * mesh.dz * 1e3, line[i]);
-    }
-    std::fclose(f);
-    const int peak = static_cast<int>(std::max_element(line.begin(), line.end()) - line.begin());
-    int half = peak;
-    while (half + 1 < nz && line[half + 1] >= 0.5 * line[peak]) ++half;
-    std::printf("averaged %.4g to %.4g ms (%.0f samples); station T drift between halves (r <= 20 mm): %.1f K\n",
-                averageFrom * 1e3, endTime * 1e3, all.weight, drift);
-    std::printf("OH per unit length: peak at z %.1f mm, half maximum downstream at z %.1f mm\n",
-                (peak + 0.5) * mesh.dz * 1e3, (half + 1) * mesh.dz * 1e3);
+    bool any = false;
+    for (auto& w : windows)
+      if (!w.written && w.all.weight > 0) writeWindow(w), w.written = true, any = true;
+      else any = any || w.written;
+    if (!any) return 0;
     const auto ledger = spray.ledger();
     std::printf("liquid: injected %.6e kg, evaporated %.6e kg, out %.6e kg, held %.6e kg; balance errors %.2e %.2e %.2e\n",
                 ledger.injectedMass, ledger.exchangedMass, ledger.outflowMass, spray.liquidMass(),

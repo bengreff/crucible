@@ -1,0 +1,14 @@
+CRUCIBLE_WINDOW (tests/mascotte_a10.cpp), checked on the Mac, 21 October 2026, about 21:40 CDT.
+Short runs: blob, 24 x 70, 2 threads, table build/table_mascotte.bin; samples every 0.05 ms.
+  A  old binary (main before the change), end 0.2 ms, average from 0.1 ms
+  B  new binary, no CRUCIBLE_WINDOW, same arguments as A
+  C  new binary, CRUCIBLE_WINDOW=5e-5, end 0.2 ms, average from 0.1 ms (windows 0.1-0.15 and 0.15-0.2)
+  D  new binary, end 0.15 ms, average from 0.1 ms
+  E  new binary, end 0.2 ms, average from 0.15 ms
+Results (cmp):
+  A = B   stations, field, oh: byte-identical. History identical apart from the two wall-time columns.
+  A = C   history identical apart from the wall-time columns (the option does not touch the run).
+  E = C2  stations, field, oh: byte-identical (a window opening mid-run is the same as a run averaging from there).
+  D vs C1 differ: largest station T difference 0.24 K, with 2 samples per half. D's last step is cut to land on
+          0.15 ms, while C runs on and takes its 0.15 ms sample at the first step after it (within one step,
+          about 2e-8 s). So a window closing mid-run is the same window to within one step at its last sample.

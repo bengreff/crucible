@@ -102,6 +102,18 @@ The correlating group, (V_g − V_L)/(V_L MR), is (317.1 − 2.18)/(2.183 × 2.1
 | blob | Blob (5 mm drops), KH-RT | 239 × 70 | third leg |
 | blob-fine | Blob | 478 × 70 | axial grid check |
 
+**The production runs to 25 ms: none is settled, so each is extended (21 October 2026, about 21:45 CDT).**
+- **The runs.** Backhouse, tree `/home/greff/crucible_s7x` (97f4fcd), launched 02:21 CDT by `bh_s7.sh`, all four finished at 25 ms with exit 0. The outlet flow, T_max and the liquid ledger are read from the history only; no measured value has been read.
+- **Section 2's test fails for all four.** The largest half-to-half difference at r ≤ 20 mm over 15 to 25 ms is 93.4 K (low), 117.5 K (high), 620.7 K (blob) and 380.6 K (blob-fine), against 50 K (measured, the driver's own line).
+- **Why (measured from the histories):**
+  - low and high are steady in mass: outlet 73.6 to 75.0 g/s from 15 ms against 73.7 g/s in, and liquid held flat at 0.033 g and 0.079 g from 5 ms. Their drift is the flow's own unsteadiness over 5 ms halves.
+  - blob and blob-fine are still filling with liquid: 0.648 g and 0.590 g held at 25 ms, still rising at about 12 and 11 g/s, with outlet flows of 60 and 58 g/s. The 5 mm blobs outlive the hot gas's 6 ms residence that section 2's 25 ms was sized on (inferred).
+- **The extension (section 2's rule, applied as written).** Each run is extended by 10 ms with the window moving with it, until a window meets the 50 K test; the first window that does is the run's result.
+  - The driver has no restart, so the runs restart from t = 0 on the same code and inputs (tree `/home/greff/crucible_s7z`: 97f4fcd plus one driver option, `CRUCIBLE_WINDOW`, launched 21:45 CDT by `docs/evidence/mascotte/bh_s7z.sh`).
+  - The option writes consecutive 10 ms windows from 15 ms (15 to 25, 25 to 35, ...) in one run, each as `<name>_to<ms>_*`. It changes no part of the run (`docs/evidence/mascotte/window_option_check_2026-10-21.txt`: history identical, plain outputs byte-identical; a window closing mid-run takes its last sample up to one step late).
+  - Ends: 55 ms for low and high, 85 ms for blob and blob-fine. Threads 4, 4, 4 and 6.
+- The 25 ms runs' histories, station files, OH lines and logs are in `docs/evidence/mascotte/s7_25ms/`. They are not the result.
+
 ## 5. The band and the judging rules
 
 - **The band.** At each station and radius, the band runs from the lowest to the highest of the three production runs' time-averaged T. It is widened on each side by:
