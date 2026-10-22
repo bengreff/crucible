@@ -598,7 +598,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT, READY TO CLEAR)
 
 - **Synced with `main`:** the Director merged step C at 02:47 (af91015). inquiry2 rebased onto `main` 6674eef and committed on top (70b3dae, AMR.md, and this handoff). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`. This session's worktree guard refuses git commands on the main checkout, so inquiry2 cannot fast-forward `main` itself.
 - **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
@@ -637,6 +637,21 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
     - 5(b) is met: the 1- and 4-thread dumps are `cmp`-identical.
     - B2's regressions match the recorded values: the same five failures as written, the fixed pattern's c*, thrust and steps identical, and check 3 still passes.
   - **Next for AMR:** the cause of the tagged run's mass error (a test of the inference), then step D's thresholds and criterion 4.
+- **The tagged run's mass error is settled (21 October, about 21:35 to 22:05 CDT; AMR.md, *the tagged run's mass error*, registered c163ee0 before code).**
+  - The cause was the budget's plain running sums, not the regrid. The base's owned exchange ran to +16.8 times the gas's mass and level 1's to −15.8 times, so their rounding was set by the throughput. That is H2, measured as T1.
+  - With Neumaier compensation (`Flow::accept`; `Amr::budget` reads it), the tagged run's mass error at 8 ms is 0. Its largest over the run is 4.87e-15, against 2.07e-13 plain (T2 met). The fill's summed mass change is −1.1e-16 (T3: H1 excluded).
+  - **Criterion 2 passes as stated on the tagged run**, the ten-times comparisons included. The fixed pattern's at-instant mass comparison still fails narrowly (3.6e-15 against 3.0e-15, the single level's luck).
+  - T0: the state is unchanged (c*, thrust, steps, regrids and contents equal check 4's; C1 64 x 12 `cmp`-identical). The fast ctest result is in the commit after this one (or pending in `/tmp/inq2c/m/ctest.log`, done-file `/tmp/inq2c/m/t_done`).
+- **Next (task 2, the face inlet (a)), not started.** The code sites, found tonight:
+  - ring to supply: `core/flow.cpp:424-434` (the refusals at 431 and 433-434);
+  - the wall distance's plate: 448;
+  - reconstruction at the face: 487 and 1200 (`supply=injector?faceSupply_[j]:-1`);
+  - the inviscid face: 1139-1153;
+  - rates (plate to wall force): 1289;
+  - transport: `neighbours(mesh_,chamber,faceSupply_,...)` at `core/transport.cpp` 161, 181, 266, 567, 581, 612, 710 and 730; the plate's wall faces at 155-173; the law on the plate at 583;
+  - AMR's fine supply: `core/amr.cpp:33-41`;
+  - the adiabatic-law refusal: `core/flow.cpp:107-108`.
+  - Proposed shape: keep `faceSupply_[j]` as the ring's kind for reconstruction, transport and the wall distance (plate if w_j ≥ 1/2, else the supply with the largest φ_sj). Add φ_sj and w_j for the inviscid mixture, the rates and the wall share. Register F1 to F5 (handoff spec) with this choice before coding.
 - **The entropy method for `core/medium.*`: accepted as proposed** (the answer is under inquiry's proposal above).
 - **Held from the Director:** Penn State GO2/GH2 is the next validation case after the RL10 contour; the blind engine-set scraper drops outcome columns at ingest; spray subcycling is inquiry's.
 - **Earlier, still standing:** RL10A-3-3A tier 0 is committed, and no measured performance may be read until tier 1 is committed. The failing AMR criteria (0(d), 3(a)'s order, 3(b)'s peak, criterion 2's ten-times comparisons) are the Director's call. The Mascotte driver with average-from 0 segfaults after writing the stations: use average-from 1.

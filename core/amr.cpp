@@ -440,6 +440,11 @@ void Amr::regrid(bool initial) {
                 double sum=0,gross=0;
                 for(auto q:child) { const double v=m.cells[q].volume*f.state_[q][k];sum+=v;gross+=std::abs(v); }
                 error(sum,vol*vp[k],k==1 || k==2?momentum:std::abs(vol*vp[k]),gross);
+                if(k==0) {
+                    const double term=sum-vol*vp[0],total=fillMassChange_+term;
+                    fillMassCompensation_+=std::abs(fillMassChange_)>=std::abs(term)?(fillMassChange_-total)+term:(term-total)+fillMassChange_;
+                    fillMassChange_=total;
+                }
             }
             for(std::size_t k=0;k<ns;++k) {
                 double sum=0,gross=0;
@@ -532,6 +537,7 @@ void Amr::save() {
         s.time=f.time_;s.dt=f.dt_;s.heat=f.integratedHeat_;s.heatCompensation=f.heatCompensation_;s.mass=f.integratedMassFlux_;s.energy=f.integratedEnergyFlux_;
         s.correction=f.integratedCorrection_;s.momentum=f.integratedMomentumSource_;s.gross=f.integratedMomentumGross_;
         s.clipped=f.clippedTurbulentEnergy_;s.prescribed=f.prescribedTurbulentEnergy_;s.steps=f.steps_;
+        s.massCompensation=f.massCompensation_;s.energyCompensation=f.energyCompensation_;s.correctionCompensation=f.correctionCompensation_;s.momentumCompensation=f.momentumCompensation_;
     }
 }
 void Amr::restore() {
@@ -541,6 +547,7 @@ void Amr::restore() {
         f.time_=s.time;f.dt_=s.dt;f.integratedHeat_=s.heat;f.heatCompensation_=s.heatCompensation;f.integratedMassFlux_=s.mass;f.integratedEnergyFlux_=s.energy;
         f.integratedCorrection_=s.correction;f.integratedMomentumSource_=s.momentum;f.integratedMomentumGross_=s.gross;
         f.clippedTurbulentEnergy_=s.clipped;f.prescribedTurbulentEnergy_=s.prescribed;f.steps_=s.steps;
+        f.massCompensation_=s.massCompensation;f.energyCompensation_=s.energyCompensation;f.correctionCompensation_=s.correctionCompensation;f.momentumCompensation_=s.momentumCompensation;
     }
 }
 Amr::Budget Amr::content() const {
@@ -552,14 +559,18 @@ Amr::Budget Amr::content() const {
     }
     return c;
 }
+double Amr::massExchange(int l) const {
+    const Flow& f=level(l);
+    return f.compensatedMassFlux()+f.exchangedMass_;
+}
 Amr::Budget Amr::budget() const {
     Budget c=content();
     c.massResidual=c.mass-initial_.mass;c.energyResidual=c.energy-initial_.energy;c.momentumResidual=c.momentum-initial_.momentum;
     for(const auto& v:levels_) {
         const Flow& f=*v.flow;
-        c.massResidual-=f.integratedMassFlux_+f.exchangedMass_;
-        c.energyResidual-=f.integratedEnergyFlux_+f.integratedCorrection_+f.exchangedEnergy_;
-        c.momentumResidual-=f.integratedMomentumSource_+f.exchangedMomentum_;
+        c.massResidual-=f.compensatedMassFlux()+f.exchangedMass_;
+        c.energyResidual-=f.compensatedEnergyFlux()+f.compensatedCorrection()+f.exchangedEnergy_;
+        c.momentumResidual-=f.compensatedMomentumSource()+f.exchangedMomentum_;
         c.momentumGross+=f.integratedMomentumGross_;c.igniterEnergy+=f.deliveredHeat();
     }
     return c;

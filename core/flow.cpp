@@ -566,6 +566,7 @@ void Flow::resetAccounting() {
         initialEnergy_+=state_[q][3]*mesh_.cells[q].volume;
     }
     integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=heatCompensation_=clippedTurbulentEnergy_=prescribedTurbulentEnergy_=integratedCorrection_=0;
+    massCompensation_=energyCompensation_=correctionCompensation_=momentumCompensation_=0;
     exchangedMass_=exchangedEnergy_=exchangedMomentum_=0;
     lastRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
 }
@@ -1450,16 +1451,18 @@ void Flow::accept(double dt,double newTime,const Attempt& attempt) {
     time_=newTime;dt_=dt;++steps_;
     for(std::size_t n=0;n<probeAttempt_.size();++n) probe_.sums[n]+=probeAttempt_[n];
     lastRates_=BoundaryRates::average(attempt.first,attempt.second);
-    {
-        const double term=dt*lastRates_.heat,sum=integratedHeat_+term;
-        heatCompensation_+=std::abs(integratedHeat_)>=std::abs(term)?(integratedHeat_-sum)+term:(term-sum)+integratedHeat_;
-        integratedHeat_=sum;
-    }
+    // Neumaier: the plain sum as before, and its rounding gathered beside it.
+    auto add=[](double& plain,double& compensation,double term) {
+        const double sum=plain+term;
+        compensation+=std::abs(plain)>=std::abs(term)?(plain-sum)+term:(term-sum)+plain;
+        plain=sum;
+    };
+    add(integratedHeat_,heatCompensation_,dt*lastRates_.heat);
     clippedTurbulentEnergy_+=attempt.clipped;prescribedTurbulentEnergy_+=attempt.prescribed;
-    integratedMassFlux_+=dt*lastRates_.mass;
-    integratedEnergyFlux_+=dt*lastRates_.energy;
-    integratedCorrection_+=dt*lastRates_.correction;
-    integratedMomentumSource_+=dt*lastRates_.netMomentum();
+    add(integratedMassFlux_,massCompensation_,dt*lastRates_.mass);
+    add(integratedEnergyFlux_,energyCompensation_,dt*lastRates_.energy);
+    add(integratedCorrection_,correctionCompensation_,dt*lastRates_.correction);
+    add(integratedMomentumSource_,momentumCompensation_,dt*lastRates_.netMomentum());
     integratedMomentumGross_+=dt*lastRates_.grossMomentum();
 }
 // The convective face fluxes, and with transport the viscous ones (stored alone by transportFluxes in
@@ -1548,6 +1551,9 @@ Measurements Flow::measurements() const {
     result.momentumBalanceError=(result.axialMomentum-initialMomentum_-integratedMomentumSource_-exchangedMomentum_)/result.momentumBalanceScale;
     result.massBalanceError=(result.mass-initialMass_-integratedMassFlux_-exchangedMass_)/initialMass_;
     result.energyBalanceError=(result.energy-initialEnergy_-integratedEnergyFlux_-integratedCorrection_-exchangedEnergy_)/initialEnergy_;
+    result.compensatedMomentumBalanceError=(result.axialMomentum-initialMomentum_-compensatedMomentumSource()-exchangedMomentum_)/result.momentumBalanceScale;
+    result.compensatedMassBalanceError=(result.mass-initialMass_-compensatedMassFlux()-exchangedMass_)/initialMass_;
+    result.compensatedEnergyBalanceError=(result.energy-initialEnergy_-compensatedEnergyFlux()-compensatedCorrection()-exchangedEnergy_)/initialEnergy_;
     result.correctionEnergy=integratedCorrection_;
     if(corrections_) {
         double weight=0,floored=0;

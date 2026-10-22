@@ -538,8 +538,9 @@ The code follows the setup: `Amr::setTags`, `Amr::regrid`, and `Amr::spread`, th
     - c* 2554.92 m/s, vacuum thrust 1408.02 N and 8,429 base steps are the same.
     - The budget errors change only at rounding: mass -5.503e-16 against 4.586e-16, and energy 2.361e-15 against 1.653e-15.
 - **Step C is complete to its five checks.** The open items are criterion 2's two ten-times comparisons, which also fail with the fixed pattern, and the tagged run's 23-fold mass error, whose cause is inferred, not tested.
+- **Settled since (below, *the tagged run's mass error*):** the cause was the budget's plain sums, not the regrid; with compensated sums, criterion 2 passes as stated on the tagged run.
 
-## Step C: the tagged run's mass error, the test (recorded 21 October, about 04:20 CDT, before its code)
+## Step C: the tagged run's mass error, the test (recorded 21 October, about 21:35 CDT, before its code; c163ee0's text said 04:20, a misreading of the clock)
 
 Check 4's tagged run has a mass error 23 times the fixed pattern's (1.753e-13 against 7.540e-15 at 8 ms; largest over the run 2.070e-13). Its momentum error is 11 times, and its energy error 28 times. Criterion 2 is not settled until the cause is known. There are two candidates.
 
@@ -576,6 +577,41 @@ Check 4's tagged run has a mass error 23 times the fixed pattern's (1.753e-13 ag
 **Outcomes.**
 - If T2 passes, the excess was the budget's arithmetic, not the state. The compensated sums are then kept, and criterion 2 is read on them.
 - If T2 fails, H2 is rejected, and the cause is looked for in the step and the regrid with the per-step residual.
+
+## Step C: the tagged run's mass error, results (21 October, about 21:50 CDT)
+
+The runs are on the Mac, 4 threads, with three jobs at once under a load of about 10. The code is the registered test, uncommitted on c163ee0 when it ran; it is committed with this section. Evidence: `docs/evidence/amr_c/` (the logs' judged lines).
+
+**The cause is H2, the budget's own sums. The state was conserving all along.**
+
+- **T1 (measured).** At 8 ms the base's integrated mass exchange is +2.988e-3 kg, 16.8 times the gas's largest mass, and level 1's is −2.813e-3 kg (−15.8 times). They have opposite signs, each above 5 times. Met.
+  - The direction is the reverse of the narrative in the registration. The base owns the inflow and level 1 the outflow (the wall strip and throat tags put the outlet's rows on level 1), not the face on level 1. The judged prediction did not depend on the sign.
+  - With the fixed pattern the two are −1.39 and +2.37 times the gas, which is why its plain error was 23 times smaller.
+- **T2 (measured).** With compensation, the tagged run's largest mass error over the run is 4.874e-15, against 2.070e-13 plain: 42 times lower. The limit was 2.07e-14. Met.
+  - Against ten times the single level's largest (5.717e-15, also compensated), the limit is 5.72e-14. Met.
+  - Energy 6.337e-15 against 9.094e-15 alone, and momentum 1.384e-15 against 1.636e-15. The AMR's largest errors are now below the single level's.
+- **T3 (measured).** The filled parents' summed mass change over the 1,173 regrids is −1.111e-16 of the gas's largest mass. That is below 1e-14, so H1 is excluded as the cause.
+- **T0.**
+  - The tagged run's c* 2446.43 m/s, vacuum thrust 1676.79 N, 67,699 base steps, 1,173 regrids and both printed contents equal check 4's to every printed digit. Met.
+  - C1 `eqtt` 64 x 12 to 1 ms: the state dump is `cmp`-identical to the build before. Met.
+  - The fast ctest: see below.
+- **Criterion 2 as stated, on the tagged run: every line passes, the ten-times comparisons included.**
+
+  | At 8 ms | AMR | Bound | Verdict |
+  |---|---|---|---|
+  | Mass | 0.000e+00 | 1e-12; 10 x single 3.01e-15 | met; met |
+  | Energy | 2.169e-15 | 1e-12; 10 x single 1.74e-14 | met; met |
+  | Axial momentum | 0.000e+00 | 1e-12; 10 x single 3.64e-17 | met; met |
+  | Igniter | 2.776e-15 | 1e-14 | met |
+  | Check 2 (fill) | 5.128e-16 | 1e-14 | met |
+
+- **The fixed pattern (B2's case), with the same sums, printed.**
+  - At the 8 ms instant, its mass error is 3.619e-15, against ten times the single level's 3.01e-15: not met as written.
+  - Its largest over the run is 6.334e-15, against the single level's 5.717e-15 (B1's recorded reading: met).
+  - Energy and momentum are met at the instant (8.679e-16 against 1.74e-14, and 0 against 3.64e-17).
+  - So the one remaining failure as written is B's fixed pattern at one instant, where the single level's walk sits at 3.0e-16. That is the luck B1 described, now at a fifth of its old size.
+- **Kept.** `Amr::budget` reads the compensated sums. `Flow::measurements` keeps its plain errors, and prints the compensated ones beside.
+- **Wall time** is 565 s here against 227 s in check 4, from the load. It says nothing about cost.
 
 ## Deviations from the plan's text
 

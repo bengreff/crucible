@@ -223,6 +223,8 @@ struct Measurements {
     double inletMomentumFlux{}, outletMomentumFlux{}, wallAxialForce{}, bodyAxialForce{}, ambientAxialForce{};
     double deviceThrust{}, exitPlaneThrust{}, axialMomentum{}, momentumBalanceError{};
     double mass{}, energy{}, massBalanceError{}, energyBalanceError{};
+    // The same three balance errors from the compensated exchange sums (AMR.md, the tagged run's mass error).
+    double compensatedMassBalanceError{}, compensatedEnergyBalanceError{}, compensatedMomentumBalanceError{};
     double exitMach{}, minPressure{}, maxPressure{}, maxMach{};
     // Chamber: scheduled supply flow (the Isp denominator), igniter power and energy delivered so
     // far, and the area-averaged pressure of the cells on the injector face.
@@ -453,6 +455,13 @@ private:
     // (docs/evidence/AMR.md, Before step C).
     double heatCompensation_{};
     [[nodiscard]] double deliveredHeat() const { return integratedHeat_+heatCompensation_; }
+    // The exchange sums carry the same compensation beside their plain values, which stay as they were
+    // (AMR.md, the tagged run's mass error): a level's sum can run to the whole throughput.
+    double massCompensation_{}, energyCompensation_{}, correctionCompensation_{}, momentumCompensation_{};
+    [[nodiscard]] double compensatedMassFlux() const { return integratedMassFlux_+massCompensation_; }
+    [[nodiscard]] double compensatedEnergyFlux() const { return integratedEnergyFlux_+energyCompensation_; }
+    [[nodiscard]] double compensatedCorrection() const { return integratedCorrection_+correctionCompensation_; }
+    [[nodiscard]] double compensatedMomentumSource() const { return integratedMomentumSource_+momentumCompensation_; }
     // Chamber: supply index of each injector-face ring (-1: plate), each supply's ring area, the
     // igniter's cells and their total volume.
     std::vector<int> faceSupply_;
