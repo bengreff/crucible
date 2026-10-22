@@ -11,6 +11,7 @@ Status: started 21 October 2026, about 03:10 CDT, independent of inquiry2's RL10
 | `check_specs.py` | Schema and consistency check, the outcome screen (count-only, masked view, redact unread) and the usability table. Stdlib only. |
 | `compile_rules.md` | The rules the compiling agents were given, verbatim. |
 | `compile_brief_2026-10-21.md` | The rerun's common brief (clock, save per engine), verbatim. |
+| `compile_brief_2026-10-21_round2.md` | Round 2's brief (the same, with the night's clock), verbatim. |
 | `sealed_outcome.schema.json` | The outcome schema. Its files (`sealed/<batch>.json`) are written only by the sealed step, after the batch's prediction commit. None exists yet. |
 | `PREDICTION_PROTOCOL.md` | How a blind prediction is committed and later scored. |
 
@@ -109,6 +110,76 @@ The records were then read in full (a compact digest of every field's value and 
 No RL10 source was opened (the agents' reports).
 
 **Exposure noted by the agents:** several sources print performance beside the geometry the records cite. The agents named Vulcain 2's AIAA 2006 Table 1, the F-1 manual's Fig. 3-1 and an AEDC lecture's SPS sentence. As declared below, only the agents saw those values.
+
+## Round 2 (21 October 2026, 21:47 to 22:33 CDT)
+
+Four Sonnet agents, in the foreground and two at a time, worked from `compile_rules.md` and `compile_brief_2026-10-21_round2.md` (round 1's brief with the night's clock):
+- LOX/LH2, then storables, from 21:47 to 22:14.
+- LOX/kerosene, then the throat agent, from 22:15 to 22:33.
+
+The family agents took the candidates round 1 dropped. The throat agent looked for primary sources for the 13 weak or missing throats. The screen was round 1's: counts, then the masked view, then redaction unread, then the full read (`docs/evidence/engine_db_screen_round2_2026-10-21.txt`).
+
+**One value was redacted unread:** `r2_storable.json` engines[3].operating_point.mixture_ratio_basis.note (viking_4b). Its masked view showed a mass flow with its unit. The other hits are row labels, locators, citations, names and notes saying a value was not used, as in round 1. The merged file's counts equal round 1's, minus its J-2 record, plus the four staging files', keyword by keyword.
+
+**The engines** (31, `engines.json` SHA-256 `f6cda983…4c47`). Round 2 added 13:
+
+| Family | N | Added in round 2 |
+|---|---|---|
+| LOX/LH2 | 10 | le5b3_qual, le7a_nominal, hm7b_rated, vinci_a5me_full, ce20_gg_nominal |
+| LOX/kerosene | 7 | h1b, rs27a, rd107_8d74k |
+| LOX/methane | 4 | none |
+| Storable | 10 | aj10_190_oms, r4d_apollo_rcs, aestus_eps, viking_4b, rd_253 |
+
+**Usability** (check_specs.py):
+- tier0_isp: 27 (LOX/LH2 8, LOX/kerosene 6, LOX/methane 3, storable 10). Round 2 adds two engines without it: vinci_a5me_full (the only chamber pressure found was a subscale diffuser rig's, and it was not used) and rd107_8d74k (no mixture ratio).
+- tier0_thrust: 14.
+- tier1: none.
+
+**Throats:**
+- **Printed (2):**
+  - r4d_apollo_rcs: a printed throat area.
+  - j2_sa208_504: now NASA SP-8120's printed 14.7 in (0.373 m). It replaces round 1's 0.390 m, derived from an exit diameter whose lip was unstated. The same source gives 700 psi at area ratio 27, against the record's 763 psi. That conflict is flagged, and the operating point was not changed.
+- **Derived from a diameter that may be the lip or the envelope (4):**
+  - vinci_a5me_full: lip unstated.
+  - aj10_190_oms: an "Engine Dia." read as the exit.
+  - viking_4b: a "maximum diameter".
+  - rd_253: an overall engine diameter, from a secondary source.
+- **Missing (8):**
+  - le5b3_qual, le7a_nominal, ce20_gg_nominal, h1b, rs27a and rd107_8d74k: no throat or exit dimension is printed (only the area ratio). A throat could be got only from an outcome, which is forbidden.
+  - hm7b_rated and aestus_eps: the only diameter is an envelope that may or may not be the exit, so it was not used.
+
+**The throat agent improved J-2 only.** For the other 12 it found no better primary dimension:
+- **LM ascent and descent:** both Apollo Experience Reports, read in full, print no diameter.
+- **LR87:** the only diameter is the twin-chamber maximum.
+- **RS-68A:** the ULA user's guide has no nozzle dimensions.
+- **Vulcain 2:** an ESA bulletin confirms the exit diameter but not its lip.
+- **J-2X and LR91:** nothing better was found.
+- **Fastrac, NK-33, RD-170 and SPS:** the sources were unreadable, had no geometry, or were blocked (DTIC).
+- **The Aerojet LOX/LCH4 record** was already exhausted.
+
+**Secondary sources carry more of round 2:**
+- **Operating point (p_c, mixture ratio, expansion ratio) from a secondary source only** (Wikipedia, Astronautix, Braeunig): hm7b_rated, aestus_eps, viking_4b, rd_253, h1b, rs27a and rd107_8d74k. The same is true of viking_4b's and rd_253's exit diameters, and so of their throats. HM7B's p_c differs between Wikipedia's infobox and its text. H-1's and RS-27A's pages each give a second, unreconciled p_c.
+- **One secondary field:** aj10_190_oms's mixture ratio (Wikipedia).
+- **Fully primary:** le5b3_qual, le7a_nominal, ce20_gg_nominal and r4d_apollo_rcs.
+
+The batch's RULES.md must decide whether secondary-only engines count in the 20.
+
+**Not compiled:**
+- RD-108: only the RD-107 (8D74K) was taken.
+- CE-7.5: CE-20 was taken instead.
+
+No RL10 source was opened (the agents' reports).
+
+**Exposure noted by the agents:** these sources print performance beside the cited geometry:
+- EUCASS 2019 (LE-5B-3), Table 1;
+- MHI Technical Review (LE-7A);
+- Praveen et al., IOP (CE-20);
+- the Aerojet Rocketdyne data sheet and NTRS 19850008634 (OMS);
+- NTRS 19690029231 (R-4D);
+- the Wikipedia infoboxes (HM7B, Aestus, Viking, RD-253, H-1, RS-27);
+- Astronautix and Braeunig.
+
+As in round 1, only the agents saw those values.
 
 ## Declarations
 

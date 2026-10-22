@@ -281,10 +281,12 @@
       },
       "geometry": {
         "throat_diameter_m": {
-          "value": 0.38998,
-          "provenance": "derived",
-          "derivation": "d = exit_diameter_m / sqrt(expansion_ratio) = 2.032 / sqrt(27.15)",
-          "source": "s1"
+          "value": 0.37338,
+          "provenance": "printed",
+          "source": "s4",
+          "locator": "Sec. 2.1.3, 'Nozzle Contour Tolerances'",
+          "original": "14.7-in. throat diameter, tolerance +/-0.030 in.",
+          "note": "Round 2: replaces the earlier value derived from exit diameter/expansion ratio with a directly printed throat diameter for the J-2's large-scale tube-wall nozzle."
         },
         "contraction_ratio": {
           "value": null,
@@ -303,7 +305,7 @@
           "source": "s1",
           "locator": "heroicrelics.org, thrust chamber description",
           "original": "80 in (8'6\") at exit plane",
-          "note": "Thrust chamber is a tube-wall (regeneratively cooled) construction; not explicitly stated whether 80 in is the inner flow diameter or the outer tube-bundle diameter."
+          "note": "Thrust chamber is a tube-wall (regeneratively cooled) construction; not explicitly stated whether 80 in is the inner flow diameter or the outer tube-bundle diameter. No longer load-bearing for the throat, which is now the s4 printed value."
         },
         "chamber_length_m": {
           "value": null,
@@ -374,6 +376,12 @@
           "citation": "Astronautix (Encyclopedia Astronautica mirror), 'J-2' page (secondary)",
           "url": null,
           "accessed": "2026-10-21"
+        },
+        {
+          "id": "s4",
+          "citation": "NASA, Liquid Rocket Engine Nozzles, NASA Space Vehicle Design Criteria (Chemical Propulsion), NASA SP-8120, 1976 (NTRS 19770009165)",
+          "url": "https://ntrs.nasa.gov/api/citations/19770009165/downloads/19770009165.pdf",
+          "accessed": "2026-10-21"
         }
       ],
       "outcome_pointers": [
@@ -396,12 +404,16 @@
           "reason": "Only secondary-sourced (Wikipedia infobox); primary NASA fact page it cites is archived/not independently re-verified here."
         },
         {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "Round 2: a primary source for the same engine and area ratio (s4, NASA SP-8120) separately states that this nozzle 'was supposed to run unseparated at an area ratio of 27 with a chamber pressure of 700 psi', a different figure from the record's printed 763 psi. Noted as a disagreement between sources; the operating point is left unchanged."
+        },
+        {
           "field": "geometry.contraction_ratio",
           "reason": "No chamber diameter located."
         },
         {
           "field": "geometry.exit_diameter_m",
-          "reason": "Not stated whether inner (flow) or outer (tube-bundle) diameter."
+          "reason": "Not stated whether inner (flow) or outer (tube-bundle) diameter. No longer load-bearing for the throat."
         },
         {
           "field": "geometry.chamber_length_m",
@@ -428,7 +440,7 @@
           "reason": "Important for predictor: turbine exhaust is dumped into the diverging nozzle section near the exit, well downstream of the throat, not combusted in the chamber."
         }
       ],
-      "notes": "Final, uprated flight version only, per Wikipedia's SA-208/SA-504 label; do not mix with the lower-mixture-ratio early-flight data point (SA-201 to SA-207) mentioned in secondary sources, which is a different operating point of the same engine."
+      "notes": "Final, uprated flight version only, per Wikipedia's SA-208/SA-504 label; do not mix with the lower-mixture-ratio early-flight data point (SA-201 to SA-207) mentioned in secondary sources, which is a different operating point of the same engine. Round 2 (21 Oct 2026): throat_diameter_m upgraded from a derived value (exit diameter / sqrt(expansion ratio)) to a printed value from NASA SP-8120 Sec. 2.1.3, which states the J-2's large-scale tube-wall nozzle has a 14.7-in. throat diameter (tolerance +/-0.030 in.). The same source's separate mention of a 700-psi chamber pressure at area ratio 27 (vs. this record's printed 763 psi) is recorded only as a flag; the operating point was not changed."
     },
     {
       "id": "j2x_100pct_pl",
@@ -3825,6 +3837,2875 @@
         }
       ],
       "notes": null
+    },
+    {
+      "id": "le5b3_qual",
+      "name": "LE-5B-3 (H3 second stage engine)",
+      "maker": "Mitsubishi Heavy Industries / IHI Corporation (prime: JAXA)",
+      "country": "Japan",
+      "kind": "flight",
+      "family": "lox_lh2",
+      "propellants": {
+        "oxidizer": {
+          "value": "O2(L)",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 1, introduction"
+        },
+        "fuel": {
+          "value": "H2",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 1, introduction"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "expander_bleed",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Table 1 (Engine cycle)"
+        },
+        "turbine_exhaust": {
+          "value": "unknown",
+          "provenance": "assumed",
+          "note": "source describes where the regenerative-coolant bleed line is tapped from (chamber-only for LE-5B vs. chamber+nozzle-extension for LE-5A) but never states where the spent turbine-drive gas is finally disposed of; not stated anywhere in the opened source"
+        }
+      },
+      "operating_point": {
+        "label": "engine specification table, LE-5B-3 qualification configuration",
+        "chamber_pressure_mpa": {
+          "value": 3.61,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Table 1, column 'LE-5B-3'",
+          "original": "3.61 MPa",
+          "basis": "nominal"
+        },
+        "pressure_station": {
+          "value": "unspecified",
+          "provenance": "assumed",
+          "note": "Table 1 just labels this 'Chamber pressure'; injector-face vs. stagnation station not stated"
+        },
+        "mixture_ratio": {
+          "value": 5.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Table 1, column 'LE-5B-3'",
+          "basis": "nominal"
+        },
+        "mixture_ratio_basis": {
+          "value": "unspecified",
+          "provenance": "assumed",
+          "note": "Table 1 does not say whether this is engine or thrust-chamber mixture ratio"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "only derivable from an outcome; not derived"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber or throat diameter found in the opened source"
+        },
+        "expansion_ratio": {
+          "value": 110.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Table 1, column 'LE-5B-3' (Nozzle expansion ratio)"
+        },
+        "contour_type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not stated; nozzle schematic (Fig. 2) shows a bell shape but no length fraction or angles are printed"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "source discusses a fuel/GH2 mixer upstream of the injector in detail (Fig. 2, Fig. 3) but never names the injector element type"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "fuel is a mix of pumped liquid H2 and gaseous H2 bled from the regenerative cooling channels (Fig. 2); the paper discusses only the circumferential spread between max/min injection temperature (qualification test, Fig. 7), never an absolute value, so no number can be taken from it"
+        },
+        "oxidizer_injection_k": {
+          "value": 90.2,
+          "provenance": "assumed",
+          "note": "normal boiling point of O2 at 1 atm; no engine-specific oxidizer injection temperature found"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "D. Terakado, K. Higashi, K. Sakaki, T. Komaru, N. Suwa, Y. Arimoto, A. Ikemoto, '2nd qualification test series results of the upper stage engine LE-5B-3 for H3 rocket', EUCASS2019-626, 8th European Conference for Aeronautics and Space Sciences, 2019",
+          "url": "https://www.eucass-proceedings.eu/",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s1",
+          "locator": "Table 1, row 'Vacuum Isp', column 'LE-5B-3'",
+          "quantity": "isp_vacuum",
+          "label": "engine specification table"
+        }
+      ],
+      "flags": [
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "no printed throat or exit diameter; only derivable from an outcome, which the rules forbid"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "no chamber or throat diameter in the opened source"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "not stated beyond a schematic showing a bell shape"
+        },
+        {
+          "field": "injector.type",
+          "reason": "not named in the opened source"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "only a circumferential spread (max-min) is given, never an absolute injection temperature"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "generic NBP default, not engine-specific"
+        },
+        {
+          "field": "cycle.turbine_exhaust",
+          "reason": "disposal path of the spent turbine-drive gas is never stated; only the coolant bleed TAP point (chamber-only vs. chamber+nozzle-extension) is discussed, and that describes the upstream source of the bleed, not its downstream disposal"
+        },
+        {
+          "field": "operating_point.pressure_station",
+          "reason": "Table 1 does not specify the pressure measurement station"
+        },
+        {
+          "field": "operating_point.mixture_ratio_basis",
+          "reason": "Table 1 does not distinguish engine vs. thrust-chamber mixture ratio"
+        }
+      ],
+      "notes": "Table 1 of the source (Terakado et al. 2019) prints vacuum thrust and vacuum Isp directly beside chamber pressure, mixture ratio, expansion ratio, length, mass and cycle for both LE-5B-2 and LE-5B-3 in one row-aligned block; a reader of that table sees performance and geometry together."
+    },
+    {
+      "id": "le7a_nominal",
+      "name": "LE-7A (H-IIA/H-IIB first stage)",
+      "maker": "Mitsubishi Heavy Industries",
+      "country": "Japan",
+      "kind": "flight",
+      "family": "lox_lh2",
+      "propellants": {
+        "oxidizer": {
+          "value": "O2(L)",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Table 1 context, Sec. 2"
+        },
+        "fuel": {
+          "value": "H2",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Table 1 context, Sec. 2"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "staged_combustion_fuel_rich",
+          "provenance": "inferred",
+          "source": "s1",
+          "locator": "Table 1 (Engine cycle: 'Two-stage combustion cycle')",
+          "note": "s1 (primary) prints 'Two-stage combustion cycle' and explains the preburner/turbopump arrangement generically, but does not use the words 'fuel-rich'; the fuel-rich detail is confirmed only by s2 (Wikipedia, secondary), which labels the cycle 'Fuel-rich staged combustion' directly in its specification table"
+        },
+        "turbine_exhaust": {
+          "value": "unknown",
+          "provenance": "assumed",
+          "note": "neither opened source states where the LE-7A's preburner/turbine exhaust gas is routed; staged-combustion engines conventionally feed it into the main chamber, but this is not confirmed for LE-7A in either source, so it is left unknown rather than guessed"
+        }
+      },
+      "operating_point": {
+        "label": "engine specification comparison table (H-IIA/H-IIB 1st stage)",
+        "chamber_pressure_mpa": {
+          "value": 12.3,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Table 1, column 'LE-7A' (Combustion pressure, labelled 'main combustion chamber')",
+          "original": "12.3 MPa (main combustion chamber)",
+          "basis": "nominal"
+        },
+        "pressure_station": {
+          "value": "unspecified",
+          "provenance": "assumed",
+          "note": "Table 1 labels this the 'main combustion chamber' pressure but does not say whether it is an injector-face or stagnation value"
+        },
+        "mixture_ratio": {
+          "value": 5.9,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Table 1, column 'LE-7A' (Engine mixture rate)",
+          "basis": "nominal"
+        },
+        "mixture_ratio_basis": {
+          "value": "engine",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Table 1, row label 'Engine mixture rate'"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "only derivable from an outcome; not derived"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber or throat diameter found in either opened source"
+        },
+        "expansion_ratio": {
+          "value": 47.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Table 1, column 'LE-7A' (Nozzle expansion ratio)"
+        },
+        "contour_type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not stated in either opened source"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not named in either opened source"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "LE-7A is regeneratively cooled, so fuel reaches the injector well above tank temperature; no engine-specific injection temperature was found"
+        },
+        "oxidizer_injection_k": {
+          "value": 90.2,
+          "provenance": "assumed",
+          "note": "normal boiling point of O2 at 1 atm; no engine-specific oxidizer injection temperature found"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "D. Watanabe, H. Manako, T. Onga, T. Tamura, K. Ikeda, M. Isono, 'Combustion Stability Improvement of LE-9 Engine for Booster Stage of H3 Launch Vehicle', Mitsubishi Heavy Industries Technical Review, Vol. 53, No. 4, December 2016",
+          "url": "https://www.mhi.com/technology/review/",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s2",
+          "citation": "Wikipedia contributors, 'LE-7', Wikipedia, The Free Encyclopedia (secondary source)",
+          "url": "https://en.wikipedia.org/wiki/LE-7",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s1",
+          "locator": "Table 1, row 'Specific impulse', column 'LE-7A'",
+          "quantity": "isp_vacuum",
+          "label": "engine specification comparison table"
+        }
+      ],
+      "flags": [
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "no printed throat or exit diameter; only derivable from an outcome, which the rules forbid"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "no chamber or throat diameter in either opened source"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "not stated in either opened source"
+        },
+        {
+          "field": "injector.type",
+          "reason": "not named in either opened source"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "regeneratively heated before injection; no number published"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "generic NBP default, not engine-specific"
+        },
+        {
+          "field": "cycle.type",
+          "reason": "the fuel-rich detail comes only from a secondary source (Wikipedia), not from the primary MHI table, which just says 'two-stage combustion cycle'"
+        },
+        {
+          "field": "cycle.turbine_exhaust",
+          "reason": "not stated in either opened source; left unknown rather than assumed from the staged-combustion archetype"
+        },
+        {
+          "field": "operating_point.pressure_station",
+          "reason": "Table 1 labels the pressure 'main combustion chamber' without naming the measurement station"
+        },
+        {
+          "field": "operating_point.label",
+          "reason": "Table 1 gives length (3.7 m) and weight for the whole engine, not the chamber alone, so no chamber_length_m or L* value could be attributed without over-reading the table; these were left out of geometry entirely rather than mislabelled"
+        }
+      ],
+      "notes": "Table 1 of s1 (MHI Technical Review, Watanabe et al. 2016) prints vacuum propulsive power and vacuum specific impulse in the same row-aligned block as combustion pressure, mixture rate, expansion ratio, weight and length for LE-9, LE-7A and LE-5B side by side; a reader of that table sees performance and geometry together."
+    },
+    {
+      "id": "hm7b_rated",
+      "name": "HM7B (Ariane 4/5 upper stage)",
+      "maker": "EADS Astrium (Snecma / ArianeGroup lineage)",
+      "country": "France",
+      "kind": "flight",
+      "family": "lox_lh2",
+      "propellants": {
+        "oxidizer": {
+          "value": "O2(L)",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. II (LOX tank description)"
+        },
+        "fuel": {
+          "value": "H2",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. II (LH2 tank description)"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "gas_generator",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Abstract / Sec. I ('a gas generator engine cycle application')"
+        },
+        "turbine_exhaust": {
+          "value": "dumped_overboard",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. II turbopump model description ('turbine incl. pumps, gear box and exhaust nozzle'); Fig. III-6 'Turbine Exhaust Pipe Temperature'",
+          "note": "the gas-generator-driven turbine is modelled with its own exhaust nozzle and exhaust pipe, distinct from the main thrust-chamber nozzle, i.e. the spent gas is dumped overboard through a dedicated small nozzle rather than re-entering the main chamber or nozzle extension"
+        }
+      },
+      "operating_point": {
+        "label": "rated mainstage (secondary-source specification figure)",
+        "chamber_pressure_mpa": {
+          "value": 3.7,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "specifications infobox ('Chamber pressure: 3.7 MPa (37 bar)')",
+          "original": "3.7 MPa (37 bar)",
+          "basis": "rated",
+          "note": "secondary source (Wikipedia); the same article's narrative text elsewhere gives a different figure, 3.5 MPa, for what appears to be the same rated point -- an internal inconsistency in this secondary source. The primary source (s1, Isselhorst 2010) only plots simulated/measured transient chamber pressure traces (Fig. III-1, axis in bar) during start-up and never prints a single steady-state design number, so no primary value could be substituted"
+        },
+        "pressure_station": {
+          "value": "unspecified",
+          "provenance": "assumed",
+          "note": "neither source states the pressure measurement station"
+        },
+        "mixture_ratio": {
+          "value": 5.0,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "specifications infobox ('Mixture ratio: 5:1')",
+          "basis": "rated",
+          "note": "secondary source (Wikipedia)"
+        },
+        "mixture_ratio_basis": {
+          "value": "unspecified",
+          "provenance": "assumed",
+          "note": "neither source distinguishes engine vs. thrust-chamber mixture ratio"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "only derivable from an outcome; not derived. The secondary source's infobox 'Diameter: 0.992 m' is not clearly identified as a nozzle exit (flow) diameter -- it reads as an overall engine/envelope dimension alongside 'Length: 2.01 m' -- so it was not used for a throat derivation"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber or throat diameter found in either source"
+        },
+        "expansion_ratio": {
+          "value": 83.1,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "specifications infobox ('Nozzle ratio: 83.1:1')",
+          "note": "secondary source (Wikipedia); no primary confirmation found"
+        },
+        "contour_type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not stated in either source"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "s1 discusses 'LOX/LH2 injector blocks' and injector loss coefficients generically for the gas-generator model but never names the element geometry (e.g. coaxial, doublet) of either the gas-generator or thrust-chamber injectors"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no engine-specific injection temperature found; HM7B is regeneratively cooled so tank/NBP temperature would not be representative"
+        },
+        "oxidizer_injection_k": {
+          "value": 90.2,
+          "provenance": "assumed",
+          "note": "normal boiling point of O2 at 1 atm; no engine-specific oxidizer injection temperature found"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "A. Isselhorst, 'HM7B Simulation with ESPSS Tool on Ariane 5 ESC-A Upper Stage', AIAA 2010-7047, 46th AIAA/ASME/SAE/ASEE Joint Propulsion Conference, 2010",
+          "url": null,
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s2",
+          "citation": "Wikipedia contributors, 'HM7B', Wikipedia, The Free Encyclopedia (secondary source)",
+          "url": "https://en.wikipedia.org/wiki/HM7B",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s2",
+          "locator": "specifications infobox, row 'Specific impulse'",
+          "quantity": "isp_vacuum",
+          "label": "secondary-source specification figure"
+        }
+      ],
+      "flags": [
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "no clearly-identified exit diameter in either source; the one candidate number is ambiguous (overall envelope vs. nozzle exit) and was not used"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "no chamber or throat diameter in either source"
+        },
+        {
+          "field": "geometry.expansion_ratio",
+          "reason": "secondary-sourced only; no primary confirmation found"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "not stated in either source"
+        },
+        {
+          "field": "injector.type",
+          "reason": "not named in either source"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "regeneratively heated before injection; no number published"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "generic NBP default, not engine-specific"
+        },
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "secondary source is internally inconsistent (3.7 MPa in its infobox vs. 3.5 MPa in its own body text); the infobox value was kept but this is the weakest-sourced chamber pressure of the batch"
+        },
+        {
+          "field": "operating_point.pressure_station",
+          "reason": "not stated in either source"
+        },
+        {
+          "field": "operating_point.mixture_ratio_basis",
+          "reason": "not stated in either source"
+        },
+        {
+          "field": "cycle.turbine_exhaust",
+          "reason": "predictor should know the gas-generator turbine exhaust is dumped overboard through its own nozzle, separate from the main thrust-chamber nozzle, and so is not part of the thrust-chamber expansion that a nozzle-flow model would compute"
+        }
+      ],
+      "notes": "HM7B is the weakest-documented record of this batch: beyond the gas-generator cycle fact and the turbopump exhaust-routing detail (both primary, from s1), every other field rests on a single secondary source (s2, Wikipedia) that is internally inconsistent on chamber pressure."
+    },
+    {
+      "id": "vinci_a5me_full",
+      "name": "Vinci (Ariane 5 ME configuration, deployable nozzle extension)",
+      "maker": "ArianeGroup (Snecma lineage) / CNES",
+      "country": "France",
+      "kind": "development",
+      "family": "lox_lh2",
+      "propellants": {
+        "oxidizer": {
+          "value": "O2(L)",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. II (architecture description)"
+        },
+        "fuel": {
+          "value": "H2",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. II (architecture description)"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "expander_closed",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. II ('VINCI is an expander cycle engine...')"
+        },
+        "turbine_exhaust": {
+          "value": "none",
+          "provenance": "inferred",
+          "note": "a closed expander cycle returns all turbine-drive gas to the main injector rather than dumping or bleeding it, by definition of the cycle; not separately spelled out for VINCI's specific plumbing in the opened sources"
+        }
+      },
+      "operating_point": {
+        "label": "higher-power of VINCI's two selectable operating domains, Ariane 5 ME configuration (deployable nozzle extension)",
+        "chamber_pressure_mpa": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber pressure for the actual VINCI thrust chamber was found in the opened sources. One source (s2, DLR P4.1 facility paper) prints 'PC ~ 40-60 bar' in its Table 3, but that table is explicitly for a small subscale H2/O2 hot-gas diffuser test rig used to validate the altitude-simulation diffuser, not the VINCI engine itself, so it was not used. A Wikipedia figure (60 bar) exists but could not be confirmed to apply to this same deployable-nozzle configuration, so it was left out rather than risk mixing configurations"
+        },
+        "pressure_station": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber pressure value was accepted for this record (see chamber_pressure_mpa), so no station applies"
+        },
+        "mixture_ratio": {
+          "value": 5.95,
+          "provenance": "derived",
+          "source": "s1",
+          "locator": "p. 485, higher-power operating-domain paragraph",
+          "derivation": "midpoint of the printed range 'MR = 5.7/6.2' at the higher-power operating point",
+          "basis": "nominal",
+          "note": "primary source; the engine is designed to run anywhere in this range, not at a single fixed ratio"
+        },
+        "mixture_ratio_basis": {
+          "value": "unspecified",
+          "provenance": "assumed",
+          "note": "source does not say whether this range is an engine or thrust-chamber ratio"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": 0.1475,
+          "provenance": "derived",
+          "derivation": "exit_diameter_m (2.3 m) / sqrt(expansion_ratio 243)",
+          "note": "both numbers are from the same table and the same configuration (DLR P4.1 paper, Table 1, Configuration III: 'complete engine with the extendable nozzle'); the table gives the exit diameter as an approximate figure ('Ø~ 2.3 m') and does not say whether it is the inner (flow) or outer lip diameter, so this throat value should be read as an approximation with an unknown-direction bias"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber diameter found in either source"
+        },
+        "expansion_ratio": {
+          "value": 243.0,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Table 1, Configuration III ('complete engine with the extendable nozzle')",
+          "original": "ε ~ 243",
+          "note": "primary source; a secondary source (Wikipedia) gives a close but not identical figure, 240, which was not used here to keep this record on one single primary-sourced configuration"
+        },
+        "exit_diameter_m": {
+          "value": 2.3,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Table 1, Configuration III",
+          "original": "Ø ~ 2.3 m",
+          "note": "approximate figure in the source ('~'); inner vs. outer lip not stated"
+        },
+        "contour_type": {
+          "value": "bell_unspecified",
+          "provenance": "inferred",
+          "note": "engine schematics in both opened sources show a conventional bell with a deployable extension, but no length fraction or angles are printed"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "s2 (DLR P4.1 paper) mentions 'like on like doublet element' injector orifices, but only in the context of subscale chamber-cooling/diffuser test rigs (an ethanol/LOX chamber-cooling test article, Sec. 7.3, and a separate H2/O2 hot-gas diffuser model, Table 3/4), not confirmed as a description of the actual flight VINCI thrust-chamber injector, so it was not recorded as such"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "VINCI is regeneratively cooled before injection; no engine-specific injection temperature found"
+        },
+        "oxidizer_injection_k": {
+          "value": 90.2,
+          "provenance": "assumed",
+          "note": "normal boiling point of O2 at 1 atm; no engine-specific oxidizer injection temperature found"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "N. Alliot et al., 'VINCI, the European reference for Ariane 6 upper stage cryogenic propulsive system', EUCASS2019-481, 8th European Conference for Aeronautics and Space Sciences, 2019",
+          "url": null,
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s2",
+          "citation": "DLR, 'Development of P4.1 Altitude Simulation Test Facility for the VINCI Upper Stage Engine', DGLR-2005-105-B",
+          "url": null,
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s1",
+          "locator": "Sec. III, higher-power operating-domain paragraph",
+          "quantity": "thrust_vacuum",
+          "label": "design, higher-power operating domain"
+        }
+      ],
+      "flags": [
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "the only chamber-pressure number found (DLR Table 3, 40-60 bar) is explicitly for a subscale diffuser test rig, not the flight engine, and was deliberately not used"
+        },
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "derived from an approximate ('~') exit diameter of unstated inner/outer lip, so this is an approximation with an unknown-direction bias"
+        },
+        {
+          "field": "geometry.exit_diameter_m",
+          "reason": "approximate figure, lip (inner/outer) not stated"
+        },
+        {
+          "field": "geometry.expansion_ratio",
+          "reason": "approximate figure ('~243') from a facility-design paper rather than an engine data sheet"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "no chamber diameter found"
+        },
+        {
+          "field": "injector.type",
+          "reason": "the only injector-element description found ('like on like doublet') is for subscale surrogate test rigs, not confirmed as the flight engine's injector, so it was deliberately left unrecorded rather than misattributed"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "regeneratively heated before injection; no number published"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "generic NBP default, not engine-specific"
+        },
+        {
+          "field": "operating_point.mixture_ratio",
+          "reason": "source gives a design range (5.7/6.2), not a single fixed point; the midpoint was used"
+        },
+        {
+          "field": "operating_point.mixture_ratio_basis",
+          "reason": "not stated in either source"
+        }
+      ],
+      "notes": "Kept to a single configuration throughout (the Ariane 5 ME deployable-nozzle-extension VINCI, as described in both s1 and s2) to avoid mixing with the later Ariane 6 fixed-nozzle variant, which has different geometry in other (not used) sources. A third opened source on VINCI maturity/qualification testing was not cited anywhere in this record because it prints thrust, rpm and exit-pressure figures throughout its text; naming it here only for the record-compiler's own awareness, not as a citation."
+    },
+    {
+      "id": "ce20_gg_nominal",
+      "name": "CE-20 (GSLV Mk III upper stage)",
+      "maker": "ISRO / Liquid Propulsion Systems Centre",
+      "country": "India",
+      "kind": "flight",
+      "family": "lox_lh2",
+      "propellants": {
+        "oxidizer": {
+          "value": "O2(L)",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 1, Introduction"
+        },
+        "fuel": {
+          "value": "H2",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 1, Introduction"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "gas_generator",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 1 ('works in gas generator cycle')"
+        },
+        "turbine_exhaust": {
+          "value": "dumped_overboard",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 2, propellant-feed description ('is disposed of through turbine exhaust gas nozzle, thereby developing a small thrust')",
+          "note": "the hydrogen-rich gas-generator gas drives both turbines in series and is then expelled through its own dedicated exhaust nozzle, separate from the main thrust-chamber nozzle"
+        }
+      },
+      "operating_point": {
+        "label": "engine design point (gas-generator cycle, combustion-chamber condition)",
+        "chamber_pressure_mpa": {
+          "value": 6.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 1 ('combustion chamber burns liquid hydrogen and liquid oxygen at 6 MPa')",
+          "original": "6 MPa",
+          "basis": "nominal"
+        },
+        "pressure_station": {
+          "value": "unspecified",
+          "provenance": "assumed",
+          "note": "source says only 'combustion chamber...at 6 MPa' without naming the measurement station"
+        },
+        "mixture_ratio": {
+          "value": 5.05,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 1 ('with 5.05 engine mixture ratio'); Sec. on mixture-ratio control ('designed to operate at a Mixture Ratio of 5.05')",
+          "basis": "nominal"
+        },
+        "mixture_ratio_basis": {
+          "value": "engine",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 1 ('5.05 engine mixture ratio')"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "only derivable from an outcome; not derived. Only area ratios (not a diameter) are printed"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber or throat diameter found"
+        },
+        "expansion_ratio": {
+          "value": 100.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. on thrust-chamber development ('dump cooling from area ratio 10 to 100')",
+          "note": "the source frames 100 as the upper bound of the dump-cooled nozzle zone rather than explicitly as 'nozzle exit area ratio'; read here as the exit expansion ratio since the dump-cooled zone runs to the nozzle exit, but this reading is not a verbatim statement"
+        },
+        "contour_type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not stated beyond the cooling-zone breakdown (regenerative to area ratio 10, dump-cooled 10 to 100, plus film cooling)"
+        },
+        "chamber_cooling": {
+          "value": "combined",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. on thrust-chamber development",
+          "note": "regenerative cooling (copper alloy, hydrogen-cooled) up to area ratio 10, dump cooling (stainless steel) from area ratio 10 to 100, plus 8% film cooling along the wall"
+        },
+        "film_cooling_fraction": {
+          "value": 0.08,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. on thrust-chamber development ('8% film cooling is also provided along the wall')"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": "unknown",
+          "provenance": "inferred",
+          "source": "s1",
+          "locator": "Sec. on thrust-chamber development ('Co-axial injector elements were used in both thrust chamber and gas generator')",
+          "note": "source confirms the coaxial family for both the thrust-chamber and gas-generator injectors but never specifies the shear vs. swirl subtype, so it is recorded as unknown rather than guessed"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "88.7% of the pumped LH2 flow passes through the regenerative cooling channels before injection (Sec. 2), so the printed tank temperature (21 K) would not represent the actual injection temperature; no post-regen number is published"
+        },
+        "oxidizer_injection_k": {
+          "value": 78.0,
+          "provenance": "inferred",
+          "source": "s1",
+          "locator": "Sec. 2 ('Liquid Oxygen at a temperature of 78 K...is stored in the tank')",
+          "note": "the major LOX stream (91.3%) is injected into the thrust chamber directly from the pump with no cooling-circuit heat pickup described, so the printed tank storage temperature is used as a close approximation of the injection temperature rather than the engine-specific injection value itself"
+        },
+        "fuel_inlet_k": {
+          "value": 21.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 2 ('Liquid Hydrogen at a temperature of 21 K...is stored in the tank')"
+        },
+        "oxidizer_inlet_k": {
+          "value": 78.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 2 ('Liquid Oxygen at a temperature of 78 K...is stored in the tank')"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "N. Praveen et al., 'Development of Cryogenic Engine for GSLV MkIII -- Technological Challenges', IOP Conf. Series: Materials Science and Engineering 171 (2017) 012059",
+          "url": "https://archive.org/details/developmentofcryogenicengineforgslvmkiiitechnologicalchallenges",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s1",
+          "locator": "Sec. 1, opening paragraph (nominal-thrust and vacuum-Isp sentence)",
+          "quantity": "isp_vacuum",
+          "label": "nominal design point"
+        }
+      ],
+      "flags": [
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "only area ratios are printed, never a throat or exit diameter; deriving from thrust/flow is forbidden"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "no chamber or throat diameter published"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "not stated beyond the cooling-zone area-ratio breakdown"
+        },
+        {
+          "field": "geometry.expansion_ratio",
+          "reason": "the printed '100' is explicitly the extent of the dump-cooled zone, not verbatim stated as the nozzle exit expansion ratio, though the two appear to coincide"
+        },
+        {
+          "field": "injector.type",
+          "reason": "source confirms coaxial family only, not the shear/swirl subtype"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "fuel is regeneratively heated before injection; tank temperature would misrepresent it, and no post-regen number is published"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "approximated from tank storage temperature, not a directly published injection-point value"
+        },
+        {
+          "field": "operating_point.pressure_station",
+          "reason": "not stated"
+        },
+        {
+          "field": "cycle.turbine_exhaust",
+          "reason": "predictor should know CE-20 has two separate overboard-dumped streams beyond the main nozzle flow: the turbine exhaust gas (its own nozzle) and, separately, the dump-cooling hydrogen discharged through two dump nozzles after cooling the nozzle extension (area ratio 10 to 100) -- both add small thrust outside of the modelled main-chamber expansion"
+        }
+      ],
+      "notes": "The opening paragraph of s1 (Praveen et al. 2017) prints nominal, minimum and maximum thrust and a vacuum specific impulse figure in the same paragraph as chamber pressure and mixture ratio -- a reader of that paragraph sees performance and geometry side by side. A second ISRO/LPSC source on the CUS/CE-7.5 engine (Venkitakrishnan, EUCASS) was opened while choosing between CE-7.5 and CE-20 and also contains a printed propellant flow-rate figure; it was not cited in this record."
+    },
+    {
+      "id": "aj10_190_oms",
+      "name": "AJ10-190 (Space Shuttle Orbital Maneuvering System engine)",
+      "maker": "Aerojet (later Aerojet Rocketdyne)",
+      "country": "USA",
+      "kind": "flight",
+      "family": "storable",
+      "propellants": {
+        "oxidizer": {
+          "value": "MON-3",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "AJ10-190 entry, 'Design Characteristics'"
+        },
+        "fuel": {
+          "value": "MMH",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "AJ10-190 entry, 'Design Characteristics'"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "pressure_fed",
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "text, 'the propellants were pressurized by gaseous ambient-temperature helium'"
+        },
+        "turbine_exhaust": {
+          "value": "none",
+          "provenance": "inferred",
+          "note": "pressure-fed design, no turbopump described anywhere in s2"
+        }
+      },
+      "operating_point": {
+        "label": "rated (maker data-sheet point, 'at rated thrust')",
+        "chamber_pressure_mpa": {
+          "value": 0.8618,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "AJ10-190 entry, 'Chamber Pressure*'",
+          "original": "125 psia (*at rated thrust)",
+          "basis": "rated"
+        },
+        "pressure_station": {
+          "value": null,
+          "provenance": "missing",
+          "note": "neither source states whether this is injector-face or nozzle-stagnation pressure"
+        },
+        "mixture_ratio": {
+          "value": 1.65,
+          "provenance": "printed",
+          "source": "s3",
+          "locator": "article text, 'oxidizer-to-fuel ratio is 1.65-to-1'",
+          "basis": "rated",
+          "note": "secondary source (Wikipedia); the maker data sheet (s1) and the primary design-history paper (s2) do not print a mixture ratio for this engine specifically"
+        },
+        "mixture_ratio_basis": {
+          "value": "thrust_chamber",
+          "provenance": "inferred",
+          "note": "pressure-fed engine with no turbopump bypass flow, so engine O/F equals thrust-chamber O/F"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": 0.1576,
+          "provenance": "derived",
+          "derivation": "exit_diameter_m / sqrt(expansion_ratio) = 1.1684 / sqrt(55)",
+          "note": "exit_diameter_m itself is an inference from the maker sheet's overall 'Engine Dia.'; see its note"
+        },
+        "contraction_ratio": {
+          "value": 9.0,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "text, 'the upper chamber was cylindrical with a contraction ratio of 1:9'",
+          "original": "contraction ratio of 1:9",
+          "note": "read as throat:chamber = 1:9, i.e. A_chamber/A_throat = 9; the OCR'd source text is terse and the ratio order is not spelled out, but a contraction ratio below 1 is not physically possible for this engine, so 9 is the only consistent reading"
+        },
+        "expansion_ratio": {
+          "value": 55.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "AJ10-190 entry, 'Expansion Ratio'",
+          "original": "55:1"
+        },
+        "chamber_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in any source opened"
+        },
+        "exit_diameter_m": {
+          "value": 1.1684,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "AJ10-190 entry, 'Engine Length 77 in. / Engine Dia. 46 in.'",
+          "original": "46 in",
+          "note": "printed as overall 'Engine Dia.', not explicitly labelled as nozzle exit diameter; inferred to be set by the nozzle exit (the widest feature of this engine) and to be an outer-shell dimension, not the inner flow diameter"
+        },
+        "chamber_length_m": {
+          "value": 0.4039,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "text, 'the distance from the injection plane to the throat is 15.9 inches'",
+          "original": "15.9 in"
+        },
+        "characteristic_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no L* printed in any source opened"
+        },
+        "nozzle_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed; only overall engine length (77 in, includes chamber) is given"
+        },
+        "contour_type": {
+          "value": "bell_thrust_optimised",
+          "provenance": "inferred",
+          "note": "source s2 labels the nozzle extension contour '80% BELL NOZZLE CONTOUR' (figure 15 caption); '80% bell' is the standard industry shorthand for a Rao thrust-optimised parabolic contour, but s2 does not use the words 'thrust-optimised' or 'Rao' itself"
+        },
+        "bell_length_fraction": {
+          "value": 0.8,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Figure 15 caption, '80% BELL NOZZLE CONTOUR'"
+        },
+        "chamber_cooling": {
+          "value": "combined",
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "text (chamber: 'SINGLE PASS FUEL REGENERATIVE COOLED', Figure 14; nozzle extension: 'RADIATION-COOLED... ALL COLUMBIUM ALLOY', Figure 15)",
+          "note": "regeneratively (fuel) cooled chamber to the nozzle-extension bolted joint, radiation-cooled columbium nozzle extension beyond it"
+        },
+        "film_cooling_fraction": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed for this engine in sources opened"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": "like_doublet",
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "text, 'a like-doublet injector provided safe, stable operation with moderately high performance', selected as the flight baseline"
+        },
+        "element_count": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened; s2 describes the faceplate as photo-etched platelets but does not give a doublet-element count"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "oxidizer_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "Aerojet Rocketdyne In-Space Propulsion, bipropellant rocket engine data sheet compilation (Redmond, WA), via SatCatalog",
+          "url": "https://satcatalog.s3.amazonaws.com/components/1015/SatCatalog_-_Aerojet_Rocketdyne_-_R-4D-11_490N_300-to-1_-_Datasheet.pdf",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s2",
+          "citation": "C. Gibson and C. Humphries, Orbital Maneuvering System Design Evolution, AIAA-85-1694, 1985 (NASA NTRS 19850008634)",
+          "url": "https://ntrs.nasa.gov/api/citations/19850008634/downloads/19850008634.pdf",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s3",
+          "citation": "Wikipedia, 'Orbital Maneuvering System' article (secondary)",
+          "url": "https://en.wikipedia.org/wiki/Orbital_Maneuvering_System",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s1",
+          "locator": "AJ10-190 entry, row labelled 'Specific Impulse*'",
+          "quantity": "isp_vacuum",
+          "label": "rated"
+        }
+      ],
+      "flags": [
+        {
+          "field": "operating_point.mixture_ratio",
+          "reason": "only found in a secondary source (Wikipedia); neither primary source prints a mixture ratio for this engine"
+        },
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "derived from an exit diameter that is itself an inference (see geometry.exit_diameter_m note), so this value carries compounded uncertainty"
+        },
+        {
+          "field": "geometry.exit_diameter_m",
+          "reason": "the maker sheet prints an overall 'Engine Dia.', not an explicit nozzle exit diameter; assumed to be set by, and to be an outer dimension of, the nozzle exit"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "source text '1:9' is terse/OCR'd; direction of the ratio is inferred from physical necessity, not stated explicitly"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "'80% bell' industry shorthand interpreted as Rao thrust-optimised; source does not use that term"
+        },
+        {
+          "field": "geometry.chamber_diameter_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.characteristic_length_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.film_cooling_fraction",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "injector.element_count",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "not printed anywhere opened"
+        }
+      ],
+      "notes": "Source s1 (the maker data sheet) prints this engine's chamber pressure and expansion ratio on the same page as its specific-impulse and thrust-class figures; those performance figures were read but are not recorded anywhere in this file. Source s2 (NTRS 19850008634) also contains a drawing/figure with a chamber-pressure callout printed beside thrust and specific-impulse figures for an early design-study configuration; that figure's chamber-pressure value was not used (the maker-sheet value was used instead), and its performance figures were not recorded."
+    },
+    {
+      "id": "r4d_apollo_rcs",
+      "name": "R-4D (Apollo command/service module and lunar module reaction-control variant)",
+      "maker": "The Marquardt Corporation",
+      "country": "USA",
+      "kind": "flight",
+      "family": "storable",
+      "propellants": {
+        "oxidizer": {
+          "value": "N2O4",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "text, 'Oxidizer - N204'"
+        },
+        "fuel": {
+          "value": "MMH",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "text, 'FUEL - 100% MMH'"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "pressure_fed",
+          "provenance": "inferred",
+          "note": "no turbopump is described anywhere in s1; propellant delivery is by bipropellant solenoid valve, typical of this class of hypergolic RCS thruster"
+        },
+        "turbine_exhaust": {
+          "value": "none",
+          "provenance": "inferred",
+          "note": "follows from pressure_fed cycle"
+        }
+      },
+      "operating_point": {
+        "label": "'Assumed Reference Engine Performance' point used in the report's nozzle-throat-area sensitivity analysis",
+        "chamber_pressure_mpa": {
+          "value": 0.6205,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Assumed Reference Engine Performance' table (Figure 75 section)",
+          "original": "Pc = 90 psia",
+          "basis": "nominal"
+        },
+        "pressure_station": {
+          "value": null,
+          "provenance": "missing",
+          "note": "source does not state injector-face vs. nozzle-stagnation station"
+        },
+        "mixture_ratio": {
+          "value": 2.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Assumed Reference Engine Performance' table (Figure 75 section)",
+          "original": "O/F = 2.00",
+          "basis": "nominal"
+        },
+        "mixture_ratio_basis": {
+          "value": "thrust_chamber",
+          "provenance": "inferred",
+          "note": "pressure-fed engine, no turbopump bypass flow"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": 0.02204,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Assumed Reference Engine Performance' table (Figure 75 section), 'Nominal throat area'",
+          "original": "0.5915 in.^2 (nominal throat area)",
+          "note": "diameter computed from the printed throat area via d = 2*sqrt(A/pi); not derived from thrust, Isp, c* or mass flow"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber diameter or contraction ratio printed in sources opened"
+        },
+        "expansion_ratio": {
+          "value": 40.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "text, p. 1-5, 'the initial combustion chamber configuration ... with an expansion ratio equal to 40'",
+          "note": "stated for an early (1962) chamber configuration; the report does not restate an expansion ratio for the later configuration used in the throat-area reference-engine table, so exact correspondence to that same table's operating point is not independently confirmed in this document"
+        },
+        "chamber_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "exit_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "chamber_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no injection-plane-to-throat distance printed for this configuration in sources opened"
+        },
+        "characteristic_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no L* printed in sources opened"
+        },
+        "nozzle_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "contour_type": {
+          "value": "bell_unspecified",
+          "provenance": "inferred",
+          "note": "the report repeatedly refers to a 'bell' nozzle/exit but never gives a contour fraction or half-angle"
+        },
+        "chamber_cooling": {
+          "value": "combined",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "text, 'is fuel film-radiation cooled'; and 'Engine T10050 ... utilized 11% fuel cooling'",
+          "note": "film-cooled chamber wall plus a radiation-cooled refractory-metal chamber/nozzle; see film_cooling_fraction"
+        },
+        "film_cooling_fraction": {
+          "value": 0.11,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "text, 'Engine T10050 ... The engine utilized 11% fuel cooling'",
+          "original": "11% fuel cooling",
+          "note": "printed for development engine T10050, described as the configuration with design parameters 'deemed optimum from the fuel cooling parameter standpoint'; not independently confirmed as the exact hardware used for the throat-area reference-engine table"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": "unlike_doublet",
+          "provenance": "inferred",
+          "note": "an early (8-on-8) configuration is explicitly described as 'oxidizer being injected from the inner holes and fuel from the outer holes' (unlike doublet). The final 12-on-12-plus-center-doublet pattern used around the operating point's era is not redescribed in the same explicit terms, but context implies the same doublet family"
+        },
+        "element_count": {
+          "value": 13.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "text, 'a \"thirteenth\" doublet located at the geometric center of the injector face ... one doublet over and above previous twelve'",
+          "original": "12 main doublets plus a 13th, center doublet",
+          "note": "for the preigniter-equipped configuration; not independently confirmed as the exact hardware used for the operating-point table"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": 294.3,
+          "provenance": "inferred",
+          "source": "s1",
+          "locator": "text, 'ambient (Thead = Tthroat = 70 +/- 20 F)'",
+          "original": "70 +/- 20 F (ambient test reference, injector head)",
+          "note": "a generic ambient test-condition reference used in the report's narrative, not a value specified for this exact operating point"
+        },
+        "oxidizer_injection_k": {
+          "value": 294.3,
+          "provenance": "inferred",
+          "source": "s1",
+          "locator": "text, 'ambient (Thead = Tthroat = 70 +/- 20 F)'",
+          "original": "70 +/- 20 F (ambient test reference, injector head)",
+          "note": "same generic ambient reference used for both propellants; see fuel_injection_k note"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "J. F. Foote (The Marquardt Corp.), Apollo SM-LM RCS engine development program summary report, volume 1, NASA-CR-101929 / A-1080-Vol-1, 1969 (NASA NTRS 19690029231)",
+          "url": "https://ntrs.nasa.gov/api/citations/19690029231/downloads/19690029231.pdf",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s1",
+          "locator": "'Assumed Reference Engine Performance' table (Figure 75 section)",
+          "quantity": "isp_vacuum",
+          "label": "assumed/nominal reference"
+        },
+        {
+          "source": "s1",
+          "locator": "'Assumed Reference Engine Performance' table (Figure 75 section)",
+          "quantity": "thrust_vacuum",
+          "label": "assumed/nominal reference"
+        }
+      ],
+      "flags": [
+        {
+          "field": "geometry.expansion_ratio",
+          "reason": "printed for an early (1962) chamber configuration, not re-confirmed for the later configuration used at the chosen operating point; this 1969 report documents a design that evolved considerably over its development"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.chamber_diameter_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.exit_diameter_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.chamber_length_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.characteristic_length_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "only a generic 'bell' description, no contour fraction or half-angle printed"
+        },
+        {
+          "field": "geometry.film_cooling_fraction",
+          "reason": "printed for a specific development engine (T10050), not independently confirmed as the hardware at the chosen operating point"
+        },
+        {
+          "field": "injector.type",
+          "reason": "unlike-doublet pattern confirmed explicitly only for an earlier configuration, inferred (not re-confirmed) for the later one"
+        },
+        {
+          "field": "injector.element_count",
+          "reason": "printed for the preigniter-equipped configuration, not independently confirmed as the exact hardware at the chosen operating point"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "generic ambient test-condition reference, not a value tied to this specific operating point"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "generic ambient test-condition reference, not a value tied to this specific operating point"
+        },
+        {
+          "field": "cycle.type",
+          "reason": "inferred from absence of any turbopump description, not an explicit statement that the engine is pressure-fed"
+        }
+      ],
+      "notes": "This is the baseline Apollo-era R-4D reaction-control engine documented in a 1969 Marquardt development history, not one of the later extended-nozzle satellite variants (R-4D-11, R-4D-15, etc.) that a maker data sheet also seen in this search (SatCatalog R-4D-11/-15 datasheet) covers; chosen instead because its primary source prints far more of the geometry inputs. The underlying report traces many years of evolving hardware (injector pattern, chamber material, film-cooling fraction, propellant blend), and the single operating-point table used here does not itself restate every geometry figure quoted from elsewhere in the same report, hence the flags above."
+    },
+    {
+      "id": "aestus_eps",
+      "name": "Aestus (Ariane 5 EPS storable upper-stage engine)",
+      "maker": "Daimler-Benz Aerospace / Astrium (later Airbus Defence and Space), Ottobrunn, Germany, under ESA programme",
+      "country": "Germany/ESA",
+      "kind": "flight",
+      "family": "storable",
+      "propellants": {
+        "oxidizer": {
+          "value": "N2O4",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Oxidiser: Nitrogen tetroxide (N2O4)'"
+        },
+        "fuel": {
+          "value": "MMH",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Fuel: MMH'"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "pressure_fed",
+          "provenance": "printed",
+          "source": "s3",
+          "locator": "text, engine described as a 'pressure-fed' design"
+        },
+        "turbine_exhaust": {
+          "value": "none",
+          "provenance": "inferred",
+          "note": "follows from pressure-fed cycle; no turbopump described in any source opened"
+        }
+      },
+      "operating_point": {
+        "label": "nominal (secondary-source infobox point)",
+        "chamber_pressure_mpa": {
+          "value": 1.1,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Chamber pressure: 11 bar'",
+          "original": "11 bar",
+          "note": "secondary source (Wikipedia); no primary ESA/Astrium document opened in the time available restates this figure",
+          "basis": "nominal"
+        },
+        "pressure_station": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no source opened states injector-face vs. nozzle-stagnation station"
+        },
+        "mixture_ratio": {
+          "value": 1.9,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Mixture ratio: 1.9'",
+          "original": "1.9",
+          "note": "secondary source; the infobox labels this only 'mixture ratio' without stating oxidizer:fuel or fuel:oxidizer ordering explicitly, though oxidizer:fuel is the conventional reading for this engine class",
+          "basis": "nominal"
+        },
+        "mixture_ratio_basis": {
+          "value": "thrust_chamber",
+          "provenance": "inferred",
+          "note": "pressure-fed engine, no turbopump bypass flow"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "the only dimension printed in sources opened is an overall engine 'Diameter: 1.31 m' (s1), not explicitly identified as a nozzle exit diameter; treating it as exit diameter together with the printed expansion ratio (84) would imply a throat scale inconsistent with this engine's known hardware class, so it was not used to derive a throat diameter"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber or throat diameter printed in sources opened"
+        },
+        "expansion_ratio": {
+          "value": 84.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Nozzle ratio: 84'",
+          "original": "84"
+        },
+        "chamber_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "exit_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "see geometry.throat_diameter_m note; the printed overall 'Diameter: 1.31 m' is ambiguous (package width vs. nozzle exit) and was not used"
+        },
+        "chamber_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened; only an overall engine 'Length: 2.20 m' figure is given, which is not identified as injector-to-throat distance"
+        },
+        "characteristic_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no L* printed in sources opened"
+        },
+        "nozzle_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened; see geometry.chamber_length_m note on the overall 2.20 m figure"
+        },
+        "contour_type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no contour fraction, half-angle, or contour description printed in sources opened"
+        },
+        "chamber_cooling": {
+          "value": null,
+          "provenance": "missing",
+          "note": "source s1 mentions only a 'cooled nozzle extension' in its operations narrative, without stating the nozzle-extension cooling mechanism (radiative vs. regenerative) or the chamber's own cooling method; no primary ESA/Astrium document opened in the time available states this directly for the flight engine"
+        },
+        "film_cooling_fraction": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": "coaxial_swirl",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "text, '132 coaxial injection elements causing swirl mixing'",
+          "note": "corroborated by s2, an Astrium (the Aestus prime contractor) conference paper that names the flight AESTUS engine's injector as using an 'NTO-swirl/MMH-slot injector configuration (type g)'; s2 is a generic injector-technology survey and does not restate a numeric element count for Aestus"
+        },
+        "element_count": {
+          "value": 132.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox text, '132 coaxial injection elements'",
+          "note": "secondary source only; the element design (swirl/slot type) is corroborated by s2, but the numeric count of 132 is not independently corroborated by any primary source opened"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "oxidizer_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "Wikipedia, 'Aestus' article (secondary)",
+          "url": "https://en.wikipedia.org/wiki/Aestus",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s2",
+          "citation": "C. Maeding, D. Wiedmann, K. Quering, L. Souverein, O. Knab (Astrium GmbH), Overview of Astrium's liquid propellant injector investigations for future application, 4th European Conference for Aerospace Sciences (EUCASS), Saint Petersburg, 2011",
+          "url": "https://www.eucass-proceedings.eu/",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s3",
+          "citation": "ESA, 'Ariane 5 Storable Propellant Stage (EPS)' programme page (secondary/agency, no detailed engine table)",
+          "url": "https://www.esa.int/Enabling_Support/Space_Transportation/Launch_vehicles/Ariane_5_Storable_Propellant_Stage_EPS",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [],
+      "flags": [
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "only found in a secondary source (Wikipedia); no primary ESA/Astrium document opened restates this figure"
+        },
+        {
+          "field": "operating_point.mixture_ratio",
+          "reason": "secondary source; oxidizer:fuel vs. fuel:oxidizer ordering not explicitly stated by the source"
+        },
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "the only printed dimension (overall 'Diameter: 1.31 m') is ambiguous and, if treated as exit diameter, implies an inconsistent throat scale; deliberately not used"
+        },
+        {
+          "field": "geometry.exit_diameter_m",
+          "reason": "same ambiguous overall-diameter figure; not used"
+        },
+        {
+          "field": "geometry.chamber_length_m",
+          "reason": "only an overall engine length is printed, not an injector-to-throat distance"
+        },
+        {
+          "field": "geometry.nozzle_length_m",
+          "reason": "only an overall engine length is printed, not a nozzle-specific length"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.characteristic_length_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.chamber_cooling",
+          "reason": "source mentions a 'cooled nozzle extension' without naming the cooling mechanism or the chamber's cooling method"
+        },
+        {
+          "field": "geometry.film_cooling_fraction",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "injector.element_count",
+          "reason": "secondary source only; not independently corroborated"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "not printed anywhere opened"
+        }
+      ],
+      "notes": "Geometry for this engine proved thin within the time available: no primary ESA/Astrium document with a dimensioned drawing or chamber/throat table was located (a thesis-appendix table with a candidate throat-diameter figure was found via search but not opened, and was not used in any case because it appeared to originate from a performance/cycle model rather than a printed hardware dimension). The operating-point and element-count figures therefore rest on a single secondary source (Wikipedia); the injector element type is independently corroborated by s2, a conference paper from the engine's prime contractor (Astrium) that names the AESTUS flight engine directly, but s2 is a generic injector-survey paper and does not itself print Aestus chamber pressure, mixture ratio, expansion ratio, or any performance figure. No source opened for this engine prints a performance number beside a geometry figure."
+    },
+    {
+      "id": "viking_4b",
+      "name": "Viking 4B (Ariane 2/3/4 second-stage engine)",
+      "maker": "Societe Europeenne de Propulsion (SEP)",
+      "country": "France",
+      "kind": "flight",
+      "family": "storable",
+      "propellants": {
+        "oxidizer": {
+          "value": "N2O4",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, oxidiser 'Dinitrogen tetroxide'"
+        },
+        "fuel": {
+          "value": "UH25",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox/text, fuel 'UH 25', '75% UDMH and 25% hydrazine hydrate'"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "gas_generator",
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "table, 'Engine cycle: open gas generator'",
+          "note": "corroborated by s1, text describing a gas generator driving three coaxial (fuel, oxidizer, water) pumps"
+        },
+        "turbine_exhaust": {
+          "value": null,
+          "provenance": "missing",
+          "note": "s1 states the gas-generator exhaust is water-cooled to drive the turbopumps but does not state where the spent turbine exhaust is finally discharged (overboard, into the nozzle extension, etc.); not found in any source opened"
+        }
+      },
+      "operating_point": {
+        "label": "nominal (secondary-source variant table)",
+        "chamber_pressure_mpa": {
+          "value": 5.927,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Viking 4B row, 'Chamber pressure: 58.5 atm'",
+          "original": "58.5 atm",
+          "note": "secondary source; a different secondary source (s1) gives a single, variant-undifferentiated figure of '5.5 MPa (800 psi)' for the Viking family, about 7% lower than this variant-specific figure; a third source (s3, a NASA translation of a contemporaneous program survey) states chamber pressure was raised 'from 53.5 to 58.5 bar' across Ariane generations, which is close to, and corroborates the magnitude of, this source's 58.5 figure for the later (4B) configuration, modulo the atm-vs-bar unit question noted in s2's own units",
+          "basis": "nominal"
+        },
+        "pressure_station": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no source opened states injector-face vs. nozzle-stagnation station"
+        },
+        "mixture_ratio": {
+          "value": 1.7,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Viking 4B row, 'Mixture ratio: 1.70'",
+          "original": "1.70",
+          "note": "corroborated by s1, '...in ratio 1.70:1'; ordering (oxidizer:fuel vs. fuel:oxidizer) not explicitly stated by either source, though oxidizer:fuel is the conventional reading",
+          "basis": "nominal"
+        },
+        "mixture_ratio_basis": {
+          "value": "unspecified",
+          "provenance": "assumed",
+          "note": "[removed unread by the outcome screen]"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": 0.3064,
+          "provenance": "derived",
+          "derivation": "exit_diameter_m / sqrt(expansion_ratio) = 1.70 / sqrt(30.8)",
+          "note": "exit_diameter_m is read from s2's printed 'Maximum diameter' figure for this variant (see its note); not derived from thrust, Isp, c* or mass flow"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber diameter printed in sources opened"
+        },
+        "expansion_ratio": {
+          "value": 30.8,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Viking 4B row, 'Expansion ratio: 30.8:1'",
+          "original": "30.8:1",
+          "note": "corroborated exactly by s1's infobox 'Nozzle ratio: 30.8' for the same variant"
+        },
+        "chamber_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "exit_diameter_m": {
+          "value": 1.7,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Viking 4B row, 'Maximum diameter: 1.70 m'",
+          "original": "1.70 m",
+          "note": "s2 labels this 'maximum diameter' rather than an explicit nozzle-exit callout, so it was checked for self-consistency: the same source's Viking 5C/6 row gives 'Maximum diameter: 0.99 m' with expansion ratio 10.5, which implies a throat diameter (0.99/sqrt(10.5)=0.3055 m) matching this variant's derived throat (0.3064 m) to within 0.3%, consistent with the two variants sharing a common chamber/throat and differing only in nozzle-extension length -- this cross-variant match is the basis for treating 'maximum diameter' as the nozzle exit diameter rather than an overall engine-envelope width (unlike the Aestus record in this file, where no such cross-check was available and the analogous figure was left unused)"
+        },
+        "chamber_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened; only an overall engine 'Length: 3.51 m' figure is given, not an injector-to-throat distance"
+        },
+        "characteristic_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no L* printed in sources opened"
+        },
+        "nozzle_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened; see geometry.chamber_length_m note"
+        },
+        "contour_type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no contour fraction, half-angle, or contour description printed in sources opened"
+        },
+        "chamber_cooling": {
+          "value": "combined",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "text, 'Film-cooled, ablative throat insert'",
+          "note": "stated generically for the Viking engine family, not re-confirmed variant-by-variant"
+        },
+        "film_cooling_fraction": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "element_count": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "oxidizer_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "Wikipedia, 'Viking (rocket engine)' article (secondary)",
+          "url": "https://en.wikipedia.org/wiki/Viking_(rocket_engine)",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s2",
+          "citation": "R. A. Braeunig, 'Rocket and Space Technology: Space Launchers - Ariane' (secondary compiled reference), mirrored copy",
+          "url": "https://www.scss.tcd.ie/Stephen.Farrell/ipn/background/Braeunig/specs/ariane.htm",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s3",
+          "citation": "NASA Technical Memorandum TM-77683 (English translation of a contemporaneous German-language Ariane programme survey), NASA NTRS 19860015926, 1986",
+          "url": "https://ntrs.nasa.gov/api/citations/19860015926/downloads/19860015926.pdf",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [],
+      "flags": [
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "two secondary sources disagree by about 7% for this variant family; the variant-specific, better-corroborated figure (s2, supported in magnitude by s3) was used over a coarser variant-undifferentiated figure (s1)"
+        },
+        {
+          "field": "operating_point.mixture_ratio",
+          "reason": "oxidizer:fuel vs. fuel:oxidizer ordering not explicitly stated by either source"
+        },
+        {
+          "field": "operating_point.mixture_ratio_basis",
+          "reason": "neither source states whether the printed O/F is engine-level or thrust-chamber-level for this turbopump/gas-generator-cycle engine"
+        },
+        {
+          "field": "cycle.turbine_exhaust",
+          "reason": "not printed in any source opened"
+        },
+        {
+          "field": "geometry.exit_diameter_m",
+          "reason": "source labels this 'maximum diameter', not an explicit nozzle-exit callout; accepted only after an internal cross-variant consistency check (see note)"
+        },
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "derived from the above exit-diameter reading; carries the same caveat"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.chamber_length_m",
+          "reason": "only an overall engine length is printed, not an injector-to-throat distance"
+        },
+        {
+          "field": "geometry.characteristic_length_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.nozzle_length_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.chamber_cooling",
+          "reason": "stated generically for the Viking engine family, not variant-specific"
+        },
+        {
+          "field": "geometry.film_cooling_fraction",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "injector.type",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "injector.element_count",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "not printed anywhere opened"
+        }
+      ],
+      "notes": "Of the two commonly suggested baseline variants, Viking 4B (second stage) was chosen over Viking 5C (first stage) because s2 tabulates both side by side, allowing the cross-variant throat-consistency check described in geometry.exit_diameter_m's note; no geometry beyond that cross-checked exit/throat pair could be sourced (no chamber diameter, contraction ratio, chamber length, L*, nozzle length, contour, injector type/count, or injection temperatures were printed in any source opened). Source s1 (Wikipedia) and source s2 (Braeunig's compiled specs page) both print thrust and specific-impulse figures directly beside the chamber-pressure, mixture-ratio and expansion-ratio figures used here; those performance figures were read but are not recorded anywhere in this file."
+    },
+    {
+      "id": "rd_253",
+      "name": "RD-253 (Proton first-stage engine)",
+      "maker": "NPO Energomash (OKB-456, V. P. Glushko)",
+      "country": "USSR",
+      "kind": "flight",
+      "family": "storable",
+      "propellants": {
+        "oxidizer": {
+          "value": "N2O4",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Oxidizer: N2O4'",
+          "note": "corroborated by s2, 'тетраоксид диазота'"
+        },
+        "fuel": {
+          "value": "UDMH",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Fuel: UDMH'",
+          "note": "corroborated by s2, 'несимметричный диметилгидразин'"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "staged_combustion_oxidizer_rich",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "text, 'The RD-253 uses an oxidiser-rich staged combustion cycle'",
+          "note": "corroborated by s2's description of the engine as a closed-cycle ('замкнутой схемы') design"
+        },
+        "turbine_exhaust": {
+          "value": "into_main_chamber",
+          "provenance": "inferred",
+          "note": "necessary consequence of the staged-combustion cycle architecture (all turbine working fluid is burned in the main chamber by definition of this cycle, unlike an open gas-generator cycle); not independently restated for this specific engine in either source"
+        }
+      },
+      "operating_point": {
+        "label": "nominal (secondary-source infobox point)",
+        "chamber_pressure_mpa": {
+          "value": 14.7,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Chamber pressure: 14.7 MPa (2,130 psi; 147 bar)'",
+          "original": "14.7 MPa",
+          "note": "secondary source; s2's infobox gives a conflicting figure, '168,5 атм' (about 17.1 MPa), for what it labels the same engine -- possibly reflecting a later uprated production batch or an infobox mismatch between RD-253 and an uprated derivative (RD-275/RD-275M, for which s1 separately lists higher pressures); the lower, explicitly RD-253-labelled figure from s1 was used",
+          "basis": "nominal"
+        },
+        "pressure_station": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no source opened states injector-face vs. nozzle-stagnation station"
+        },
+        "mixture_ratio": {
+          "value": 2.67,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Mixture ratio: 2.67'",
+          "original": "2.67",
+          "note": "corroborated approximately by s2's rounded '2,6'",
+          "basis": "nominal"
+        },
+        "mixture_ratio_basis": {
+          "value": "thrust_chamber",
+          "provenance": "inferred",
+          "note": "in a closed/staged-combustion cycle all of both propellants pass through the preburner and the main chamber (none is bled off and dumped, unlike an open gas-generator cycle), so engine-level and thrust-chamber-level O/F coincide by cycle definition"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": 0.2931,
+          "provenance": "derived",
+          "derivation": "exit_diameter_m / sqrt(expansion_ratio) = 1.5 / sqrt(26.2)",
+          "note": "exit_diameter_m itself is an inference from the printed overall engine diameter; see its note. Not derived from thrust, Isp, c* or mass flow"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber diameter printed in sources opened"
+        },
+        "expansion_ratio": {
+          "value": 26.2,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Nozzle ratio: 26.2'",
+          "original": "26.2"
+        },
+        "chamber_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "exit_diameter_m": {
+          "value": 1.5,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "infobox, 'Diameter: 1.5 m (4 ft 11 in)'",
+          "original": "1.5 m",
+          "note": "corroborated exactly by s2, 'Диаметр: 1 500 мм'; printed as an overall engine diameter, not explicitly labelled as nozzle exit diameter; inferred to be set by, and to be an outer dimension of, the nozzle exit, since the RD-253 is a single-chamber (not clustered-chamber) engine and this is its single widest feature"
+        },
+        "chamber_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened; only an overall engine height/length figure (3.0 m, s1; 3000 mm, s2) is given, which is not an injector-to-throat distance"
+        },
+        "characteristic_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no L* printed in sources opened"
+        },
+        "nozzle_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened; see geometry.chamber_length_m note"
+        },
+        "contour_type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no contour fraction, half-angle, or contour description printed in sources opened"
+        },
+        "chamber_cooling": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in either source's infobox or body text (checked explicitly)"
+        },
+        "film_cooling_fraction": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in either source's infobox or body text (checked explicitly)"
+        },
+        "element_count": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        },
+        "oxidizer_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in sources opened"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "Wikipedia, 'RD-253' article (secondary)",
+          "url": "https://en.wikipedia.org/wiki/RD-253",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s2",
+          "citation": "Russian Wikipedia, 'RD-253' article (secondary)",
+          "url": "https://ru.wikipedia.org/wiki/%D0%A0%D0%94-253",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s1",
+          "locator": "infobox row 'Thrust (vac.)'",
+          "quantity": "thrust_vacuum",
+          "label": "nominal"
+        },
+        {
+          "source": "s1",
+          "locator": "infobox row 'Specific impulse (vac.)'",
+          "quantity": "isp_vacuum",
+          "label": "nominal"
+        }
+      ],
+      "flags": [
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "two secondary sources disagree substantially (14.7 MPa vs. about 17.1 MPa); possibly a variant/production-batch mismatch, not resolved within the time available"
+        },
+        {
+          "field": "geometry.exit_diameter_m",
+          "reason": "printed only as an overall engine diameter, not an explicit nozzle-exit callout"
+        },
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "derived from the above exit-diameter reading; carries the same caveat"
+        },
+        {
+          "field": "cycle.turbine_exhaust",
+          "reason": "inferred from the cycle architecture, not independently printed for this engine"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.chamber_length_m",
+          "reason": "only an overall engine height is printed, not an injector-to-throat distance"
+        },
+        {
+          "field": "geometry.characteristic_length_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.nozzle_length_m",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.chamber_cooling",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "geometry.film_cooling_fraction",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "injector.type",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "injector.element_count",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "not printed anywhere opened"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "not printed anywhere opened"
+        }
+      ],
+      "notes": "No primary Energomash/Russian technical-document geometry (chamber diameter, chamber length, L*, cooling, injector) could be located and verified within the time available; a search turned up an unverified secondary claim of a throat diameter on the order of a few centimetres, which is inconsistent with this engine's thrust class by simple order-of-magnitude reasoning and was not used. Both s1 and s2 print thrust and specific-impulse figures directly beside the chamber-pressure, mixture-ratio and dimension figures used here; those performance figures were read but are not recorded anywhere in this file beyond the locator-only outcome_pointers above."
+    },
+    {
+      "id": "h1b",
+      "name": "H-1 (Rocketdyne, Saturn IB S-IB stage, Block II / 'H-1B' production configuration)",
+      "maker": "Rocketdyne (North American Aviation / North American Rockwell)",
+      "country": "US",
+      "kind": "flight",
+      "family": "lox_kerosene",
+      "propellants": {
+        "oxidizer": {
+          "value": "O2(L)",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 1, general description"
+        },
+        "fuel": {
+          "value": "RP-1",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "Sec. 1, general description"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "gas_generator",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "throughout (liquid-propellant gas generator, SPGG bootstrap description)"
+        },
+        "turbine_exhaust": {
+          "value": "dumped_overboard",
+          "provenance": "inferred",
+          "source": "s1",
+          "locator": "Sec. 1 (inboard/outboard turbine exhaust duct and aspirator descriptions)",
+          "note": "memo describes inboard vs outboard turbine-exhaust ducts and aspirators routed away from the chamber; no single explicit sentence states 'overboard', so inferred rather than printed"
+        },
+        "turbine_flow_fraction": {
+          "value": null,
+          "provenance": "missing",
+          "note": "would require gas-generator and total engine mass flow, both outcome quantities; not computed from outcomes"
+        }
+      },
+      "operating_point": {
+        "label": "Saturn IB S-IB stage, 'SA-206 and subsequent' effectivity (uprated production block); nominal values from a specifications table",
+        "chamber_pressure_mpa": {
+          "value": 4.365,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Specifications table, row 'Nominal chamber pressure'",
+          "original": "633 psi (4.36 MPa)",
+          "basis": "nominal",
+          "note": "a separate infobox elsewhere in the same article gives 700 psi (4800 kPa) for an unstated point; the two secondary-source figures disagree and are not reconciled here"
+        },
+        "pressure_station": {
+          "value": "unspecified",
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Specifications table",
+          "note": "table does not state injector-face vs nozzle-stagnation convention"
+        },
+        "mixture_ratio": {
+          "value": 2.23,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Specifications table, row 'Mixture ratio'",
+          "original": "2.23 +/- 2%",
+          "basis": "nominal"
+        },
+        "mixture_ratio_basis": {
+          "value": "unspecified",
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Specifications table",
+          "note": "table gives one engine-level figure without distinguishing thrust-chamber-only ratio"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "only derivable from an outcome; not derived"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber or throat dimension printed in reviewed sources"
+        },
+        "expansion_ratio": {
+          "value": 8.0,
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Specifications table, row 'Exit-to-throat area ratio'",
+          "original": "8:1",
+          "note": "corroborated by s3 (secondary), which separately gives the same area ratio for this block"
+        },
+        "chamber_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "exit_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "chamber_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources; only an overall engine length is given, not chamber length"
+        },
+        "characteristic_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "nozzle_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "contour_type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no reviewed source states the contour type; photographs show a conventional-looking nozzle but this is not a printed statement"
+        },
+        "chamber_cooling": {
+          "value": "regenerative",
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Description section",
+          "note": "chamber built of 292 steel tubes, regeneratively cooled by fuel"
+        },
+        "film_cooling_fraction": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": "other",
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "Description section",
+          "note": "sources call this a 'waterfall' injector (many small individual fuel orifices); no schema enum matches this specific historical term, recorded as 'other'"
+        },
+        "element_count": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not published in reviewed sources"
+        },
+        "oxidizer_injection_k": {
+          "value": 90.2,
+          "provenance": "assumed",
+          "note": "LOX normal boiling point; no engine-specific injection temperature found"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "ABMA Development Operations Division (W.E. Davidson), Saturn H-1 Engine Design Features and Proposed Changes, DSDE Memo No. 1, 21 Sept 1959 (reproduced by heroicrelics.org)",
+          "url": "http://heroicrelics.org/info/h-1/saturn-h-1-engine-design-features.html",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s2",
+          "citation": "Rocketdyne H-1, Wikipedia (secondary site; specifications table sourced to NASA/Rocketdyne documents per article)",
+          "url": "https://en.wikipedia.org/wiki/Rocketdyne_H-1",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s3",
+          "citation": "H-1b, Encyclopedia Astronautica (Mark Wade; secondary site)",
+          "url": "http://www.astronautix.com/h/h-1b.html",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s2",
+          "locator": "Specifications table, row 'Specific impulse'",
+          "quantity": "isp_sea_level",
+          "label": "rated, SA-206 and subsequent"
+        },
+        {
+          "source": "s2",
+          "locator": "Specifications table, row 'Thrust (sea level)'",
+          "quantity": "thrust_sea_level",
+          "label": "rated, SA-206 and subsequent"
+        }
+      ],
+      "flags": [
+        {
+          "field": "cycle.turbine_exhaust",
+          "reason": "inferred from duct/aspirator descriptions rather than one explicit sentence"
+        },
+        {
+          "field": "cycle.turbine_flow_fraction",
+          "reason": "would require outcome (mass-flow) quantities; not computed"
+        },
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "a different secondary-source figure (700 psi) exists for an unstated point in the same article; not reconciled"
+        },
+        {
+          "field": "operating_point.pressure_station",
+          "reason": "not stated in reviewed sources"
+        },
+        {
+          "field": "operating_point.mixture_ratio_basis",
+          "reason": "source gives one engine-level figure without distinguishing thrust-chamber-only ratio"
+        },
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "no printed throat or exit dimension in any reviewed source; only derivable from an outcome, not derived"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "no chamber or throat dimension printed"
+        },
+        {
+          "field": "geometry.chamber_diameter_m",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "geometry.exit_diameter_m",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "geometry.chamber_length_m",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "geometry.characteristic_length_m",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "not stated in reviewed sources"
+        },
+        {
+          "field": "injector.type",
+          "reason": "historical 'waterfall' injector term does not map cleanly to a schema enum"
+        },
+        {
+          "field": "injector.element_count",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "not published"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "assumed from LOX boiling point, not engine-specific"
+        }
+      ],
+      "notes": "RL10 sources were not opened in researching this engine. The chosen Rocketdyne technical manual for H-1C/H-1D engine data (the H-1 counterpart to the F-1's R-3896 manual) could not be retrieved from its hosting library site within available time; this record therefore rests on a 1959 design-features memo plus secondary compilations, and its geometry is correspondingly thin."
+    },
+    {
+      "id": "rs27a",
+      "name": "RS-27A (Rocketdyne, Delta II first stage main engine, extended-nozzle configuration)",
+      "maker": "Rocketdyne",
+      "country": "US",
+      "kind": "flight",
+      "family": "lox_kerosene",
+      "propellants": {
+        "oxidizer": {
+          "value": "O2(L)",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "main entry text"
+        },
+        "fuel": {
+          "value": "RP-1",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "main entry text"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "gas_generator",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Engine Cycle: gas generator'"
+        },
+        "turbine_exhaust": {
+          "value": "dumped_overboard",
+          "provenance": "inferred",
+          "source": "s2",
+          "locator": "photo caption describing turbopump exhaust duct beside the nozzle",
+          "note": "a Wikipedia photo caption shows an external turbopump exhaust duct beside the nozzle; no single explicit sentence states 'overboard' in either reviewed source, so inferred"
+        },
+        "turbine_flow_fraction": {
+          "value": null,
+          "provenance": "missing",
+          "note": "would require outcome (mass-flow) quantities; not computed"
+        }
+      },
+      "operating_point": {
+        "label": "nominal (extended, 12:1-area-ratio nozzle configuration used on Delta II)",
+        "chamber_pressure_mpa": {
+          "value": 4.864,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Combustion Chamber Pressure: 48 atm at injector end'",
+          "original": "48 atm at injector end",
+          "basis": "nominal",
+          "note": "the same source separately lists 'Chamber Pressure: 49.00 bar' elsewhere on the page; the two figures are close but not identical, and are not reconciled here"
+        },
+        "pressure_station": {
+          "value": "injector_face",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Combustion Chamber Pressure: 48 atm at injector end'"
+        },
+        "mixture_ratio": {
+          "value": 2.245,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Mixture Ratio: 2.245:1'",
+          "original": "2.245:1",
+          "basis": "nominal"
+        },
+        "mixture_ratio_basis": {
+          "value": "engine",
+          "provenance": "inferred",
+          "note": "source gives one overall 'Mixture Ratio' figure for the gas-generator-cycle engine; not explicitly labelled thrust-chamber-only vs engine-level"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "only derivable from an outcome; not derived"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no chamber or throat dimension printed in reviewed sources"
+        },
+        "expansion_ratio": {
+          "value": 12.0,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Area Ratio: 12'",
+          "note": "Wikipedia's RS-27 article separately confirms the RS-27A's nozzle was extended to increase area ratio from 8:1 (base RS-27) to 12:1"
+        },
+        "chamber_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "exit_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "chamber_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "'Thrust Chamber Length: 234 cm' in the source spans the whole thrust chamber (combustion chamber plus nozzle, injector face to exit plane), not injector-face-to-throat as this field is defined; not recorded here to avoid misrepresenting it"
+        },
+        "characteristic_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "nozzle_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "contour_type": {
+          "value": "bell_unspecified",
+          "provenance": "inferred",
+          "note": "photographs show a conventional bell nozzle; no numeric contour or length-fraction data printed"
+        },
+        "chamber_cooling": {
+          "value": "regenerative",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Thrust Chamber Cooling: regenerative, two passes of fuel through 292 tubes'"
+        },
+        "film_cooling_fraction": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not stated in reviewed sources; the engine is a direct derivative of the H-1 (same 292-tube chamber-cooling count), which used a historical 'waterfall' design, but this is not confirmed in print for RS-27A specifically"
+        },
+        "element_count": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "oxidizer_injection_k": {
+          "value": 90.2,
+          "provenance": "assumed",
+          "note": "LOX normal boiling point; no engine-specific injection temperature found"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "RS-27A, Encyclopedia Astronautica (Mark Wade; secondary site)",
+          "url": "http://www.astronautix.com/r/rs-27a.html",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s2",
+          "citation": "RS-27, Wikipedia (secondary site)",
+          "url": "https://en.wikipedia.org/wiki/RS-27",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s1",
+          "locator": "main entry, row 'Specific impulse'",
+          "quantity": "isp_vacuum",
+          "label": "rated"
+        },
+        {
+          "source": "s1",
+          "locator": "main entry, row 'Thrust'",
+          "quantity": "thrust_vacuum",
+          "label": "rated"
+        }
+      ],
+      "flags": [
+        {
+          "field": "cycle.turbine_exhaust",
+          "reason": "inferred from a photo caption rather than an explicit sentence"
+        },
+        {
+          "field": "cycle.turbine_flow_fraction",
+          "reason": "would require outcome (mass-flow) quantities; not computed"
+        },
+        {
+          "field": "operating_point.chamber_pressure_mpa",
+          "reason": "the same source gives another, slightly different chamber-pressure figure elsewhere on the page; not reconciled"
+        },
+        {
+          "field": "operating_point.mixture_ratio_basis",
+          "reason": "inferred; source does not distinguish engine vs thrust-chamber ratio"
+        },
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "no printed throat or exit dimension found; only derivable from an outcome, not derived"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "geometry.chamber_diameter_m",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "geometry.exit_diameter_m",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "geometry.chamber_length_m",
+          "reason": "only an overall thrust-chamber length (injector face to exit plane) is printed, not the injector-face-to-throat length this field requires"
+        },
+        {
+          "field": "geometry.characteristic_length_m",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "inferred from photographs only; no numeric contour data printed"
+        },
+        {
+          "field": "injector.type",
+          "reason": "not stated in reviewed sources"
+        },
+        {
+          "field": "injector.element_count",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "assumed from LOX boiling point, not engine-specific"
+        }
+      ],
+      "notes": "RL10 sources were not opened in researching this engine. The RS-27A is a direct descendant of the H-1 (same chamber-cooling tube count printed for both); geometry fields left missing here were also not found in H-1 sources."
+    },
+    {
+      "id": "rd107_8d74k",
+      "name": "RD-107-8D74K (Energomash/Glushko, R-7-family booster strap-on)",
+      "maker": "OKB Glushko (NPO Energomash)",
+      "country": "USSR",
+      "kind": "flight",
+      "family": "lox_kerosene",
+      "propellants": {
+        "oxidizer": {
+          "value": "O2(L)",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "main entry text"
+        },
+        "fuel": {
+          "value": "T-1",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Fuel T-1 or RG-1 kerosene'",
+          "note": "source states either T-1 or RG-1 kerosene could be used; T-1 recorded as the primary value, RG-1 as an acceptable alternate (flagged)"
+        }
+      },
+      "cycle": {
+        "type": {
+          "value": "gas_generator",
+          "provenance": "printed",
+          "source": "s2",
+          "locator": "'a gas-generator cycle with the turbine driven by steam generated by catalytic decomposition of H2O2'",
+          "note": "turbine drive gas is H2O2-decomposition steam, not combustion-product gas generator gas; still an open (non-combustion-fed) cycle, recorded as gas_generator"
+        },
+        "turbine_exhaust": {
+          "value": "dumped_overboard",
+          "provenance": "inferred",
+          "source": "s2",
+          "locator": "general engine description",
+          "note": "the turbine is driven by decomposed-H2O2 steam (a separate monopropellant supply, not the main propellants), which is vented; recorded as dumped_overboard, but no single explicit sentence confirms the exhaust routing"
+        },
+        "turbine_flow_fraction": {
+          "value": null,
+          "provenance": "missing",
+          "note": "would require outcome (mass-flow) quantities; not computed; also drawn from a separate H2O2 supply rather than the main propellants"
+        }
+      },
+      "operating_point": {
+        "label": "nominal, 8D74K variant",
+        "chamber_pressure_mpa": {
+          "value": 5.97,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Chamber Pressure: 59.70 bar'",
+          "original": "59.70 bar",
+          "basis": "nominal"
+        },
+        "pressure_station": {
+          "value": "unspecified",
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "main entry text",
+          "note": "source does not state the measurement station"
+        },
+        "mixture_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed for this specific variant's page; a later Soyuz-era variant (RD-107-11D511) page prints a mixture ratio of its own, but mixing a value from a different variant's page into this record's single operating point was avoided for consistency"
+        },
+        "mixture_ratio_basis": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no mixture ratio printed for this variant"
+        }
+      },
+      "geometry": {
+        "throat_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "only derivable from an outcome; not derived"
+        },
+        "contraction_ratio": {
+          "value": null,
+          "provenance": "missing",
+          "note": "no throat dimension printed, so no ratio to chamber diameter could be formed"
+        },
+        "expansion_ratio": {
+          "value": 18.9,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Area Ratio: 18.9'"
+        },
+        "chamber_diameter_m": {
+          "value": 0.67,
+          "provenance": "printed",
+          "source": "s1",
+          "locator": "'Diameter: 0.67 m (2.19 ft). Diameter is per chamber.'",
+          "original": "0.67 m",
+          "note": "explicitly stated to be per single combustion chamber (the engine has 4 main chambers)"
+        },
+        "exit_diameter_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "chamber_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "only an overall engine 'Height' (2.86 m, spanning the turbopump and all 4 chambers) is printed, not a single chamber's injector-face-to-throat length"
+        },
+        "characteristic_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "nozzle_length_m": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "contour_type": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not stated in reviewed sources"
+        },
+        "chamber_cooling": {
+          "value": "combined",
+          "provenance": "printed",
+          "source": "s3",
+          "locator": "p. 603 (quoted by heroicrelics.org), 'History of Liquid Propellant Rocket Engines'",
+          "note": "regeneratively-cooled chamber wall plus film cooling from the outer injector rings, which spray fuel on the inner chamber wall to keep wall temperature below a stated limit"
+        },
+        "film_cooling_fraction": {
+          "value": null,
+          "provenance": "missing",
+          "note": "qualitative description only (outer injector rings film-cool the wall); no numeric flow fraction printed"
+        }
+      },
+      "injector": {
+        "type": {
+          "value": "coaxial_swirl",
+          "provenance": "printed",
+          "source": "s3",
+          "locator": "p. 603 (quoted by heroicrelics.org), 'History of Liquid Propellant Rocket Engines'",
+          "note": "tangential/spiral swirl injection elements producing conical propellant sprays, per the quoted description; read via heroicrelics.org's reproduction of the book page, original not independently examined"
+        },
+        "element_count": {
+          "value": 337,
+          "provenance": "printed",
+          "source": "s3",
+          "locator": "p. 603 (quoted by heroicrelics.org), 'There are 337 such tubes or injection spray points, arranged in 10 rings'"
+        }
+      },
+      "temperatures": {
+        "fuel_injection_k": {
+          "value": null,
+          "provenance": "missing",
+          "note": "not printed in reviewed sources"
+        },
+        "oxidizer_injection_k": {
+          "value": 90.2,
+          "provenance": "assumed",
+          "note": "LOX normal boiling point; no engine-specific injection temperature found"
+        }
+      },
+      "sources": [
+        {
+          "id": "s1",
+          "citation": "RD-107-8D74K, Encyclopedia Astronautica (Mark Wade; secondary site)",
+          "url": "http://www.astronautix.com/r/rd-107-8d74k.html",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s2",
+          "citation": "RD-107, Wikipedia (secondary site)",
+          "url": "https://en.wikipedia.org/wiki/RD-107",
+          "accessed": "2026-10-21"
+        },
+        {
+          "id": "s3",
+          "citation": "G.P. Sutton, History of Liquid Propellant Rocket Engines, AIAA, p. 603, as reproduced by heroicrelics.org",
+          "url": "http://heroicrelics.org/info/rd-107/rd-107-injector.html",
+          "accessed": "2026-10-21"
+        }
+      ],
+      "outcome_pointers": [
+        {
+          "source": "s1",
+          "locator": "main entry, row 'Specific impulse'",
+          "quantity": "isp_vacuum",
+          "label": "rated"
+        },
+        {
+          "source": "s1",
+          "locator": "main entry, row 'Thrust'",
+          "quantity": "thrust_vacuum",
+          "label": "rated"
+        }
+      ],
+      "flags": [
+        {
+          "field": "propellants.fuel",
+          "reason": "source allows either T-1 or RG-1 kerosene; T-1 recorded as primary"
+        },
+        {
+          "field": "cycle.type",
+          "reason": "turbine is driven by H2O2-decomposition steam rather than combustion gas-generator products; recorded as gas_generator as the closest open-cycle enum"
+        },
+        {
+          "field": "cycle.turbine_exhaust",
+          "reason": "inferred; no explicit routing statement found"
+        },
+        {
+          "field": "cycle.turbine_flow_fraction",
+          "reason": "would require outcome (mass-flow) quantities; not computed"
+        },
+        {
+          "field": "operating_point.pressure_station",
+          "reason": "not stated in reviewed sources"
+        },
+        {
+          "field": "operating_point.mixture_ratio",
+          "reason": "not printed for this variant; a different variant's page prints one, but was not substituted in, to keep the record internally consistent to one variant"
+        },
+        {
+          "field": "geometry.throat_diameter_m",
+          "reason": "no printed throat or exit dimension found; only derivable from an outcome, not derived"
+        },
+        {
+          "field": "geometry.contraction_ratio",
+          "reason": "no throat dimension printed"
+        },
+        {
+          "field": "geometry.chamber_diameter_m",
+          "reason": "secondary-source figure (0.67 m); not cross-checked against a primary drawing"
+        },
+        {
+          "field": "geometry.exit_diameter_m",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "geometry.chamber_length_m",
+          "reason": "only an overall 4-chamber engine height is printed, not a single chamber's length"
+        },
+        {
+          "field": "geometry.characteristic_length_m",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "geometry.contour_type",
+          "reason": "not stated in reviewed sources"
+        },
+        {
+          "field": "geometry.film_cooling_fraction",
+          "reason": "only a qualitative film-cooling description was found, no numeric fraction"
+        },
+        {
+          "field": "temperatures.fuel_injection_k",
+          "reason": "not printed in reviewed sources"
+        },
+        {
+          "field": "temperatures.oxidizer_injection_k",
+          "reason": "assumed from LOX boiling point, not engine-specific"
+        }
+      ],
+      "notes": "RL10 sources were not opened in researching this engine. This is the four-combustion-chamber, single-turbopump engine family used on R-7-derived boosters; the operating point is kept to one named variant (8D74K) throughout, so a mixture ratio printed only for a different, later variant's page was deliberately left out rather than substituted in."
     }
   ]
 }

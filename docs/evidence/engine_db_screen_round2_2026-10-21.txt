@@ -1,0 +1,75 @@
+# Engine database round 2, the outcome screen (21 October 2026, about 22:45 CDT)
+# Per staging file (/tmp/engine_db_staging/out/), then the merged engines.json (31 engines).
+# Redactions: one, in r2_storable.json, removed unread by check_specs.py --redact before the file was read:
+#   engines[3].operating_point.mixture_ratio_basis.note  (viking_4b; its masked view showed a mass-flow value with its unit; the pre-redaction copy was deleted)
+# The masked views below are of the files as merged (after the redaction).
+
+== r2_lox_lh2.json  sha256 a624c2fd71dadb0ecde1fbdcfb50b069cf655c3c0b36deebf2c0b9dadf0a5498
+-- counts
+{"isp": 7, "thrust": 7, "c_star": 0, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 3, "mass_flow": 0, "efficiency": 1, "seconds": 2, "velocity_units": 0, "exit_pressure": 0}
+-- masked
+engines[0].name [seconds]: LE-#B-# (H# second stage engine)
+engines[0].sources[0].citation [force_units]: D. Terakado, K. Higashi, K. Sakaki, T. Komaru, N. Suwa, Y. Arimoto, A. Ikemoto, '#nd qualification test series results of the upper stage engine LE-#B-# for H# rocket', EUCASS#-# #th European Conference for Aeronautics and Space Sciences, #
+engines[0].outcome_pointers[0].locator [isp]: Table # row 'Vacuum Isp', column 'LE-#B-#'
+engines[0].notes [isp,thrust]: Table # of the source (Terakado et al. #) prints vacuum thrust and vacuum Isp directly beside chamber pressure, mixture ratio, expansion ratio, length, mass and cycle for both LE-#B-# and LE-#B-# in one row-aligned block; a reader of that table sees performance and geometry together.
+engines[1].outcome_pointers[0].locator [isp]: Table # row 'Specific impulse', column 'LE-#A'
+engines[1].notes [isp]: Table # of s# (MHI Technical Review, Watanabe et al. #) prints vacuum propulsive power and vacuum specific impulse in the same row-aligned block as combustion pressure, mixture rate, expansion ratio, weight and length for LE-# LE-#A and LE-#B side by side; a reader of that table sees performance and geometry together.
+engines[2].injector.type.note [efficiency]: s# discusses 'LOX/LH# injector blocks' and injector loss coefficients generically for the gas-generator model but never names the element geometry (e.g. coaxial, doublet) of either the gas-generator or thrust-chamber injectors
+engines[2].outcome_pointers[0].locator [isp]: specifications infobox, row 'Specific impulse'
+engines[3].sources[0].citation [force_units]: N. Alliot et al., 'VINCI, the European reference for Ariane # upper stage cryogenic propulsive system', EUCASS#-# #th European Conference for Aeronautics and Space Sciences, #
+engines[3].notes [thrust]: Kept to a single configuration throughout (the Ariane # ME deployable-nozzle-extension VINCI, as described in both s# and s#) to avoid mixing with the later Ariane # fixed-nozzle variant, which has different geometry in other (not used) sources. A third opened source on VINCI maturity/qualification testing was not cited anywhere in this record because it prints thrust, rpm and exit-pressure figures throughout its text; naming it here only for the record-compiler's own awareness, not as a citation.
+engines[4].cycle.turbine_exhaust.locator [thrust]: Sec. # propellant-feed description ('is disposed of through turbine exhaust gas nozzle, thereby developing a small thrust')
+engines[4].sources[0].citation [force_units]: N. Praveen et al., 'Development of Cryogenic Engine for GSLV MkIII -- Technological Challenges', IOP Conf. Series: Materials Science and Engineering # (#) #
+engines[4].outcome_pointers[0].locator [isp,thrust]: Sec. # opening paragraph (nominal-thrust and vacuum-Isp sentence)
+engines[4].flags[0].reason [thrust]: only area ratios are printed, never a throat or exit diameter; deriving from thrust/flow is forbidden
+engines[4].flags[8].reason [thrust]: predictor should know CE-# has two separate overboard-dumped streams beyond the main nozzle flow: the turbine exhaust gas (its own nozzle) and, separately, the dump-cooling hydrogen discharged through two dump nozzles after cooling the nozzle extension (area ratio # to #) -- both add small thrust outside of the modelled main-chamber expansion
+engines[4].notes [isp,thrust,seconds]: The opening paragraph of s# (Praveen et al. #) prints nominal, minimum and maximum thrust and a vacuum specific impulse figure in the same paragraph as chamber pressure and mixture ratio -- a reader of that paragraph sees performance and geometry side by side. A second ISRO/LPSC source on the CUS/CE-# engine (Venkitakrishnan, EUCASS) was opened while choosing between CE-# and CE-# and also contains a printed propellant flow-rate figure; it was not cited in this record.
+
+== r2_storable.json  sha256 b42eb6e43cd5ff01b60d5cfbba6e094f2834575efce6542cf195ac86677cbe73
+-- counts
+{"isp": 5, "thrust": 10, "c_star": 3, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 0, "mass_flow": 3, "efficiency": 0, "seconds": 2, "velocity_units": 0, "exit_pressure": 0}
+-- masked
+engines[0].operating_point.label [thrust]: rated (maker data-sheet point, 'at rated thrust')
+engines[0].operating_point.chamber_pressure_mpa.original [thrust]: # psia (*at rated thrust)
+engines[0].outcome_pointers[0].locator [isp]: AJ#-# entry, row labelled 'Specific Impulse*'
+engines[0].notes [thrust]: Source s# (the maker data sheet) prints this engine's chamber pressure and expansion ratio on the same page as its specific-impulse and thrust-class figures; those performance figures were read but are not recorded anywhere in this file. Source s# (NTRS #) also contains a drawing/figure with a chamber-pressure callout printed beside thrust and specific-impulse figures for an early design-study configuration; that figure's chamber-pressure value was not used (the maker-sheet value was used instead), and its performance figures were not recorded.
+engines[1].cycle.type.note [thrust]: no turbopump is described anywhere in s#; propellant delivery is by bipropellant solenoid valve, typical of this class of hypergolic RCS thruster
+engines[1].geometry.throat_diameter_m.note [isp,thrust,c_star,mass_flow]: diameter computed from the printed throat area via d = #*sqrt(A/pi); not derived from thrust, Isp, c* or mass flow
+engines[3].name [seconds]: Viking #B (Ariane #/#/# second-stage engine)
+engines[3].geometry.throat_diameter_m.note [isp,thrust,c_star,mass_flow]: exit_diameter_m is read from s#'s printed 'Maximum diameter' figure for this variant (see its note); not derived from thrust, Isp, c* or mass flow
+engines[3].notes [thrust,seconds]: Of the two commonly suggested baseline variants, Viking #B (second stage) was chosen over Viking #C (first stage) because s# tabulates both side by side, allowing the cross-variant throat-consistency check described in geometry.exit_diameter_m's note; no geometry beyond that cross-checked exit/throat pair could be sourced (no chamber diameter, contraction ratio, chamber length, L*, nozzle length, contour, injector type/count, or injection temperatures were printed in any source opened). Source s# (Wikipedia) and source s# (Braeunig's compiled specs page) both print thrust and specific-impulse figures directly beside the chamber-pressure, mixture-ratio and expansion-ratio figures used here; those performance figures were read but are not recorded anywhere in this file.
+engines[4].geometry.throat_diameter_m.note [isp,thrust,c_star,mass_flow]: exit_diameter_m itself is an inference from the printed overall engine diameter; see its note. Not derived from thrust, Isp, c* or mass flow
+engines[4].outcome_pointers[0].locator [thrust]: infobox row 'Thrust (vac.)'
+engines[4].outcome_pointers[1].locator [isp]: infobox row 'Specific impulse (vac.)'
+engines[4].notes [thrust]: No primary Energomash/Russian technical-document geometry (chamber diameter, chamber length, L*, cooling, injector) could be located and verified within the time available; a search turned up an unverified secondary claim of a throat diameter on the order of a few centimetres, which is inconsistent with this engine's thrust class by simple order-of-magnitude reasoning and was not used. Both s# and s# print thrust and specific-impulse figures directly beside the chamber-pressure, mixture-ratio and dimension figures used here; those performance figures were read but are not recorded anywhere in this file beyond the locator-only outcome_pointers above.
+
+== r2_lox_kerosene.json  sha256 88c4b59fd577b3b2056a04dc6980202f8053534093565a963a3846365b7a9ebc
+-- counts
+{"isp": 3, "thrust": 3, "c_star": 0, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 0, "mass_flow": 1, "efficiency": 0, "seconds": 0, "velocity_units": 0, "exit_pressure": 0}
+-- masked
+engines[0].cycle.turbine_flow_fraction.note [mass_flow]: would require gas-generator and total engine mass flow, both outcome quantities; not computed from outcomes
+engines[0].outcome_pointers[0].locator [isp]: Specifications table, row 'Specific impulse'
+engines[0].outcome_pointers[1].locator [thrust]: Specifications table, row 'Thrust (sea level)'
+engines[1].outcome_pointers[0].locator [isp]: main entry, row 'Specific impulse'
+engines[1].outcome_pointers[1].locator [thrust]: main entry, row 'Thrust'
+engines[2].outcome_pointers[0].locator [isp]: main entry, row 'Specific impulse'
+engines[2].outcome_pointers[1].locator [thrust]: main entry, row 'Thrust'
+
+== r2_throats.json  sha256 0e5b173c52c835e34e2d1e8170c8e7f6a291a730929438660d6fd64cee52c7ed
+-- counts
+{"isp": 0, "thrust": 1, "c_star": 0, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 0, "mass_flow": 0, "efficiency": 0, "seconds": 0, "velocity_units": 0, "exit_pressure": 0}
+-- masked
+engines[0].outcome_pointers[1].locator [thrust]: infobox, field 'thrust(Vac)'
+
+== round 1's engines.json (HEAD 21e8bf9)  sha256 c73b97f57e886a3e19e34217161dd919eafce2c837a399b554f376b0ca381389
+-- counts
+{"isp": 17, "thrust": 18, "c_star": 6, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 4, "mass_flow": 8, "efficiency": 4, "seconds": 14, "velocity_units": 0, "exit_pressure": 0}
+== round 1's j2_sa208_504 alone (replaced by r2_throats.json's)
+-- counts
+{"isp": 0, "thrust": 1, "c_star": 0, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 0, "mass_flow": 0, "efficiency": 0, "seconds": 0, "velocity_units": 0, "exit_pressure": 0}
+
+== merged engines.json  sha256 f6cda98344ed5a230442eb8a896049c554010ee01e67d8ace5503f8860b14c47
+-- schema
+31 engines, 0 errors
+-- counts (equal, keyword by keyword, to round 1 minus its J-2 plus the four staging files)
+{"isp": 32, "thrust": 38, "c_star": 9, "exhaust_velocity": 0, "thrust_coefficient": 0, "force_units": 7, "mass_flow": 12, "efficiency": 5, "seconds": 18, "velocity_units": 0, "exit_pressure": 0}
