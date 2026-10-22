@@ -613,7 +613,7 @@ The runs are on the Mac, 4 threads, with three jobs at once under a load of abou
 - **Kept.** `Amr::budget` reads the compensated sums. `Flow::measurements` keeps its plain errors, and prints the compensated ones beside.
 - **Wall time** is 565 s here against 227 s in check 4, from the load. It says nothing about cost.
 
-## Step D: the wall functions and the property corrections across levels, setup (recorded 22 October, about 02:30 CDT, before any of its code)
+## Step D: the wall functions and the property corrections across levels, setup (recorded 22 October, about 02:20 CDT, before any of its code)
 
 `Amr` refuses both today (`core/amr.cpp:25-26`), and tier 1 needs both. What the code does on one level, read on 22 October:
 
@@ -633,7 +633,7 @@ Checks, judged as written:
 
 - **D0, nothing else moves.** Without the wall functions and corrections, criterion 2's fixed-pattern dump and check 3's run are `cmp`-identical to 566b12c; C1 `eqtt` 64 x 12 to 1 ms with `law` and `hp` on one level is `cmp`-identical. The fast ctest gives 8 pass and 4 fail, with the sorted FAIL lines identical to the same machine's record: `face_inlet/ctest_2026-10-22_backhouse.txt` on backhouse, `amr_c/ctest_mass_error_2026-10-21.txt` on the Mac.
 - **D1, the budgets with both on.** Criterion 2's tagged case (C1 `eqtt` 32 x 6 plus one level, to 8 ms) with `law` and `hp`. Mass and energy budget errors (the energy net of the summed correction energy) below 1e-12 of the gas's largest mass and largest |energy|; the axial momentum balance below 1e-12 of the largest gross exchange; the igniter exact to 1e-14. The single-level 32 x 6 run's errors with `law` and `hp` are printed beside, and the ten-times comparisons are reported.
-- **D2, the prescription holds.** At the end of every base step, every owned prescribed cell's rho k and rho omega equal the law's at its state to 1e-12 relative, on every level. *Amended 22 October, about 03:20 CDT, while coding and before any run:* this is judged on criterion 2's fixed pattern with the reaction step off (`crucible_amr_budget wall inert`), not on D1's run. The reaction step after each level step and the regrid's new cells move the state after the prescription on one level too, so on D1's run the bound would fail without any defect. The single level's value is printed beside as the control, and D1's run prints its own value, not judged.
+- **D2, the prescription holds.** At the end of every base step, every owned prescribed cell's rho k and rho omega equal the law's at its state to 1e-12 relative, on every level. *Amended 22 October, about 02:25 CDT, while coding and before any run:* this is judged on criterion 2's fixed pattern with the reaction step off (`crucible_amr_budget wall inert`), not on D1's run. The reaction step after each level step and the regrid's new cells move the state after the prescription on one level too, so on D1's run the bound would fail without any defect. The single level's value is printed beside as the control, and D1's run prints its own value, not judged.
 - **D3, determinism:** D1's run on 1 and 4 threads gives `memcmp`-identical states and budgets.
 - **D4, the face inlet on levels with both on:** F3's AMR case (149 x 16, 3 levels) with the wall functions and corrections on passes F3's per-ring and per-supply checks to 1e-12 (`docs/evidence/FACE_INLET.md`).
 - **Reported, not gated:** D1's c*, thrust and light-off time against the uniform 64 x 12 run with `law` and `hp`. Criterion 4 itself still waits for the tag thresholds.
