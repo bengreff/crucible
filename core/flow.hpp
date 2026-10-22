@@ -365,6 +365,9 @@ public:
     // A Chamber's injector-face convective flux per unit area, per ring, at the current state and time
     // (verification; docs/evidence/FACE_INLET.md, F4).
     [[nodiscard]] std::vector<Conserved> injectorFluxes();
+    // The largest relative difference, over the owned wall-function cells, between rho k and rho omega
+    // and the law's at the current state (verification; AMR.md, step D, D2); 0 without wall functions.
+    [[nodiscard]] double prescriptionResidual();
     // Each supply's area on the injector face (its rings' areas, or under openAreaSupplies its shares').
     [[nodiscard]] const std::vector<double>& supplyAreas() const { return supplyArea_; }
     // Next schedule discontinuity (valve opens or finishes opening, igniter on or off) after `time`,
@@ -654,6 +657,13 @@ private:
     // then not admissible.
     bool prescribeWallTurbulence(const std::vector<Conserved>& state, const std::vector<double>& species,
                                  std::vector<double>& turbulence);
+    // The same for wallCells_[n] alone, with one worker's scratch and mass-fraction buffer y.
+    bool prescribeCell(std::size_t n, const std::vector<Conserved>& state, const std::vector<double>& species,
+                       std::vector<double>& turbulence, TransportScratch& scratch, double* y);
+    // Under AMR, after a reflux: the wall-function cells marked in touched (per cell) prescribed again
+    // at the current state, the owned cells' change booked in prescribedTurbulentEnergy_ (AMR.md,
+    // step D); false if one is then not admissible.
+    bool represcribe(const std::vector<char>& touched);
     void prepareTransport();
     // Over N_depth, with the wall-face omega of the wall cells among them.
     void transportProperties(int depth);

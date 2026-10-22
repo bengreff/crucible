@@ -479,7 +479,7 @@ int main(int argc, char** argv) {
         // each supply's face mass flow, sum_j a_sj (rho u)_sj, with rho u from supplyFace against ring j's
         // first cell, against mdot_s; the engine's supply areas against the true. On AMR (3 levels, every
         // cell active) the wall functions and the corrections are off, which AMR refuses.
-        auto open = [&](bool amr) {
+        auto open = [&]() {
           Definition dm = define(nz, nr, false);
           dm.openAreaSupplies = true;
           for (int i = 0; i < kRings; ++i) {
@@ -491,7 +491,6 @@ int main(int argc, char** argv) {
             dm.supplies.push_back(p);
           }
           for (Supply& p : dm.supplies) p.ramp = 0;
-          if (amr) dm.turbulence.wallFunctions = dm.turbulence.propertyCorrections = false;
           return dm;
         };
         auto judge = [&](Flow& flow, const std::string& label) {
@@ -535,7 +534,7 @@ int main(int argc, char** argv) {
                     fmt(" to %.3g; supply areas to %.3g (limit 1e-12)", supplyError, areaError));
         };
         try {
-          Flow flow(open(false));
+          Flow flow(open());
           judge(flow, fmt("%.0f x ", nz) + fmt("%.0f, wall functions and corrections", nr));
           flow.step();
           const auto m = flow.measurements();
@@ -545,9 +544,9 @@ int main(int argc, char** argv) {
         }
         if (nz == 149 && nr == 16) {
           try {
-            Amr amr(open(true), 2);
+            Amr amr(open(), 2);
             for (int l = 1; l < amr.levels(); ++l) amr.setActive(l, std::vector<unsigned char>(amr.level(l).mesh().cells.size(), 1));
-            for (int l = 0; l < amr.levels(); ++l) judge(amr.level(l), fmt("AMR level %.0f", l));
+            for (int l = 0; l < amr.levels(); ++l) judge(amr.level(l), fmt("AMR level %.0f, wall functions and corrections (step D, D4)", l));
           } catch (const std::exception& e) {
             check("F3", false, std::string("AMR: ") + e.what());
           }

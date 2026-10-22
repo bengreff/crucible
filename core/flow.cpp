@@ -1402,24 +1402,50 @@ bool Flow::prescribeWallTurbulence(const std::vector<Conserved>& state,const std
     std::fill(workerOk_.begin(),workerOk_.end(),char{1});
     pool_->blocks(wallCells_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
         auto& s=transportScratch_[worker];double* y=faceFractions_[2*worker].data();
-        for(std::size_t n=begin;n<end;++n) {
-            const std::size_t q=wallCells_[n];const auto& u=state[q];
-            prescribedChange_[q]=0;
-            normalise(species.data()+q*ns_,ns_,y);
-            const double k=turbulence[q*nt_]/u[0];
-            if(!admissibleBulk(u,medium_.energyFloor(y)+k)) { workerOk_[worker]=0;continue; }
-            const double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y,temperature_[q]);
-            const Primitive w{u[0],u[1]/u[0],u[2]/u[0],u[0]*medium_.gasConstant(y)*t};
-            const double mu1=medium_.transport(t,w.p,y,s.diffusion.data(),s.work).viscosity;
-            const auto law=wallSolve(wallFaces_[wallCellFace_[n]],w,t,y,mu1,s);
-            // rho k = omega mu_t.
-            const double rhoK=law.omega*law.eddy;
-            prescribedChange_[q]=(rhoK-turbulence[q*nt_])*mesh_.cells[q].volume;
-            turbulence[q*nt_]=rhoK;turbulence[q*nt_+1]=u[0]*law.omega;
-            if(!admissible(u,species.data()+q*ns_,turbulence.data()+q*nt_)) workerOk_[worker]=0;
-        }
+        for(std::size_t n=begin;n<end;++n)
+            if(!prescribeCell(n,state,species,turbulence,s,y)) workerOk_[worker]=0;
     });
     return std::find(workerOk_.begin(),workerOk_.end(),char{0})==workerOk_.end();
+}
+bool Flow::prescribeCell(std::size_t n,const std::vector<Conserved>& state,const std::vector<double>& species,
+                         std::vector<double>& turbulence,TransportScratch& s,double* y) {
+    const std::size_t q=wallCells_[n];const auto& u=state[q];
+    prescribedChange_[q]=0;
+    normalise(species.data()+q*ns_,ns_,y);
+    const double k=turbulence[q*nt_]/u[0];
+    if(!admissibleBulk(u,medium_.energyFloor(y)+k)) return false;
+    const double t=medium_.temperature((u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-k,y,temperature_[q]);
+    const Primitive w{u[0],u[1]/u[0],u[2]/u[0],u[0]*medium_.gasConstant(y)*t};
+    const double mu1=medium_.transport(t,w.p,y,s.diffusion.data(),s.work).viscosity;
+    const auto law=wallSolve(wallFaces_[wallCellFace_[n]],w,t,y,mu1,s);
+    // rho k = omega mu_t.
+    const double rhoK=law.omega*law.eddy;
+    prescribedChange_[q]=(rhoK-turbulence[q*nt_])*mesh_.cells[q].volume;
+    turbulence[q*nt_]=rhoK;turbulence[q*nt_+1]=u[0]*law.omega;
+    return admissible(u,species.data()+q*ns_,turbulence.data()+q*nt_);
+}
+double Flow::prescriptionResidual() {
+    if(!(nt_ && definition_.turbulence.wallFunctions)) return 0;
+    std::vector<double> law=turbulence_;
+    const auto change=prescribedChange_;
+    (void)prescribeWallTurbulence(state_,species_,law);
+    prescribedChange_=change;
+    double worst=0;
+    for(std::size_t q:wallCells_) if(isOwned(q)) for(std::size_t k=0;k<nt_;++k) {
+        const double a=turbulence_[q*nt_+k],b=law[q*nt_+k];
+        worst=std::max(worst,std::abs(a-b)/std::max(std::abs(b),std::numeric_limits<double>::min()));
+    }
+    return worst;
+}
+bool Flow::represcribe(const std::vector<char>& touched) {
+    bool admitted=true;
+    for(std::size_t n=0;n<wallCells_.size();++n) {
+        const std::size_t q=wallCells_[n];
+        if(!touched[q]) continue;
+        if(!prescribeCell(n,state_,species_,turbulence_,transportScratch_[0],faceFractions_[0].data())) admitted=false;
+        if(isOwned(q)) prescribedTurbulentEnergy_+=prescribedChange_[q];
+    }
+    return admitted;
 }
 // One step: SSPRK2 on the fluxes. With turbulence the SST sources are Strang-split around it: half a
 // step of source (coefficients frozen at the start, from stableDt), the flux step, and half a step
@@ -1444,13 +1470,14 @@ void Flow::clipTurbulence(std::vector<double>& turbulence,std::size_t q) {
 }
 void Flow::sumClipped(Attempt& attempt) const {
     if(!nt_) return;
-    if(const auto* active=region(0)) for(std::size_t q:*active) attempt.clipped-=clippedCell_[q];
+    // Under AMR the owned cells' only (AMR.md, step D).
+    if(const auto* active=region(0)) { for(std::size_t q:*active) if(isOwned(q)) attempt.clipped-=clippedCell_[q]; }
     else for(double c:clippedCell_) attempt.clipped-=c;
 }
 bool Flow::prescribe(std::vector<Conserved>& state,std::vector<double>& species,std::vector<double>& turbulence,Attempt& attempt) {
     if(!(nt_ && definition_.turbulence.wallFunctions)) return true;
     const bool admitted=prescribeWallTurbulence(state,species,turbulence);
-    for(std::size_t q:wallCells_) attempt.prescribed+=prescribedChange_[q];
+    for(std::size_t q:wallCells_) if(isOwned(q)) attempt.prescribed+=prescribedChange_[q];
     return admitted;
 }
 bool Flow::firstStage(double dt,Attempt& attempt) {
