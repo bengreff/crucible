@@ -2,6 +2,35 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (22 October, about 01:55 CDT; READY TO CLEAR)
+
+**The engine database's first batch, b1_tier0, is predicted and registered.** This is the Director's brief: Q1 (a), Q2 (a) now and (c) later.
+- **RULES.md:** 246d43b, committed before any engine was run (`docs/validation/engine_db/predictions/b1_tier0/RULES.md`).
+- **P:** e747f22. The SHA-256 of `predictions.json` is `e055f68f9bcd85eb966fe97213097d1f47049a6067eabd956cad5cecde6572bd`.
+- **The register line:** da89b6e (`engine_db/REGISTER.md`).
+- **What it is:** the CEA ideal rocket (RocketCEA 1.2.3) for the 27 tier0_isp engines.
+  - Vacuum and sea-level Isp and c* for all 27.
+  - Thrust and the mass flow for the 14 that have a throat.
+  - Each quantity has a central value and a band from one-at-a-time members, as in RL10's tier 0.
+  - It ran on the Mac in 4.7 s, using 41 MB.
+- **The sealed step is held** until CRUCIBLE's own prediction on the same 27 engines (batch b2) is committed and registered. One sealing then scores both. No measured value has been read.
+- **The groups:** S has 12 engines and P has 15. The rule is "any of p_c, the mixture ratio or ε from a secondary source only". It puts aj10_190_oms in S through its Wikipedia mixture ratio, where the brief's 11 had allowed it as primary.
+- **Rule edges that the run met** (recorded, not changed; ENGINE_DB.md, *Batch b1_tier0*):
+  - for N2O4 with A-50 or UH25, equilibrium is above 900 K even at O/F 0.02, so lr87, lr91 and viking_4b take 0.02;
+  - for LOX/kerosene, the gas generator's equilibrium O/F comes out at about 0.08.
+- **Time stamps:** RULES.md's header says "about 02:00 CDT", but git gives 01:44; ENGINE_DB.md notes this.
+
+**Next for the engine database:**
+1. **b2's RULES.md:** CRUCIBLE's prediction on the same 27 engines. tier1 is usable for none of them, so b2 needs batch rules for the contraction ratio, the chamber length or L*, the contour and the injector, and must state which CRUCIBLE path runs: the lightweight engine, or a reduced mode.
+   - **Decision for Ben/Director:** what "CRUCIBLE's own prediction" means for engines with no chamber geometry. A design question.
+2. **Round 3 (Q2 (c)):** primary sources for group S, run with Sonnet agents in the foreground, as round 2 was. New records are a new `engines.json`, and so a new batch; b1 is scored as made.
+3. **The sealed step** comes only after b2's register line (PREDICTION_PROTOCOL step 5, with RULES.md's hold).
+
+**S7 (unchanged, measured 01:48):** the four extensions are in tmux `inqs7z`.
+- low has reached 9.5 ms, high 9.4, blob 8.8 and blob-fine 7.0, each after about 4.0 h of wall time. The backhouse load is 22.8.
+- No `_to25` window has been written yet. The 35 ms estimate stands: about 17:00 CDT for low and high, and 23 October for the blob legs.
+- The scoring steps are below, unchanged.
+
 ## Stopped at (21 October, about 22:55 CDT; READY TO CLEAR)
 
 **S7 (Mascotte A-10) is not scored: none of the four 25 ms runs is settled, so each is being extended by 10 ms, as section 2 registers** (21e8bf9).

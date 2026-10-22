@@ -14,6 +14,8 @@ Status: started 21 October 2026, about 03:10 CDT, independent of inquiry2's RL10
 | `compile_brief_2026-10-21_round2.md` | Round 2's brief (the same, with the night's clock), verbatim. |
 | `sealed_outcome.schema.json` | The outcome schema. Its files (`sealed/<batch>.json`) are written only by the sealed step, after the batch's prediction commit. None exists yet. |
 | `PREDICTION_PROTOCOL.md` | How a blind prediction is committed and later scored. |
+| `predictions/<batch>/` | A batch's RULES.md, its script, its run log and `predictions.json`. |
+| `REGISTER.md` | One line per batch: P's full hash and `predictions.json`'s SHA-256 (protocol step 4). |
 
 ## Inputs and outcomes
 
@@ -180,6 +182,25 @@ No RL10 source was opened (the agents' reports).
 - Astronautix and Braeunig.
 
 As in round 1, only the agents saw those values.
+
+## Batch b1_tier0 (22 October 2026, 01:44 to 01:47 CDT)
+
+**The tier-0 prediction for all 27 tier0_isp engines is committed and registered.**
+- RULES.md is 246d43b, committed before any engine was run. Its header says "about 02:00 CDT"; git gives 01:44.
+- P is e747f22. The SHA-256 of `predictions.json` is `e055f68f…72bd`.
+- The register line is da89b6e.
+- The predictor is the CEA ideal rocket (RocketCEA 1.2.3, `predictions/b1_tier0/tier0_batch.py`).
+- Each quantity has a central value and a band from one-at-a-time members (chemistry, divergence, station, open cycle, Cd, throat, conflicting p_c, separation), each member the same for every engine.
+
+**Blindness (Ben, Q1 (a)):** the sealed step is held until CRUCIBLE's own prediction on the same 27 engines (batch b2) is committed and registered. One sealing then scores both. No measured value has been read.
+
+**The groups (Ben, Q2 (a)):** S (an operating-point input from Wikipedia, Astronautix or Braeunig only) has 12 engines, and P has 15. The handoff's 11 had allowed aj10_190_oms as primary; the stated rule counts its Wikipedia mixture ratio, so it is in S. Round 3 (primary sources for S) is still to do, and its records would be a new batch.
+
+**What the run showed about the rules:**
+- **The gas generator's rule (900 K, by bisection from O/F 0.02) has no root** for N2O4 with Aerozine-50 or UH25. CEA's equilibrium temperature at O/F 0.02 is already about 1,180 to 1,200 K. lr87_aj_5, lr91_aj_5 and viking_4b take O/F 0.02, the range's end, as recorded in their diagnostics.
+- **For LOX/kerosene, equilibrium puts that ratio at about 0.08.**
+
+Neither changes the batch: the rules are as committed, and both are in `predictions.json`.
 
 ## Declarations
 
