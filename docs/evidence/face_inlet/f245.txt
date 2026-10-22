@@ -1,0 +1,32 @@
+F2: open-area supplies on ring nodes against the ring-centre code, 200 steps
+  laminar: t 5.139146e-05 s (200 steps); bit-identical no; budgets (open) mass -2.877e-16 energy -3.203e-16
+  laminar: state, partial densities, rho k, rho omega: largest relative difference 4.362e-14 (limit 1e-10)  PASS
+  laminar: inlet mass flow                                                       0.000e+00 (limit 1e-12)  PASS
+  laminar: inlet momentum flux                                                   1.648e-16 (limit 1e-12)  PASS
+  laminar: wall axial force                                                      7.487e-16 (limit 1e-12)  PASS
+  SST, wall functions: t 5.068663e-05 s (200 steps); bit-identical no; budgets (open) mass -4.234e-16 energy -3.131e-16
+  SST, wall functions: state, partial densities, rho k, rho omega: largest relative difference 3.299e-14 (limit 1e-10)  PASS
+  SST, wall functions: inlet mass flow                                           0.000e+00 (limit 1e-12)  PASS
+  SST, wall functions: inlet momentum flux                                       1.647e-16 (limit 1e-12)  PASS
+  SST, wall functions: wall axial force                                          3.742e-16 (limit 1e-12)  PASS
+F4: AMR, each coarse face ring's flux against its children's
+  uniform initial state (t 0.000000e+00 s): largest relative difference mass 2.931e-16, axial momentum 1.730e-16, energy 4.568e-16
+  uniform initial state: mass                                                    2.931e-16 (limit 1e-12)  PASS
+  uniform initial state: axial momentum                                          1.730e-16 (limit 1e-12)  PASS
+  uniform initial state: energy                                                  4.568e-16 (limit 1e-12)  PASS
+  after 100 base steps (t 2.497149e-05 s): largest relative difference mass 2.931e-16, axial momentum 3.063e-02, energy 4.568e-16
+  after 100 base steps: mass                                                     2.931e-16 (limit 1e-12)  PASS
+  after 100 base steps: energy                                                   4.568e-16 (limit 1e-12)  PASS
+F5(a): plateTemperature empty against equal to wallTemperature, 200 steps
+  wall functions: state, species, rho k, rho omega, budgets differ (1 = yes)     0.000e+00 (limit 0e+00)  PASS
+  resolved SST: state, species, rho k, rho omega, budgets differ (1 = yes)       0.000e+00 (limit 0e+00)  PASS
+F5(b): an adiabatic plate under the wall functions, 200 steps
+  ring-centre: 2 plate faces; largest |q_w| plate 1.453e-12 W/m^2, side wall 1.810e+04 W/m^2; (T_w - T_1) / (u_1^2 / 2 c_p) in [0.892235, 0.892324]; budgets mass -1.900e-16 energy -3.223e-16
+  ring-centre: plate |q_w| over the side wall's largest                          8.025e-17 (limit 1e-09)  PASS
+  ring-centre: T_1 - T_w at its largest (K)                                      0.000e+00 (limit 1e-09)  PASS
+  ring-centre: T_w - (T_1 + u_1^2 / (2 c_p)) at its largest (K)                  0.000e+00 (limit 1e-09)  PASS
+  open-area: 3 plate faces; largest |q_w| plate 2.262e-12 W/m^2, side wall 1.833e+04 W/m^2; (T_w - T_1) / (u_1^2 / 2 c_p) in [0.891998, 0.892329]; budgets mass 9.229e-17 energy -9.347e-16
+  open-area: plate |q_w| over the side wall's largest                            1.234e-16 (limit 1e-09)  PASS
+  open-area: T_1 - T_w at its largest (K)                                        0.000e+00 (limit 1e-09)  PASS
+  open-area: T_w - (T_1 + u_1^2 / (2 c_p)) at its largest (K)                    0.000e+00 (limit 1e-09)  PASS
+0 failures

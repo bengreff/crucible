@@ -1,0 +1,13 @@
+r_mesh.csv identical
+r_history.csv identical
+r_field_000000.csv identical
+r_field_000020.csv identical
+r_field_000030.csv identical
+8,9c8,9
+< cost: 46.114 us of wall time per cell update on 1 threads, 14.0 s per simulated ms over the run
+< reaction wall 0.4 s (92.5% of the run), 42.654 us per cell update
+---
+> cost: 48.282 us of wall time per cell update on 1 threads, 14.7 s per simulated ms over the run
+> reaction wall 0.4 s (92.5% of the run), 44.641 us per cell update
+# tier1_default_diff:
+0
