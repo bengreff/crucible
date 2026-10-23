@@ -1238,7 +1238,7 @@ The rebuild uses the registered command, without `_WRITE_ANYWAY`. The output is 
 - The tier-1 runs keep the 21 October `rl10_s.bin`. In that table, the 11 dense nodes' stored data is unfinished.
 - Whether tier 1 moves to the rebuilt table is decided with the N-gate decision, not before B4 is read.
 
-### T2's wording miss, recorded; the N gate: the Director's decision (i), stated before its code (23 October 2026, about 01:08 CDT)
+### T2's wording miss, recorded; the N gate: the Director's decision (i), stated before its code (23 October 2026, about 01:06 CDT)
 
 **T2, recorded as measured (the Director, 01:15 by the message).** T2 predicted that `turn_back` would move only at the 20 failing nodes. It moved at 340.
 - The other 320 are listed with both values and their `fall_within_floor` in `table_b/rl10_s_fixes_t2_turnback_moved_2026-10-23.csv`.
@@ -1258,6 +1258,22 @@ The rebuild uses the registered command, without `_WRITE_ANYWAY`. The output is 
   - **N1:** exactly the 7 nodes are named "no fall in N", and the N gate has 0 failures. With the turn-back's 0, 2(a) passes.
   - **N2:** every node-report column except the new one and `n_gate_ok` is identical to the fixes build's at all 990 nodes. `n_gate_ok` changes only at the 7. No stored value moves.
   - **N3:** every gate passes, so the builder writes the table. Its md5 is recorded.
+
+### Decision (i) measured on rl10_s: all gates pass; N1 missed as worded, 115 named not 7 (23 October 2026, about 01:10 CDT)
+
+The rebuild used the registered command, writing to `/tmp/tb/rl10_s_ni.bin`. Its report is `table_b/rl10_s_ngate_i_build_2026-10-23.txt` and its node report `table_b/rl10_s_ngate_i_nodes_2026-10-23.csv`.
+
+- **The gates.** N-gate failures 0. 2(a) passes, using the specific entropy. 2(b) 0.028 K passes. 2(c) 0 failures passes. Criterion 1 passes. The table was written (3.6 MB).
+- **N1: not met as worded.** 115 nodes are named "no fall in N", not 7. The N gate's failures are 0, as predicted. The 115 are:
+  - **7 with N_eq > N_0:** the registered ones, the 20 October failures. All are at η 1 and ρ 1e-3 to 0.017 kg/m³: f_H 0.153846 (Z_N 0.3, ρ 1e-3), 0.166667 (Z_N 0.3, ρ 1e-3 and 4.1e-3), and 0.181818 (Z_N 0 at ρ 1e-3; Z_N 0.3 at 1e-3, 4.1e-3 and 0.017).
+  - **90 ties at η 0:** every η 0 node, flagged `zero_span`. Here T_eq = 200 K and c_0 = c_eq = c_cp, so there is no branch to fall along.
+  - **18 ties at η 0.6 and 0.7:** frozen lower branches (18 of the table's 19). Their composition does not change along the branch, so N_0 = N_eq exactly.
+- **Why it missed.** The rule as registered, N_eq ≥ N_0 − 1e-15, includes ties. The prediction counted only the strict cases. The code does what the rule says. The 108 ties passed the old gate and still pass: their `n_gate_ok` is unchanged.
+- **The upgrade rule, read conservatively.** It counts every cell the runtime refuses as "no fall in N", whichever of the three kinds the cell comes from. That can only make the upgrade to (ii) come sooner.
+  - The build's line says "CVODES at runtime" for all 115. That is checked only for the 7. How the runtime treats the ties' cells is not checked.
+- **N2: met.** Against the fixes build (`table_b/rl10_s_fixes_nodes_2026-10-23.csv`), compared column by column at all 990 nodes and ignoring the new `n_no_fall`, exactly 7 rows differ. They are the 7 above, and only in `n_gate_ok` (0 to 1). No stored value moves.
+- **N3: met.** All gates pass, so the builder wrote the table. md5 `6614a0ea3ef30dca1939f58ee4d07f5f`.
+- **Not done.** The tier-1 runs, B4 among them, still use the 21 October `rl10_s.bin` (md5 1be4531e5c446ad70e3640b417fed10e). In that table the 11 dense nodes are unfinished. Moving tier 1 to the rebuilt table is a separate step, and it waits until B4 is done.
 
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 

@@ -2,6 +2,46 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (23 October, about 01:15 CDT; inquiry, Friday night, the Director's 01:15 message; stopped for the night)
+
+**B4 now runs on backhouse; the Mac copy is killed.** The Director's reason: 17 hours on the Mac runs into Ben's day.
+- **Done-file for the Director: `/home/greff/crucible_t1b4/run/done_b4`.** On the Mac: `printf 'ls /home/greff/crucible_t1b4/run/done_b4\n' | ssh backhouse "wsl bash -l"`.
+- **The tree:** `/home/greff/crucible_t1b4`, ab3aa03 (the `REVISION` file), built there.
+  - It uses `run/rl10_s.bin`, the same 21 October table as on the Mac (md5 1be4531e5c446ad70e3640b417fed10e).
+  - The run script is `run/bh_b4.sh`: lead 20 ms, end 21 ms, 4 threads, `nice -n 10`, under `/usr/bin/time -v`.
+  - Log `run/b4.log` (it ends with `exit N`). Series `run/b4_DEVELOPMENT_series.csv`.
+- **Launched 01:05:30 CDT** in tmux on its own socket (`tmux -L crucible_t1b4`, session `b4`).
+- **The load when it started:** load average about 24.8 on 28 threads. S7's four `crucible_mascot` processes run at nice 0; B4 at nice 10 and 4 threads, so S7 keeps priority. Someone else was compiling (`cc1plus`).
+- **Its pace is not measured yet.** At 01:10 the series file was still empty.
+  - That is expected: the driver flushes the series and prints a progress line every 50 samples, which is 0.5 ms of flow (`tests/rl10_tier1.cpp`, around line 518). The Mac's 20 rows were a partial buffer.
+  - The first progress line in `b4.log` gives the pace.
+  - The one proxy so far is the sub-200 K Cantera warnings: 293 in backhouse's first 5 minutes, against 339 in the Mac's whole run to about 0.21 ms. *Inferred, weak:* that suggests a pace no slower than the Mac's.
+- **Two done-files:** the driver writes `run/b4_DEVELOPMENT_done` (`exit N`) when `runCase` returns. The script touches `run/done_b4` after the process exits, whatever the outcome, so watch `done_b4`.
+- **The Mac copy's partial output** is in `/tmp/t1run/b/b4_mac/` (log and the 20-row series, to about 0.21 ms). Nothing of B4 runs on the Mac.
+
+**Table B: the N gate, the Director's decision (i), registered in 9d35a2b and measured** (`docs/evidence/TABLE_B.md`, "Decision (i) measured"):
+- **All gates pass on rl10_s:** N gate 0 failures, 2(a), 2(b) 0.028 K, 2(c), criterion 1. The rebuilt table is `/tmp/tb/rl10_s_ni.bin`, md5 6614a0ea3ef30dca1939f58ee4d07f5f.
+- **N1 missed as worded: 115 nodes named, not 7.** The 7 registered nodes are there (N_eq > N_0). The other 108 are ties under the rule as registered (N_eq ≥ N_0 − 1e-15):
+  - 90 are the η 0 nodes, where T_eq is 200 K and the branch has no span;
+  - 18 are frozen lower branches at η 0.6 and 0.7, where N cannot change.
+- **N2 and N3 met.** Only `n_gate_ok` changes, and only at the 7. No stored value moves. The table was written.
+- **The upgrade rule** (registered): if the central run's "no fall in N" refusals exceed 1% of its CVODES calls, upgrade to (ii). It is read conservatively: every no-fall cell counts, whichever kind it is.
+- **T2's wording miss** is recorded with its 320 moved-but-unchanged nodes in `table_b/rl10_s_fixes_t2_turnback_moved_2026-10-23.csv`.
+- **Tier 1 still uses the 21 October table.** Moving it to the rebuilt one is a separate step, after B4.
+
+**Next session, in order:**
+1. **The species' low-temperature thermo (the Director's first item).** Extend H2, O2 and H2O below 200 K with sourced fits (NASA-9 or equivalent). The test: nothing above 200 K changes.
+   - **Register before code** which hydrogen the supply is (normal, equilibrium, or para-rich frozen) and why. The Director's point: the RL10's hydrogen comes off the regenerative jacket warm.
+   - My reasoning so far (*inferred*, sources still to find):
+     - Stored LH2 is near equilibrium at about 20 K, which is almost all para.
+     - Without a catalyst, ortho-para conversion takes far longer than the milliseconds the hydrogen spends in the jacket. So the jacket's outlet gas is likely para-rich and frozen, not normal (3 : 1) and not equilibrium at the local T.
+     - Para and normal hydrogen differ most in c_p and enthalpy between about 50 and 300 K, which is where the 199.67 K supply sits. So the choice changes the injected temperature for a given enthalpy.
+     - Check which form the JANAF and NASA H2 data describe (likely normal), and whether the supply boundary condition is set by T or by h.
+   - Also still to settle: NASA-9 fits mostly start at 200 K, so the source below 200 K is likely JANAF or NIST. h2o2_highT and the table builder's Cantera fits must move together.
+2. **Score B4** when its done-file appears: the flash branch first (face pressure over [t_L − 1, t_L] against 3.1 bar), then the gate's lines, the lead's cost, the flashes after t_L, and whether it passes t_L + 0.5 ms.
+3. **Whether tier 1 moves to the rebuilt table** `/tmp/tb/rl10_s_ni.bin` (copy it into the repo's table place with its md5), after B4.
+4. **A central run** only after acceptance, S7 low and high scored, and the Director's clearance.
+
 ## Stopped at (23 October, about 01:05 CDT; inquiry, Friday night, the Director's 01:05 message)
 
 **The Director (01:05):** fix the Table B builder at the failing points of gates 2(a) and 2(c), without restricting the gates (50 against 80 kg/m³ is too close to call the dense row unreachable). The 188.7 K warning is a fidelity gap, not only a p0 artefact. Stop at a clean commit by about 02:45.

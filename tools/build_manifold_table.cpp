@@ -247,6 +247,7 @@ struct NodeOutcome {
   double spanLower = 0, spanUpper = 0;  // E3: |c_eq - c_start| per branch
   bool e2Failure = false;               // an integration to a midpoint threw (reported, not a 2(c) failure)
   bool nGateChecked = false, nGateOk = true;
+  bool nNoFall = false;  // N_eq >= N_0: no fall in N on the lower branch; checked on the upper only (decision (i))
   double fallWithinFloor = 0;  // the largest fall the round-off floor kept from counting, over |c_eq|
   bool floorDecided = false;   // such a fall was above kTurnBackGate of its span (the old gate would fail it)
   bool hasDT2bLower = false, hasDT2bUpper = false;
@@ -856,7 +857,11 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
       };
       const double n0 = nAt(0), neq = nAt(finalLower - 1);
       int idxA = finalLower;  // no portion to check if the fall never reaches 0.5%
-      if (std::fabs(n0 - neq) > 1e-15) {
+      // Decision (i) (TABLE_B.md, 23 October): with no fall on the lower branch (N_eq >= N_0, a strongly
+      // dissociated equilibrium, or a tie on a zero-span or frozen branch) the fall is checked on the upper branch
+      // only, and the node is named.
+      result.nNoFall = !(n0 - neq > 1e-15);
+      if (!result.nNoFall) {
         for (int p = 0; p < finalLower; ++p) {
           const double phi = (n0 - nAt(p)) / (n0 - neq);
           if (phi >= kPhiA) { idxA = p; break; }
@@ -921,7 +926,7 @@ int main(int argc, char** argv) {
   if (nodeReport)
     std::fprintf(nodeReport, "candidate,f_H,Z_N,eta,rho,T_eq,c0,c_eq,c_cp,degenerate,zero_span,outside,lower_frozen,upper_frozen,"
                              "integrator_failure,turn_back,n_gate_checked,n_gate_ok,dT_2b_lower,dT_2b_upper,raw_element_error,"
-                             "sum_error,span_lower,span_upper,e2q_dT,e2q_dY,e2q_dT_last_quarter,e2q_dY_last_quarter,e2_mid_dT,e2_mid_dY,added_points,e2_capped,e2_raw_fallbacks,e2_failure,failure,fall_within_floor\n");
+                             "sum_error,span_lower,span_upper,e2q_dT,e2q_dY,e2q_dT_last_quarter,e2q_dY_last_quarter,e2_mid_dT,e2_mid_dY,added_points,e2_capped,e2_raw_fallbacks,e2_failure,failure,fall_within_floor,n_no_fall\n");
 
   refuseReactingN2(mechanism);
 
@@ -973,6 +978,7 @@ int main(int argc, char** argv) {
     double worstTurnBack = 0;
     std::array<std::size_t, 4> worstTurnBackLoc{};
     double worstFallWithinFloor = 0;  // fix 2's uncounted falls, over |c_eq|
+    std::vector<std::array<std::size_t, 4>> nNoFallLocs;  // decision (i)'s named nodes
     std::size_t floorDecidedNodes = 0;
     std::size_t nGateFailures = 0;
     std::array<std::size_t, 4> worstNGateLoc{};
@@ -1033,7 +1039,7 @@ int main(int argc, char** argv) {
           std::string why = r.failure;
           for (char& ch : why) if (ch == ',' || ch == '\n' || ch == '"') ch = ' ';
           std::lock_guard<std::mutex> lock(report);
-          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%.6e,%.6e,%s,%s,%s,%s,%s,%s,%zu,%d,%zu,%d,%s,%.3e\n",
+          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%.6e,%.6e,%s,%s,%s,%s,%s,%s,%zu,%d,%zu,%d,%s,%.3e,%d\n",
                        candidate, table.fH[i], table.zN[j], eta, rho, r.tEq, r.c0, r.cEq, r.cCp, r.degenerate, r.zeroSpan,
                        r.outside, r.lowerFrozen, r.upperFrozen, r.integratorFailure, r.turnBack, r.nGateChecked, r.nGateOk,
                        r.hasDT2bLower ? std::to_string(r.dT2bLower).c_str() : "",
@@ -1042,11 +1048,12 @@ int main(int argc, char** argv) {
                        r.hasE2 ? std::to_string(r.e2QDY).c_str() : "", r.hasE2 ? std::to_string(r.e2QDTLast).c_str() : "",
                        r.hasE2 ? std::to_string(r.e2QDYLast).c_str() : "", r.hasE2 ? std::to_string(r.e2MidDT).c_str() : "",
                        r.hasE2 ? std::to_string(r.e2MidDY).c_str() : "", r.addedPoints, r.e2Capped, r.e2RawFallbacks, r.e2Failure,
-                       why.c_str(), r.fallWithinFloor);
+                       why.c_str(), r.fallWithinFloor, r.nNoFall);
         }
         if (r.turnBack > ts.worstTurnBack) { ts.worstTurnBack = r.turnBack; ts.worstTurnBackLoc = {i, j, k, l}; }
         if (r.nGateChecked && !r.nGateOk) { ++ts.nGateFailures; ts.worstNGateLoc = {i, j, k, l}; }
         ts.worstFallWithinFloor = std::max(ts.worstFallWithinFloor, r.fallWithinFloor);
+        if (r.nGateChecked && r.nNoFall) ts.nNoFallLocs.push_back({i, j, k, l});
         ts.floorDecidedNodes += r.floorDecided;
         if (r.hasDT2bLower && r.dT2bLower > ts.worstDT2b) { ts.worstDT2b = r.dT2bLower; ts.worstDT2bLoc = {i, j, k, l}; }
         if (r.hasDT2bUpper && r.dT2bUpper > ts.worstDT2b) { ts.worstDT2b = r.dT2bUpper; ts.worstDT2bLoc = {i, j, k, l}; }
@@ -1084,6 +1091,7 @@ int main(int argc, char** argv) {
       if (ts.worstTurnBack > merged.worstTurnBack) { merged.worstTurnBack = ts.worstTurnBack; merged.worstTurnBackLoc = ts.worstTurnBackLoc; }
       merged.nGateFailures += ts.nGateFailures;
       merged.worstFallWithinFloor = std::max(merged.worstFallWithinFloor, ts.worstFallWithinFloor);
+      merged.nNoFallLocs.insert(merged.nNoFallLocs.end(), ts.nNoFallLocs.begin(), ts.nNoFallLocs.end());
       merged.floorDecidedNodes += ts.floorDecidedNodes;
       if (ts.nGateFailures > 0) merged.worstNGateLoc = ts.worstNGateLoc;
       if (ts.worstDT2b > merged.worstDT2b) { merged.worstDT2b = ts.worstDT2b; merged.worstDT2bLoc = ts.worstDT2bLoc; }
@@ -1161,6 +1169,10 @@ int main(int argc, char** argv) {
     std::printf("  turn-back round-off floor (%.0e |c_eq|): %zu nodes with an uncounted fall above %.0e of the span; "
                 "the largest uncounted fall %.3e of |c_eq|\n",
                 kTurnBackFloor, attemptStats.floorDecidedNodes, kTurnBackGate, attemptStats.worstFallWithinFloor);
+    std::sort(attemptStats.nNoFallLocs.begin(), attemptStats.nNoFallLocs.end());
+    std::printf("  N gate, nodes with no fall in N (N_eq >= N_0; checked on the upper branch only, CVODES at runtime): %zu\n",
+                attemptStats.nNoFallLocs.size());
+    for (const auto& loc : attemptStats.nNoFallLocs) std::printf("    no fall in N at %s\n", locStr(loc).c_str());
     std::printf("  its 2(b) worst |dT| %.3f K at %s; 2(c) frozen lower %zu, upper %zu, integrator failures %zu; "
                 "criterion 1 |sum Y - 1| %.2e, elements %.2e after projection\n",
                 attemptStats.worstDT2b, locStr(attemptStats.worstDT2bLoc).c_str(), attemptStats.frozenLower,
