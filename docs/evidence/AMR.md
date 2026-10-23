@@ -830,6 +830,14 @@ The fix registered in 28d87b1 (`SPRAY.md`, *The fix, registered before its code*
 - **The children's ρ.** With each partial density linear as well, a child's sum of partial densities equals its linear ρ to rounding only. Either one can be the one kept.
 - **Conflicts with this lane's code: none.** This lane's uncommitted work touched only `tests/` and `CMakeLists.txt`. The ordering is the only overlap, and it is above.
 
+## Inquiry's wall-face fix (762806e), read from the AMR side (23 October, about 01:00 CDT)
+
+The change: `Flow::transportFluxes` skips `wallSolve` for a wall face whose cell is outside N_2. Under AMR such a cell has no computed state, so the solve read stale primitives. The review finds it sound (derived from the code):
+- **The flux reader.** `lawFlux` (transport.cpp) reads a wall solution within the same evaluation, for a cell whose derivative is used. Those cells are active, inside N_2, and freshly solved.
+- **The tag reader.** The wall-strip tag (amr.cpp, `lawYPlus`) fills its array from every wall face but reads it only on the level's active cells (`on(i, j)`). Activity changes only at a regrid, so each cell it reads was active through the step before and was solved in that step's last evaluation.
+- **The accessor.** On a single level every cell is in N_2, so nothing changes there; the dry run and the probes are byte-identical, as 762806e records. Under AMR, `Flow::wallYPlus()` would return stale values for faces outside N_2. It has no AMR caller today (only `face_inlet_tests` and `chamber_study`, both single-level). A future AMR caller must filter by activity.
+- **No conflict** with the leak fix of FACE_INLET.md section 5. That fix is in the end-face gather and does not touch the wall solve.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.
