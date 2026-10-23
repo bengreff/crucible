@@ -68,7 +68,8 @@ public:
         double throatHalfWidth{0.5};  // in throat radii, about the wall's narrowest interior station
         int throatLevel{2};           // the throat and the wall strip refine to this level
         double wallYPlus{300};        // the wall row's target first-cell y+ (laminar estimate)
-        double mixture{0.02}, temperature{0.05}, pressure{0.10}, vorticity{0.05};
+        // Fixed at s* = 1/4 of step C's 0.02, 0.05, 0.10 and 0.05 (AMR.md, Criterion 4: results).
+        double mixture{0.005}, temperature{0.0125}, pressure{0.025}, vorticity{0.0125};
         std::vector<double> hydrogen;  // per species, the H element's mass over the species' mass
         std::function<bool(int, int, int)> custom;  // a caller's own tag on level l's cell (i, j), e.g. a test's
     };

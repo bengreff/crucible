@@ -1,0 +1,27 @@
+[  5%] Building CXX object CMakeFiles/crucible_core.dir/core/amr.cpp.o
+[ 21%] Building CXX object CMakeFiles/crucible_core.dir/core/contour.cpp.o
+[ 21%] Building CXX object CMakeFiles/crucible_core.dir/core/flow.cpp.o
+[ 21%] Building CXX object CMakeFiles/crucible_core.dir/core/equilibrium_table.cpp.o
+[ 26%] Building CXX object CMakeFiles/crucible_core.dir/core/manifold_runtime.cpp.o
+[ 31%] Building CXX object CMakeFiles/crucible_core.dir/core/manifold_table.cpp.o
+[ 36%] Building CXX object CMakeFiles/crucible_core.dir/core/medium.cpp.o
+[ 42%] Building CXX object CMakeFiles/crucible_core.dir/core/pool.cpp.o
+[ 47%] Building CXX object CMakeFiles/crucible_core.dir/core/session.cpp.o
+[ 52%] Building CXX object CMakeFiles/crucible_core.dir/core/spray.cpp.o
+[ 57%] Building CXX object CMakeFiles/crucible_core.dir/core/transport.cpp.o
+[ 63%] Building CXX object CMakeFiles/crucible_core.dir/core/walls.cpp.o
+[ 68%] Linking CXX static library libcrucible_core.a
+[ 68%] Built target crucible_core
+[ 73%] Building CXX object CMakeFiles/crucible_thermo.dir/adapters/thermo.cpp.o
+[ 78%] Building CXX object CMakeFiles/crucible_thermo.dir/adapters/reacting_flow.cpp.o
+[ 84%] Building CXX object CMakeFiles/crucible_thermo.dir/adapters/reaction.cpp.o
+[ 89%] Linking CXX static library libcrucible_thermo.a
+[ 89%] Built target crucible_thermo
+[ 94%] Building CXX object CMakeFiles/crucible_amr_c4.dir/tests/amr_c4.cpp.o
+[100%] Linking CXX executable crucible_amr_c4
+[100%] Built target crucible_amr_c4
+[ 68%] Built target crucible_core
+[ 89%] Built target crucible_thermo
+[ 94%] Building CXX object CMakeFiles/crucible_amr_budget.dir/tests/amr_budget.cpp.o
+[100%] Linking CXX executable crucible_amr_budget
+[100%] Built target crucible_amr_budget

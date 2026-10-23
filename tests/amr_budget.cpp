@@ -15,7 +15,8 @@
 // Step B2's checks (AMR.md, Step B2: setup): b1 runs B1 (with the temperature-guess reset) instead of B2,
 // ghost=N sets the ghost width, dump=PATH writes the active cells, steps and budget at the end, and amr
 // stops after the AMR run (no single-level run, nothing judged).
-// Step C's checks (AMR.md, Step C: setup): tags turns on the tags and regridding at Tags' defaults, with the f_H
+// Step C's checks (AMR.md, Step C: setup): tags turns on the tags and regridding at Tags' defaults (step C's until
+// criterion 4 fixed them at a quarter of those; AMR.md, Criterion 4: results), with the f_H
 // weights from each species' H content. It prints the regrids that changed the pattern and level 1's active cells,
 // and judges check 2 over every regrid (so including the first after light-off): the largest fill content error below
 // 1e-14, over the parent's content as stated and over the children's gross content (AMR.md, Step C: results).
@@ -103,7 +104,7 @@ int main(int argc, char** argv) {
                 inert ? ", inert (no reaction step)" : "");
   std::printf("AMR criterion 2 on %s: C1 eqtt (resolved walls), base 32 x 6 plus one level, to %.4g ms, %d threads%s%s\n", b1 ? "B1" : "B2",
               end * 1e3, threads, ghost > 0 ? (", ghost width " + std::to_string(ghost)).c_str() : "",
-              tagged ? ", step C's tags and regridding" : "");
+              tagged ? ", tags at Tags' defaults and regridding" : "");
   std::printf("table %s: %s\n", path, table.provenance.c_str());
 
   Amr amr(d, 1);

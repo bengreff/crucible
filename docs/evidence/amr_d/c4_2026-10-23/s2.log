@@ -1,0 +1,24 @@
+AMR criterion 4: C1 eqtt with law and hp, 32 x 6 plus one level, dynamic thresholds x 0.500000, to 8 ms, 2 threads; table Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+thresholds: f_H 0.01, T 0.025, pressure 0.05, vorticity 0.025; interval 2, buffer 2, wall y+ 300, throat 0.5 r_t to level 2
+fine throat station 32, fine chamber-end column 17 (odd: the base column ends with it)
+light-off at 0.010174 ms, step 2.848e-07 s
+  t 0.5000 ms, 117 s
+  t 1.0001 ms, 263 s
+  t 1.5001 ms, 414 s
+  t 2.0001 ms, 1659 s
+  t 2.5001 ms, 3651 s
+  t 3.0000 ms, 4861 s
+  t 3.5000 ms, 5514 s
+  t 4.0001 ms, 5592 s
+  t 4.5001 ms, 5659 s
+  t 5.0000 ms, 5716 s
+  t 5.5000 ms, 5782 s
+  t 6.0001 ms, 5840 s
+  t 6.5001 ms, 5902 s
+  t 7.0000 ms, 5964 s
+  t 7.5001 ms, 6022 s
+AMR: 67644 base steps (0 redone), 19024 regrids; level 1 active 688 of 768 at the end, 676.6 on average; budgets at the end: mass -1.175e-14 of the content, energy 1.155e-14, momentum -4.950e-18 of |initial| + gross; igniter |E - 0.5 J| 1.221e-15 J
+at the end: c* 2425.1970 m/s, Isp_vac 416.57187 s, F_vac 1634.0708 N; settled over 21 samples: c* 2425.1993 m/s, Isp_vac 415.69334 s, F_vac 1630.6236 N
+reported, not judged: chamber pressure 3.08786e+06 Pa at the end; t90 1.190797 ms (802 history samples)
+printed for 5(a), not judged: 104518336 cell updates, 1387.9 s of wall net of the history's 4695.5 s, 1.3279e-05 s per update; load 38.1 at the start, 34.9 at the end
+c4 amr scale 0.5 cstar 2.425199260804e+03 isp 4.156933427168e+02 fvac 1.630623646313e+03 lightoff 1.017361981773e-05 step 2.847841360334e-07 steps 67644 samples 21 t90 1.190797090048e-03 p8 3.087857253461e+06

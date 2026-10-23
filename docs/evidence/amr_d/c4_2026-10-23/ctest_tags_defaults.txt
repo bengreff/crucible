@@ -1,0 +1,332 @@
+Fast ctest after the Amr::Tags defaults change (worktree tree on a154765 plus the change, uncommitted at the time).
+Mac, ctest -LE slow -j 2 --output-on-failure, 2 threads a test (OMP/MKL/OPENBLAS 2).
+started Fri Oct 23 04:46:26 CDT 2026
+ctest exit 8
+finished Fri Oct 23 04:52:17 CDT 2026
+FAIL lines against docs/evidence/merge_inquiry2_ctest_8a8d192_2026-10-23.txt, as sorted sets: identical (11 lines).
+== ctest output
+Test project /Users/ben/inquiry-project/.claude/worktrees/inquiry2/build
+      Start  4: amr_verification
+      Start  5: amr_subcycling_verification
+ 1/13 Test  #4: amr_verification .................***Failed    0.28 sec
+AMR criterion 0, step A
+(c) cylinder, uniform rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                2.045e-16 (limit 1e-14)  PASS
+  cell z                                                                     1.433e-16 (limit 1e-14)  PASS
+  cell r                                                                     3.695e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 0.000e+00 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    1.365e-16 (limit 1e-14)  PASS
+  axial face area                                                            8.180e-17 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, r component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face middle                                                         0.000e+00 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           1.156e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          0.000e+00 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     0.000e+00 (limit 1e-14)  PASS
+  column integral of R^3                                                     0.000e+00 (limit 1e-14)  PASS
+  wall radius at five points per column                                      0.000e+00 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        3.785e-16 (limit 1e-14)  PASS
+(c) cone, uniform rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                1.529e-16 (limit 1e-14)  PASS
+  cell z                                                                     2.868e-16 (limit 1e-14)  PASS
+  cell r                                                                     6.024e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 1.125e-16 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    2.040e-16 (limit 1e-14)  PASS
+  axial face area                                                            1.178e-16 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       1.876e-16 (limit 1e-14)  PASS
+  radial face area vector, r component                                       1.688e-16 (limit 1e-14)  PASS
+  radial face middle                                                         7.071e-17 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           2.828e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          1.160e-16 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     1.126e-16 (limit 1e-14)  PASS
+  column integral of R^3                                                     1.434e-16 (limit 1e-14)  PASS
+  wall radius at five points per column                                      1.388e-16 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        6.341e-16 (limit 1e-14)  PASS
+(c) cylinder, stretched rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                2.599e-16 (limit 1e-14)  PASS
+  cell z                                                                     2.865e-16 (limit 1e-14)  PASS
+  cell r                                                                     4.704e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 2.025e-16 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    6.227e-16 (limit 1e-14)  PASS
+  axial face area                                                            0.000e+00 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, r component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face middle                                                         0.000e+00 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           1.156e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          0.000e+00 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     0.000e+00 (limit 1e-14)  PASS
+  column integral of R^3                                                     0.000e+00 (limit 1e-14)  PASS
+  wall radius at five points per column                                      0.000e+00 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        5.452e-16 (limit 1e-14)  PASS
+(c) cone, stretched rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                2.915e-16 (limit 1e-14)  PASS
+  cell z                                                                     1.434e-16 (limit 1e-14)  PASS
+  cell r                                                                     4.313e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 1.238e-16 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    7.446e-16 (limit 1e-14)  PASS
+  axial face area                                                            1.497e-16 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       1.876e-16 (limit 1e-14)  PASS
+  radial face area vector, r component                                       2.251e-16 (limit 1e-14)  PASS
+  radial face middle                                                         7.071e-17 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           2.828e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          1.832e-16 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     1.126e-16 (limit 1e-14)  PASS
+  column integral of R^3                                                     1.434e-16 (limit 1e-14)  PASS
+  wall radius at five points per column                                      1.388e-16 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        5.219e-16 (limit 1e-14)  PASS
+(d) RL10 development contour, base 150 x 16, stretching 1.7347
+  level 3 (1200 x 128) closure, relative to the faces                        8.132e-14 (limit 1e-14)  FAIL
+      printed, not judged: relative to the pressure measure 4.199e-11, to pi R^2 7.640e-16
+  level 2 (600 x 64) closure, relative to the faces                          3.938e-14 (limit 1e-14)  FAIL
+      printed, not judged: relative to the pressure measure 9.695e-12, to pi R^2 6.674e-16
+  level 1 (300 x 32) closure, relative to the faces                          1.912e-14 (limit 1e-14)  FAIL
+      printed, not judged: relative to the pressure measure 2.098e-12, to pi R^2 5.651e-16
+  level 0 (150 x 16) closure, relative to the faces                          8.260e-15 (limit 1e-14)  PASS
+      printed, not judged: relative to the pressure measure 4.443e-13, to pi R^2 5.495e-16
+      level 0 coarsened against built directly (printed, not judged): cell volume 2.130e-02 largest, throat station area +0.000e+00, side-wall face area 7.427e-03 largest
+FAILED (3 failures)
+
+      Start  8: transport_verification
+ 2/13 Test  #5: amr_subcycling_verification ......***Failed   60.00 sec
+AMR step B2, criteria 1 and 3 (4 threads)
+1(b) uniform Mach 0.3 flow, stretched-ring cylinder 400 x 8 plus two levels, 400 base steps
+  t = 1.3358e-04 s after 400 base steps (0 redone), 2.0 s of wall; judged for z in (0.0603, 0.5675) m
+  level 0 (400 x 8): largest |u - u0| / a0                                   5.936e-16 (limit 1e-10)  PASS
+  level 0 (400 x 8): largest |p / p0 - 1|                                    3.331e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 5.936e-16 and 3.331e-16
+  level 1 (800 x 16): largest |u - u0| / a0                                  3.577e-16 (limit 1e-10)  PASS
+  level 1 (800 x 16): largest |p / p0 - 1|                                   4.441e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 3.577e-16 and 4.441e-16
+  level 2 (1600 x 32): largest |u - u0| / a0                                 4.391e-16 (limit 1e-10)  PASS
+  level 2 (1600 x 32): largest |p / p0 - 1|                                  3.331e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 4.391e-16 and 3.331e-16
+Step C check 3: 1(b)'s flow, two levels moved one base column per regrid, 400 base steps
+  t = 1.2659e-04 s after 400 base steps (0 redone), 3.6 s of wall; judged for z in (0.0571, 0.5692) m
+  regrids that changed the pattern (202 expected)                            2.020e+02 (limit 202)  PASS
+      printed, not judged: level 1's active cells span base columns 248 to 351
+      printed, not judged: level 2's active cells span base columns 269 to 330
+  level 0 (400 x 8): largest |u - u0| / a0                                   6.742e-16 (limit 1e-10)  PASS
+  level 0 (400 x 8): largest |p / p0 - 1|                                    4.441e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 6.742e-16 and 4.441e-16
+  level 1 (800 x 16): largest |u - u0| / a0                                  8.708e-16 (limit 1e-10)  PASS
+  level 1 (800 x 16): largest |p / p0 - 1|                                   4.441e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 8.708e-16 and 4.441e-16
+  level 2 (1600 x 32): largest |u - u0| / a0                                 3.548e-16 (limit 1e-10)  PASS
+  level 2 (1600 x 32): largest |p / p0 - 1|                                  3.331e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 3.548e-16 and 3.331e-16
+3(b) Sod shock tube, level 1 over the middle third, to t = 0.25
+  64 columns (level 1 over base columns 21 to 42, the interfaces at 0.3281 and 0.6719): L1 8.3545e-03; uniform 64: 1.1456e-02, uniform 128: 6.3968e-03
+  64 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)   3.870e-01 (limit 1)  PASS
+  64 columns: shock place against exact 0.938039, in base cells              3.645e-01 (limit 1)  PASS
+  64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.503e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 4.434e-02
+  128 columns (level 1 over base columns 43 to 84, the interfaces at 0.3359 and 0.6641): L1 4.7169e-03; uniform 128: 6.3977e-03, uniform 256: 3.5661e-03
+  128 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  4.064e-01 (limit 1)  PASS
+  128 columns: shock place against exact 0.938039, in base cells             3.950e-01 (limit 1)  PASS
+  128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.856e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 2.498e-02
+  256 columns (level 1 over base columns 85 to 170, the interfaces at 0.3320 and 0.6680): L1 2.6132e-03; uniform 256: 3.5663e-03, uniform 512: 2.0416e-03
+  256 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  3.749e-01 (limit 1)  PASS
+  256 columns: shock place against exact 0.938039, in base cells             4.111e-01 (limit 1)  PASS
+  256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.440e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 1.437e-02
+  observed order, 64 to 128 columns (at least)                               8.247e-01 (limit 0.8)  PASS
+  observed order, 128 to 256 columns (at least)                              8.520e-01 (limit 0.8)  PASS
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 2.2 s of wall; difference from the uniform 384-column run 4.9507e-03 of the pulse's density amplitude; reflection 3.5426e-03 of its pressure amplitude
+  384 columns: 2700 base steps, 6.0 s of wall; difference from the uniform 768-column run 1.6435e-03 of the pulse's density amplitude; reflection 1.1499e-03 of its pressure amplitude
+  768 columns: 4500 base steps, 18.9 s of wall; difference from the uniform 1536-column run 5.6943e-04 of the pulse's density amplitude; reflection 3.3899e-04 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+  reflection on 768 columns, relative to the pulse                           3.390e-04 (limit 0.001)  PASS
+  reflection falls, 192 to 384 columns (ratio below 1)                       3.246e-01 (limit 1)  PASS
+  reflection falls, 384 to 768 columns (ratio below 1)                       2.948e-01 (limit 1)  PASS
+1(a) quiescent RL10 development chamber, base 150 x 16 plus two levels, 1,000 base steps
+  throat column 32 of 150 (R 0.0652 to 0.0627 m)
+  AMR: t = 3.7309e-04 s after 1000 base steps (0 redone), 17.3 s of wall
+  level 0 (150 x 16, 2400 active): largest |u| / a0                          2.567e-14 (limit 1e-10)  PASS
+  level 0 (150 x 16, 2400 active): largest |p / p0 - 1|                      2.665e-15 (limit 1e-12)  PASS
+  level 1 (300 x 32, 3360 active): largest |u| / a0                          8.241e-14 (limit 1e-10)  PASS
+  level 1 (300 x 32, 3360 active): largest |p / p0 - 1|                      8.438e-15 (limit 1e-12)  PASS
+  level 2 (600 x 64, 10944 active): largest |u| / a0                         2.015e-13 (limit 1e-10)  PASS
+  level 2 (600 x 64, 10944 active): largest |p / p0 - 1|                     2.176e-14 (limit 1e-12)  PASS
+      printed, not judged: 150 x 16 alone after 1,000 steps (t = 4.3281e-04 s): |u| / a0 1.830e-14, |p / p0 - 1| 2.554e-15
+      printed, not judged: 600 x 64 alone after 1,000 steps (t = 9.3272e-05 s): |u| / a0 1.347e-13, |p / p0 - 1| 1.699e-14
+FAILED (5 failures)
+
+      Start 14: spray_verification
+ 3/13 Test #14: spray_verification ...............***Failed   23.49 sec
+S0. Properties
+  table 54.3610 to 154.4140 K
+  (a) T(h(T)) at 10,000 temperatures across the table                            3.370e-16 (limit 1e-12)  PASS
+  (a) T_sat(p_sat(T)) likewise (the vapour-pressure inverse)                     2.396e-16 (limit 1e-12)  PASS
+     75 K: h_medium - h_NIST  -1245.1 J/kg
+     90 K: h_medium - h_NIST   -873.7 J/kg
+    100 K: h_medium - h_NIST   -673.5 J/kg
+    120 K: h_medium - h_NIST   -370.2 J/kg
+    150 K: h_medium - h_NIST   -106.7 J/kg
+    200 K: h_medium - h_NIST    +23.5 J/kg
+    250 K: h_medium - h_NIST    +10.9 J/kg
+    300 K: h_medium - h_NIST     +0.2 J/kg
+  medium O2 against NIST's 1e-6 MPa isobar, 75 to 300 K (the table's range): largest at 75 K
+  (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+S1. The drop model's algebra and integrator
+  N2:1 at 300 K, 3 film points: wet bulb 108.553227074 K (T_sat 119.621223957 K, evaporating), B_M 1.1024e+00, K 9.716492e-08 m^2/s, time to d_min 1.029177e-01 s
+  1700 sub-steps; drop temperature at the end 108.553227074 K
+  (a) d^2 against d0^2 - K t at 1,000 times (relative to d0^2)                   2.947e-15 (limit 1e-10)  PASS
+  (a) alive at (1 - 1e-10) and vaporised by (1 + 1e-10) of (d0^2 - d_min^2)/K    0.000e+00 (limit 1e-10)  PASS
+  H2:1 at 1200 K, 3 film points: wet bulb 115.155594844 K (T_sat 119.621223957 K, evaporating), B_M 5.1106e+01, K 1.873295e-06 m^2/s, time to d_min 5.338181e-03 s
+  1393 sub-steps; drop temperature at the end 115.155594844 K
+  (a) d^2 against d0^2 - K t at 1,000 times (relative to d0^2)                   6.971e-15 (limit 1e-10)  PASS
+  (a) alive at (1 - 1e-10) and vaporised by (1 + 1e-10) of (d0^2 - d_min^2)/K    0.000e+00 (limit 1e-10)  PASS
+  208 evaporating cases, B_M 1.000e-06 to 2.000e+01, Re to 400.0; largest difference in B_T
+  (b) Re, B_M, Sh*, Nu*, B_T, mdot, Q against the paper's forms (evaporating)    6.513e-16 (limit 1e-12)  PASS
+  (b) boiling at saturation: Nu*, B_T, mdot, Q against the paper's forms         0.000e+00 (limit 1e-12)  PASS
+  (c) the film's lean transport against Medium::transport (lambda, D_O2, R)      7.120e-16 (limit 1e-13)  PASS
+S5. Breakup
+  (a) KH and RT wavelengths and growth rates against the published forms         3.398e-16 (limit 1e-12)  PASS
+  KH alone: 2 parcels at 0.2 ms, 17 children, 0 RT events of the blob, liquid 3.095701e-07 of 5.980043e-07 kg (exchanged 2.884e-07 kg)
+  (b) KH alone: liquid mass through every child (relative)                       5.312e-16 (limit 1e-13)  PASS
+  (b) KH alone: no RT event                                                      0.000e+00 (limit 5e-01)  PASS
+  17 children of the blob checked against it at creation
+  (b) each child's diameter against 2 B0 Lambda at its creation                  0.000e+00 (limit 1e-12)  PASS
+  KH-RT: 0 parcels at 0.5 ms, 0 children, 4 RT events of the blob, liquid 0.000000e+00 of 5.980043e-07 kg (exchanged 5.980e-07 kg)
+  (b) KH-RT: liquid mass through every child and RT event                        1.363e-14 (limit 1e-13)  PASS
+  (b) KH-RT: the blob breaks by RT at least once                                 0.000e+00 (limit 5e-01)  PASS
+S3. Budgets with parcels (16 by 6 cold chamber to 0.5 ms)
+  5415 steps in 6.2 s; 99 parcels injected, 201 children, 247 held at the end; 4 wall hits, 0 flashes, 3 vaporised, 0 clamped condensation sub-steps, 525926 sub-steps
+  liquid injected 1.000000e-06 kg, evaporated 2.578226e-07 kg, out 1.481351e-07 kg, held 5.940422e-07 kg; wall impulse 0.0000e+00 N s, wall loss 4.5544e-06 J
+  (a) gas mass balance with the exchange                                         1.082e-15 (limit 1e-11)  PASS
+  (a) gas energy balance with the exchange                                       3.386e-17 (limit 1e-11)  PASS
+  (a) gas axial momentum balance with the exchange                               3.180e-19 (limit 1e-11)  PASS
+  (a) liquid mass ledger                                                         6.427e-14 (limit 1e-11)  PASS
+  (a) liquid energy ledger                                                       4.297e-14 (limit 1e-11)  PASS
+  (a) liquid axial momentum ledger                                               4.400e-14 (limit 1e-11)  PASS
+  (b) whole system mass                                                          1.230e-14 (limit 1e-11)  PASS
+  (b) whole system energy                                                        4.516e-15 (limit 1e-11)  PASS
+  (b) whole system axial momentum                                                8.105e-18 (limit 1e-11)  PASS
+  B1: the exchange bound never binds (smallest bound / dt)                       1.431e+02 (limit 1e+00)  PASS
+  injection, evaporation, wall rebounds and parcels leaving all occurred         0.000e+00 (limit 5e-01)  PASS
+S4. Threads
+  final gas state and parcel list on 4 threads against 1, bit for bit            0.000e+00 (limit 5e-01)  PASS
+  final gas state and parcel list on 6 threads against 1, bit for bit            0.000e+00 (limit 5e-01)  PASS
+S8. Turbulent dispersion
+  102 cases bound by the crossing time, 298 by the eddy lifetime
+  (b) interaction time against the formulas (both branches)                      3.934e-16 (limit 1e-14)  PASS
+  d 15.079 um, tau_p 2.1429e-03 s, tau_e 4.2857e-02 s (ratio 20.00), Re at 3 sigma slip 7.79e-03; 10000 parcels left, 8095682 sub-steps, 0 clamped, 0 vaporised
+  <dz> 1.6690e-07 m (3 se 1.0461e-06); <dz^2> 1.215990e-09 m^2 against 1.212551e-09 (+0.284%); <r^2> 2.398162e-09 against 2.425102e-09 (-1.111%)
+  (a) every parcel kept, no mass passed                                          0.000e+00 (limit 5e-01)  PASS
+  (a) <dz> against 0, in standard errors                                         4.786e-01 (limit 3e+00)  PASS
+  (a) <dz^2> against the held-velocity expectation, in s.e.                      2.005e-01 (limit 3e+00)  PASS
+  (a) <r^2> against twice it, in standard errors                                 1.111e+00 (limit 3e+00)  PASS
+  (c) 47 of the parcels held are inside an eddy at the end
+  (c) dispersion acted (parcels inside an eddy)                                  0.000e+00 (limit 5e-01)  PASS
+  2168 steps in 1.4 s; 40 parcels injected, 9 children, 48 held at the end; 0 wall hits, 0 flashes, 1 vaporised, 0 clamped condensation sub-steps, 51304 sub-steps
+  liquid injected 4.000000e-07 kg, evaporated 4.292516e-08 kg, out 0.000000e+00 kg, held 3.570748e-07 kg; wall impulse 0.0000e+00 N s, wall loss 0.0000e+00 J
+  (c) gas mass balance with the exchange                                         5.701e-17 (limit 1e-11)  PASS
+  (c) gas energy balance with the exchange                                       2.137e-16 (limit 1e-11)  PASS
+  (c) gas axial momentum balance with the exchange                               5.019e-19 (limit 1e-11)  PASS
+  (c) liquid mass ledger                                                         2.832e-14 (limit 1e-11)  PASS
+  (c) liquid energy ledger                                                       2.375e-14 (limit 1e-11)  PASS
+  (c) liquid axial momentum ledger                                               2.649e-14 (limit 1e-11)  PASS
+  (c) whole system mass                                                          2.586e-15 (limit 1e-11)  PASS
+  (c) whole system energy                                                        6.720e-16 (limit 1e-11)  PASS
+  (c) whole system axial momentum                                                3.799e-18 (limit 1e-11)  PASS
+  B1 (c): the exchange bound never binds (smallest bound / dt)                   1.434e+02 (limit 1e+00)  PASS
+  (c) final gas state and parcel list on 4 threads against 1, bit for bit        0.000e+00 (limit 5e-01)  PASS
+F2. The flashed mass
+  T_sat 90.1879 K at 101325.0 Pa, flashed share 0.038699, flashed mass 2.829016e-11 kg, 1 flash(es)
+  (F2) flashed mass against the liquid mass times (h - h_sat) / L, one flash     1.142e-16 (limit 1e-12)  PASS
+FAIL: 1 failure(s)
+
+      Start 15: spray_amr_verification
+ 4/13 Test  #8: transport_verification ...........***Failed  223.05 sec
+1. transport operator order on a contoured duct (h2o2.yaml, no-slip wall at 600 K)
+    32x8    axial momentum 1.112e-02  radial momentum 8.295e-03  energy 1.042e-02  species 1.188e-02
+           wall row:  1.526e+00  3.318e-01  5.769e-01  1.010e-02
+    64x16   axial momentum 3.415e-03  radial momentum 3.077e-03  energy 2.907e-03  species 3.420e-03
+           wall row:  3.612e+00  3.756e-01  6.930e-01  6.235e-03
+   128x32   axial momentum 9.743e-04  radial momentum 1.257e-03  energy 7.387e-04  species 9.402e-04
+           wall row:  8.993e+00  4.053e-01  7.837e-01  4.485e-03
+   256x64   axial momentum 2.796e-04  radial momentum 5.406e-04  energy 1.921e-04  species 2.501e-04
+           wall row:  8.527e+00  4.228e-01  8.444e-01  2.773e-03
+  axial momentum: observed order (two finest grids)          1.801e+00 (limit 1.8e+00)  ok
+  radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL
+  energy: observed order (two finest grids)                  1.943e+00 (limit 1.8e+00)  ok
+  species: observed order (two finest grids)                 1.911e+00 (limit 1.8e+00)  ok
+2. pipe decay, u_z = U J0(j01 r/R) exp(-nu j01^2 t/R^2), N2 at 1 kPa, R = 1 mm
+  nr 8    t 1.0738e-04 s  steps 4189  L1 error 2.547e-03  momentum balance 4.31e-20  energy balance -5.11e-15
+  nr 16   t 1.0738e-04 s  steps 10804  L1 error 6.505e-04  momentum balance 5.65e-19  energy balance -5.33e-15
+  nr 32   t 1.0738e-04 s  steps 34229  L1 error 1.636e-04  momentum balance -4.53e-19  energy balance 2.87e-16
+  pipe decay: observed order (nr 16 -> 32)                   1.992e+00 (limit 1.8e+00)  ok
+  pipe decay: L1 error at nr 32                              1.636e-04 (limit 1.0e-03)  ok
+  pipe decay: momentum balance (wall shear)                  5.651e-19 (limit 1.0e-12)  ok
+3. budgets with transport: closed chamber, isothermal wall and plate, ambient exit
+  t 2.271e-05 s, wall heat flow -91.54 W, wall axial force 61.7 N
+  mass balance                                               4.264e-16 (limit 1.0e-12)  ok
+  energy balance (with wall heat)                            2.266e-16 (limit 1.0e-12)  ok
+  axial momentum balance (with wall shear)                   4.669e-18 (limit 1.0e-12)  ok
+4. wall-clustered rings, radial stretching b = 2
+  64x16: wall ring 0.1657, axis ring 2.0639 of the equal height
+  4a. total cell volume against the duct                     1.776e-15 (limit 1.0e-13)  ok
+  4a. axial-face areas against pi R^2 (worst column)         3.331e-16 (limit 1.0e-13)  ok
+    32x8    axial momentum 1.715e-02  radial momentum 1.921e-02  energy 2.837e-02  species 3.428e-02
+           wall row:  1.974e+01  9.140e-01  1.578e+00  1.476e-01
+    64x16   axial momentum 7.906e-03  radial momentum 6.223e-03  energy 9.079e-03  species 1.208e-02
+           wall row:  1.967e+01  1.207e+00  2.119e+00  6.647e-02
+   128x32   axial momentum 2.554e-03  radial momentum 2.079e-03  energy 2.861e-03  species 3.846e-03
+           wall row:  1.889e+01  1.378e+00  2.452e+00  3.148e-02
+   256x64   axial momentum 6.927e-04  radial momentum 7.643e-04  energy 7.769e-04  species 1.031e-03
+           wall row:  1.870e+01  1.471e+00  2.636e+00  1.532e-02
+  4b. axial momentum: observed order (two finest grids)      1.882e+00 (limit 1.8e+00)  ok
+  4b. radial momentum: observed order (two finest grids)     1.444e+00 (limit 1.8e+00)  FAIL
+  4b. energy: observed order (two finest grids)              1.881e+00 (limit 1.8e+00)  ok
+  4b. species: observed order (two finest grids)             1.900e+00 (limit 1.8e+00)  ok
+  nr 8    t 1.0738e-04 s  steps 33089  L1 error 6.294e-03  momentum balance -2.66e-19  energy balance 5.27e-15
+  nr 16   t 1.0738e-04 s  steps 143104  L1 error 1.488e-03  momentum balance 3.07e-17  energy balance -8.38e-14
+  nr 32   t 1.0738e-04 s  steps 600308  L1 error 3.697e-04  momentum balance 1.21e-17  energy balance -1.05e-12
+  4c. pipe decay: observed order (nr 16 -> 32)               2.009e+00 (limit 1.8e+00)  ok
+  4c. pipe decay: L1 error at nr 32                          3.697e-04 (limit 1.0e-03)  ok
+  4c. pipe decay: momentum balance (wall shear)              3.075e-17 (limit 1.0e-12)  ok
+2 failures
+
+      Start  9: turbulence_verification
+ 5/13 Test  #9: turbulence_verification ..........   Passed   51.96 sec
+      Start  6: thermo_cea_verification
+ 6/13 Test  #6: thermo_cea_verification ..........   Passed   41.47 sec
+      Start  1: core_verification
+ 7/13 Test #15: spray_amr_verification ...........   Passed  240.29 sec
+      Start 12: face_inlet
+ 8/13 Test #12: face_inlet .......................   Passed    3.27 sec
+      Start 16: mixture_verification
+ 9/13 Test #16: mixture_verification .............   Passed    4.66 sec
+      Start  7: reaction_verification
+10/13 Test  #7: reaction_verification ............   Passed    1.02 sec
+      Start 11: wall_function_threads
+11/13 Test #11: wall_function_threads ............   Passed    0.29 sec
+      Start  2: wall_function_verification
+12/13 Test  #2: wall_function_verification .......   Passed    0.19 sec
+13/13 Test  #1: core_verification ................   Passed   34.39 sec
+
+69% tests passed, 4 tests failed out of 13
+
+Total Test time (real) = 351.16 sec
+
+The following tests FAILED:
+	  4 - amr_verification (Failed)
+	  5 - amr_subcycling_verification (Failed)
+	  8 - transport_verification (Failed)
+	 14 - spray_verification (Failed)
+Errors while running CTest

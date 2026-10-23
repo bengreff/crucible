@@ -882,6 +882,46 @@ The Director's decision (01:35 by their clock): the Mac must not carry 6.5 h or 
 - **The relaunch, done.** Backhouse at 01:34 CDT: 28 cores, load 35 to 37, CPU 94 to 95% busy (`vmstat`). S7's four runs, B4 at nice 10 and another user's job were running. The runs therefore take what S7 and B4 leave, and the Director's nice 10 keeps them from slowing either. Script `amr_d/bh_c4.sh` in `/home/greff/crucible_c4`, tmux `inq2c4`, done-file `real/all_done`. Launched at 01:38:40 CDT from dad635a (`real/revision.txt`), load 37.3 at the start. At 01:40 the build was done and wave 1's three runs were up at nice 10, each at 100 to 110% CPU of the 200% its 2 threads could take (measured, `ps`).
 - **Step D's reruns** were waiting on their own gate (load ≤ 24), which cannot open beside S7 and B4. After D0's new-tree runs, they were resumed at 01:36 CDT at nice 10 with no gate (`amr_d/bh_sd3b.sh`, tmux `inq2sd3b`, the same commands). The done-file is unchanged: `/home/greff/crucible_sd3/out/all_done`.
 
+## Criterion 4: results (23 October 2026, scored about 04:50 CDT)
+
+All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a job and nice 10, from 01:38:40 to 04:43:15 CDT, with the load at 26 to 41. The logs, `judge.txt` and `exits` are in `amr_d/c4_2026-10-23/`. All values are measured unless labelled.
+
+- **The rule picks s\* = 1/4.**
+
+  | Pair | c\* | Isp_vac | F_vac | Light-off (limit 3.05e-7 s) | Rule (2e-4 each) |
+  |---|---|---|---|---|---|
+  | s = 1 against 1/2 | 3.9e-4 | 1.6e-3 | 1.6e-3 | 0 | not met |
+  | s = 1/2 against 1/4 | 4.8e-4 | 6.8e-4 | 6.8e-4 | 0 | not met |
+  | s = 1/4 against 1/8 | 6.4e-5 | 8.6e-5 | 8.6e-5 | 0 | met |
+
+  - The thresholds are fixed at f_H 0.005, T 0.0125, pressure 0.025 and vorticity 0.0125. `Amr::Tags`' defaults now hold them (`core/amr.hpp`).
+  - `crucible_amr_c4`'s scale=S now multiplies step C's values written out, not Tags' defaults, so these runs' commands still mean what they meant.
+  - The new defaults change `crucible_amr_budget tags` and `crucible_rl10_tier1`, the only callers that keep the dynamic thresholds. No ctest test uses them: `amr_tests` never sets tags, and the spray and subcycling tests set all four to 0.
+  - The tree with the change builds with 0 warnings. The fast ctest (Mac, 04:46 to 04:52 CDT) fails the standing four only, with the same 11 FAIL lines as the merged tree's (`amr_d/c4_2026-10-23/ctest_tags_defaults.txt`).
+  - Step C's guessed thresholds (s = 1) were not converged: Isp and thrust move by 0.16% between s = 1 and 1/2, eight times the rule's limit.
+- **Criterion 4: met,** at s\* = 1/4 against the uniform 64 x 12 run, with `law` and `hp`.
+
+  | Quantity | AMR at s\* | Uniform 64 x 12 | Difference | Limit | |
+  |---|---|---|---|---|---|
+  | Settled c\* | 2426.3600 m/s | 2426.1820 m/s | +7.3e-5 | 1e-3 | met |
+  | Settled Isp_vac | 415.41204 s | 415.45844 s | -1.1e-4 | 1e-3 | met |
+  | Settled F_vac | 1629.5201 N | 1629.7022 N | -1.1e-4 | 1e-3 | met |
+  | Light-off | 0.010174 ms | 0.010192 ms | -1.83e-8 s | 3.87e-7 s | met |
+
+  - Light-off is the same on all four AMR runs, 0.010174 ms. Under `eqtt` it measures how the propellant fills the first cells, not ignition (*Criterion 4: the Director's additions*).
+- **t90, reported, not judged.** AMR at s\* 1.192074 ms, uniform 1.192149 ms: AMR is earlier by 7.5e-8 s, 6.3e-5 relative, 0.26 of a base step. p(8 ms) is 3.08934e6 Pa against 3.08911e6 Pa. For the other s: 1.193003, 1.190797 and 1.192170 ms (s = 1, 1/2 and 1/8), each from 802 history samples.
+- **Printed, not judged:**
+  - **Level 1's active cells,** of 768, at the end and on average: 636 and 638.7 (s = 1); 688 and 676.6 (1/2); 720 and 720.1 (1/4); 728 and 729.3 (1/8).
+  - **AMR saves no work on this case at s\*** (derived). Level 1 covers 94% of the fine mesh. The composite does 110,386,768 cell updates against the uniform run's 103,885,056, 6.3% more, because the base level's updates come on top. 5(a) judges the time per update, not their number, but it is now clear that C1 at s\* is not a case in which AMR can pay.
+  - **Regrids that changed the pattern:** 212, 19,024, 95 and 100 (s = 1, 1/2, 1/4, 1/8). At s = 1/2 the pattern changed at 56% of the 33,822 regrid points, which suggests a tag sitting on its threshold and flickering (inferred, not examined).
+  - **Budgets at the end,** of the content: mass and energy within 1.2e-14 on every AMR run, momentum within 5e-18. Igniter |E - 0.5 J| at most 2.4e-15 J.
+  - **The end value against the settled mean:** Isp_vac at 8 ms is 0.18% to 0.41% above the last millisecond's mean on every run, the uniform one included. So the flow still moves over the last millisecond (inferred), and the 21-sample mean is what is compared.
+  - **Wall time:** the history's sampling (3,646 to 5,211 s a run) still costs 3.4 to 4.4 times the flow (853 to 1,388 s), run by run. The time per update was measured on a shared machine at load 26 to 41 and is not compared (5(a) is not judged).
+- **The budget run, criterion 2's fill content after the spread fix** (`crucible_amr_budget 8e-3 2 wall tags amr`, at step C's thresholds, `budget.log`). It is printed, not judged, because `amr` skips the single level, and step D's rerun of D1 judges it.
+  - **The largest fill content error is 5.676e-12 over the parent's content,** against step C's limit of 1e-14 and step C's 5.128e-16 before the spread fix. Over the children's gross content it is 4.605e-16, within the limit.
+  - It is set by 0.5 ms and does not change after. Step C found the parent-relative measure ill-conditioned where a parent's energy is near zero. The gross measure is at rounding, so that is the likely cause (inferred, not examined). The Director decides which measure judges check 2 if D1's rerun fails on it.
+  - Budgets: mass -1.2e-15 and energy -1.5e-15 at the end; igniter |E - 0.5 J| 1.2e-15 J; 212 regrids.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.

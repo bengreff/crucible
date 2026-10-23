@@ -1,0 +1,24 @@
+AMR criterion 4: C1 eqtt with law and hp, 32 x 6 plus one level, dynamic thresholds x 0.125000, to 8 ms, 2 threads; table Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+thresholds: f_H 0.0025, T 0.00625, pressure 0.0125, vorticity 0.00625; interval 2, buffer 2, wall y+ 300, throat 0.5 r_t to level 2
+fine throat station 32, fine chamber-end column 17 (odd: the base column ends with it)
+light-off at 0.010174 ms, step 2.848e-07 s
+  t 0.5000 ms, 81 s
+  t 1.0001 ms, 179 s
+  t 1.5000 ms, 249 s
+  t 2.0000 ms, 1702 s
+  t 2.5000 ms, 3639 s
+  t 3.0001 ms, 4135 s
+  t 3.5001 ms, 4181 s
+  t 4.0001 ms, 4227 s
+  t 4.5000 ms, 4273 s
+  t 5.0000 ms, 4319 s
+  t 5.5001 ms, 4366 s
+  t 6.0001 ms, 4412 s
+  t 6.5000 ms, 4458 s
+  t 7.0000 ms, 4505 s
+  t 7.5001 ms, 4548 s
+AMR: 67634 base steps (0 redone), 100 regrids; level 1 active 728 of 768 at the end, 729.3 on average; budgets at the end: mass 1.373e-15 of the content, energy 0.000e+00, momentum -9.277e-19 of |initial| + gross; igniter |E - 0.5 J| 2.442e-15 J
+at the end: c* 2426.2061 m/s, Isp_vac 416.90504 s, F_vac 1635.3768 N; settled over 21 samples: c* 2426.2057 m/s, Isp_vac 415.44780 s, F_vac 1629.6605 N
+reported, not judged: chamber pressure 3.08914e+06 Pa at the end; t90 1.192170 ms (802 history samples)
+printed for 5(a), not judged: 111636000 cell updates, 854.4 s of wall net of the history's 3737.2 s, 7.6531e-06 s per update; load 35.9 at the start, 26.4 at the end
+c4 amr scale 0.125 cstar 2.426205665838e+03 isp 4.154477955798e+02 fvac 1.629660488089e+03 lightoff 1.017361981773e-05 step 2.847841360332e-07 steps 67634 samples 21 t90 1.192170372412e-03 p8 3.089140288155e+06

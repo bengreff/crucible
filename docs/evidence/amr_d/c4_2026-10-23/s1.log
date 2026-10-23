@@ -1,0 +1,24 @@
+AMR criterion 4: C1 eqtt with law and hp, 32 x 6 plus one level, dynamic thresholds x 1.000000, to 8 ms, 2 threads; table Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+thresholds: f_H 0.02, T 0.05, pressure 0.1, vorticity 0.05; interval 2, buffer 2, wall y+ 300, throat 0.5 r_t to level 2
+fine throat station 32, fine chamber-end column 17 (odd: the base column ends with it)
+light-off at 0.010174 ms, step 2.848e-07 s
+  t 0.5000 ms, 123 s
+  t 1.0001 ms, 281 s
+  t 1.5000 ms, 416 s
+  t 2.0000 ms, 1335 s
+  t 2.5000 ms, 2963 s
+  t 3.0001 ms, 4468 s
+  t 3.5000 ms, 5405 s
+  t 4.0001 ms, 5969 s
+  t 4.5000 ms, 6096 s
+  t 5.0001 ms, 6146 s
+  t 5.5000 ms, 6198 s
+  t 6.0001 ms, 6247 s
+  t 6.5000 ms, 6300 s
+  t 7.0001 ms, 6354 s
+  t 7.5000 ms, 6403 s
+AMR: 67642 base steps (0 redone), 212 regrids; level 1 active 636 of 768 at the end, 638.7 on average; budgets at the end: mass -1.220e-15 of the content, energy -1.522e-15, momentum 0.000e+00 of |initial| + gross; igniter |E - 0.5 J| 1.221e-15 J
+at the end: c* 2426.1939 m/s, Isp_vac 416.12530 s, F_vac 1632.2426 N; settled over 21 samples: c* 2426.1396 m/s, Isp_vac 415.02579 s, F_vac 1628.0077 N
+reported, not judged: chamber pressure 3.08898e+06 Pa at the end; t90 1.193003 ms (802 history samples)
+printed for 5(a), not judged: 99386800 cell updates, 1241.8 s of wall net of the history's 5211.0 s, 1.2494e-05 s per update; load 38.1 at the start, 35.9 at the end
+c4 amr scale 1 cstar 2.426139562264e+03 isp 4.150257939993e+02 fvac 1.628007722708e+03 lightoff 1.017361981773e-05 step 2.847841360335e-07 steps 67642 samples 21 t90 1.193003181407e-03 p8 3.088981989210e+06

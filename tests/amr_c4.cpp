@@ -2,7 +2,7 @@
 // criterion 4*, recorded before this file was written). C1 eqtt with the wall functions (law) and the property
 // corrections (hp), to 8 ms.
 // Usage: crucible_amr_c4 amr scale=S [end time s, default 8e-3] [threads, default 4]: 32 x 6 plus one level, set
-//          up as crucible_amr_budget's tagged case, with the four dynamic thresholds times S;
+//          up as crucible_amr_budget's tagged case, with step C's four dynamic thresholds times S;
 //        crucible_amr_c4 uniform [end] [threads]: the uniform 64 x 12 run.
 // CRUCIBLE_EQ_TABLE names Table A; CRUCIBLE_C4_EXIT_CHECK=<t s> runs the stagnation loop's exit check from t and
 // ends the run there. Each run prints one line starting "c4 " that tests/amr_c4_judge.sh reads:
@@ -134,10 +134,11 @@ int main(int argc, char** argv) {
       const std::size_t k = gas.speciesIndex(sp.name);
       tags.hydrogen.push_back(gas.nAtoms(k, eH) * gas.atomicWeight(eH) / gas.molecularWeight(k));
     }
-    tags.mixture *= scale;
-    tags.temperature *= scale;
-    tags.pressure *= scale;
-    tags.vorticity *= scale;
+    // S scales step C's thresholds, as registered, not Tags' defaults (now s* times them).
+    tags.mixture = 0.02 * scale;
+    tags.temperature = 0.05 * scale;
+    tags.pressure = 0.10 * scale;
+    tags.vorticity = 0.05 * scale;
     std::printf("thresholds: f_H %.6g, T %.6g, pressure %.6g, vorticity %.6g; interval %d, buffer %d, wall y+ %.6g, throat %.3g r_t to level %d\n",
                 tags.mixture, tags.temperature, tags.pressure, tags.vorticity, tags.interval, tags.buffer, tags.wallYPlus,
                 tags.throatHalfWidth, tags.throatLevel);
