@@ -220,6 +220,9 @@ void Amr::fill(int l,std::vector<Conserved>& state,std::vector<double>& species,
 // range, times the child's offset from the children's volume-weighted centroid, so the children's
 // content is the parent's. The partial densities, rho k and rho omega scale with the child's density.
 // If a child is not admissible, the parent's children all take its values.
+// DEVELOPMENT (the mixed-level jet's diagnosis, SPRAY.md): 1 spreads each parent's values unchanged to its
+// children. Removed before the fix is committed.
+int amrDevelopmentSpread=0;
 void Amr::spread(int l,std::size_t p,std::vector<Conserved>& state,std::vector<double>& species,std::vector<double>& turbulence) {
     const Level& cv=levels_[static_cast<std::size_t>(l-1)];
     const Flow& c=*cv.flow;Flow& f=level(l);
@@ -260,6 +263,7 @@ void Amr::spread(int l,std::size_t p,std::vector<Conserved>& state,std::vector<d
     for(auto q:child) { const Cell& cc=fm.cells[q];volume+=cc.volume;zbar+=cc.volume*(cc.z-cp.z);rbar+=cc.volume*(cc.r-cp.r); }
     zbar/=volume;rbar/=volume;
     double change[4][4],phi[4]={1,1,1,1};
+    if(amrDevelopmentSpread==1) for(auto& x:g) x[0]=x[1]=0;
     for(int n=0;n<4;++n) {
         const Cell& cc=fm.cells[child[n]];
         for(int k=0;k<4;++k) {

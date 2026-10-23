@@ -1,0 +1,21 @@
+A1(a) S3, frozen, 0.5 ms
+  5415 base steps (0 redone), t 0.00050000000000000001 against 0.00050000000000000001; 9.8 s of wall
+  every step's dt and the end time equal (steps that differ)                             0.000e+00 (limit 0e+00)  PASS
+  final gas state, partial densities and turbulence bit-identical (largest relative difference) 0.000e+00 (limit 0e+00)  PASS
+  parcel list bit-identical, every field (247 against 247 parcels)                       0.000e+00 (limit 0e+00)  PASS
+      printed: ledgers equal (injected, exchanged, outflow, walls, sub-steps, children, wall thrust): yes; evaporated 2.5782261279540805e-07 kg; level moves 0 finer, 0 coarser
+      printed, not judged: ReactingFlow's frozen driver on the same (coarsened) mesh: largest relative difference of the conserved state 9.777e-14; evaporated 2.5782261279540694e-07 kg, 247 parcels
+      printed, not judged: ReactingFlow's frozen driver on the directly built mesh: largest relative difference of the conserved state 9.834e-14; evaporated 2.5782261279541006e-07 kg, 247 parcels
+      printed: the uniform run's spray 3.41 s of 4.87 s
+A1(b) S8(c), SST and dispersion, 0.2 ms
+  2168 base steps (0 redone), t 0.00020000000000000001 against 0.00020000000000000001; 2.4 s of wall
+      printed: 1544 of 2168 steps' dt differ
+  every step's dt within the limit and the end time equal (largest relative difference)  1.149e-15 (limit 1e-12)  PASS
+  final gas state, partial densities and turbulence (largest relative difference)        1.390e-13 (limit 1e-12)  PASS
+  parcel list, every field (48 against 48 parcels; largest relative difference)          5.206e-13 (limit 1e-12)  PASS
+  ledger: injected, exchanged, outflow mass and wall impulse (largest relative difference) 2.524e-14 (limit 1e-12)  PASS
+      printed: ledgers equal (injected, exchanged, outflow, walls, sub-steps, children, wall thrust): no; evaporated 4.2925157553656623e-08 kg; level moves 0 finer, 0 coarser
+      printed, not judged: ReactingFlow's frozen driver on the same (coarsened) mesh: largest relative difference of the conserved state 2.340e-13; evaporated 4.2925157553655922e-08 kg, 48 parcels
+      printed, not judged: ReactingFlow's frozen driver on the directly built mesh: largest relative difference of the conserved state 1.063e-13; evaporated 4.2925157553655584e-08 kg, 48 parcels
+      printed: the uniform run's spray 0.32 s of 1.11 s
+PASS (0 failed)

@@ -1,7 +1,9 @@
 // The spray on AMR's levels: criteria A1 to A3 of docs/evidence/SPRAY.md, Spray on AMR (stated before the
 // code; A0, the uniform path unchanged, is docs/evidence/spray_amr/a0_dump.cpp against the build before).
 // usage: crucible_spray_amr_tests [a1 | a2]   (no argument: all; a2 includes A3)
+#include <array>
 #include <chrono>
+#include <limits>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -121,6 +123,49 @@ double stateDifference(const Flow& a, const Flow& b) {
   return out;
 }
 
+// A1(b)'s amended comparison (SPRAY.md, Spray on AMR, A1(b) amended): the same parcels in the same order
+// (random state, cell and injector equal), and each floating field's largest difference over its largest
+// magnitude in the list; infinity if the lists do not match.
+double parcelDifference(const std::vector<Parcel>& a, const std::vector<Parcel>& b) {
+  if (a.size() != b.size()) return std::numeric_limits<double>::infinity();
+  auto fields = [](const Parcel& p) {
+    return std::array<double, 16>{p.z, p.r, p.uz, p.ur, p.ut, p.d, p.t, p.count, p.shed, p.rtTime, p.distance,
+                                  p.injectedMass, p.eddyZ, p.eddyR, p.eddyT, p.eddyTime};
+  };
+  std::array<double, 16> scale{}, diff{};
+  for (std::size_t n = 0; n < a.size(); ++n) {
+    if (a[n].random != b[n].random || a[n].cell != b[n].cell || a[n].injector != b[n].injector)
+      return std::numeric_limits<double>::infinity();
+    const auto x = fields(a[n]), y = fields(b[n]);
+    for (std::size_t k = 0; k < 16; ++k) {
+      scale[k] = std::max(scale[k], std::abs(y[k]));
+      diff[k] = std::max(diff[k], std::abs(x[k] - y[k]));
+    }
+  }
+  double out = 0;
+  for (std::size_t k = 0; k < 16; ++k)
+    if (diff[k] > 0) out = std::max(out, diff[k] / scale[k]);
+  return out;
+}
+double relative(double a, double b) {
+  const double scale = std::max(std::abs(a), std::abs(b));
+  return scale > 0 ? std::abs(a - b) / scale : 0;
+}
+// The largest difference of the turbulence and the partial densities, each component over its largest magnitude.
+double fieldDifference(const std::vector<double>& a, const std::vector<double>& b, std::size_t stride) {
+  if (a.size() != b.size()) return std::numeric_limits<double>::infinity();
+  double out = 0;
+  for (std::size_t c = 0; c < stride; ++c) {
+    double scale = 0, diff = 0;
+    for (std::size_t q = c; q < a.size(); q += stride) {
+      scale = std::max(scale, std::abs(b[q]));
+      diff = std::max(diff, std::abs(a[q] - b[q]));
+    }
+    if (diff > 0) out = std::max(out, diff / scale);
+  }
+  return out;
+}
+
 // A1: single-level Amr (level 1 inactive) against a Flow on the AMR base's mesh, bit for bit. The reference
 // drives the Flow as the precondition did (Flow::step, then Spray::advance): ReactingFlow's frozen step, the
 // S3 run's own driver, plans with an extra Flow::stableDt, whose refresh moves the temperature guesses and so
@@ -139,6 +184,7 @@ void a1(thermo::ReactionSource& source, bool turbulent, double end) {
   amr.setAfterStep([&](int l, double dt) { spray.afterStep(l, dt); });
   amr.setRedo([&] { spray.redo(); });
   long steps = 0, differ = 0;
+  double dtDifference = 0;
   const auto start = std::chrono::steady_clock::now();
   double uniformWall = 0;
   while (amr.time() < end) {
@@ -149,22 +195,44 @@ void a1(thermo::ReactionSource& source, bool turbulent, double end) {
     uniform.advance(b);
     uniformWall += seconds(u0);
     if (a != b) ++differ;
+    dtDifference = std::max(dtDifference, relative(a, b));
     ++steps;
   }
   const Flow& base = amr.level(0);
   std::printf("  %ld base steps (%llu redone), t %.17g against %.17g; %.1f s of wall\n", steps,
               static_cast<unsigned long long>(amr.rejectedSteps()), amr.time(), flow.time(), seconds(start));
-  check(differ == 0 && amr.time() == flow.time(), "every step's dt and the end time equal (steps that differ)", static_cast<double>(differ), 0);
-  const bool gas = same(base.state(), flow.state()) && same(base.partialDensities(), flow.partialDensities()) &&
-                   same(base.turbulence(), flow.turbulence());
-  check(gas, "final gas state, partial densities and turbulence bit-identical (largest relative difference)",
-        stateDifference(base, flow), 0);
-  check(same(bytes(spray.parcels()), bytes(uniform.parcels())),
-        "parcel list bit-identical, every field (" + std::to_string(spray.parcels().size()) + " against " +
-            std::to_string(uniform.parcels().size()) + " parcels)",
-        same(bytes(spray.parcels()), bytes(uniform.parcels())) ? 0.0 : 1.0, 0);
   const auto& l = spray.ledger();
   const auto& r = uniform.ledger();
+  if (!turbulent) {
+    check(differ == 0 && amr.time() == flow.time(), "every step's dt and the end time equal (steps that differ)", static_cast<double>(differ), 0);
+    const bool gas = same(base.state(), flow.state()) && same(base.partialDensities(), flow.partialDensities()) &&
+                     same(base.turbulence(), flow.turbulence());
+    check(gas, "final gas state, partial densities and turbulence bit-identical (largest relative difference)",
+          stateDifference(base, flow), 0);
+    check(same(bytes(spray.parcels()), bytes(uniform.parcels())),
+          "parcel list bit-identical, every field (" + std::to_string(spray.parcels().size()) + " against " +
+              std::to_string(uniform.parcels().size()) + " parcels)",
+          same(bytes(spray.parcels()), bytes(uniform.parcels())) ? 0.0 : 1.0, 0);
+  } else {
+    // As amended by the Director on 22 October (SPRAY.md, A1(b) amended): within 1e-12, relative.
+    constexpr double kLimit = 1e-12;
+    std::printf("      printed: %ld of %ld steps' dt differ\n", differ, steps);
+    check(dtDifference <= kLimit && amr.time() == flow.time(), "every step's dt within the limit and the end time equal (largest relative difference)",
+          amr.time() == flow.time() ? dtDifference : 1.0, kLimit);
+    const std::size_t ns = flow.medium().size(), nt = flow.turbulence().empty() ? 1 : flow.turbulence().size() / flow.state().size();
+    const double gas = std::max({stateDifference(base, flow), fieldDifference(base.partialDensities(), flow.partialDensities(), ns),
+                                 fieldDifference(base.turbulence(), flow.turbulence(), nt)});
+    check(gas <= kLimit, "final gas state, partial densities and turbulence (largest relative difference)", gas, kLimit);
+    const double parcels = parcelDifference(spray.parcels(), uniform.parcels());
+    check(parcels <= kLimit,
+          "parcel list, every field (" + std::to_string(spray.parcels().size()) + " against " +
+              std::to_string(uniform.parcels().size()) + " parcels; largest relative difference)",
+          parcels, kLimit);
+    const double ledger = std::max({relative(l.injectedMass, r.injectedMass), relative(l.exchangedMass, r.exchangedMass),
+                                    relative(l.exchangedEnergy, r.exchangedEnergy), relative(l.exchangedMomentum, r.exchangedMomentum),
+                                    relative(l.outflowMass, r.outflowMass), relative(l.wallImpulse, r.wallImpulse)});
+    check(ledger <= kLimit, "ledger: injected, exchanged, outflow mass and wall impulse (largest relative difference)", ledger, kLimit);
+  }
   const bool ledger = l.injectedMass == r.injectedMass && l.injectedEnergy == r.injectedEnergy && l.exchangedMass == r.exchangedMass &&
                       l.exchangedEnergy == r.exchangedEnergy && l.exchangedMomentum == r.exchangedMomentum &&
                       l.outflowMass == r.outflowMass && l.wallImpulse == r.wallImpulse && l.wallLoss == r.wallLoss &&

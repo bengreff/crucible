@@ -1,0 +1,374 @@
+### a4_u0_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0417e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.5635e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2787e-09 kg: L0 u_z 51.0 at (0.50, 4.22) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9808e-09 kg: L0 u_z 52.5 at (0.50, 4.22) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1767e-08 kg: L0 u_z 51.3 at (0.50, 4.22) mm;
+  t 0.120 ms, 25 parcels, evaporated 1.7211e-08 kg: L0 u_z 53.1 at (0.50, 4.22) mm;
+  t 0.140 ms, 29 parcels, evaporated 2.3377e-08 kg: L0 u_z 52.7 at (0.50, 4.22) mm;
+  t 0.160 ms, 35 parcels, evaporated 2.9647e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm;
+  t 0.180 ms, 39 parcels, evaporated 3.5701e-08 kg: L0 u_z 53.1 at (0.50, 4.22) mm;
+  t 0.200 ms, 48 parcels, evaporated 4.2914e-08 kg: L0 u_z 52.2 at (0.50, 4.22) mm;
+  t 0.220 ms, 55 parcels, evaporated 5.1946e-08 kg: L0 u_z 54.2 at (3.50, 4.22) mm;
+  t 0.240 ms, 67 parcels, evaporated 6.2162e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm;
+  t 0.260 ms, 85 parcels, evaporated 7.3212e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm;
+  t 0.280 ms, 95 parcels, evaporated 8.4723e-08 kg: L0 u_z 53.3 at (0.50, 4.22) mm;
+  t 0.300 ms, 118 parcels, evaporated 9.6902e-08 kg: L0 u_z 52.5 at (0.50, 4.22) mm;
+u0 mask 15: 16 x 6, 2.0 s; evaporated 9.690241e-08 kg, 118 parcels held, 60 children
+### a4_u1_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0079e-10 kg: L0 u_z 51.7 at (0.25, 2.11) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.2688e-10 kg: L0 u_z 52.6 at (0.25, 2.11) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2225e-09 kg: L0 u_z 52.0 at (0.25, 2.11) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9262e-09 kg: L0 u_z 53.4 at (0.25, 2.11) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1658e-08 kg: L0 u_z 52.0 at (0.25, 2.94) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.6980e-08 kg: L0 u_z 54.3 at (1.75, 2.11) mm;
+  t 0.140 ms, 28 parcels, evaporated 2.2899e-08 kg: L0 u_z 53.3 at (0.25, 2.11) mm;
+  t 0.160 ms, 33 parcels, evaporated 2.9023e-08 kg: L0 u_z 52.3 at (0.25, 2.94) mm;
+  t 0.180 ms, 36 parcels, evaporated 3.4899e-08 kg: L0 u_z 53.4 at (0.25, 2.11) mm;
+  t 0.200 ms, 40 parcels, evaporated 4.2071e-08 kg: L0 u_z 52.4 at (0.25, 4.60) mm;
+  t 0.220 ms, 46 parcels, evaporated 5.0955e-08 kg: L0 u_z 56.8 at (3.25, 2.11) mm;
+  t 0.240 ms, 53 parcels, evaporated 6.0766e-08 kg: L0 u_z 53.1 at (0.25, 4.60) mm;
+  t 0.260 ms, 60 parcels, evaporated 7.1217e-08 kg: L0 u_z 52.8 at (2.75, 2.11) mm;
+  t 0.280 ms, 65 parcels, evaporated 8.1978e-08 kg: L0 u_z 53.4 at (0.25, 4.60) mm;
+  t 0.300 ms, 71 parcels, evaporated 9.3546e-08 kg: L0 u_z 52.9 at (2.75, 2.11) mm;
+u1 mask 15: 32 x 12, 8.3 s; evaporated 9.354569e-08 kg, 71 parcels held, 13 children
+### a4_cell_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0428e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 41.0 at (2.25, 2.94) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.5653e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 43.4 at (2.25, 2.94) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2751e-09 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z 47.7 at (2.25, 2.94) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9580e-09 kg: L0 u_z 53.6 at (1.50, 2.59) mm; L1 u_z 59.6 at (2.25, 2.11) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1743e-08 kg: L0 u_z 51.5 at (0.50, 4.22) mm; L1 u_z 60.3 at (2.25, 2.11) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.7208e-08 kg: L0 u_z 62.3 at (3.50, 2.59) mm; L1 u_z 83.3 at (2.25, 2.11) mm;
+  t 0.140 ms, 28 parcels, evaporated 2.3464e-08 kg: L0 u_z 52.8 at (0.50, 2.59) mm; L1 u_z 71.3 at (2.25, 2.11) mm;
+  t 0.160 ms, 33 parcels, evaporated 2.9621e-08 kg: L0 u_z 53.6 at (1.50, 2.59) mm; L1 u_z 76.5 at (2.75, 2.94) mm;
+  t 0.180 ms, 36 parcels, evaporated 3.5563e-08 kg: L0 u_z 53.4 at (0.50, 2.59) mm; L1 u_z 87.2 at (2.75, 2.94) mm;
+  t 0.200 ms, 41 parcels, evaporated 4.2783e-08 kg: L0 u_z 52.2 at (0.50, 2.59) mm; L1 u_z 89.1 at (2.75, 2.94) mm;
+  t 0.220 ms, 48 parcels, evaporated 5.1921e-08 kg: L0 u_z 54.2 at (2.50, 4.22) mm; L1 u_z 92.7 at (2.75, 2.94) mm;
+  t 0.240 ms, 61 parcels, evaporated 6.2283e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 82.3 at (2.75, 2.94) mm;
+  t 0.260 ms, 81 parcels, evaporated 7.3519e-08 kg: L0 u_z 57.6 at (3.50, 2.59) mm; L1 u_z 84.2 at (2.75, 2.94) mm;
+  t 0.280 ms, 95 parcels, evaporated 8.5410e-08 kg: L0 u_z 57.7 at (3.50, 2.59) mm; L1 u_z 104.8 at (2.75, 2.94) mm;
+  t 0.300 ms, 125 parcels, evaporated 9.7923e-08 kg: L0 u_z 54.3 at (3.50, 2.59) mm; L1 u_z 94.2 at (2.75, 2.94) mm;
+cell mask 15: 3260 base steps, 0 regrids, 2.4 s; evaporated 9.792275e-08 kg, 125 parcels held, 67 children; moves 37 finer, 38 coarser
+### a4_block_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0155e-10 kg: L0 u_z 49.5 at (0.50, 4.22) mm; L1 u_z 50.9 at (0.25, 2.11) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.3232e-10 kg: L0 u_z 51.2 at (0.50, 4.22) mm; L1 u_z 52.3 at (0.25, 2.11) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2248e-09 kg: L0 u_z 50.6 at (0.50, 4.22) mm; L1 u_z 51.5 at (0.25, 2.11) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9078e-09 kg: L0 u_z 51.8 at (0.50, 4.22) mm; L1 u_z 53.1 at (0.25, 2.94) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1571e-08 kg: L0 u_z 50.9 at (0.50, 4.22) mm; L1 u_z 51.9 at (0.25, 2.94) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.7065e-08 kg: L0 u_z 56.0 at (3.50, 2.59) mm; L1 u_z 52.9 at (0.25, 2.94) mm;
+  t 0.140 ms, 30 parcels, evaporated 2.3467e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 52.7 at (0.25, 2.11) mm;
+  t 0.160 ms, 40 parcels, evaporated 2.9804e-08 kg: L0 u_z 51.6 at (0.50, 4.22) mm; L1 u_z 70.6 at (2.75, 2.94) mm;
+  t 0.180 ms, 53 parcels, evaporated 3.5861e-08 kg: L0 u_z 53.0 at (0.50, 4.22) mm; L1 u_z 81.0 at (2.75, 2.94) mm;
+  t 0.200 ms, 69 parcels, evaporated 4.3302e-08 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 82.5 at (2.75, 2.94) mm;
+  t 0.220 ms, 94 parcels, evaporated 5.2605e-08 kg: L0 u_z 54.2 at (2.50, 4.22) mm; L1 u_z 76.6 at (2.75, 2.94) mm;
+  t 0.240 ms, 120 parcels, evaporated 6.3411e-08 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 58.9 at (2.75, 2.94) mm;
+  t 0.260 ms, 175 parcels, evaporated 7.5624e-08 kg: L0 u_z 61.8 at (3.50, 1.11) mm; L1 u_z 58.1 at (2.75, 2.94) mm;
+  t 0.280 ms, 233 parcels, evaporated 8.9380e-08 kg: L0 u_z 57.3 at (3.50, 2.59) mm; L1 u_z 65.2 at (2.75, 2.94) mm;
+  t 0.300 ms, 283 parcels, evaporated 1.0366e-07 kg: L0 u_z 55.7 at (3.50, 2.59) mm; L1 u_z 67.2 at (2.75, 2.94) mm;
+block mask 15: 3261 base steps, 0 regrids, 4.1 s; evaporated 1.036570e-07 kg, 283 parcels held, 225 children; moves 0 finer, 203 coarser
+### a4_all1_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0153e-10 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 51.7 at (0.25, 2.11) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.2726e-10 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 52.6 at (0.25, 2.11) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2176e-09 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 52.0 at (0.25, 2.11) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9350e-09 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 53.4 at (0.25, 2.11) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1661e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 52.0 at (0.25, 2.94) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.6999e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 54.3 at (1.75, 2.11) mm;
+  t 0.140 ms, 28 parcels, evaporated 2.2908e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 53.3 at (0.25, 2.11) mm;
+  t 0.160 ms, 33 parcels, evaporated 2.9036e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 52.3 at (0.25, 2.94) mm;
+  t 0.180 ms, 36 parcels, evaporated 3.4931e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 53.4 at (0.25, 2.11) mm;
+  t 0.200 ms, 40 parcels, evaporated 4.2089e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 52.4 at (0.25, 4.60) mm;
+  t 0.220 ms, 46 parcels, evaporated 5.0975e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 56.8 at (3.25, 2.11) mm;
+  t 0.240 ms, 53 parcels, evaporated 6.0792e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 53.1 at (0.25, 4.60) mm;
+  t 0.260 ms, 60 parcels, evaporated 7.1248e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 52.8 at (2.75, 2.11) mm;
+  t 0.280 ms, 65 parcels, evaporated 8.2041e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 53.4 at (0.25, 4.60) mm;
+  t 0.300 ms, 71 parcels, evaporated 9.3589e-08 kg: L0 u_z 0.0 at (0.00, 0.00) mm; L1 u_z 52.9 at (2.75, 2.11) mm;
+all1 mask 15: 3254 base steps, 0 regrids, 8.9 s; evaporated 9.358852e-08 kg, 71 parcels held, 13 children; moves 0 finer, 0 coarser
+### a4_corner2_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0045e-10 kg: L0 u_z 28.3 at (15.50, 1.11) mm; L1 u_z 29.1 at (3.25, 2.11) mm; L2 u_z 52.4 at (0.12, 2.71) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.1240e-10 kg: L0 u_z 23.2 at (4.50, 2.59) mm; L1 u_z 31.3 at (3.25, 2.11) mm; L2 u_z 53.3 at (0.12, 3.13) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.1441e-09 kg: L0 u_z 26.2 at (4.50, 2.59) mm; L1 u_z 33.9 at (3.25, 2.11) mm; L2 u_z 52.4 at (0.12, 3.13) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.6797e-09 kg: L0 u_z 31.2 at (4.50, 2.59) mm; L1 u_z 37.9 at (3.25, 2.11) mm; L2 u_z 53.7 at (0.12, 3.13) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1317e-08 kg: L0 u_z 29.3 at (4.50, 2.59) mm; L1 u_z 40.8 at (3.25, 2.11) mm; L2 u_z 52.5 at (0.12, 3.55) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.6646e-08 kg: L0 u_z 50.4 at (4.50, 2.59) mm; L1 u_z 54.4 at (3.25, 2.94) mm; L2 u_z 55.9 at (2.88, 3.13) mm;
+  t 0.140 ms, 28 parcels, evaporated 2.2934e-08 kg: L0 u_z 47.4 at (4.50, 2.59) mm; L1 u_z 46.6 at (3.25, 2.94) mm; L2 u_z 59.8 at (2.88, 3.13) mm;
+  t 0.160 ms, 35 parcels, evaporated 2.9124e-08 kg: L0 u_z 42.4 at (4.50, 2.59) mm; L1 u_z 47.8 at (3.75, 2.94) mm; L2 u_z 78.3 at (2.88, 3.13) mm;
+  t 0.180 ms, 41 parcels, evaporated 3.5222e-08 kg: L0 u_z 38.7 at (4.50, 1.11) mm; L1 u_z 65.7 at (3.75, 2.94) mm; L2 u_z 84.0 at (2.88, 3.13) mm;
+  t 0.200 ms, 67 parcels, evaporated 4.3023e-08 kg: L0 u_z 38.4 at (4.50, 2.59) mm; L1 u_z 69.5 at (3.75, 2.94) mm; L2 u_z 78.6 at (2.88, 3.13) mm;
+  t 0.220 ms, 91 parcels, evaporated 5.2617e-08 kg: L0 u_z 48.0 at (4.50, 2.59) mm; L1 u_z 78.4 at (3.75, 2.94) mm; L2 u_z 100.7 at (2.88, 3.13) mm;
+  t 0.240 ms, 109 parcels, evaporated 6.3178e-08 kg: L0 u_z 43.4 at (4.50, 2.59) mm; L1 u_z 75.2 at (3.75, 2.94) mm; L2 u_z 103.4 at (2.88, 3.13) mm;
+  t 0.260 ms, 161 parcels, evaporated 7.4874e-08 kg: L0 u_z 54.8 at (4.50, 2.59) mm; L1 u_z 76.4 at (3.25, 2.94) mm; L2 u_z 104.7 at (2.88, 3.13) mm;
+  t 0.280 ms, 226 parcels, evaporated 8.8468e-08 kg: L0 u_z 60.1 at (4.50, 2.59) mm; L1 u_z 65.4 at (3.75, 2.94) mm; L2 u_z 99.3 at (2.88, 3.13) mm;
+  t 0.300 ms, 316 parcels, evaporated 1.0817e-07 kg: L0 u_z 72.0 at (4.50, 1.11) mm; L1 u_z 63.1 at (3.75, 2.94) mm; L2 u_z 104.0 at (2.88, 3.13) mm;
+corner2 mask 15: 3282 base steps, 2 regrids, 13.3 s; evaporated 1.081696e-07 kg, 316 parcels held, 258 children; moves 0 finer, 335 coarser
+### a4_cell_8 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0462e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 41.1 at (2.25, 2.94) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.6313e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 44.5 at (2.25, 2.94) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.3336e-09 kg: L0 u_z 51.1 at (0.50, 4.22) mm; L1 u_z 46.5 at (2.25, 2.94) mm;
+  t 0.080 ms, 16 parcels, evaporated 7.1345e-09 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 48.9 at (2.25, 2.94) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.2018e-08 kg: L0 u_z 51.3 at (0.50, 4.22) mm; L1 u_z 47.1 at (2.25, 2.94) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.7677e-08 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 52.7 at (2.25, 2.94) mm;
+  t 0.140 ms, 28 parcels, evaporated 2.4122e-08 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 49.8 at (2.25, 2.94) mm;
+  t 0.160 ms, 32 parcels, evaporated 3.0698e-08 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 50.2 at (2.25, 2.94) mm;
+  t 0.180 ms, 35 parcels, evaporated 3.7007e-08 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 51.2 at (2.25, 2.94) mm;
+  t 0.200 ms, 40 parcels, evaporated 4.4736e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 50.1 at (2.25, 2.94) mm;
+  t 0.220 ms, 44 parcels, evaporated 5.4491e-08 kg: L0 u_z 53.7 at (2.50, 4.22) mm; L1 u_z 53.7 at (2.25, 2.94) mm;
+  t 0.240 ms, 50 parcels, evaporated 6.5572e-08 kg: L0 u_z 52.4 at (0.50, 4.22) mm; L1 u_z 49.6 at (2.25, 2.94) mm;
+  t 0.260 ms, 58 parcels, evaporated 7.7424e-08 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 51.9 at (2.25, 2.94) mm;
+  t 0.280 ms, 62 parcels, evaporated 8.9567e-08 kg: L0 u_z 53.3 at (0.50, 4.22) mm; L1 u_z 52.2 at (2.25, 2.94) mm;
+  t 0.300 ms, 72 parcels, evaporated 1.0237e-07 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 51.5 at (2.25, 2.94) mm;
+cell mask 8: 3247 base steps, 0 regrids, 2.2 s; evaporated 1.023660e-07 kg, 72 parcels held, 14 children; moves 19 finer, 18 coarser
+### a4_cell_9 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0445e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 41.1 at (2.25, 2.94) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.6083e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 43.0 at (2.25, 2.94) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.3255e-09 kg: L0 u_z 51.1 at (0.50, 4.22) mm; L1 u_z 47.8 at (2.25, 2.94) mm;
+  t 0.080 ms, 16 parcels, evaporated 7.1075e-09 kg: L0 u_z 53.3 at (1.50, 2.59) mm; L1 u_z 59.2 at (2.25, 2.11) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1983e-08 kg: L0 u_z 51.5 at (0.50, 4.22) mm; L1 u_z 61.5 at (2.25, 2.11) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.7710e-08 kg: L0 u_z 63.1 at (3.50, 2.59) mm; L1 u_z 87.3 at (2.25, 2.11) mm;
+  t 0.140 ms, 28 parcels, evaporated 2.4338e-08 kg: L0 u_z 53.4 at (3.50, 2.59) mm; L1 u_z 87.6 at (2.25, 2.11) mm;
+  t 0.160 ms, 32 parcels, evaporated 3.0791e-08 kg: L0 u_z 53.0 at (0.50, 2.59) mm; L1 u_z 73.7 at (2.75, 2.94) mm;
+  t 0.180 ms, 36 parcels, evaporated 3.7032e-08 kg: L0 u_z 53.5 at (0.50, 2.59) mm; L1 u_z 84.8 at (2.75, 2.94) mm;
+  t 0.200 ms, 43 parcels, evaporated 4.4855e-08 kg: L0 u_z 52.3 at (0.50, 2.59) mm; L1 u_z 92.5 at (2.75, 2.94) mm;
+  t 0.220 ms, 52 parcels, evaporated 5.4953e-08 kg: L0 u_z 55.8 at (3.50, 2.59) mm; L1 u_z 100.8 at (2.75, 2.94) mm;
+  t 0.240 ms, 70 parcels, evaporated 6.6432e-08 kg: L0 u_z 56.5 at (3.50, 2.59) mm; L1 u_z 88.2 at (2.75, 2.94) mm;
+  t 0.260 ms, 101 parcels, evaporated 7.8801e-08 kg: L0 u_z 65.7 at (3.50, 2.59) mm; L1 u_z 93.5 at (2.75, 2.94) mm;
+  t 0.280 ms, 131 parcels, evaporated 9.2027e-08 kg: L0 u_z 68.1 at (3.50, 2.59) mm; L1 u_z 110.7 at (2.75, 2.94) mm;
+  t 0.300 ms, 187 parcels, evaporated 1.0608e-07 kg: L0 u_z 63.4 at (3.50, 2.59) mm; L1 u_z 120.2 at (2.75, 2.94) mm;
+cell mask 9: 3255 base steps, 0 regrids, 2.5 s; evaporated 1.060814e-07 kg, 187 parcels held, 129 children; moves 37 finer, 45 coarser
+### a4_cell_10 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0454e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 41.1 at (2.25, 2.94) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.6242e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 44.5 at (2.25, 2.94) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.3276e-09 kg: L0 u_z 51.1 at (0.50, 4.22) mm; L1 u_z 46.5 at (2.25, 2.94) mm;
+  t 0.080 ms, 16 parcels, evaporated 7.1230e-09 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 49.0 at (2.25, 2.94) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.2000e-08 kg: L0 u_z 51.3 at (0.50, 4.22) mm; L1 u_z 47.4 at (2.25, 2.94) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.7637e-08 kg: L0 u_z 53.1 at (1.50, 4.22) mm; L1 u_z 53.1 at (2.25, 2.94) mm;
+  t 0.140 ms, 28 parcels, evaporated 2.4027e-08 kg: L0 u_z 52.8 at (0.50, 4.22) mm; L1 u_z 50.2 at (2.25, 2.94) mm;
+  t 0.160 ms, 32 parcels, evaporated 3.0489e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 50.5 at (2.25, 2.94) mm;
+  t 0.180 ms, 35 parcels, evaporated 3.6649e-08 kg: L0 u_z 53.2 at (0.50, 4.22) mm; L1 u_z 51.6 at (2.25, 2.94) mm;
+  t 0.200 ms, 39 parcels, evaporated 4.4293e-08 kg: L0 u_z 52.2 at (0.50, 4.22) mm; L1 u_z 50.5 at (2.25, 2.94) mm;
+  t 0.220 ms, 43 parcels, evaporated 5.3880e-08 kg: L0 u_z 54.3 at (3.50, 4.22) mm; L1 u_z 54.2 at (2.25, 2.94) mm;
+  t 0.240 ms, 47 parcels, evaporated 6.4652e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 50.1 at (2.25, 2.94) mm;
+  t 0.260 ms, 52 parcels, evaporated 7.6181e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 52.4 at (2.25, 2.94) mm;
+  t 0.280 ms, 56 parcels, evaporated 8.7916e-08 kg: L0 u_z 53.4 at (0.50, 4.22) mm; L1 u_z 52.6 at (2.25, 2.94) mm;
+  t 0.300 ms, 64 parcels, evaporated 1.0028e-07 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 52.0 at (2.25, 2.94) mm;
+cell mask 10: 3246 base steps, 0 regrids, 2.2 s; evaporated 1.002776e-07 kg, 64 parcels held, 6 children; moves 19 finer, 18 coarser
+### a4_cell_12 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0451e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 41.1 at (2.25, 2.94) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.5947e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 44.6 at (2.25, 2.94) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2887e-09 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z 46.1 at (2.25, 2.94) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9939e-09 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 49.2 at (2.25, 2.94) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1806e-08 kg: L0 u_z 51.3 at (0.50, 4.22) mm; L1 u_z 47.0 at (2.25, 2.94) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.7249e-08 kg: L0 u_z 53.2 at (1.50, 4.22) mm; L1 u_z 52.9 at (2.25, 2.94) mm;
+  t 0.140 ms, 28 parcels, evaporated 2.3402e-08 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 49.6 at (2.25, 2.94) mm;
+  t 0.160 ms, 32 parcels, evaporated 2.9715e-08 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 50.3 at (2.25, 2.94) mm;
+  t 0.180 ms, 35 parcels, evaporated 3.5752e-08 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 51.4 at (2.25, 2.94) mm;
+  t 0.200 ms, 40 parcels, evaporated 4.3011e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 50.5 at (2.25, 2.94) mm;
+  t 0.220 ms, 44 parcels, evaporated 5.1959e-08 kg: L0 u_z 53.8 at (2.50, 4.22) mm; L1 u_z 53.8 at (2.25, 2.94) mm;
+  t 0.240 ms, 50 parcels, evaporated 6.2156e-08 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 49.7 at (2.25, 2.94) mm;
+  t 0.260 ms, 58 parcels, evaporated 7.3300e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 52.1 at (2.25, 2.94) mm;
+  t 0.280 ms, 62 parcels, evaporated 8.4833e-08 kg: L0 u_z 53.3 at (0.50, 4.22) mm; L1 u_z 52.3 at (2.25, 2.94) mm;
+  t 0.300 ms, 75 parcels, evaporated 9.7006e-08 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 51.7 at (2.25, 2.94) mm;
+cell mask 12: 3247 base steps, 0 regrids, 2.2 s; evaporated 9.700632e-08 kg, 75 parcels held, 16 children; moves 20 finer, 19 coarser
+### a4_cell_13 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0435e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 41.1 at (2.25, 2.94) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.5719e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 43.4 at (2.25, 2.94) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2802e-09 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z 47.6 at (2.25, 2.94) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9672e-09 kg: L0 u_z 53.5 at (1.50, 2.59) mm; L1 u_z 59.4 at (2.25, 2.11) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1756e-08 kg: L0 u_z 51.5 at (0.50, 4.22) mm; L1 u_z 59.8 at (2.25, 2.11) mm;
+  t 0.120 ms, 25 parcels, evaporated 1.7238e-08 kg: L0 u_z 62.3 at (3.50, 2.59) mm; L1 u_z 82.9 at (2.25, 2.11) mm;
+  t 0.140 ms, 29 parcels, evaporated 2.3545e-08 kg: L0 u_z 52.7 at (0.50, 2.59) mm; L1 u_z 71.7 at (2.25, 2.11) mm;
+  t 0.160 ms, 35 parcels, evaporated 2.9790e-08 kg: L0 u_z 53.4 at (1.50, 2.59) mm; L1 u_z 75.8 at (2.75, 2.94) mm;
+  t 0.180 ms, 38 parcels, evaporated 3.5805e-08 kg: L0 u_z 53.3 at (0.50, 2.59) mm; L1 u_z 84.8 at (2.75, 2.94) mm;
+  t 0.200 ms, 49 parcels, evaporated 4.3113e-08 kg: L0 u_z 52.2 at (0.50, 2.59) mm; L1 u_z 92.7 at (2.75, 2.94) mm;
+  t 0.220 ms, 59 parcels, evaporated 5.2385e-08 kg: L0 u_z 54.9 at (3.50, 2.59) mm; L1 u_z 99.5 at (2.75, 2.94) mm;
+  t 0.240 ms, 78 parcels, evaporated 6.2967e-08 kg: L0 u_z 54.2 at (3.50, 2.59) mm; L1 u_z 87.5 at (2.75, 2.94) mm;
+  t 0.260 ms, 110 parcels, evaporated 7.4638e-08 kg: L0 u_z 62.6 at (3.50, 2.59) mm; L1 u_z 87.6 at (2.75, 2.94) mm;
+  t 0.280 ms, 140 parcels, evaporated 8.7131e-08 kg: L0 u_z 63.7 at (3.50, 2.59) mm; L1 u_z 106.3 at (2.75, 2.94) mm;
+  t 0.300 ms, 195 parcels, evaporated 1.0033e-07 kg: L0 u_z 59.1 at (3.50, 2.59) mm; L1 u_z 109.0 at (2.75, 2.94) mm;
+cell mask 13: 3255 base steps, 0 regrids, 2.6 s; evaporated 1.003346e-07 kg, 195 parcels held, 137 children; moves 40 finer, 44 coarser
+### a4_cell_14 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0444e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 41.0 at (2.25, 2.94) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.5882e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 44.6 at (2.25, 2.94) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2836e-09 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z 46.2 at (2.25, 2.94) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9633e-09 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 49.2 at (2.25, 2.94) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1788e-08 kg: L0 u_z 51.3 at (0.50, 4.22) mm; L1 u_z 47.3 at (2.25, 2.94) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.7205e-08 kg: L0 u_z 53.3 at (1.50, 4.22) mm; L1 u_z 53.2 at (2.25, 2.94) mm;
+  t 0.140 ms, 28 parcels, evaporated 2.3267e-08 kg: L0 u_z 52.8 at (0.50, 4.22) mm; L1 u_z 50.0 at (2.25, 2.94) mm;
+  t 0.160 ms, 32 parcels, evaporated 2.9492e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 50.5 at (2.25, 2.94) mm;
+  t 0.180 ms, 35 parcels, evaporated 3.5409e-08 kg: L0 u_z 53.2 at (0.50, 4.22) mm; L1 u_z 51.4 at (2.25, 2.94) mm;
+  t 0.200 ms, 39 parcels, evaporated 4.2532e-08 kg: L0 u_z 52.2 at (0.50, 4.22) mm; L1 u_z 50.7 at (2.25, 2.94) mm;
+  t 0.220 ms, 43 parcels, evaporated 5.1423e-08 kg: L0 u_z 54.3 at (2.50, 4.22) mm; L1 u_z 54.2 at (2.25, 2.94) mm;
+  t 0.240 ms, 47 parcels, evaporated 6.1440e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 50.0 at (2.25, 2.94) mm;
+  t 0.260 ms, 53 parcels, evaporated 7.2271e-08 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 52.5 at (2.25, 2.94) mm;
+  t 0.280 ms, 57 parcels, evaporated 8.3445e-08 kg: L0 u_z 53.4 at (0.50, 4.22) mm; L1 u_z 52.5 at (2.25, 2.94) mm;
+  t 0.300 ms, 65 parcels, evaporated 9.5251e-08 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 52.1 at (2.25, 2.94) mm;
+cell mask 14: 3246 base steps, 0 regrids, 2.3 s; evaporated 9.525144e-08 kg, 65 parcels held, 7 children; moves 19 finer, 18 coarser
+### a4_u0+o2_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 50.0 at (0.50, 4.22) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.6 at (0.50, 4.22) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.0 at (0.50, 4.22) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.4 at (0.50, 4.22) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.2 at (0.50, 4.22) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.1 at (0.50, 4.22) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.7 at (0.50, 4.22) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.0 at (0.50, 4.22) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.9 at (2.50, 4.22) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.1 at (0.50, 4.22) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.3 at (0.50, 4.22) mm;
+u0+o2 mask 15: 16 x 6, 1.1 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children
+### a4_u1+o2_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.8 at (0.25, 2.11) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.4 at (0.25, 2.94) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.25, 2.94) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.5 at (0.25, 2.94) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.2 at (0.25, 2.94) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 55.8 at (1.75, 2.94) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.7 at (0.25, 2.94) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.25, 2.94) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.6 at (0.25, 2.94) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.5 at (0.25, 2.94) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 57.6 at (3.25, 2.94) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.4 at (0.25, 2.94) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.7 at (0.75, 2.94) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.6 at (0.25, 2.94) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.25, 2.94) mm;
+u1+o2 mask 15: 32 x 12, 6.9 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children
+### a4_axis+o2_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -99.2 at (3.50, 1.11) mm; L1 u_z -174.2 at (2.25, 1.30) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -140.1 at (3.50, 1.11) mm; L1 u_z -220.3 at (2.25, 0.56) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -151.4 at (3.50, 1.11) mm; L1 u_z -243.7 at (2.25, 0.56) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -159.7 at (3.50, 1.11) mm; L1 u_z -261.6 at (2.25, 0.56) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -160.2 at (3.50, 1.11) mm; L1 u_z -261.4 at (2.25, 0.56) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -150.2 at (3.50, 1.11) mm; L1 u_z -261.3 at (2.25, 0.56) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -152.8 at (3.50, 1.11) mm; L1 u_z -262.3 at (2.25, 0.56) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -145.6 at (3.50, 1.11) mm; L1 u_z -256.5 at (2.25, 0.56) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -146.8 at (3.50, 1.11) mm; L1 u_z -259.2 at (2.25, 0.56) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -142.5 at (3.50, 1.11) mm; L1 u_z -252.4 at (2.25, 0.56) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -137.7 at (3.50, 1.11) mm; L1 u_z -251.2 at (2.25, 0.56) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -139.2 at (3.50, 1.11) mm; L1 u_z -249.1 at (2.25, 0.56) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -131.9 at (3.50, 1.11) mm; L1 u_z -243.3 at (2.25, 0.56) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -132.8 at (3.50, 1.11) mm; L1 u_z -244.2 at (2.25, 0.56) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z -129.1 at (3.50, 1.11) mm; L1 u_z -237.9 at (2.25, 0.56) mm;
+axis+o2 mask 15: 3394 base steps, 0 regrids, 1.4 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children; moves 0 finer, 0 coarser
+### a4_cell+o2_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 50.0 at (0.50, 4.22) mm; L1 u_z 42.7 at (2.25, 2.11) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.9 at (0.50, 2.59) mm; L1 u_z 72.2 at (2.25, 2.11) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.5 at (0.50, 4.22) mm; L1 u_z 73.5 at (2.25, 2.11) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 59.2 at (3.50, 2.59) mm; L1 u_z 65.3 at (2.75, 2.94) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 64.8 at (3.50, 2.59) mm; L1 u_z 72.2 at (2.75, 2.94) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 81.5 at (3.50, 2.59) mm; L1 u_z 85.3 at (2.25, 2.11) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 85.6 at (3.50, 2.59) mm; L1 u_z 219.0 at (2.25, 2.11) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 106.0 at (3.50, 2.59) mm; L1 u_z 217.5 at (2.25, 2.11) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 107.6 at (3.50, 2.59) mm; L1 u_z 171.3 at (2.25, 2.11) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 105.9 at (3.50, 2.59) mm; L1 u_z 145.0 at (2.75, 2.94) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 106.9 at (3.50, 2.59) mm; L1 u_z 151.2 at (2.75, 2.94) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 101.6 at (3.50, 2.59) mm; L1 u_z 160.4 at (2.75, 2.94) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 102.0 at (3.50, 2.59) mm; L1 u_z 167.4 at (2.75, 2.94) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 103.2 at (3.50, 2.59) mm; L1 u_z 171.0 at (2.75, 2.94) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 102.4 at (3.50, 2.59) mm; L1 u_z 178.1 at (2.75, 2.94) mm;
+cell+o2 mask 15: 3323 base steps, 0 regrids, 1.5 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children; moves 0 finer, 0 coarser
+### a4_block+o2_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 49.4 at (0.50, 4.22) mm; L1 u_z 51.3 at (0.25, 2.11) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.2 at (0.50, 4.22) mm; L1 u_z 52.8 at (0.25, 2.94) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 50.3 at (0.50, 4.22) mm; L1 u_z 52.1 at (0.25, 2.94) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 53.5 at (0.25, 2.94) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z 51.7 at (0.25, 2.94) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 75.3 at (3.50, 1.11) mm; L1 u_z 52.3 at (0.25, 2.94) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 84.2 at (3.50, 1.11) mm; L1 u_z 52.0 at (0.25, 2.94) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 103.0 at (3.50, 1.11) mm; L1 u_z 50.4 at (0.25, 2.94) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 134.0 at (3.50, 1.11) mm; L1 u_z 50.1 at (0.25, 2.94) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 145.1 at (3.50, 1.11) mm; L1 u_z 47.8 at (0.25, 2.11) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 183.3 at (3.50, 1.11) mm; L1 u_z 47.0 at (0.25, 2.11) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 188.9 at (3.50, 1.11) mm; L1 u_z 46.4 at (0.25, 2.11) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 207.6 at (3.50, 1.11) mm; L1 u_z 44.3 at (0.25, 2.11) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 213.8 at (3.50, 1.11) mm; L1 u_z 45.7 at (0.25, 2.11) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 213.1 at (3.50, 1.11) mm; L1 u_z 45.1 at (0.25, 2.11) mm;
+block+o2 mask 15: 3350 base steps, 0 regrids, 2.2 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children; moves 0 finer, 0 coarser
+### a4_axis_15 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0417e-10 kg: L0 u_z 50.0 at (0.50, 4.22) mm; L1 u_z 5.9 at (2.75, 1.30) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.5428e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z -6.8 at (2.25, 0.56) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2445e-09 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z -12.9 at (2.25, 1.30) mm;
+  t 0.080 ms, 18 parcels, evaporated 6.9150e-09 kg: L0 u_z 52.4 at (0.50, 2.59) mm; L1 u_z -20.9 at (2.25, 1.30) mm;
+  t 0.100 ms, 31 parcels, evaporated 1.1371e-08 kg: L0 u_z 51.1 at (0.50, 4.22) mm; L1 u_z -24.2 at (2.75, 0.56) mm;
+  t 0.120 ms, 52 parcels, evaporated 1.7071e-08 kg: L0 u_z 52.9 at (1.50, 4.22) mm; L1 u_z -28.4 at (2.25, 1.30) mm;
+  t 0.140 ms, 75 parcels, evaporated 2.3966e-08 kg: L0 u_z 53.1 at (0.50, 2.59) mm; L1 u_z -38.5 at (2.25, 1.30) mm;
+  t 0.160 ms, 110 parcels, evaporated 3.1723e-08 kg: L0 u_z 53.1 at (0.50, 2.59) mm; L1 u_z -24.7 at (2.25, 1.30) mm;
+  t 0.180 ms, 126 parcels, evaporated 3.8935e-08 kg: L0 u_z 54.0 at (0.50, 2.59) mm; L1 u_z -11.9 at (2.25, 1.30) mm;
+  t 0.200 ms, 138 parcels, evaporated 4.7113e-08 kg: L0 u_z 52.6 at (0.50, 2.59) mm; L1 u_z -20.3 at (2.25, 1.30) mm;
+  t 0.220 ms, 152 parcels, evaporated 5.7294e-08 kg: L0 u_z 54.6 at (2.50, 4.22) mm; L1 u_z -20.0 at (2.25, 1.30) mm;
+  t 0.240 ms, 164 parcels, evaporated 6.8817e-08 kg: L0 u_z 53.7 at (0.50, 2.59) mm; L1 u_z 18.6 at (2.75, 0.56) mm;
+  t 0.260 ms, 177 parcels, evaporated 8.0972e-08 kg: L0 u_z 55.1 at (1.50, 2.59) mm; L1 u_z 34.1 at (2.75, 0.56) mm;
+  t 0.280 ms, 185 parcels, evaporated 9.3059e-08 kg: L0 u_z 53.7 at (1.50, 2.59) mm; L1 u_z 21.0 at (2.75, 0.56) mm;
+  t 0.300 ms, 200 parcels, evaporated 1.0637e-07 kg: L0 u_z 52.3 at (0.50, 4.22) mm; L1 u_z -16.2 at (2.25, 1.30) mm;
+axis mask 15: 3255 base steps, 0 regrids, 3.4 s; evaporated 1.063671e-07 kg, 200 parcels held, 142 children; moves 66 finer, 158 coarser
+### a4_axis+o2_spread1 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 50.0 at (0.50, 4.22) mm; L1 u_z 15.3 at (2.25, 0.56) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.6 at (0.50, 4.22) mm; L1 u_z 13.2 at (2.25, 0.56) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z 13.7 at (2.25, 1.30) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.4 at (0.50, 4.22) mm; L1 u_z 15.5 at (2.25, 0.56) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.2 at (0.50, 4.22) mm; L1 u_z 13.4 at (2.25, 0.56) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.0 at (0.50, 4.22) mm; L1 u_z 17.3 at (2.25, 0.56) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 16.2 at (2.25, 0.56) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 16.3 at (2.25, 0.56) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.0 at (0.50, 4.22) mm; L1 u_z 16.6 at (2.25, 1.30) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 16.1 at (2.25, 0.56) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.8 at (2.50, 4.22) mm; L1 u_z 17.5 at (2.25, 1.30) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 16.7 at (2.25, 0.56) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 16.9 at (2.25, 0.56) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 17.0 at (2.25, 0.56) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.3 at (0.50, 4.22) mm; L1 u_z 16.8 at (2.25, 0.56) mm;
+axis+o2 mask 15: 3247 base steps, 0 regrids, 1.2 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children; moves 0 finer, 0 coarser
+### a4_cell+o2_spread1 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 50.0 at (0.50, 4.22) mm; L1 u_z 39.8 at (2.25, 2.94) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 42.3 at (2.25, 2.94) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.1 at (0.50, 4.22) mm; L1 u_z 44.1 at (2.25, 2.94) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 46.0 at (2.25, 2.94) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.2 at (0.50, 4.22) mm; L1 u_z 44.1 at (2.25, 2.11) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.0 at (0.50, 4.22) mm; L1 u_z 51.3 at (2.25, 2.94) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 47.3 at (2.25, 2.94) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 48.5 at (2.25, 2.94) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 48.8 at (2.25, 2.94) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 47.9 at (2.25, 2.11) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 54.1 at (3.50, 4.22) mm; L1 u_z 52.1 at (2.25, 2.94) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 47.9 at (2.25, 2.11) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 50.4 at (2.25, 2.94) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.2 at (0.50, 4.22) mm; L1 u_z 49.7 at (2.25, 2.94) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.4 at (0.50, 4.22) mm; L1 u_z 49.6 at (2.25, 2.11) mm;
+cell+o2 mask 15: 3247 base steps, 0 regrids, 1.2 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children; moves 0 finer, 0 coarser
+### a4_block+o2_spread1 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 51.1 at (0.25, 2.11) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.6 at (0.50, 4.22) mm; L1 u_z 52.3 at (0.25, 2.11) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 50.9 at (0.50, 4.22) mm; L1 u_z 51.5 at (0.25, 2.11) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.4 at (0.50, 4.22) mm; L1 u_z 52.8 at (0.25, 2.11) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.2 at (0.50, 4.22) mm; L1 u_z 51.6 at (0.25, 2.11) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.0 at (0.50, 4.22) mm; L1 u_z 52.7 at (0.25, 2.94) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 52.9 at (0.25, 2.11) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 52.0 at (0.25, 2.11) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.0 at (0.50, 4.22) mm; L1 u_z 53.1 at (0.25, 2.94) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 52.0 at (0.25, 2.11) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.6 at (1.50, 4.22) mm; L1 u_z 53.1 at (0.25, 2.94) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 52.7 at (0.25, 2.11) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 52.3 at (0.25, 2.94) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.2 at (0.50, 4.22) mm; L1 u_z 53.1 at (0.25, 2.94) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.3 at (0.50, 4.22) mm; L1 u_z 52.2 at (0.25, 2.11) mm;
+block+o2 mask 15: 3251 base steps, 0 regrids, 1.9 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children; moves 0 finer, 0 coarser
+### a4_cell_spread1 (kind, mask, end 0.3 ms, spread toggle 1 if the name ends spread1)
+  t 0.020 ms, 4 parcels, evaporated 1.0461e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 39.8 at (2.25, 2.94) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.5744e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 42.4 at (2.25, 2.94) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2785e-09 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z 44.5 at (2.25, 2.94) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9955e-09 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 46.4 at (2.25, 2.94) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1813e-08 kg: L0 u_z 51.3 at (0.50, 4.22) mm; L1 u_z 44.6 at (2.25, 2.11) mm;
+  t 0.120 ms, 25 parcels, evaporated 1.7266e-08 kg: L0 u_z 53.1 at (1.50, 4.22) mm; L1 u_z 51.8 at (2.25, 2.11) mm;
+  t 0.140 ms, 29 parcels, evaporated 2.3414e-08 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 47.9 at (2.25, 2.11) mm;
+  t 0.160 ms, 35 parcels, evaporated 2.9657e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 48.8 at (2.25, 2.11) mm;
+  t 0.180 ms, 38 parcels, evaporated 3.5663e-08 kg: L0 u_z 53.2 at (0.50, 4.22) mm; L1 u_z 49.5 at (2.25, 2.11) mm;
+  t 0.200 ms, 45 parcels, evaporated 4.2870e-08 kg: L0 u_z 52.2 at (0.50, 4.22) mm; L1 u_z 48.8 at (2.25, 2.11) mm;
+  t 0.220 ms, 51 parcels, evaporated 5.1877e-08 kg: L0 u_z 54.4 at (3.50, 4.22) mm; L1 u_z 52.7 at (2.25, 2.94) mm;
+  t 0.240 ms, 61 parcels, evaporated 6.2040e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 48.2 at (2.25, 2.11) mm;
+  t 0.260 ms, 79 parcels, evaporated 7.3016e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 51.1 at (2.25, 2.11) mm;
+  t 0.280 ms, 87 parcels, evaporated 8.4513e-08 kg: L0 u_z 53.4 at (0.50, 4.22) mm; L1 u_z 50.9 at (2.25, 2.11) mm;
+  t 0.300 ms, 104 parcels, evaporated 9.6563e-08 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 50.7 at (2.25, 2.11) mm;
+cell mask 15: 3252 base steps, 0 regrids, 2.0 s; evaporated 9.656302e-08 kg, 104 parcels held, 46 children; moves 36 finer, 35 coarser

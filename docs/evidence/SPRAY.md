@@ -331,6 +331,11 @@ The evidence is in `docs/evidence/spray_amr/` (the logs and probes; its README l
   - A pass would need one of two things, and the choice is the Director's:
     - make `Amr`'s single-level SST step bit-identical to `Flow::step`. That is an AMR change with its own criteria, and it moves AMR's SST dumps at rounding level;
     - or register an amended A1(b).
+- **A1(b) as amended (1e-12 relative, the Director's 23:30 decision): met** (`a1_amended_2026-10-22.log`, run about 23:30 CDT).
+  - 1,544 of 2,168 steps' dt differ, by 1.149e-15 at most.
+  - The gas differs by 1.390e-13 and the parcel fields by 5.206e-13 (48 against 48 parcels, the same random states, cells and injectors). The ledger differs by 2.524e-14.
+  - A1(a) is again bit for bit.
+  - The second rounding source in the single-level SST step is not yet named; the Director's 30-minute cap applies.
 - **The build against the registered design:**
   - **wallThrust.** The registration sets it at the base level's next step. The code sets it at the end of the base step, that is at the finest level's last step within it. The value is the same, the base step's wall impulse over its dt, but it is available one step sooner. On one level this is when `Spray::advance` sets it, and A1(a)'s equal ledgers depend on that.
   - **Finding the cells.** At the base level's step (`afterStep(0)`), every parcel's cell and owner are found again from its position. Within a base step the pattern is fixed, because `Amr` regrids only after an accepted base step (`core/amr.cpp`, `Amr::step`), and each move finds the cells of the parcels it moves. This is the registered rule.
@@ -359,7 +364,7 @@ The evidence is in `docs/evidence/spray_amr/` (the logs and probes; its README l
     | 64 × 24 | 2.399e-7 | 115 | 44 |
   - **On 4 threads** A2 took 114.0 s. The Mac was shared at the time (load about 9 at 23:05), so this is not a scaling measurement.
 
-**A defect the printed comparison found (22 October, about 23:00 to 23:20 CDT). The spray on AMR is not fit for tier 1 until it is fixed.**
+**A defect the printed comparison found (22 October, about 23:00 to 23:20 CDT). The spray on AMR is not fit for tier 1 until it is fixed. The cause is in AMR's gas path (below).**
 - **What showed it.** A2 evaporates 4.268e-7 kg and makes 1,178 children. Both uniform meshes give about 2.4e-7 to 2.6e-7 kg and 44 to 201 children, so A2 lies far outside them. A0 to A3 cannot see this, because conservation holds.
 - **Localised by `a2_levels_probe.cpp`** (log `a2_levels_2026-10-22.log`): `Amr(def, 2)` on S3's chamber to 0.5 ms, 1 thread.
 
@@ -393,6 +398,47 @@ The evidence is in `docs/evidence/spray_amr/` (the logs and probes; its README l
   1. Dump p, T and u around the patch's corner at 0.1 to 0.2 ms, in modes 0 and 1.
   2. Switch off the mass, momentum and energy deposits one at a time (a development toggle) to find which one drives it.
   3. Repeat with a static 2-level corner patch, `Amr(def, 1)`.
+- **The cause, found (22 October, about 23:30 to 23:36 CDT; the Director's candidates of 23:30 tested).** It is `Amr::spread`, the fill's reconstruction of a coarse parent onto its fine children. It is in the gas path, not the spray. Evidence: `a4_probe.cpp` (one-cell and block patches on `Amr(def, 1)`, to 0.3 ms), logs in `a4_2026-10-22.log`, all measured on the Mac:
+  - **The one-cell patch shows it.** Level 1 static over base cell (2, 1) alone: the largest owned u_z is 82 to 105 m/s from 0.24 ms, at the fine cell (2.75, 2.94) mm. Over the trace points (every 0.02 ms), the uniform 16 × 6 and 32 × 12 runs reach 54.2 and 56.8 m/s at most.
+  - **(i), double feedback, is excluded.** A development check, which throws on any deposit to a covered or inactive cell, never fired. Covered coarse cells receive nothing.
+  - **The mass deposit drives it; momentum and energy do not.** On the one-cell patch, the largest owned u_z at 0.3 ms, with each deposit kept or removed:
+
+    | Deposits kept | Largest owned u_z (m/s) |
+    |---|---|
+    | all three | 94 |
+    | mass alone | 120 |
+    | mass and energy | 109 |
+    | momentum alone | 52.0 |
+    | energy alone | 51.7 |
+    | momentum and energy | 52.1 |
+    | none | 51.5 |
+  - **The gas alone shows it once there is a composition front.** With no spray, a second supply of O2 gas (300 K, 2e-3 kg/s, r < 1.5 mm) streams through a static patch:
+
+    | Patch | Largest owned \|u_z\| over the trace points (m/s) |
+    |---|---|
+    | the one-cell patch on the axis | 262 |
+    | patch (2, 1) | 219 |
+    | the block z < 3 mm, r < 3.33 mm | 214 |
+    | uniform 16 × 6 (no patch) | 53.9 |
+    | uniform 32 × 12 (no patch) | 57.6 |
+
+    S3's gas alone had one composition (H2) everywhere, which is why modes 3 and 4 were smooth. So (ii) and (iii), which are spray time-level effects, are not the cause either.
+  - **A piecewise-constant spread removes it.** This was a development toggle. Over the trace points the O2 stream's patches reach 54.1 m/s at most. The spray on the one-cell patch reaches 54.4 m/s at most and evaporates 9.656e-8 kg, between the uniform runs' 9.355e-8 (32 × 12) and 9.690e-8 (16 × 6).
+  - **The mechanism (derived, not measured cell by cell).**
+    - `spread` takes ρ, ρu_z, ρu_r and E linear, each with its own Barth-Jespersen limiter. It gives each child the parent's mass fractions, scaled with the child's density.
+    - At an O2/H2 front the density varies 16-fold at nearly uniform E (ρe ≈ p/(γ − 1) for both). A child on the H2 side therefore gets the parent's O2-rich composition at an H2-like density, which means an unphysical temperature: far too high toward the H2 side, too low toward the O2 side.
+    - With cv(T) that temperature carries a pressure error into the fine level's ghost cells at the patch edge. The fine fluxes there, refluxed into the coarse cells, then drive the jet.
+    - Conservation is untouched, which is why A2's budgets close.
+- **The fix, registered before its code (22 October, about 23:36 CDT).**
+  - **The design.** `spread` reconstructs every conserved component the same way: ρ, ρu_z, ρu_r, E, each partial density, and ρk and ρω.
+    - Each component's gradient comes from the parent's least-squares fit over its face neighbours, the axis mirror included (ρu_r odd, the rest even), as now.
+    - One Barth-Jespersen limiter φ is common to every component: the smallest over the components and the four children.
+    - Each child is then one linear combination of the parent's and its neighbours' states. A front of uniform p, T and u (a contact) keeps those exactly in the children, for any thermally perfect mixture. Each component stays within its neighbours' range, so the partial densities stay non-negative, and the content is conserved, because the offsets are about the children's volume-weighted centroid.
+    - The fallback for a child that is not admissible is unchanged: the parent's values to all four children.
+    - This changes every AMR run whose fills meet gradients; uniform runs are untouched.
+  - **Criterion A5, the gas alone.** `a4_probe.cpp`'s O2 stream on the static axis, (2, 1) and block patches, to 0.3 ms. No owned cell's |u_z| may exceed 60 m/s at any 0.02 ms trace point.
+  - **Then A4 as registered, and A0 to A3 rerun unchanged, A1(b) as amended.**
+  - **And AMR's own ctest** (`amr_verification`, `amr_subcycling_verification`) must pass as before. Any changed printed values are recorded.
 - **Criterion A4, registered here before any fix's code (22 October, about 23:25 CDT).** S3's chamber on `Amr(def, 2)` with the static corner tag alone (`a2_levels_probe.cpp` mode 1), two-way, to 0.5 ms, must meet both:
   - **(a)** The evaporated mass lies within 0.9 times the lower and 1.1 times the higher of the uniform 16 × 6 and 64 × 24 runs' values, that is [2.16e-7, 2.84e-7] kg.
   - **(b)** No owned cell's |u_z| exceeds 60 m/s at any of the 500-step trace points. That limit is the larger of the drop and supply speeds plus 7 m/s. The one-way run's largest value is 53.7 m/s.
