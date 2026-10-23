@@ -1,0 +1,1549 @@
+TBDIAG f 0.13333 z 0.00 eta 0.10 rho 4.1010e-03 span 3.3006e-05 worst 4.409e-07 steps 909 stop 909 | best i 813 t 6.1859e+04 T 1091.97 c 1.7125267118e+04 | worst i 868 t 1.1321e+05 T 1091.97 c 1.7125267118e+04 | start T 1091.97 end T 1091.97 cEq 1.7125267118e+04
+TBDIAG f 0.13333 z 0.00 eta 0.10 rho 1.0000e-03 span 6.6827e-05 worst 2.178e-07 steps 986 stop 986 | best i 872 t 4.7340e+05 T 1091.97 c 1.7901294227e+04 | worst i 925 t 7.9768e+05 T 1091.97 c 1.7901294227e+04 | start T 1091.97 end T 1091.97 cEq 1.7901294227e+04
+TBDIAG f 0.13333 z 0.30 eta 0.10 rho 1.0000e-03 span 3.2548e-05 worst 1.118e-07 steps 970 stop 749 | best i 256 t 1.3220e-03 T 1068.16 c 1.5721844116e+04 | worst i 262 t 1.7562e-03 T 1068.16 c 1.5721844116e+04 | start T 1068.16 end T 1068.16 cEq 1.5721844149e+04
+TBDIAG f 0.13333 z 0.30 eta 0.10 rho 4.1010e-03 span 1.6050e-05 worst 2.267e-07 steps 873 stop 643 | best i 252 t 2.9073e-04 T 1068.16 c 1.5052971290e+04 | worst i 260 t 3.9628e-04 T 1068.16 c 1.5052971290e+04 | start T 1068.16 end T 1068.16 cEq 1.5052971306e+04
+TBDIAG f 0.13333 z 0.30 eta 0.20 rho 8.0000e+01 span 2.1348e-03 worst 1.704e-09 steps 1041 stop 793 | best i 14 t 5.0975e-18 T 1749.63 c 1.1309215313e+04 | worst i 16 t 1.5506e-17 T 1749.63 c 1.1309215313e+04 | start T 1749.63 end T 1749.60 cEq 1.1309217448e+04
+TBDIAG f 0.14286 z 0.00 eta 0.10 rho 1.0000e-03 span 6.9283e-05 worst 5.251e-08 steps 974 stop 784 | best i 0 t 0.0000e+00 T 1085.67 c 1.8873842892e+04 | worst i 71 t 2.3163e-05 T 1085.67 c 1.8873842892e+04 | start T 1085.67 end T 1085.67 cEq 1.8873842961e+04
+TBDIAG f 0.14286 z 0.00 eta 0.10 rho 4.1010e-03 span 3.4207e-05 worst 1.064e-07 steps 905 stop 698 | best i 247 t 1.2870e-04 T 1085.67 c 1.8042384064e+04 | worst i 248 t 1.3306e-04 T 1085.67 c 1.8042384064e+04 | start T 1085.67 end T 1085.67 cEq 1.8042384098e+04
+
+[CVODES WARNING]  CVode
+  Internal t = 8.93356e+08 and h = 4.26546e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.93356e+08 and h = 3.11678e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.93356e+08 and h = 3.11678e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.93356e+08 and h = 3.11678e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.93356e+08 and h = 3.11678e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.93356e+08 and h = 3.11678e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.93356e+08 and h = 3.11678e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.93356e+08 and h = 3.11678e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.93356e+08 and h = 4.74088e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.93356e+08 and h = 4.74088e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.27029e+08 and h = 1.41048e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.27029e+08 and h = 1.03775e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.27029e+08 and h = 1.03775e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.27029e+08 and h = 1.03775e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.27029e+08 and h = 1.03775e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.27029e+08 and h = 1.03775e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.27029e+08 and h = 1.03775e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.27029e+08 and h = 1.03775e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.27029e+08 and h = 1.03775e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.27029e+08 and h = 1.03775e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.03294e+07 and h = 3.38721e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.03294e+07 and h = 3.38721e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.03294e+07 and h = 3.38721e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.03294e+07 and h = 3.38721e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.03294e+07 and h = 3.38721e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.03294e+07 and h = 3.38721e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.03294e+07 and h = 3.38721e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.03294e+07 and h = 3.38721e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.03294e+07 and h = 3.38721e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.03294e+07 and h = 3.38721e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.80868e+07 and h = 1.83199e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.80868e+07 and h = 1.83199e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.80868e+07 and h = 1.83199e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.80868e+07 and h = 1.83199e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.80868e+07 and h = 1.83199e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.80868e+07 and h = 1.83199e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.80868e+07 and h = 1.83199e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.80868e+07 and h = 1.83199e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.80868e+07 and h = 1.83199e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.80868e+07 and h = 1.83199e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.77588e+06 and h = 4.25241e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.77588e+06 and h = 4.25241e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.77588e+06 and h = 4.25241e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.77588e+06 and h = 4.25241e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.77588e+06 and h = 4.25241e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.77588e+06 and h = 4.25241e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.77588e+06 and h = 4.25241e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.77588e+06 and h = 4.25241e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.77588e+06 and h = 4.25241e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.77588e+06 and h = 4.25241e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.86727e+06 and h = 2.04267e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.86727e+06 and h = 2.04267e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.86727e+06 and h = 2.04267e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.86727e+06 and h = 2.04267e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.86727e+06 and h = 2.04267e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.86727e+06 and h = 2.04267e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.86727e+06 and h = 2.04267e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.86727e+06 and h = 2.04267e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.86727e+06 and h = 2.04267e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.86727e+06 and h = 2.04267e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.27166e+06 and h = 3.45285e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.27166e+06 and h = 3.45285e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.27166e+06 and h = 3.45285e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.27166e+06 and h = 3.45285e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.27166e+06 and h = 3.45285e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.27166e+06 and h = 3.45285e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.27166e+06 and h = 5.23316e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.27166e+06 and h = 5.23316e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.27166e+06 and h = 5.23316e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.27166e+06 and h = 5.23316e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 579170 and h = 4.65231e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 579170 and h = 6.3499e-12 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 579170 and h = 4.52536e-12 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 579170 and h = 4.52536e-12 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 579170 and h = 4.52536e-12 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 579170 and h = 4.52536e-12 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 579170 and h = 4.52536e-12 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 579170 and h = 4.52536e-12 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 579170 and h = 4.52536e-12 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 579170 and h = 4.52536e-12 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+TBDIAG f 0.14286 z 0.30 eta 0.10 rho 1.0000e-03 span 3.5107e-05 worst 4.145e-07 steps 975 stop 975 | best i 857 t 1.3623e+06 T 1063.64 c 1.6412262175e+04 | worst i 905 t 2.2795e+06 T 1063.64 c 1.6412262175e+04 | start T 1063.64 end T 1063.64 cEq 1.6412262175e+04
+TBDIAG f 0.14286 z 0.30 eta 0.10 rho 4.1010e-03 span 1.7355e-05 worst 7.337e-07 steps 890 stop 890 | best i 784 t 1.5239e+05 T 1063.64 c 1.5704587104e+04 | worst i 835 t 2.5250e+05 T 1063.64 c 1.5704587104e+04 | start T 1063.64 end T 1063.64 cEq 1.5704587104e+04
+
+[CVODES WARNING]  CVode
+  Internal t = 9.03761e+10 and h = 6.23291e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.03761e+10 and h = 6.23291e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.03761e+10 and h = 6.23291e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.03761e+10 and h = 6.23291e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.03761e+10 and h = 6.23291e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.03761e+10 and h = 6.23291e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.03761e+10 and h = 6.23291e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.03761e+10 and h = 6.23291e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.03761e+10 and h = 6.23291e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.03761e+10 and h = 4.46253e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.14664e+10 and h = 1.6698e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.14664e+10 and h = 1.6698e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.14664e+10 and h = 1.6698e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.14664e+10 and h = 1.6698e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.14664e+10 and h = 1.6698e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.14664e+10 and h = 1.6698e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.14664e+10 and h = 1.6698e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.14664e+10 and h = 1.6698e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.14664e+10 and h = 1.6698e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.14664e+10 and h = 1.6698e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.359e+09 and h = 4.74492e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.359e+09 and h = 2.57051e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.359e+09 and h = 2.57051e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.359e+09 and h = 1.64032e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.359e+09 and h = 1.64032e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.359e+09 and h = 1.64032e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.359e+09 and h = 1.64032e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.359e+09 and h = 1.64032e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.359e+09 and h = 1.64032e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.359e+09 and h = 1.64032e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.40686e+09 and h = 2.52581e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.40686e+09 and h = 2.52581e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.40686e+09 and h = 2.52581e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.40686e+09 and h = 4.34124e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.40686e+09 and h = 4.34124e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.40686e+09 and h = 4.34124e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.40686e+09 and h = 4.34124e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.40686e+09 and h = 6.66905e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.40686e+09 and h = 6.66905e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.40686e+09 and h = 6.66905e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 4.13071e+08 and h = 2.40113e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 4.13071e+08 and h = 2.40113e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 4.13071e+08 and h = 2.40113e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 4.13071e+08 and h = 2.40113e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 4.13071e+08 and h = 2.40113e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 4.13071e+08 and h = 2.40113e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 4.13071e+08 and h = 2.40113e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 4.13071e+08 and h = 2.40113e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 4.13071e+08 and h = 2.40113e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 4.13071e+08 and h = 2.40113e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.50851e+08 and h = 1.12725e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.50851e+08 and h = 1.12725e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.50851e+08 and h = 6.88911e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.50851e+08 and h = 6.88911e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.50851e+08 and h = 5.25744e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.50851e+08 and h = 5.25744e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.50851e+08 and h = 3.7162e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.50851e+08 and h = 3.7162e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.50851e+08 and h = 3.7162e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.50851e+08 and h = 3.7162e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.34073e+07 and h = 3.14533e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.34073e+07 and h = 3.14533e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.34073e+07 and h = 1.49563e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.34073e+07 and h = 1.49563e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.34073e+07 and h = 9.89046e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.34073e+07 and h = 9.89046e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.34073e+07 and h = 9.89046e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.34073e+07 and h = 9.89046e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.34073e+07 and h = 9.89046e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.34073e+07 and h = 9.89046e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.75383e+07 and h = 1.24667e-09 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.75383e+07 and h = 1.48513e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.75383e+07 and h = 1.48513e-10 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.75383e+07 and h = 9.62513e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.75383e+07 and h = 9.62513e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.75383e+07 and h = 9.62513e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.75383e+07 and h = 9.62513e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.75383e+07 and h = 9.62513e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.75383e+07 and h = 9.62513e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.75383e+07 and h = 9.62513e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.20675e+07 and h = 5.92718e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.20675e+07 and h = 5.92718e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.20675e+07 and h = 5.92718e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.20675e+07 and h = 5.92718e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.20675e+07 and h = 5.92718e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.20675e+07 and h = 5.92718e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.20675e+07 and h = 5.92718e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.20675e+07 and h = 5.92718e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.20675e+07 and h = 5.92718e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.20675e+07 and h = 9.34575e-11 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+TBDIAG f 0.15385 z 0.00 eta 0.10 rho 1.0000e-03 span 6.9325e-05 worst 1.050e-07 steps 939 stop 939 | best i 813 t 4.2848e+05 T 1079.04 c 1.9978883350e+04 | worst i 817 t 4.4457e+05 T 1079.04 c 1.9978883350e+04 | start T 1079.04 end T 1079.04 cEq 1.9978883350e+04
+TBDIAG f 0.15385 z 0.00 eta 0.10 rho 4.1010e-03 span 3.4281e-05 worst 3.184e-07 steps 911 stop 911 | best i 769 t 5.3392e+04 T 1079.04 c 1.9083466116e+04 | worst i 776 t 5.7096e+04 T 1079.04 c 1.9083466116e+04 | start T 1079.04 end T 1079.04 cEq 1.9083466116e+04
+TBDIAG f 0.15385 z 0.30 eta 0.10 rho 1.0000e-03 span 3.6333e-05 worst 1.001e-07 steps 912 stop 710 | best i 259 t 9.4259e-04 T 1058.83 c 1.7196928088e+04 | worst i 262 t 1.3851e-03 T 1058.83 c 1.7196928088e+04 | start T 1058.83 end T 1058.83 cEq 1.7196928124e+04
+NGDIAG f 0.15385 z 0.30 eta 1.00 rho 1.0000e-03 finalLower 32 count 50 idxA 10 n0 7.1929525673e-02 neq 7.2296989164e-02 ncp 5.3418750000e-02 | p 10 (lower) c 2.20255540e+04 N 7.193503228393e-02 -> c 2.20503324e+04 N 7.195213565616e-02
+NGPT 0 c 2.20197863e+04 N 7.192952567348e-02
+NGPT 1 c 2.20197863e+04 N 7.192952567354e-02
+NGPT 2 c 2.20197863e+04 N 7.192952567383e-02
+NGPT 3 c 2.20197863e+04 N 7.192952567555e-02
+NGPT 4 c 2.20197865e+04 N 7.192952568595e-02
+NGPT 5 c 2.20197876e+04 N 7.192952575027e-02
+NGPT 6 c 2.20197934e+04 N 7.192952616225e-02
+NGPT 7 c 2.20198243e+04 N 7.192952906859e-02
+NGPT 8 c 2.20199891e+04 N 7.192956010299e-02
+NGPT 9 c 2.20208686e+04 N 7.193015993205e-02
+NGPT 10 c 2.20255540e+04 N 7.193503228393e-02
+NGPT 11 c 2.20503324e+04 N 7.195213565616e-02
+NGPT 12 c 2.21761157e+04 N 7.198038976046e-02
+NGPT 13 c 2.22481096e+04 N 7.198566606467e-02
+NGPT 14 c 2.23159895e+04 N 7.198853841321e-02
+NGPT 15 c 2.23797554e+04 N 7.199034421908e-02
+NGPT 16 c 2.24394075e+04 N 7.199161495375e-02
+NGPT 17 c 2.24949456e+04 N 7.199258407139e-02
+NGPT 18 c 2.25463697e+04 N 7.199336533479e-02
+NGPT 19 c 2.25936800e+04 N 7.199402062831e-02
+NGPT 20 c 2.26368763e+04 N 7.199458650526e-02
+NGPT 21 c 2.26759586e+04 N 7.199508651080e-02
+NGPT 22 c 2.27109271e+04 N 7.199553677370e-02
+NGPT 23 c 2.27417816e+04 N 7.199594917344e-02
+NGPT 24 c 2.27685221e+04 N 7.199633327576e-02
+NGPT 25 c 2.27911488e+04 N 7.199669789784e-02
+NGPT 26 c 2.28096614e+04 N 7.199705289622e-02
+NGPT 27 c 2.28240602e+04 N 7.199741282327e-02
+NGPT 28 c 2.28343450e+04 N 7.199780797025e-02
+NGPT 29 c 2.28405159e+04 N 7.199835575636e-02
+NGPT 30 c 2.28420587e+04 N 7.200122072868e-02
+NGPT 31 c 2.28425729e+04 N 7.229698916415e-02
+NGPT 32 c 2.28425729e+04 N 7.229698916415e-02
+NGPT 33 c 2.28370247e+04 N 7.131275749966e-02
+NGPT 34 c 2.28203802e+04 N 7.029216220564e-02
+NGPT 35 c 2.27926393e+04 N 6.923573119847e-02
+NGPT 36 c 2.27538021e+04 N 6.814424089843e-02
+NGPT 37 c 2.27038685e+04 N 6.701876434516e-02
+NGPT 38 c 2.26428385e+04 N 6.586098127160e-02
+NGPT 39 c 2.25707122e+04 N 6.467389201268e-02
+NGPT 40 c 2.24874895e+04 N 6.346162413794e-02
+NGPT 41 c 2.23931705e+04 N 6.222584780781e-02
+NGPT 42 c 2.22877551e+04 N 6.096548892237e-02
+NGPT 43 c 2.21712433e+04 N 5.968172462153e-02
+NGPT 44 c 2.20436352e+04 N 5.838113307287e-02
+NGPT 45 c 2.17551300e+04 N 5.578182333365e-02
+NGPT 46 c 2.16354975e+04 N 5.483717931377e-02
+NGPT 47 c 2.15096232e+04 N 5.394173310690e-02
+NGPT 48 c 2.14662781e+04 N 5.366451137427e-02
+NGPT 49 c 2.14222393e+04 N 5.341875000000e-02
+TBDIAG f 0.16667 z 0.00 eta 0.10 rho 1.0000e-03 span 6.7456e-05 worst 2.697e-07 steps 955 stop 955 | best i 834 t 4.9678e+05 T 1072.07 c 2.1251072284e+04 | worst i 890 t 8.9457e+05 T 1072.07 c 2.1251072284e+04 | start T 1072.07 end T 1072.07 cEq 2.1251072285e+04
+TBDIAG f 0.16667 z 0.00 eta 0.10 rho 4.1010e-03 span 3.3389e-05 worst 3.269e-07 steps 886 stop 886 | best i 759 t 6.2680e+04 T 1072.07 c 2.0281034041e+04 | worst i 760 t 6.3209e+04 T 1072.07 c 2.0281034041e+04 | start T 1072.07 end T 1072.07 cEq 2.0281034041e+04
+
+[CVODES WARNING]  CVode
+  Internal t = 3.99319e+12 and h = 0.00023509 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.99319e+12 and h = 0.00023509 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.99319e+12 and h = 0.00023509 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.99319e+12 and h = 0.00023509 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.99319e+12 and h = 0.00023509 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.99319e+12 and h = 0.00023509 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.99319e+12 and h = 0.00023509 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.99319e+12 and h = 0.000172384 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.99319e+12 and h = 0.000172384 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.99319e+12 and h = 0.000172384 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.68448e+11 and h = 4.59222e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.68448e+11 and h = 4.59222e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.68448e+11 and h = 4.59222e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.68448e+11 and h = 4.59222e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.68448e+11 and h = 4.59222e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.68448e+11 and h = 4.59222e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.68448e+11 and h = 4.59222e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.68448e+11 and h = 4.59222e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.68448e+11 and h = 4.59222e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 9.68448e+11 and h = 4.59222e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.45571e+11 and h = 1.32217e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.45571e+11 and h = 1.32217e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.45571e+11 and h = 1.32217e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.45571e+11 and h = 1.32217e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.45571e+11 and h = 1.32217e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.45571e+11 and h = 1.32217e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.45571e+11 and h = 1.32217e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.45571e+11 and h = 1.32217e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.45571e+11 and h = 1.32217e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.45571e+11 and h = 1.32217e-05 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.64726e+10 and h = 3.04396e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.64726e+10 and h = 3.04396e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.64726e+10 and h = 3.04396e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.64726e+10 and h = 3.04396e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.64726e+10 and h = 3.04396e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.64726e+10 and h = 3.04396e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.64726e+10 and h = 3.04396e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.64726e+10 and h = 3.04396e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.64726e+10 and h = 3.04396e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 6.64726e+10 and h = 3.04396e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.09966e+10 and h = 1.64361e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.09966e+10 and h = 1.18537e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.09966e+10 and h = 1.18537e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.09966e+10 and h = 1.18537e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.09966e+10 and h = 1.18537e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.09966e+10 and h = 1.18537e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.09966e+10 and h = 1.18537e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.09966e+10 and h = 1.18537e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.09966e+10 and h = 1.86706e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 2.09966e+10 and h = 1.86706e-06 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.22236e+09 and h = 4.4679e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.22236e+09 and h = 4.4679e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.22236e+09 and h = 4.4679e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.22236e+09 and h = 4.4679e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.22236e+09 and h = 4.4679e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.22236e+09 and h = 4.4679e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.22236e+09 and h = 4.4679e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.22236e+09 and h = 4.4679e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.22236e+09 and h = 4.4679e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 8.22236e+09 and h = 9.82614e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.37455e+09 and h = 2.20473e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.37455e+09 and h = 2.20473e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.37455e+09 and h = 2.20473e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.37455e+09 and h = 2.20473e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.37455e+09 and h = 2.20473e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.37455e+09 and h = 2.20473e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.38163e+09 and h = 1.04918e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.37455e+09 and h = 2.35074e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.37455e+09 and h = 1.66846e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.37455e+09 and h = 1.66846e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 3.37455e+09 and h = 1.66846e-07 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.38163e+09 and h = 7.75362e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.38163e+09 and h = 7.75362e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.38163e+09 and h = 7.75362e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.38163e+09 and h = 7.75362e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.38163e+09 and h = 7.75362e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.38163e+09 and h = 7.75362e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.38163e+09 and h = 7.75362e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.38163e+09 and h = 7.75362e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 1.38163e+09 and h = 7.75362e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.08676e+08 and h = 2.63844e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.08676e+08 and h = 1.90174e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.08676e+08 and h = 1.90174e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.08676e+08 and h = 1.90174e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.08676e+08 and h = 1.90174e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.08676e+08 and h = 1.90174e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.08676e+08 and h = 1.90174e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.08676e+08 and h = 1.90174e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.08676e+08 and h = 1.90174e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  Internal t = 5.08676e+08 and h = 1.90174e-08 are such that t + h = t on the next step. The solver will continue anyway.
+
+
+[CVODES WARNING]  CVode
+  The above warning has been issued mxhnil times and will not be issued again for this problem.
+
+TBDIAG f 0.16667 z 0.30 eta 0.10 rho 1.0000e-03 span 3.6760e-05 worst 2.969e-07 steps 880 stop 880 | best i 807 t 1.6119e+06 T 1053.70 c 1.8100479926e+04 | worst i 816 t 1.7725e+06 T 1053.70 c 1.8100479926e+04 | start T 1053.70 end T 1053.70 cEq 1.8100479926e+04
+TBDIAG f 0.16667 z 0.30 eta 0.10 rho 4.1010e-03 span 1.8181e-05 worst 4.002e-07 steps 863 stop 863 | best i 705 t 1.2076e+05 T 1053.70 c 1.7295799287e+04 | worst i 706 t 1.2180e+05 T 1053.70 c 1.7295799287e+04 | start T 1053.70 end T 1053.70 cEq 1.7295799287e+04
+TBDIAG f 0.16667 z 0.30 eta 0.20 rho 8.0000e+01 span 2.6292e-03 worst 1.384e-09 steps 1035 stop 803 | best i 17 t 7.8148e-18 T 1738.05 c 1.2737011831e+04 | worst i 18 t 1.6751e-17 T 1738.05 c 1.2737011831e+04 | start T 1738.05 end T 1738.02 cEq 1.2737014460e+04
+
+[CVODES ERROR]  CVode
+  At t = 0 and h = 1.62715e-05, the error test failed repeatedly or with |h| = hmin.
+
+NGDIAG f 0.16667 z 0.30 eta 1.00 rho 4.1010e-03 finalLower 35 count 52 idxA 10 n0 7.6100784880e-02 neq 7.6543645316e-02 ncp 5.7870486111e-02 | p 10 (lower) c 2.21247257e+04 N 7.610838125285e-02 -> c 2.21503455e+04 N 7.613793281192e-02
+NGPT 0 c 2.21187620e+04 N 7.610078487978e-02
+NGPT 1 c 2.21187620e+04 N 7.610078487990e-02
+NGPT 2 c 2.21187620e+04 N 7.610078488045e-02
+NGPT 3 c 2.21187621e+04 N 7.610078488371e-02
+NGPT 4 c 2.21187623e+04 N 7.610078490340e-02
+NGPT 5 c 2.21187634e+04 N 7.610078502432e-02
+NGPT 6 c 2.21187694e+04 N 7.610078578840e-02
+NGPT 7 c 2.21188013e+04 N 7.610079090242e-02
+NGPT 8 c 2.21189718e+04 N 7.610083335600e-02
+NGPT 9 c 2.21198811e+04 N 7.610149565309e-02
+NGPT 10 c 2.21247257e+04 N 7.610838125285e-02
+NGPT 11 c 2.21503455e+04 N 7.613793281192e-02
+NGPT 12 c 2.22167774e+04 N 7.617840561351e-02
+NGPT 13 c 2.22804005e+04 N 7.619853675105e-02
+NGPT 14 c 2.23548393e+04 N 7.621231986195e-02
+NGPT 15 c 2.24250244e+04 N 7.622057311552e-02
+NGPT 16 c 2.24909559e+04 N 7.622614656798e-02
+NGPT 17 c 2.25526337e+04 N 7.623026164093e-02
+NGPT 18 c 2.26100579e+04 N 7.623349719240e-02
+NGPT 19 c 2.26632285e+04 N 7.623615658539e-02
+NGPT 20 c 2.27121454e+04 N 7.623841318977e-02
+NGPT 21 c 2.27568087e+04 N 7.624037463833e-02
+NGPT 22 c 2.27972183e+04 N 7.624211135298e-02
+NGPT 23 c 2.28333743e+04 N 7.624367267722e-02
+NGPT 24 c 2.28652766e+04 N 7.624509480316e-02
+NGPT 25 c 2.28929253e+04 N 7.624640688943e-02
+NGPT 26 c 2.29163203e+04 N 7.624763516195e-02
+NGPT 27 c 2.29354617e+04 N 7.624880770841e-02
+NGPT 28 c 2.29503495e+04 N 7.624996462143e-02
+NGPT 29 c 2.29609836e+04 N 7.625118464451e-02
+NGPT 30 c 2.29673640e+04 N 7.625275380268e-02
+NGPT 31 c 2.29689592e+04 N 7.625465116246e-02
+NGPT 32 c 2.29690838e+04 N 7.625688124580e-02
+NGPT 33 c 2.29691918e+04 N 7.629712959582e-02
+NGPT 34 c 2.29694909e+04 N 7.654364531585e-02
+NGPT 35 c 2.29694909e+04 N 7.654364531585e-02
+NGPT 36 c 2.29646362e+04 N 7.553799631010e-02
+NGPT 37 c 2.29500720e+04 N 7.449953394839e-02
+NGPT 38 c 2.29257984e+04 N 7.342895798800e-02
+NGPT 39 c 2.28918154e+04 N 7.232727249726e-02
+NGPT 40 c 2.28481230e+04 N 7.119583817354e-02
+NGPT 41 c 2.27947211e+04 N 7.003684467254e-02
+NGPT 42 c 2.27316098e+04 N 6.885357415633e-02
+NGPT 43 c 2.26587891e+04 N 6.764885304269e-02
+NGPT 44 c 2.25762590e+04 N 6.642315950155e-02
+NGPT 45 c 2.24840194e+04 N 6.517689642151e-02
+NGPT 46 c 2.22704119e+04 N 6.264133617754e-02
+NGPT 47 c 2.20179668e+04 N 6.012139855119e-02
+NGPT 48 c 2.18771800e+04 N 5.892186076080e-02
+NGPT 49 c 2.18031457e+04 N 5.836106601715e-02
+NGPT 50 c 2.17652182e+04 N 5.809953098735e-02
+NGPT 51 c 2.17266839e+04 N 5.787048611111e-02
+NGDIAG f 0.16667 z 0.30 eta 1.00 rho 1.0000e-03 finalLower 34 count 52 idxA 11 n0 7.6100784880e-02 neq 7.7657608682e-02 ncp 5.7870486111e-02 | p 11 (lower) c 2.31693728e+04 N 7.613800449579e-02 -> c 2.32367310e+04 N 7.617883931834e-02
+NGPT 0 c 2.31373489e+04 N 7.610078487978e-02
+NGPT 1 c 2.31373489e+04 N 7.610078487990e-02
+NGPT 2 c 2.31373489e+04 N 7.610078488046e-02
+NGPT 3 c 2.31373490e+04 N 7.610078488377e-02
+NGPT 4 c 2.31373492e+04 N 7.610078490373e-02
+NGPT 5 c 2.31373503e+04 N 7.610078502640e-02
+NGPT 6 c 2.31373564e+04 N 7.610078580086e-02
+NGPT 7 c 2.31373888e+04 N 7.610079098765e-02
+NGPT 8 c 2.31375616e+04 N 7.610083418290e-02
+NGPT 9 c 2.31384836e+04 N 7.610150660996e-02
+NGPT 10 c 2.31433957e+04 N 7.610838791677e-02
+NGPT 11 c 2.31693728e+04 N 7.613800449579e-02
+NGPT 12 c 2.32367310e+04 N 7.617883931834e-02
+NGPT 13 c 2.33012411e+04 N 7.619921055019e-02
+NGPT 14 c 2.33767178e+04 N 7.621318866895e-02
+NGPT 15 c 2.34478816e+04 N 7.622160437889e-02
+NGPT 16 c 2.35147324e+04 N 7.622734253174e-02
+NGPT 17 c 2.35772702e+04 N 7.623163624247e-02
+NGPT 18 c 2.36354951e+04 N 7.623506985409e-02
+NGPT 19 c 2.36894070e+04 N 7.623795011696e-02
+NGPT 20 c 2.37390060e+04 N 7.624045483695e-02
+NGPT 21 c 2.37842920e+04 N 7.624269685127e-02
+NGPT 22 c 2.38252650e+04 N 7.624475382889e-02
+NGPT 23 c 2.38619251e+04 N 7.624668507151e-02
+NGPT 24 c 2.38942723e+04 N 7.624854195967e-02
+NGPT 25 c 2.39223065e+04 N 7.625037990018e-02
+NGPT 26 c 2.39460277e+04 N 7.625227434590e-02
+NGPT 27 c 2.39654360e+04 N 7.625437260393e-02
+NGPT 28 c 2.39805314e+04 N 7.625714113957e-02
+NGPT 29 c 2.39890225e+04 N 7.626287180366e-02
+NGPT 30 c 2.39896206e+04 N 7.626752518868e-02
+NGPT 31 c 2.39913137e+04 N 7.638691162015e-02
+NGPT 32 c 2.39977832e+04 N 7.702944737514e-02
+NGPT 33 c 2.39999397e+04 N 7.765760868229e-02
+NGPT 34 c 2.39999397e+04 N 7.765760868229e-02
+NGPT 35 c 2.39942030e+04 N 7.662566802961e-02
+NGPT 36 c 2.39769932e+04 N 7.555566261886e-02
+NGPT 37 c 2.39483101e+04 N 7.444812558986e-02
+NGPT 38 c 2.39081537e+04 N 7.330384738093e-02
+NGPT 39 c 2.38565241e+04 N 7.212390869527e-02
+NGPT 40 c 2.37934213e+04 N 7.090992499198e-02
+NGPT 41 c 2.37188452e+04 N 6.966452069657e-02
+NGPT 42 c 2.36327959e+04 N 6.839141622500e-02
+NGPT 43 c 2.35352734e+04 N 6.709299527685e-02
+NGPT 44 c 2.34262775e+04 N 6.576962470191e-02
+NGPT 45 c 2.33058084e+04 N 6.442340045722e-02
+NGPT 46 c 2.31738661e+04 N 6.306105059184e-02
+NGPT 47 c 2.28755618e+04 N 6.034038807649e-02
+NGPT 48 c 2.27518659e+04 N 5.935170274807e-02
+NGPT 49 c 2.26217163e+04 N 5.841516384289e-02
+NGPT 50 c 2.25768989e+04 N 5.812601547574e-02
+NGPT 51 c 2.25313645e+04 N 5.787048611111e-02
+TBDIAG f 0.18182 z 0.00 eta 0.10 rho 1.0000e-03 span 6.4118e-05 worst 2.270e-07 steps 904 stop 904 | best i 810 t 5.9685e+05 T 1064.72 c 2.2736298658e+04 | worst i 854 t 1.0041e+06 T 1064.72 c 2.2736298658e+04 | start T 1064.72 end T 1064.72 cEq 2.2736298658e+04
+TBDIAG f 0.18182 z 0.00 eta 0.10 rho 4.1010e-03 span 3.1682e-05 worst 4.593e-07 steps 843 stop 843 | best i 750 t 6.7069e+04 T 1064.72 c 2.1678078299e+04 | worst i 797 t 1.1035e+05 T 1064.72 c 2.1678078299e+04 | start T 1064.72 end T 1064.72 cEq 2.1678078299e+04
+NGDIAG f 0.18182 z 0.00 eta 1.00 rho 1.0000e-03 finalLower 35 count 53 idxA 10 n0 1.1575728561e-01 neq 1.1672556760e-01 ncp 9.0187500000e-02 | p 10 (lower) c 2.92920104e+04 N 1.157672058575e-01 -> c 2.93302660e+04 N 1.158010263098e-01
+NGPT 0 c 2.92831054e+04 N 1.157572856116e-01
+NGPT 1 c 2.92831054e+04 N 1.157572856117e-01
+NGPT 2 c 2.92831054e+04 N 1.157572856123e-01
+NGPT 3 c 2.92831055e+04 N 1.157572856159e-01
+NGPT 4 c 2.92831058e+04 N 1.157572856374e-01
+NGPT 5 c 2.92831075e+04 N 1.157572857698e-01
+NGPT 6 c 2.92831164e+04 N 1.157572866131e-01
+NGPT 7 c 2.92831641e+04 N 1.157572924065e-01
+NGPT 8 c 2.92834186e+04 N 1.157573472562e-01
+NGPT 9 c 2.92847764e+04 N 1.157583400809e-01
+NGPT 10 c 2.92920104e+04 N 1.157672058575e-01
+NGPT 11 c 2.93302660e+04 N 1.158010263098e-01
+NGPT 12 c 2.94294623e+04 N 1.158426546860e-01
+NGPT 13 c 2.95244644e+04 N 1.158616533688e-01
+NGPT 14 c 2.96356166e+04 N 1.158739223571e-01
+NGPT 15 c 2.97404172e+04 N 1.158809408548e-01
+NGPT 16 c 2.98388663e+04 N 1.158855513355e-01
+NGPT 17 c 2.99309638e+04 N 1.158889101117e-01
+NGPT 18 c 3.00167098e+04 N 1.158915415859e-01
+NGPT 19 c 3.00961042e+04 N 1.158937110527e-01
+NGPT 20 c 3.01691470e+04 N 1.158955675527e-01
+NGPT 21 c 3.02358383e+04 N 1.158972018236e-01
+NGPT 22 c 3.02961781e+04 N 1.158986739430e-01
+NGPT 23 c 3.03501663e+04 N 1.159000264834e-01
+NGPT 24 c 3.03978029e+04 N 1.159012923665e-01
+NGPT 25 c 3.04390880e+04 N 1.159025004257e-01
+NGPT 26 c 3.04740216e+04 N 1.159036807650e-01
+NGPT 27 c 3.05026035e+04 N 1.159048721397e-01
+NGPT 28 c 3.05248340e+04 N 1.159061437027e-01
+NGPT 29 c 3.05407129e+04 N 1.159076737808e-01
+NGPT 30 c 3.05502402e+04 N 1.159110825037e-01
+NGPT 31 c 3.05508077e+04 N 1.159156642020e-01
+NGPT 32 c 3.05509845e+04 N 1.159432547827e-01
+NGPT 33 c 3.05516296e+04 N 1.160560249542e-01
+NGPT 34 c 3.05534160e+04 N 1.167255675991e-01
+NGPT 35 c 3.05534160e+04 N 1.167255675991e-01
+NGPT 36 c 3.05458901e+04 N 1.153382157114e-01
+NGPT 37 c 3.05233126e+04 N 1.139000816932e-01
+NGPT 38 c 3.04856833e+04 N 1.124118650874e-01
+NGPT 39 c 3.04330024e+04 N 1.108746389973e-01
+NGPT 40 c 3.03652697e+04 N 1.092898632099e-01
+NGPT 41 c 3.02824854e+04 N 1.076597586758e-01
+NGPT 42 c 3.01846493e+04 N 1.059877674728e-01
+NGPT 43 c 3.00717616e+04 N 1.042781120619e-01
+NGPT 44 c 2.99438221e+04 N 1.025333664207e-01
+NGPT 45 c 2.98008310e+04 N 1.007551748892e-01
+NGPT 46 c 2.96427882e+04 N 9.894822385349e-02
+NGPT 47 c 2.94696936e+04 N 9.712232472430e-02
+NGPT 48 c 2.90783494e+04 N 9.348246064509e-02
+NGPT 49 c 2.89160734e+04 N 9.216142543780e-02
+NGPT 50 c 2.87453309e+04 N 9.091151172651e-02
+NGPT 51 c 2.86865350e+04 N 9.052656132131e-02
+NGPT 52 c 2.86267983e+04 N 9.018750000000e-02
+TBDIAG f 0.18182 z 0.30 eta 0.10 rho 1.0000e-03 span 3.6653e-05 worst 2.978e-07 steps 905 stop 905 | best i 797 t 1.2986e+06 T 1048.21 c 1.9155552958e+04 | worst i 805 t 1.4034e+06 T 1048.21 c 1.9155552958e+04 | start T 1048.21 end T 1048.21 cEq 1.9155552958e+04
+NGDIAG f 0.18182 z 0.30 eta 1.00 rho 1.0000e-03 finalLower 34 count 52 idxA 11 n0 8.1030099928e-02 neq 8.4000238735e-02 ncp 6.3131250000e-02 | p 11 (lower) c 2.44725600e+04 N 8.108611494526e-02 -> c 2.45444517e+04 N 8.116113284608e-02
+NGPT 0 c 2.44383807e+04 N 8.103009992812e-02
+NGPT 1 c 2.44383807e+04 N 8.103009992833e-02
+NGPT 2 c 2.44383807e+04 N 8.103009992937e-02
+NGPT 3 c 2.44383808e+04 N 8.103009993549e-02
+NGPT 4 c 2.44383810e+04 N 8.103009997232e-02
+NGPT 5 c 2.44383822e+04 N 8.103010019680e-02
+NGPT 6 c 2.44383887e+04 N 8.103010160209e-02
+NGPT 7 c 2.44384233e+04 N 8.103011077716e-02
+NGPT 8 c 2.44386077e+04 N 8.103017833839e-02
+NGPT 9 c 2.44395918e+04 N 8.103096375991e-02
+NGPT 10 c 2.44448345e+04 N 8.103992212437e-02
+NGPT 11 c 2.44725600e+04 N 8.108611494526e-02
+NGPT 12 c 2.45444517e+04 N 8.116113284608e-02
+NGPT 13 c 2.46133039e+04 N 8.120326580837e-02
+NGPT 14 c 2.46938606e+04 N 8.123480235571e-02
+NGPT 15 c 2.47698141e+04 N 8.125549770244e-02
+NGPT 16 c 2.48411644e+04 N 8.127065641220e-02
+NGPT 17 c 2.49079114e+04 N 8.128263825224e-02
+NGPT 18 c 2.49700552e+04 N 8.129262239820e-02
+NGPT 19 c 2.50275957e+04 N 8.130127115778e-02
+NGPT 20 c 2.50805330e+04 N 8.130899526849e-02
+NGPT 21 c 2.51288670e+04 N 8.131607725206e-02
+NGPT 22 c 2.51725978e+04 N 8.132273472882e-02
+NGPT 23 c 2.52117254e+04 N 8.132916599302e-02
+NGPT 24 c 2.52462497e+04 N 8.133560097129e-02
+NGPT 25 c 2.52761708e+04 N 8.134241145895e-02
+NGPT 26 c 2.53014886e+04 N 8.135050915673e-02
+NGPT 27 c 2.53222032e+04 N 8.136576330651e-02
+NGPT 28 c 2.53255747e+04 N 8.137804329774e-02
+NGPT 29 c 2.53266626e+04 N 8.140404685852e-02
+NGPT 30 c 2.53383145e+04 N 8.194049113641e-02
+NGPT 31 c 2.53498226e+04 N 8.264252344879e-02
+NGPT 32 c 2.53567275e+04 N 8.332914708215e-02
+NGPT 33 c 2.53590291e+04 N 8.400023873546e-02
+NGPT 34 c 2.53590291e+04 N 8.400023873546e-02
+NGPT 35 c 2.53530541e+04 N 8.291130902505e-02
+NGPT 36 c 2.53351290e+04 N 8.178226079541e-02
+NGPT 37 c 2.53052540e+04 N 8.061364062126e-02
+NGPT 38 c 2.52634288e+04 N 7.940627071752e-02
+NGPT 39 c 2.52096538e+04 N 7.816127166385e-02
+NGPT 40 c 2.51439285e+04 N 7.688024191980e-02
+NGPT 41 c 2.50662533e+04 N 7.556561193685e-02
+NGPT 42 c 2.49766281e+04 N 7.422080911888e-02
+NGPT 43 c 2.48750528e+04 N 7.284874633069e-02
+NGPT 44 c 2.47615275e+04 N 7.145101755293e-02
+NGPT 45 c 2.46360521e+04 N 7.003062525925e-02
+NGPT 46 c 2.44986267e+04 N 6.859459061838e-02
+NGPT 47 c 2.41879259e+04 N 6.572902822308e-02
+NGPT 48 c 2.40590898e+04 N 6.468799423058e-02
+NGPT 49 c 2.39235318e+04 N 6.370249541449e-02
+NGPT 50 c 2.38768518e+04 N 6.339887626583e-02
+NGPT 51 c 2.38294249e+04 N 6.313125000000e-02
+NGDIAG f 0.18182 z 0.30 eta 1.00 rho 4.1010e-03 finalLower 34 count 51 idxA 10 n0 8.1030099928e-02 neq 8.2808410391e-02 ncp 6.3131250000e-02 | p 10 (lower) c 2.33682129e+04 N 8.103975029986e-02 -> c 2.33950952e+04 N 8.108548435541e-02
+NGPT 0 c 2.33619554e+04 N 8.103009992812e-02
+NGPT 1 c 2.33619554e+04 N 8.103009992833e-02
+NGPT 2 c 2.33619554e+04 N 8.103009992933e-02
+NGPT 3 c 2.33619555e+04 N 8.103009993526e-02
+NGPT 4 c 2.33619557e+04 N 8.103009997091e-02
+NGPT 5 c 2.33619569e+04 N 8.103010018852e-02
+NGPT 6 c 2.33619631e+04 N 8.103010155088e-02
+NGPT 7 c 2.33619966e+04 N 8.103011043870e-02
+NGPT 8 c 2.33621755e+04 N 8.103017570273e-02
+NGPT 9 c 2.33631296e+04 N 8.103093054176e-02
+NGPT 10 c 2.33682129e+04 N 8.103975029986e-02
+NGPT 11 c 2.33950952e+04 N 8.108548435541e-02
+NGPT 12 c 2.34648006e+04 N 8.115950874835e-02
+NGPT 13 c 2.35315588e+04 N 8.120111478033e-02
+NGPT 14 c 2.36096656e+04 N 8.123230803842e-02
+NGPT 15 c 2.36833092e+04 N 8.125273112063e-02
+NGPT 16 c 2.37524895e+04 N 8.126760842064e-02
+NGPT 17 c 2.38172066e+04 N 8.127928154240e-02
+NGPT 18 c 2.38774604e+04 N 8.128892197626e-02
+NGPT 19 c 2.39332510e+04 N 8.129718329556e-02
+NGPT 20 c 2.39845783e+04 N 8.130446467089e-02
+NGPT 21 c 2.40314424e+04 N 8.131102934752e-02
+NGPT 22 c 2.40738433e+04 N 8.131706499099e-02
+NGPT 23 c 2.41117809e+04 N 8.132271803140e-02
+NGPT 24 c 2.41452552e+04 N 8.132811673208e-02
+NGPT 25 c 2.41742663e+04 N 8.133339806318e-02
+NGPT 26 c 2.41988142e+04 N 8.133874633613e-02
+NGPT 27 c 2.42188988e+04 N 8.134449969698e-02
+NGPT 28 c 2.42345201e+04 N 8.135162687058e-02
+NGPT 29 c 2.42433072e+04 N 8.136163161452e-02
+NGPT 30 c 2.42451116e+04 N 8.137051783673e-02
+NGPT 31 c 2.42456783e+04 N 8.139009936434e-02
+NGPT 32 c 2.42523731e+04 N 8.210681801814e-02
+NGPT 33 c 2.42546048e+04 N 8.280841039125e-02
+NGPT 34 c 2.42546048e+04 N 8.280841039125e-02
+NGPT 35 c 2.42495595e+04 N 8.174765849025e-02
+NGPT 36 c 2.42344237e+04 N 8.065237201907e-02
+NGPT 37 c 2.42091974e+04 N 7.952330534487e-02
+NGPT 38 c 2.41738805e+04 N 7.836147167046e-02
+NGPT 39 c 2.41284731e+04 N 7.716825109499e-02
+NGPT 40 c 2.40729752e+04 N 7.594568964264e-02
+NGPT 41 c 2.40073867e+04 N 7.469674753095e-02
+NGPT 42 c 2.39317078e+04 N 7.342440738705e-02
+NGPT 43 c 2.38459383e+04 N 7.213015848151e-02
+NGPT 44 c 2.37500782e+04 N 7.081550409393e-02
+NGPT 45 c 2.35280865e+04 N 6.814526426103e-02
+NGPT 46 c 2.32657327e+04 N 6.549471706126e-02
+NGPT 47 c 2.31194200e+04 N 6.423356635073e-02
+NGPT 48 c 2.30424799e+04 N 6.364466084276e-02
+NGPT 49 c 2.30030637e+04 N 6.337061101593e-02
+NGPT 50 c 2.29630168e+04 N 6.313125000000e-02
+NGDIAG f 0.18182 z 0.30 eta 1.00 rho 1.6818e-02 finalLower 34 count 50 idxA 10 n0 8.1030099928e-02 neq 8.1461530449e-02 ncp 6.3131250000e-02 | p 10 (lower) c 2.22916956e+04 N 8.103976632887e-02 -> c 2.23181826e+04 N 8.108559632632e-02
+NGPT 0 c 2.22855301e+04 N 8.103009992812e-02
+NGPT 1 c 2.22855301e+04 N 8.103009992832e-02
+NGPT 2 c 2.22855301e+04 N 8.103009992931e-02
+NGPT 3 c 2.22855301e+04 N 8.103009993516e-02
+NGPT 4 c 2.22855304e+04 N 8.103009997031e-02
+NGPT 5 c 2.22855315e+04 N 8.103010018506e-02
+NGPT 6 c 2.22855377e+04 N 8.103010152849e-02
+NGPT 7 c 2.22855707e+04 N 8.103011029783e-02
+NGPT 8 c 2.22857469e+04 N 8.103017463076e-02
+NGPT 9 c 2.22866871e+04 N 8.103091780366e-02
+NGPT 10 c 2.22916956e+04 N 8.103976632887e-02
+NGPT 11 c 2.23181826e+04 N 8.108559632632e-02
+NGPT 12 c 2.23868630e+04 N 8.115898501167e-02
+NGPT 13 c 2.24526394e+04 N 8.119994425015e-02
+NGPT 14 c 2.25295977e+04 N 8.123050410778e-02
+NGPT 15 c 2.26021583e+04 N 8.125036042157e-02
+NGPT 16 c 2.26703213e+04 N 8.126466131937e-02
+NGPT 17 c 2.27340868e+04 N 8.127571697761e-02
+NGPT 18 c 2.27934545e+04 N 8.128468253150e-02
+NGPT 19 c 2.28484247e+04 N 8.129219765567e-02
+NGPT 20 c 2.28989973e+04 N 8.129864486061e-02
+NGPT 21 c 2.29451722e+04 N 8.130427105286e-02
+NGPT 22 c 2.29869496e+04 N 8.130924177264e-02
+NGPT 23 c 2.30243293e+04 N 8.131367322073e-02
+NGPT 24 c 2.30573114e+04 N 8.131765016374e-02
+NGPT 25 c 2.30858959e+04 N 8.132123744128e-02
+NGPT 26 c 2.31100828e+04 N 8.132448850085e-02
+NGPT 27 c 2.31298720e+04 N 8.132745251603e-02
+NGPT 28 c 2.31452637e+04 N 8.133018613268e-02
+NGPT 29 c 2.31562577e+04 N 8.133277788597e-02
+NGPT 30 c 2.31628541e+04 N 8.133547044458e-02
+NGPT 31 c 2.31649155e+04 N 8.133878811884e-02
+NGPT 32 c 2.31649756e+04 N 8.133985469192e-02
+NGPT 33 c 2.31650529e+04 N 8.146153044900e-02
+NGPT 34 c 2.31650529e+04 N 8.146153044900e-02
+NGPT 35 c 2.31608793e+04 N 8.043772334016e-02
+NGPT 36 c 2.31483585e+04 N 7.938530832645e-02
+NGPT 37 c 2.31274905e+04 N 7.830521968122e-02
+NGPT 38 c 2.30982752e+04 N 7.719875425020e-02
+NGPT 39 c 2.30607127e+04 N 7.606771974655e-02
+NGPT 40 c 2.30148030e+04 N 7.491476289544e-02
+NGPT 41 c 2.29605461e+04 N 7.374260092033e-02
+NGPT 42 c 2.28979419e+04 N 7.255261756361e-02
+NGPT 43 c 2.27476919e+04 N 7.012378173426e-02
+NGPT 44 c 2.25640531e+04 N 6.766065828591e-02
+NGPT 45 c 2.23470253e+04 N 6.524534005112e-02
+NGPT 46 c 2.22259906e+04 N 6.410989973008e-02
+NGPT 47 c 2.21623431e+04 N 6.358425450630e-02
+NGPT 48 c 2.21297368e+04 N 6.334130204815e-02
+NGPT 49 c 2.20966087e+04 N 6.313125000000e-02
+candidate 3 (the specific entropy): worst turn-back 7.337e-07 at f_H 0.14286 Z_N 0.3000 eta 0.10000 rho 4.1010e-03; N-gate failures 7 (worst at f_H 0.18182 Z_N 0.3000 eta 1.00000 rho 4.1010e-03); 20 s
+  its 2(b) worst |dT| 0.028 K at f_H 0.18182 Z_N 0.0000 eta 0.70000 rho 1.0000e-03; 2(c) frozen lower 18, upper 37, integrator failures 11; criterion 1 |sum Y - 1| 4.44e-16, elements 3.64e-16 after projection
+  E2 refinement (linear in sqrt(s_ref - s), the 1/4, 1/2, 3/4 points to 2/3 of 3 K and dY 0.01, cap 400 points): points added per node median 4, max 18; 0 nodes at the cap; final 1/4, 1/2, 3/4 points worst |dT| 2.0000 K, max|dY| 6.646e-03; 0 integration failures; 1 searches from the raw steps on 1 nodes (largest such branch span 2.629e-03 J/(kg K))
+  E2 at the eighth points (independent of the refinement; bars 3 K and dY 0.01): worst |dT| 2.0645 K at f_H 0.16667 Z_N 0.0000 eta 0.50000 rho 1.0000e-03, worst max|dY| 7.075e-03 at f_H 0.16667 Z_N 0.0000 eta 0.40000 rho 1.0000e-03; last quarter of the span |dT| 2.0340 K, max|dY| 7.075e-03: pass
+  E3 (span against 1e-9 |s_eq|): 161 nodes with a branch under it (stored as zero span); smallest span above it 1.051e-09 |s_eq|
+gate 2(a) (progress variable): FAIL (no candidate passed on every node)
+gate 2(b) (equilibrium end state vs equilibrateUV): worst |dT| 0.028 K at f_H 0.18182 Z_N 0.0000 eta 0.70000 rho 1.0000e-03 (limit 3.0 K): pass
+gate 2(c): frozen branches: lower 18, upper 37 (reported, not required zero); integrator failures 11 (must be 0): FAIL
+criterion 1 (node conservation): element error 5.78e-10 raw, 3.64e-16 after projection (worst at f_H 0.18182 Z_N 0.0000 eta 0.30000 rho 6.8970e-02), |sum Y - 1| 4.44e-16 (limit 1e-12): pass
+nodes: 0 degenerate, 161 with a zero-span branch, 0 outside the thermo range
+branch integration: 1707 branches, mean 7.88 ms, worst 63.37 ms
+Table B built 2026-10-23 00:56 CDT by crucible_build_manifold_table from ../tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes {0.133333,0.142857,0.153846,0.166667,0.181818} as given, Z_N {0.000000,0.300000}, eta 11 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 990 nodes in 20 s on 3 threads; node element error 5.78e-10 raw, 3.64e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE
+WRITING ANYWAY FOR INSPECTION (a gate failed; this table is not for use).
+wrote /tmp/tb/diag.bin (3.5 MB)

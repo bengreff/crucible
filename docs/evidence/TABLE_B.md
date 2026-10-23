@@ -1152,6 +1152,59 @@ All four ran on backhouse (tree `crucible_inq` at 5b4679f, the code of 9b5a65d; 
   - The replay holds the end-of-step states only. The Table B runs flag these two cells at mid-step states, which were not sampled. The mixing explanation stays *inferred*.
 - **So Table B passes the split bar at both RL10 mixture ratios.** This supports its role as the tier-1 central case's chemistry across the ensemble's O/F bracket.
 
+## Gates 2(a) and 2(c) on rl10_s: the causes measured, and two builder fixes, stated before their code (23 October 2026, about 00:58 CDT)
+
+The Director's order (23 October, 01:05 by the message): fix the table builder at the failing points of gates 2(a) and 2(c), without restricting the gates. The 50 against 80 kg/m³ argument is too close to call the ρ 80 region unreachable.
+
+**The causes, measured.** The rl10_s build was re-run with a temporary diagnostic, now reverted. It prints where each turn-back's worst fall sits and the stored N along each node that fails the N gate. The command is as on 21 October, on 3 threads: `CRUCIBLE_TABLE_B_CANDIDATES=3 CRUCIBLE_TABLE_B_FH_NODES=0.133333,0.142857,0.153846,0.166667,0.181818 ... 0 0 0 0,0.3 11 9 1e-3 80 3 ../tools/mechanisms/h2o2_highT.yaml`. The output is `table_b/rl10_s_gate_causes_2026-10-23.txt`, and the result is the same gate table as on 21 October.
+
+- **2(c), 11 integrator failures: a start the builder cannot construct.** All 11 are on the lower branch at ρ 80, and each throws "no frozen start up to 6000 K carries the node's energy" before integrating anything.
+  - At ρ 80 kg/m³ the 6,000 K equilibrium is barely dissociated, because the pressure is high. Its frozen composition, cooled to 200 K, holds less energy than these nodes need.
+  - The reactants at 200 K hold more energy than the nodes need, so the reactants' start does not apply either.
+  - The frozen family, followed up to 6,000 K, never reaches the node's energy. This is a defect of the start's construction, not of the chemistry.
+- **2(a), the turn-back's 20 nodes: the entropy's own round-off, on upper branches of almost zero span.**
+  - All 20 worst falls are on the upper branch. At η 0.1 (16 nodes at ρ 1e-3 and 4.1e-3, T_eq 1,048 to 1,092 K), the complete-combustion products are already at equilibrium to about 2e-9 of s. Their spans, 1.6e-5 to 6.9e-5 J/(kg K), are 1 to 3 times the zero-span threshold of 1e-9 |s_eq|.
+  - The worst falls are 1.3e-11 to 1.5e-11 J/(kg K) in absolute terms: at most 8.5e-16 of |s|, about 4 units in the last place of s. They occur where T is constant to the printed 6 digits, at t from 1e-5 to 2e6 s.
+  - The 2 nodes at η 0.2, ρ 80 (spans 2.1e-3 and 2.6e-3) fall 3.6e-12, which is 3.2e-16 of |s|.
+  - So the gate's 1e-9 of the span, stated as CVODES's noise at rtol 1e-10, sits below what double precision resolves in s on these spans. These falls are round-off in evaluating s, not a turn-back of the trajectory.
+- **The N gate, 7 nodes: the premise does not hold there; no builder change was found.** All 7 are at η 1 and ρ 1e-3 to 0.017. At each, the equilibrium has more moles per kilogram than the reactants: for example, N_0 = 7.1930e-2 and N_eq = 7.2297e-2 mol/g at f_H 0.1538, Z_N 0.3, ρ 1e-3.
+  - So N rises monotonically along the lower branch, from the reactants to the strongly dissociated equilibrium (2,744 to 3,183 K at 2.5 to 47 kPa). It then falls along the upper branch, as it should.
+  - The gate's code reads that rise as a fall with a negative denominator. It places c_a at 0.5% of the rise and then fails the strict fall at the next point.
+  - The runtime already treats such a node as "no fall in N" and sends its cells to CVODES (*The cell placed by its moles per kilogram*). So the failure costs CVODES calls but cannot give a wrong state.
+  - A builder change cannot create a fall here: the lower branch's start is the reactants, and N_eq > N_0 is a property of the elements, e and ρ. What the gate should require at a node with no fall in N is a question about the gate, not an engineering fix, and is left to the Director (below).
+
+**Fix 1, the lower branch's start beyond the frozen family (2(c)).**
+- When no frozen start up to 6,000 K carries the node's energy (g(6,000 K) < 0), the start continues the same family toward the reactants. The composition is y(α) = (1 − α) y_frozen(6,000 K) + α y_reactants.
+- α in (0, 1) is found by bisection so that y(α) carries the node's energy at 200 K, taken just below the root as the T* start is.
+- Both ends have the node's elements, so every α does.
+- The family of starts is then continuous over the whole energy range: reactants (T ≥ 200 K), then this mix at 200 K, then the frozen T* start, then the complete-combustion products.
+- Its α = 1 end is the reactants at 200 K exactly, where the reactants' start begins.
+- Temperatures above 6,000 K are not used, because the thermo ends there.
+- The failure tag names this start and its α.
+
+**Fix 2, the turn-back measured above the progress variable's round-off (2(a)).**
+- A fall counts as a turn-back only if it exceeds the round-off floor 1e-14 |c_eq|. Above the floor, the gate is unchanged: a counted fall above 1e-9 of the span fails.
+- *Derived, before use:* s is a sum of about 10 species terms of the same sign. Each term's round-off is a few ε, and the sum's error is at most about 15 ε |s|, so a difference of two s values is good to about 30 ε ≈ 6.7e-15 |s|. The floor rounds that up.
+- For the linear candidates, c is one or three mass fractions. The floor is then far below CVODES's noise and changes nothing.
+- The node report gains a last column, `fall_within_floor`: each node's largest fall that the floor kept from counting, as a fraction of |c_eq|.
+- The build prints the count and the largest such fall, so nothing is hidden.
+- The floor changes no stored value, only the gate's verdict.
+
+**Acceptance (rl10_s rebuilt with the command above):**
+- **T1:** 2(c) has 0 integrator failures.
+- **T2:** the 979 nodes outside the 11 have node-report rows identical to the run before the fixes, in every column except `turn_back`, and `turn_back` differs only at the 20 nodes above.
+  - The comparison is by node (candidate, f_H, Z_N, η, ρ) with the 21 October report, `rl10_s_nodes_2026-10-21.csv`. Measured: the diagnostic run's report matches that one in every row; only the thread order differs.
+  - The 11 nodes' new rows are reported in full: their c_0, c_eq, start α, turn-back, 2(b), E2 and N gate. A failure among them is reported, not hidden.
+- **T3:** the turn-back gate passes. Every one of the 20 nodes has a largest fall under the floor, and the worst counted turn-back over the table is printed.
+- **T4:** the N gate's 7 failures are unchanged, at the same nodes. The fixes do not touch the N gate.
+- **T5:** `ctest -R reaction` is unchanged. The builder shares no code with the engine's runtime, so this only confirms that nothing else moved.
+
+**For the Director: the N gate at a node with no fall in N.**
+- (i) The gate checks the strict fall only where the lower branch has a fall (N_eq < N_0). A node without one is counted and named as "no fall in N, CVODES at runtime", which is what the runtime already does. Its share of updates is then measured live, against the 1% bar.
+- (ii) The placement is extended to a lower branch whose N rises monotonically. That is a runtime design change.
+- (iii) The gate stays as written, and the table fails 2(a) at these 7 nodes.
+- None of these is built tonight.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
