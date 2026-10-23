@@ -1,0 +1,9 @@
+AMR criterion 4: C1 eqtt with law and hp, uniform 64 x 12, to 1.2 ms, 2 threads; table Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+fine throat station 32, fine chamber-end column 17 (odd: the base column ends with it)
+light-off at 0.010192 ms, step 1.402e-07 s
+  t 0.5000 ms, 19 s
+  t 1.0000 ms, 40 s
+uniform: 20232 steps (0 rejected); budgets (compensated): mass 1.926e-14, energy 2.889e-12, momentum 7.672e-18; igniter |E - 0.5 J| 0.000e+00 J
+at the end: c* 2472.7118 m/s, Isp_vac 425.68684 s, F_vac 1477.7486 N; settled over 21 samples: c* 2702.5066 m/s, Isp_vac 490.06916 s, F_vac 973.3229 N
+printed for 5(a), not judged: 15538176 cell updates, 48.1 s of wall, 3.0974e-06 s per update; load 5.8 at the start, 7.1 at the end
+c4 uniform scale 0 cstar 2.702506626635e+03 isp 4.900691606054e+02 fvac 9.733229483190e+02 lightoff 1.019191151880e-05 step 1.402159759676e-07 steps 20232 samples 21

@@ -786,6 +786,39 @@ Step D's last item, as the order of work states it, is "thresholds fixed and rec
   - for 5(a): the cell updates summed over levels, each level's active cells times its steps, and the wall time per update on both runs.
 - **5(a) is not judged here.** Its 25% bar needs a machine under controlled load. These runs share the Mac with other workers, so their cost ratio is printed with the load beside it.
 
+## Criterion 4's driver, and why its runs wait for the spread fix (22 October, about 23:50 CDT)
+
+- **Built.** `crucible_amr_c4` (`tests/amr_c4.cpp`) runs one case per call and prints one `c4` line; `tests/amr_c4_judge.sh` reads the five lines, applies the rule and judges criterion 4. C1 `eqtt` and the stagnation pressure moved from `amr_budget.cpp` into `tests/c1_eqtt.hpp`, unchanged.
+- **The move changes nothing (measured).** `crucible_amr_budget 4e-4 2 wall tags amr`, built before and after it, writes `cmp`-identical dumps and the same log.
+- **The pipeline runs (measured; a smoke run, not criterion 4).** All five runs went to 1.2 ms on 2 threads, with the window moved to the last millisecond; the judge read them and applied the rule and the criterion. The logs are in `amr_d/c4_smoke_2026-10-22/`. Their numbers are not the registered case and are not results.
+  - The fine chamber-end column is 17. It is odd, so base column 8 ends with it and the composite column is well defined.
+- **Light-off, an observation from the smoke run (measured).** Under `eqtt` every cell is put at local equilibrium every step, whatever its temperature (`Chemistry::LocalEquilibrium` from Table A). Propellant therefore burns where it arrives.
+  - The registered light-off (some cell's Y_H2O above 0.5) falls at 0.0102 ms on all five smoke runs. The igniter starts at 0.2 ms.
+  - So for `eqtt` the item measures how fast the first cells at the injector face fill under the supply's ramp (inferred), not how a kernel grows.
+  - It stays as registered: it is the criterion's text and chamber_study's definition. Whether criterion 4 wants an event that ignition sets, for an equilibrium case, is the Director's question.
+- **The runs wait for the spread fix.** 28d87b1 (main) registers a change to `Amr::spread` that, in its words, "changes every AMR run whose fills meet gradients". C1's fills meet them.
+  - The thresholds should be fixed for the spread tier 1 will run, and criterion 4 is judged once. So the five runs start when the fix is on `main`, from the rebased build.
+  - None of them has been run to 8 ms.
+- **What this lane reruns after the fix,** on the Mac: the step C and D results that inquiry's list (A5, A4, A0 to A3, AMR's ctest) leaves out.
+  - Criterion 2's fill content (1e-14), from `crucible_amr_budget 8e-3 4 wall tags`.
+  - D1's budgets and igniter. The s = 1 run of criterion 4 prints them on the same case.
+  - Step D's recorded results stand as measured on 3d52ed2's spread.
+
+## The spread fix, read from the AMR side (22 October, about 23:50 CDT)
+
+The fix registered in 28d87b1 (`SPRAY.md`, *The fix, registered before its code*) changes this lane's `Amr::spread`. Read against `core/amr.cpp:223-288`.
+
+- **The defect is the AMR's, and the design removes it.** *Derived:* with one φ, every child is one combination of the parent's and its neighbours' states whose weights sum to one.
+  - At a contact (common p, T and u), the molar concentrations ρ_k/W_k sum to p/(R_u T).
+  - E is the sum of (ρ_k/W_k) times each species' molar energy at T, plus ½ρu². At fixed T and u that is linear in the partial densities.
+  - So the child keeps p, T and u, for any thermally perfect mixture, as the registration says. Range, positivity and content hold as stated, since a smaller φ keeps each component inside the range its own φ allowed.
+- **One risk to check, not a conflict: a common limiter is as small as its worst component.** Barth-Jespersen's φ is 0 at a parent where any one component has an extremum.
+  - There are 4 + n_s + n_t components. Radicals peak inside a flame, so more parents will fall back to piecewise constant than now. That is safe (it is what removed the jet), but it is first order there.
+  - A component at rounding level is the sharper case. In criterion 3(a)'s axial pulse (`amr_subcycling_tests.cpp`, order 1.8 or better), ρu_r is 0 or rounding. If it is rounding, its extrema are everywhere and can set φ near 0 at many ghost parents.
+  - AMR's ctest is on inquiry's list and will show this. If it bites, one remedy is to leave a component out of the common φ, under its own φ, when its neighbours' range is below a floor relative to its scale. Contact preservation then holds to that floor. That is inquiry's call.
+- **The children's ρ.** With each partial density linear as well, a child's sum of partial densities equals its linear ρ to rounding only. Either one can be the one kept.
+- **Conflicts with this lane's code: none.** This lane's uncommitted work touched only `tests/` and `CMakeLists.txt`. The ordering is the only overlap, and it is above.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.

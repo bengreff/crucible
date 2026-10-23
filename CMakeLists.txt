@@ -200,6 +200,12 @@ if(CRUCIBLE_WITH_CANTERA)
     target_link_libraries(crucible_amr_budget PRIVATE crucible_thermo
       ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
     target_compile_definitions(crucible_amr_budget PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    # AMR's tag thresholds and criterion 4 (docs/evidence/AMR.md): needs CRUCIBLE_EQ_TABLE, so not a ctest.
+    add_executable(crucible_amr_c4 tests/amr_c4.cpp)
+    target_include_directories(crucible_amr_c4 PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
+    target_link_libraries(crucible_amr_c4 PRIVATE crucible_thermo
+      ${CANTERA_ROOT}/build/lib/libcantera.a ${ACCELERATE_FRAMEWORK} Threads::Threads)
+    target_compile_definitions(crucible_amr_c4 PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_executable(crucible_flame_study tests/flame_study.cpp)
     target_include_directories(crucible_flame_study PRIVATE ${CANTERA_ROOT}/include ${BOOST_INCLUDE})
     target_link_libraries(crucible_flame_study PRIVATE crucible_thermo

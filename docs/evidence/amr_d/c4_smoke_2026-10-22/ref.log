@@ -1,0 +1,11 @@
+step D: wall functions (law) and property corrections (hp)
+AMR criterion 2 on B2: C1 eqtt (resolved walls), base 32 x 6 plus one level, to 0.4 ms, 2 threads, step C's tags and regridding
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+throat station 16, chamber-end column 8; level 1: 256 of 768 cells active; igniter centroids: 20 fine, 4 base
+  AMR t 0.4000 ms, 3151 base steps (0 redone), 22 s: mass 0.00e+00, energy -4.27e-16, momentum -3.88e-17; igniter 0.500000000000002 J
+    regrids 88, level 1 active 684 of 768, fill error largest 9.945e-16 (gross 3.456e-16)
+  level 0: table cells 604992, clamped 53821, outside (direct) 0
+  level 1: table cells 4428352, clamped 273630, outside (direct) 0
+AMR only, not judged: mass 0.000e+00, energy -4.266e-16, momentum -3.881e-17 at the end (largest 1.910e-15, 5.818e-15, 1.600e-15); igniter |E - 0.5 J| 1.665e-15 J; c* 2871.34 m/s, vacuum thrust 523.58 N; 3151 base steps, 22.4 s of wall
+AMR only, not judged: 88 regrids, fill error largest 9.945e-16, over the gross content 3.456e-16
+AMR only, not judged: D2's mismatches 197472

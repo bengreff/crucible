@@ -43,13 +43,14 @@
 #include "core/amr.hpp"
 #include "core/equilibrium_table.hpp"
 #include "tests/amr_dump.hpp"
+#include "tests/c1_eqtt.hpp"
 #include "tests/c1_geometry.hpp"
 
 using namespace crucible;
 using namespace crucible::c1_geometry;
+using namespace crucible::c1_eqtt;
 
 namespace {
-constexpr double kMixtureRatio = 5, kMassFlow = 0.4, kAmbientP = 1000, kAmbientT = 300, kIgniter = 0.5;
 int failures = 0;
 void check(bool ok, const std::string& what, double value, double limit) {
   std::printf("  %-74s %.3e (limit %.3g)  %s\n", what.c_str(), value, limit, ok ? "PASS" : "FAIL");
@@ -57,73 +58,6 @@ void check(bool ok, const std::string& what, double value, double limit) {
 }
 double seconds(std::chrono::steady_clock::time_point start) {
   return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
-}
-
-// C1 eqtt as tests/chamber_study.cpp builds it, on nz x nr.
-Definition c1eqtt(thermo::ReactionSource& source, int nz, int nr) {
-  Definition d;
-  d.experiment = Case::Chamber;
-  d.nz = nz;
-  d.nr = nr;
-  d.contour = geometry().contour;
-  d.species = source.medium().species();
-  d.composition = source.massFractions("N2:1");
-  d.backPressure = kAmbientP;
-  d.ambientTemperature = kAmbientT;
-  Supply s;
-  s.outerRadius = kRc;
-  s.massFlow = kMassFlow;
-  s.totalTemperature = 300;
-  auto h2 = source.massFractions("H2:1"), o2 = source.massFractions("O2:1");
-  s.composition.resize(h2.size());
-  for (std::size_t k = 0; k < h2.size(); ++k) s.composition[k] = (h2[k] + kMixtureRatio * o2[k]) / (1 + kMixtureRatio);
-  s.opens = 0;
-  s.ramp = 5e-4;
-  s.turbulenceIntensity = 0.05;
-  s.viscosityRatio = 10;
-  d.supplies = {s};
-  d.igniter = {0.005, 0.015, 0.010, kIgniter, 2e-4, 2e-4};
-  d.transport = thermo::transportFits("h2o2.yaml");
-  d.wallTemperature = 600;
-  d.turbulence.enabled = true;
-  const Medium medium = d.medium();
-  std::vector<double> diffusion(d.species.size()), work;
-  const double a0 = medium.soundSpeed(kAmbientT, d.composition.data());
-  const double rho0 = kAmbientP / (medium.gasConstant(d.composition.data()) * kAmbientT);
-  const double mu0 = medium.transport(kAmbientT, kAmbientP, d.composition.data(), diffusion.data(), work).viscosity;
-  d.turbulence.ambientK = 9e-9 * a0 * a0;
-  d.turbulence.ambientOmega = 1e-6 * rho0 * a0 * a0 / mu0;
-  return d;
-}
-
-// Equilibrium isentropic stagnation pressure of a cell, as tests/chamber_study.cpp.
-double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const double* y, double kinetic) {
-  gas.setState_TPY(t, p, y);
-  gas.equilibrate("TP");
-  const double s = gas.entropy_mass(), h0 = gas.enthalpy_mass() + kinetic;
-  double p0 = p;
-  for (int n = 0; n < 50; ++n) {
-    gas.setState_SP(s, p0);
-    gas.equilibrate("SP");
-    double step = (h0 - gas.enthalpy_mass()) / (p0 / gas.density());
-    p0 *= std::exp(step);
-    if (std::abs(step) < 1e-13) break;
-  }
-  return p0;
-}
-// Mass-flux-averaged equilibrium stagnation pressure of a column (chamber_study's chamber pressure).
-double columnStagnation(const Flow& flow, Cantera::ThermoPhase& gas, int column) {
-  const auto& mesh = flow.mesh();
-  double p0 = 0, flux = 0;
-  for (int j = 0; j < mesh.nr; ++j) {
-    auto q = mesh.index(column, j);
-    auto w = flow.cellPrimitive(q);
-    auto y = flow.massFractions(q);
-    double g = w.rho * w.uz * mesh.axialArea(column + 1, j);
-    p0 += g * stagnationPressure(gas, flow.temperature(q), w.p, y.data(), 0.5 * (w.uz * w.uz + w.ur * w.ur));
-    flux += g;
-  }
-  return p0 / flux;
 }
 
 // The largest content and the errors, normalised as the criterion reads them.
