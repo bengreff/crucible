@@ -736,6 +736,56 @@ Run by `bh_sd2.sh` from 22:28 CDT. Build a is inquiry2 at 71755ce in `/home/gref
 - Test 2's patch makes the igniter exact (0 here), and is about ten lines. It is not adopted, as registered, because it moves criterion 2's and check 3's dumps by ulps and D0 would need a new baseline. *Inferred:* it is worth taking with the next change that re-baselines D0 anyway, before tier 1, since the run's deposit spans more base steps.
 - Wall time, at load about 22 to 26: D1 3,159 s on AMR and 93 s on one level; D2 1,117 s on AMR and 31 s on one level.
 
+## Spray on AMR, read from the AMR side (22 October, about 23:35 CDT)
+
+The Director asked this lane to review inquiry's spray on AMR (`SPRAY.md`, *Spray on AMR*, as built in f2f8026 and amended in 19355bb) for conflicts with the AMR code. Read: the `Amr` diff (`core/amr.cpp`, `core/amr.hpp`), `Spray::afterStep`, `Spray::redo`, `Spray::release`, `Spray::owner` and `Spray::mark`. The rebased tree builds (`crucible_amr_budget`, Mac, 23:36).
+
+**No conflict blocks either lane.** The details, each read from the code:
+
+- **The exchange sums in `Amr::save` and `restore` close a hole that step B left.** Without them, a redone base step would keep the failed attempt's exchanges. The gas alone never exchanges on `Amr`, so no recorded AMR result is touched.
+- **The order per level is the uniform one.** `Amr::advance` calls the after-step hook (the spray, then the reaction) straight after the level's `accept`, so after the stage's prescription, and before the finer level's substeps, the average-down and the reflux (`core/amr.cpp:527-543`).
+  - One asymmetry, minor and not new. A coarse wall-function cell beside a finer level that the reflux touches is prescribed again after its deposit. One the reflux does not touch keeps the prescription from before its deposit, as on one level. The reaction step already has the same split.
+  - So D2's bitwise check counts every wall-function cell a deposit lands in, as it counts the reaction's. That is why D2 is judged inert and without spray; it is not a spray defect.
+- **D1's test 2 patch would not disturb the spray's clock.** The clock counts each level's calls within the base step, not times (`spray.cpp:1122-1123`). Taking the patch later, at a D0 re-baseline, changes no parcel's move.
+- **A1(b)'s gas-only difference under SST (1.562e-13) lies in `Amr::advance`.** Its sequence of `stableDt`, `beginStep`, the stages and `accept` differs from `Flow::step`'s somewhere not yet isolated. The Director amended A1(b) to 1e-12 rather than change `Amr`, so nothing is owed. If an exact match is wanted later, this lane can isolate it and take it with test 2's patch, so that D0 is re-baselined once.
+- **`Spray::release` books [t1 − dt, t1], with t1 the base level's time after its step** (`spray.cpp:1133-1135`). The uniform path does the same (`spray.cpp:1087`). fl(fl(t + dt) − dt) need not equal t, so consecutive intervals can overlap or leave a gap of one ulp of t. That is D1's class, on both paths alike.
+  - It does not open the ledger: the injected mass is what `release` booked.
+  - Only the delivered total against the schedule's integral moves. *Derived:* by at most massFlow × ulp(t) per base step.
+  - Carrying the last release's end as the next start would remove it. That is inquiry's call.
+- **The clock uses `Amr::top()`, and `redo` handles the edges.** A failure before level 0's hook in the first base step finds no snapshot of this step and leaves the parcels alone. A second failure after a restore restores the same snapshot again. Both were read, not run.
+- **The corner jet (A4) is inquiry's to find.** One fact from this side may help. Level 0's parcels move and deposit at level 0's hook, before level 1 steps. A deposit that `mark` resolves into a covered cell lands in level 1's cells before level 1's first substep. One that a level 1 parcel spreads into a cell level 1 does not own lands in the base cell after the base's step. Both are conservative (A2 shows it). This lane can print per-level exchanges near the corner if inquiry asks.
+
+## Fixing the tag thresholds, then criterion 4 (recorded 22 October, about 23:40 CDT, before any of its code)
+
+Step D's last item, as the order of work states it, is "thresholds fixed and recorded, then criteria 4 and 5(a)". Criterion 4's comparison was printed once already, at the guessed thresholds (*Step D: results*, reported, not gated: AMR's c* 0.04% below the uniform 64 x 12 and its thrust 0.16% above). So the thresholds are not chosen by looking at the uniform run. The rule below reads only the AMR runs and picks the value mechanically. The uniform run is judged once, after.
+
+- **The case.** C1 `eqtt` on 32 x 6 plus one level, with `law` and `hp` (tier 1's configuration, as in D1), to 8 ms.
+  - Criterion 4 was written when `Amr` refused the wall functions. It is read here with them on, because that is what tier 1 runs.
+  - The resolved-wall variant is not run.
+- **The runs.** The four dynamic thresholds (f_H 0.02, T 0.05, pressure 0.10, vorticity 0.05) are scaled together by s, for s = 1, 1/2, 1/4 and 1/8.
+  - Kept as they are, declared: k_r = 2, b = 2, the wall y+ target 300, and the throat tag, which is capped at level 1 here.
+- **The quantities,** defined the same way on every run, the uniform one included:
+  - **Settled:** the mean of 21 samples at 7.00, 7.05, ..., 8.00 ms, each taken at the first step ending at or after its time.
+    - The criterion fixes the end at 8 ms, so "settled" is read as the last millisecond's mean. Chamber_study's settling test is not applied.
+  - **c\*:** the mass-flux-weighted equilibrium stagnation pressure on the fine chamber-end column, times A_t over ṁ_out.
+    - On AMR the column is the composite's finest cells: level 1's two cells where level 1 is active over a base row, and the base cell where it is not.
+    - Step D's printed c\* read level 0's averaged column, which is not the same quantity at 0.1%.
+  - **Vacuum thrust:** the inlet momentum flux plus the wall and body axial forces, summed over the levels' owned faces, as now.
+  - **Vacuum Isp:** F_vac / (ṁ_out g0).
+  - **Light-off:** the end of the first step (on AMR, the first base step) at which the largest Y_H2O over the owned cells exceeds 0.5. That is chamber_study's threshold, checked here at every step.
+- **The rule.**
+  - s\* is the largest s in {1, 1/2, 1/4} that meets both of these against the run at s/2:
+    - its settled c\*, Isp and thrust each lie within 0.02%, a fifth of criterion 4's tolerance;
+    - its light-off lies within one base step plus 0.2%.
+  - The thresholds are then fixed at s\* times the defaults, and `Amr::Tags`' defaults change to them.
+  - If no s qualifies, they are not fixed. I report which quantity moves and by how much, and the Director decides.
+- **Criterion 4,** judged once and as written, at s\*: against the uniform 64 x 12 run with `law` and `hp`, on the same driver and the same definitions.
+  - The tolerances are unchanged: 0.1% for the settled c\*, Isp and thrust, and one base step plus 1% for light-off.
+- **Printed, not judged:**
+  - for each run: level 1's active cells at the end and on average, the base steps, the regrids, each quantity at 8 ms, the composite budget errors and the wall time;
+  - for 5(a): the cell updates summed over levels, each level's active cells times its steps, and the wall time per update on both runs.
+- **5(a) is not judged here.** Its 25% bar needs a machine under controlled load. These runs share the Mac with other workers, so their cost ratio is printed with the load beside it.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.
