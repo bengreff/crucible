@@ -10,9 +10,13 @@
 //   - c*: the mass-flux-weighted equilibrium stagnation pressure on the fine chamber-end column (on AMR, level
 //     1's cells where it is active over a base row, else the base cell) times A_t over the outlet mass flow;
 //   - vacuum thrust: inlet momentum flux plus wall and body axial forces, summed over the levels; Isp = F / (mdot g0);
-//   - light-off: the end of the first step (base step on AMR) with the largest Y_H2O over the owned cells above 0.5.
+//   - light-off: the end of the first step (base step on AMR) with the largest Y_H2O over the owned cells above 0.5;
+//   - t90 (AMR.md, *Criterion 4: the Director's additions*; reported, not judged): the chamber pressure (c*'s
+//     numerator) sampled at the first step ending at or after each multiple of 10 us and at the end, none where the
+//     column's mass flux is not positive; after the last sample below 0.9 of the end value, the linear crossing.
 // Printed, not judged: each quantity at the end, level 1's active cells, regrids, budgets, and for criterion 5(a)
-// the cell updates (each level's active cells times its steps) and the wall time per update, with the load.
+// the cell updates (each level's active cells times its steps) and the wall time per update, net of the history's
+// sampling, with the load.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -22,6 +26,7 @@
 #include <numbers>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "adapters/reacting_flow.hpp"
@@ -35,7 +40,7 @@ using namespace crucible;
 using namespace crucible::c1_eqtt;
 
 namespace {
-constexpr double kG0 = 9.80665, kWindow = 1e-3, kSpacing = 5e-5;
+constexpr double kG0 = 9.80665, kWindow = 1e-3, kSpacing = 5e-5, kHistory = 1e-5;
 constexpr int kSamples = 21;
 double seconds(std::chrono::steady_clock::time_point start) {
   return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
@@ -155,18 +160,12 @@ int main(int argc, char** argv) {
       for (int l = 0; l < amr->levels(); ++l) out.push_back(&amr->level(l));
     return out;
   };
-  auto sample = [&]() {
-    double mdot = 0, fVac = 0;
-    for (const Flow* f : flows()) {
-      const auto m = f->measurements();
-      mdot += m.outletMassFlow;
-      fVac += m.inletMomentumFlux + m.wallAxialForce + m.bodyAxialForce;
-    }
-    double p0 = 0, flux = 0;
-    if (uniform) {
-      p0 = columnStagnation(*single, gas, fe);
-      flux = 1;
-    } else {
+  // The chamber-end column's flux-weighted stagnation pressure and its mass flux (columnStagnation's loop).
+  auto column = [&](double& p0, double& flux) {
+    p0 = flux = 0;
+    if (uniform)
+      for (int j = 0; j < finest.nr; ++j) addStagnation(*single, gas, fe, j, p0, flux);
+    else {
       const Flow& base = amr->level(0);
       const Flow& fineFlow = amr->level(1);
       for (int J = 0; J < base.mesh().nr; ++J)
@@ -176,7 +175,27 @@ int main(int argc, char** argv) {
         } else
           addStagnation(base, gas, fe >> 1, J, p0, flux);
     }
+  };
+  auto sample = [&]() {
+    double mdot = 0, fVac = 0;
+    for (const Flow* f : flows()) {
+      const auto m = f->measurements();
+      mdot += m.outletMassFlow;
+      fVac += m.inletMomentumFlux + m.wallAxialForce + m.bodyAxialForce;
+    }
+    double p0, flux;
+    column(p0, flux);
     return Sample{p0 / flux * at / mdot, fVac / (mdot * kG0), fVac};
+  };
+  // The history's chamber pressure: none (NaN) where the column carries no net outflow.
+  std::vector<std::pair<double, double>> history;
+  double historyWall = 0;
+  auto record = [&](double t) {
+    const auto start = std::chrono::steady_clock::now();
+    double p0, flux;
+    column(p0, flux);
+    history.emplace_back(t, flux > 0 ? p0 / flux : std::nan(""));
+    historyWall += seconds(start);
   };
   auto largestY = [&]() {
     if (uniform) return largestWater(*single, water, nullptr);
@@ -208,14 +227,30 @@ int main(int argc, char** argv) {
     }
     if (static_cast<int>(samples.size()) < kSamples - 1 && t1 >= window + kSpacing * static_cast<double>(samples.size()))
       samples.push_back(sample());
+    if (t1 >= kHistory * static_cast<double>(history.size())) record(t1);
     if (t1 >= nextPrint) {
       std::printf("  t %.4f ms, %.0f s\n", t1 * 1e3, seconds(clock0));
       std::fflush(stdout);
       nextPrint += 5e-4;
     }
   }
-  const double wall = seconds(clock0), load1 = load();
+  const double wall = seconds(clock0) - historyWall, load1 = load();
   samples.push_back(sample());
+  record(time());
+  // t90: after the last sample below 0.9 of the end value, the linear crossing (none if the end value is not positive).
+  const double pEnd = history.back().second, p90 = 0.9 * pEnd;
+  double t90 = -1;
+  if (pEnd > 0) {
+    std::size_t k = history.size();
+    for (std::size_t n = 0; n < history.size(); ++n)
+      if (!(history[n].second >= p90)) k = n;
+    if (k == history.size()) t90 = history.front().first;
+    else {
+      const auto [ta, pa] = history[k];
+      const auto [tb, pb] = history[k + 1];
+      t90 = std::isnan(pa) ? tb : ta + (p90 - pa) / (pb - pa) * (tb - ta);
+    }
+  }
   Sample mean{0, 0, 0};
   for (const auto& s : samples) {
     mean.cstar += s.cstar / static_cast<double>(samples.size());
@@ -247,10 +282,12 @@ int main(int argc, char** argv) {
   }
   std::printf("at the end: c* %.4f m/s, Isp_vac %.5f s, F_vac %.4f N; settled over %zu samples: c* %.4f m/s, Isp_vac %.5f s, F_vac %.4f N\n",
               last.cstar, last.isp, last.fVac, samples.size(), mean.cstar, mean.isp, mean.fVac);
-  std::printf("printed for 5(a), not judged: %llu cell updates, %.1f s of wall, %.4e s per update; load %.1f at the start, %.1f at the end\n",
-              static_cast<unsigned long long>(updates), wall, wall / static_cast<double>(updates), load0, load1);
-  std::printf("c4 %s scale %.9g cstar %.12e isp %.12e fvac %.12e lightoff %.12e step %.12e steps %llu samples %zu\n",
+  std::printf("reported, not judged: chamber pressure %.6g Pa at the end; t90 %.6f ms (%zu history samples)\n", pEnd,
+              t90 * 1e3, history.size());
+  std::printf("printed for 5(a), not judged: %llu cell updates, %.1f s of wall net of the history's %.1f s, %.4e s per update; load %.1f at the start, %.1f at the end\n",
+              static_cast<unsigned long long>(updates), wall, historyWall, wall / static_cast<double>(updates), load0, load1);
+  std::printf("c4 %s scale %.9g cstar %.12e isp %.12e fvac %.12e lightoff %.12e step %.12e steps %llu samples %zu t90 %.12e p8 %.12e\n",
               uniform ? "uniform" : "amr", uniform ? 0.0 : scale, mean.cstar, mean.isp, mean.fVac, lightOff, lightStep,
-              static_cast<unsigned long long>(steps), samples.size());
+              static_cast<unsigned long long>(steps), samples.size(), t90, pEnd);
   return 0;
 }

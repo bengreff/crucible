@@ -1,19 +1,20 @@
 #!/bin/sh
 # AMR.md, *Fixing the tag thresholds, then criterion 4*: the rule for s*, then criterion 4 at s*, from the "c4" lines
 # crucible_amr_c4 prints. Usage: sh tests/amr_c4_judge.sh LOG... (the AMR runs at s = 1, 1/2, 1/4, 1/8 and the
-# uniform run, in any order).
+# uniform run, in any order). t90 (AMR.md, *Criterion 4: the Director's additions*) is reported, not judged.
 grep -h '^c4 ' "$@" | awk '
 function abs(x) { return x < 0 ? -x : x }
-$2 == "uniform" { uc = $6; ui = $8; uf = $10; ul = $12; un = $18; have = 1; next }
-{ n++; s[n] = $4; c[n] = $6; p[n] = $8; f[n] = $10; l[n] = $12; b[n] = $14; m[n] = $18 }
+$2 == "uniform" { uc = $6; ui = $8; uf = $10; ul = $12; un = $18; ut = $20; up = $22; have = 1; next }
+{ n++; s[n] = $4; c[n] = $6; p[n] = $8; f[n] = $10; l[n] = $12; b[n] = $14; m[n] = $18; t[n] = $20; q[n] = $22 }
 END {
   for (i = 1; i <= n; i++) for (j = i + 1; j <= n; j++) if (s[j] > s[i]) {
-    t = s[i]; s[i] = s[j]; s[j] = t; t = c[i]; c[i] = c[j]; c[j] = t; t = p[i]; p[i] = p[j]; p[j] = t
-    t = f[i]; f[i] = f[j]; f[j] = t; t = l[i]; l[i] = l[j]; l[j] = t; t = b[i]; b[i] = b[j]; b[j] = t; t = m[i]; m[i] = m[j]; m[j] = t
+    x = s[i]; s[i] = s[j]; s[j] = x; x = c[i]; c[i] = c[j]; c[j] = x; x = p[i]; p[i] = p[j]; p[j] = x
+    x = f[i]; f[i] = f[j]; f[j] = x; x = l[i]; l[i] = l[j]; l[j] = x; x = b[i]; b[i] = b[j]; b[j] = x; x = m[i]; m[i] = m[j]; m[j] = x
+    x = t[i]; t[i] = t[j]; t[j] = x; x = q[i]; q[i] = q[j]; q[j] = x
   }
   bad = 0
   for (i = 1; i <= n; i++) {
-    printf("s %-6g settled c* %.4f m/s, Isp_vac %.5f s, F_vac %.4f N; light-off %.6f ms, base step %.3e s; %d samples\n", s[i], c[i], p[i], f[i], l[i] * 1e3, b[i], m[i])
+    printf("s %-6g settled c* %.4f m/s, Isp_vac %.5f s, F_vac %.4f N; light-off %.6f ms, base step %.3e s; %d samples; t90 %.6f ms, p(8 ms) %.6g Pa\n", s[i], c[i], p[i], f[i], l[i] * 1e3, b[i], m[i], t[i] * 1e3, q[i])
     if (m[i] != 21 || l[i] < 0) bad = 1
   }
   if (n != 4 || s[1] != 1 || s[2] != 0.5 || s[3] != 0.25 || s[4] != 0.125) bad = 1
@@ -29,7 +30,7 @@ END {
   if (star == 0) { print "no s qualifies: the thresholds are not fixed (the Director decides); criterion 4 is not judged"; exit 1 }
   printf("s* = %g: the thresholds are fixed at f_H %g, T %g, pressure %g, vorticity %g\n", s[star], 0.02 * s[star], 0.05 * s[star], 0.10 * s[star], 0.05 * s[star])
   if (!have) { print "no uniform run: criterion 4 is not judged"; exit 1 }
-  printf("uniform 64 x 12: settled c* %.4f m/s, Isp_vac %.5f s, F_vac %.4f N; light-off %.6f ms; %d samples\n", uc, ui, uf, ul * 1e3, un)
+  printf("uniform 64 x 12: settled c* %.4f m/s, Isp_vac %.5f s, F_vac %.4f N; light-off %.6f ms; %d samples; t90 %.6f ms, p(8 ms) %.6g Pa\n", uc, ui, uf, ul * 1e3, un, ut * 1e3, up)
   dc = abs(c[star] / uc - 1); dp = abs(p[star] / ui - 1); df = abs(f[star] / uf - 1); dl = abs(l[star] - ul); bl = b[star] + 0.01 * ul
   fails = (dc > 1e-3) + (dp > 1e-3) + (df > 1e-3) + (dl > bl)
   printf("criterion 4 at s*: c* %+.3e (limit 1e-3) %s\n", c[star] / uc - 1, dc <= 1e-3 ? "met" : "not met")
@@ -37,4 +38,6 @@ END {
   printf("criterion 4 at s*: F_vac %+.3e (limit 1e-3) %s\n", f[star] / uf - 1, df <= 1e-3 ? "met" : "not met")
   printf("criterion 4 at s*: light-off %+.3e s (limit one base step plus 1%%, %.3e s) %s\n", l[star] - ul, bl, dl <= bl ? "met" : "not met")
   printf("criterion 4: %s\n", fails ? "not met" : "met")
+  if (t[star] > 0 && ut > 0) printf("reported, not judged: t90 at s* minus uniform %+.3e s, %+.3e relative, %+.2f base steps\n", t[star] - ut, t[star] / ut - 1, (t[star] - ut) / b[star])
+  else print "reported, not judged: t90 missing on s* or uniform"
 }'
