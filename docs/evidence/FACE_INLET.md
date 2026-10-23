@@ -121,3 +121,7 @@ Under the wall functions the law's traction on the plate has no axial part, so t
 - **In place of L4** (added after the registration, so not a registered check): the same probe to 0.01 ms, before the drop, on both builds.
   - The gas budget (a) is 2.01e-07 before the fix and 8.50e-16 after it. The whole system (c) is 2.01e-07 and 8.51e-16 (limit 1e-11; `before/probe2_10us.log`, `after/probe2_10us.log`).
   - So on 2-level AMR the gas budget closes to rounding once the fix is in. To 0.01 ms there is no second leak (measured).
+- **L4 after the rebase onto main (8fe9ce3), pass** (measured on the Mac, 23 October, 00:57 CDT; `rebased_before/` and `rebased_after/`). Main's start amendment opens the H2 supplies at 0 and the LOX at t_L = 20 ms, so the probe to 0.02 ms now runs without drops and does not meet the drop above. It is the registered check as written: inquiry's 2-level probe, run development, to 0.02 ms.
+  - Fixed: (a) gas 1.58e-15 and (c) whole system 1.58e-15 (limit 1e-11), exit 0, 32 base steps, 18 regrids.
+  - Unfixed (the line reversed and rebuilt on the same rebased tree, then restored): (a) 2.39e-07 and (c) 2.39e-07, with the run's F3 one-step energy budget −1.011e-08 as before.
+  - The drop's NaN is not fixed by this. It is a spray defect that waits for the first LOX at low pressure and is handed to the spray's owner (SESSION_HANDOFF.md).
