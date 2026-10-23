@@ -69,6 +69,7 @@ constexpr double kTEnd = 1e15;            // a branch's integration horizon (TAB
 constexpr double kStopFrac = 1e-6;        // a branch stops within this fraction of its span of c_eq
 constexpr double kTurnBackWindow = 1e-4;  // turn-back is measured only until c is this close to c_eq
 constexpr double kTurnBackGate = 1e-9;    // above this, a turn-back fails gate 2(a) (CVODES noise floor)
+constexpr double kTurnBackFloor = 1e-14;  // a fall within this fraction of |c_eq| is c's round-off, not counted (TABLE_B.md, 23 October)
 constexpr double kZeroSpanTol = 1e-12;    // |c_eq - c_start| below this: the branch is a point
 constexpr double kPhiA = 0.005;           // c_a: the lower branch's 0.5% fall in N
 constexpr double kDTGate2b = 3.0;         // K, gate 2(b)
@@ -246,6 +247,8 @@ struct NodeOutcome {
   double spanLower = 0, spanUpper = 0;  // E3: |c_eq - c_start| per branch
   bool e2Failure = false;               // an integration to a midpoint threw (reported, not a 2(c) failure)
   bool nGateChecked = false, nGateOk = true;
+  double fallWithinFloor = 0;  // the largest fall the round-off floor kept from counting, over |c_eq|
+  bool floorDecided = false;   // such a fall was above kTurnBackGate of its span (the old gate would fail it)
   bool hasDT2bLower = false, hasDT2bUpper = false;
   double dT2bLower = 0, dT2bUpper = 0;
   bool lowerFrozen = false, upperFrozen = false, integratorFailure = false;
@@ -375,6 +378,7 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
     // The lower branch's start.
     std::vector<double> zLower(ns + 1);
     double lowerTStar = std::numeric_limits<double>::quiet_NaN();  // NaN: the reactants' start
+    double lowerAlpha = std::numeric_limits<double>::quiet_NaN();  // the reactants' share of a start beyond the frozen family
     if (energyAt(200.0, yReactants) <= e) {
       zLower[0] = temperatureAt(e, yReactants);
       std::copy(yReactants.begin(), yReactants.end(), zLower.begin() + 1);
@@ -394,11 +398,26 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
       if (g(300.0) >= -1e-9 * (eHi - eLo)) {
         zLower[0] = temperatureAt(e, yComplete);
         std::copy(yComplete.begin(), yComplete.end(), zLower.begin() + 1);
-      } else {
-        if (g(6000.0) < 0) throw std::runtime_error("lower branch: no frozen start up to 6000 K carries the node's energy");
+      } else if (g(6000.0) >= 0) {
         const double tStar = bisect(g, 300.0, 6000.0);
         lowerTStar = tStar;
         auto y = frozenAt(tStar * (1 - 1e-9));
+        zLower[0] = temperatureAt(e, y);
+        std::copy(y.begin(), y.end(), zLower.begin() + 1);
+      } else {
+        // No frozen start up to 6000 K (the thermo's end) carries e (dense nodes, where the 6000 K
+        // equilibrium barely dissociates): the family continues to the reactants, mixed with the 6000 K
+        // frozen composition at 200 K (TABLE_B.md, 23 October, fix 1). Both ends carry the node's elements.
+        const std::vector<double> yHot = frozenAt(6000.0);
+        auto mixAt = [&](double a) {
+          std::vector<double> y(ns);
+          for (std::size_t q = 0; q < ns; ++q) y[q] = (1 - a) * yHot[q] + a * yReactants[q];
+          return y;
+        };
+        const double alpha = bisect([&](double a) { return energyAt(200.0, mixAt(a)) - e; }, 0.0, 1.0);
+        lowerTStar = 6000.0;
+        lowerAlpha = alpha;
+        auto y = mixAt(alpha * (1 - 1e-9));
         zLower[0] = temperatureAt(e, y);
         std::copy(y.begin(), y.end(), zLower.begin() + 1);
       }
@@ -480,7 +499,9 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
         std::string why = std::string(name) + " branch";
         char buf[256];
         if (name[0] == 'l')
-          why += std::isnan(lowerTStar) ? " (reactants start)" : (std::snprintf(buf, sizeof buf, " (frozen start, T* %.6g K)", lowerTStar), buf);
+          why += std::isnan(lowerTStar) ? " (reactants start)"
+                 : !std::isnan(lowerAlpha) ? (std::snprintf(buf, sizeof buf, " (6000 K frozen start mixed with the reactants, alpha %.6g)", lowerAlpha), buf)
+                                           : (std::snprintf(buf, sizeof buf, " (frozen start, T* %.6g K)", lowerTStar), buf);
         std::snprintf(buf, sizeof buf, ": start T %.6g K, dT/dt %.4e K/s, c %.6e to c_eq %.6e; %zu steps recorded, last t %.4e s T %.6g K; ",
                       zStart[0], dzdt[0], cStart, branchCEq, steps.size(), steps.back().t, steps.back().T);
         why += buf;
@@ -512,15 +533,23 @@ NodeOutcome buildNode(thermo::ReactionSource& source, thermo::ReactionStep& step
                   (result.degenerate ? ManifoldTable::kDegenerate : 0u);
 
     // Turn-back (gate 2a): the largest fall against the approach, relative to the span, measured
-    // only until c is within kTurnBackWindow of the span from c_eq.
+    // only until c is within kTurnBackWindow of the span from c_eq. A fall within kTurnBackFloor of
+    // |c_eq| is c's own round-off and is not counted, but is reported (TABLE_B.md, 23 October, fix 2).
     auto turnBackOf = [&](const std::vector<RawStep>& steps, double branchCEq, double span) {
       if (steps.empty() || span < kZeroSpanTol) return 0.0;
       const double sign = branchCEq >= steps.front().c ? 1.0 : -1.0;
+      const double floor = kTurnBackFloor * std::fabs(branchCEq);
       double best = steps.front().c, worst = 0.0;
       for (const auto& s : steps) {
         if (std::fabs(branchCEq - s.c) <= kTurnBackWindow * span) break;
         if (sign * (s.c - best) > 0) best = s.c;
-        worst = std::max(worst, sign * (best - s.c) / span);
+        const double fall = sign * (best - s.c);
+        if (fall > floor) {
+          worst = std::max(worst, fall / span);
+        } else if (fall > 0) {
+          result.fallWithinFloor = std::max(result.fallWithinFloor, fall / std::fabs(branchCEq));
+          if (fall / span > kTurnBackGate) result.floorDecided = true;
+        }
       }
       return worst;
     };
@@ -892,7 +921,7 @@ int main(int argc, char** argv) {
   if (nodeReport)
     std::fprintf(nodeReport, "candidate,f_H,Z_N,eta,rho,T_eq,c0,c_eq,c_cp,degenerate,zero_span,outside,lower_frozen,upper_frozen,"
                              "integrator_failure,turn_back,n_gate_checked,n_gate_ok,dT_2b_lower,dT_2b_upper,raw_element_error,"
-                             "sum_error,span_lower,span_upper,e2q_dT,e2q_dY,e2q_dT_last_quarter,e2q_dY_last_quarter,e2_mid_dT,e2_mid_dY,added_points,e2_capped,e2_raw_fallbacks,e2_failure,failure\n");
+                             "sum_error,span_lower,span_upper,e2q_dT,e2q_dY,e2q_dT_last_quarter,e2q_dY_last_quarter,e2_mid_dT,e2_mid_dY,added_points,e2_capped,e2_raw_fallbacks,e2_failure,failure,fall_within_floor\n");
 
   refuseReactingN2(mechanism);
 
@@ -943,6 +972,8 @@ int main(int argc, char** argv) {
   struct ThreadStats {
     double worstTurnBack = 0;
     std::array<std::size_t, 4> worstTurnBackLoc{};
+    double worstFallWithinFloor = 0;  // fix 2's uncounted falls, over |c_eq|
+    std::size_t floorDecidedNodes = 0;
     std::size_t nGateFailures = 0;
     std::array<std::size_t, 4> worstNGateLoc{};
     double worstDT2b = 0;
@@ -1002,7 +1033,7 @@ int main(int argc, char** argv) {
           std::string why = r.failure;
           for (char& ch : why) if (ch == ',' || ch == '\n' || ch == '"') ch = ' ';
           std::lock_guard<std::mutex> lock(report);
-          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%.6e,%.6e,%s,%s,%s,%s,%s,%s,%zu,%d,%zu,%d,%s\n",
+          std::fprintf(nodeReport, "%d,%.6f,%.4f,%.5f,%.6e,%.3f,%.9e,%.9e,%.9e,%d,%d,%d,%d,%d,%d,%.6e,%d,%d,%s,%s,%.3e,%.3e,%.6e,%.6e,%s,%s,%s,%s,%s,%s,%zu,%d,%zu,%d,%s,%.3e\n",
                        candidate, table.fH[i], table.zN[j], eta, rho, r.tEq, r.c0, r.cEq, r.cCp, r.degenerate, r.zeroSpan,
                        r.outside, r.lowerFrozen, r.upperFrozen, r.integratorFailure, r.turnBack, r.nGateChecked, r.nGateOk,
                        r.hasDT2bLower ? std::to_string(r.dT2bLower).c_str() : "",
@@ -1011,10 +1042,12 @@ int main(int argc, char** argv) {
                        r.hasE2 ? std::to_string(r.e2QDY).c_str() : "", r.hasE2 ? std::to_string(r.e2QDTLast).c_str() : "",
                        r.hasE2 ? std::to_string(r.e2QDYLast).c_str() : "", r.hasE2 ? std::to_string(r.e2MidDT).c_str() : "",
                        r.hasE2 ? std::to_string(r.e2MidDY).c_str() : "", r.addedPoints, r.e2Capped, r.e2RawFallbacks, r.e2Failure,
-                       why.c_str());
+                       why.c_str(), r.fallWithinFloor);
         }
         if (r.turnBack > ts.worstTurnBack) { ts.worstTurnBack = r.turnBack; ts.worstTurnBackLoc = {i, j, k, l}; }
         if (r.nGateChecked && !r.nGateOk) { ++ts.nGateFailures; ts.worstNGateLoc = {i, j, k, l}; }
+        ts.worstFallWithinFloor = std::max(ts.worstFallWithinFloor, r.fallWithinFloor);
+        ts.floorDecidedNodes += r.floorDecided;
         if (r.hasDT2bLower && r.dT2bLower > ts.worstDT2b) { ts.worstDT2b = r.dT2bLower; ts.worstDT2bLoc = {i, j, k, l}; }
         if (r.hasDT2bUpper && r.dT2bUpper > ts.worstDT2b) { ts.worstDT2b = r.dT2bUpper; ts.worstDT2bLoc = {i, j, k, l}; }
         ts.frozenLower += r.lowerFrozen;
@@ -1050,6 +1083,8 @@ int main(int argc, char** argv) {
       std::lock_guard<std::mutex> lock(report);
       if (ts.worstTurnBack > merged.worstTurnBack) { merged.worstTurnBack = ts.worstTurnBack; merged.worstTurnBackLoc = ts.worstTurnBackLoc; }
       merged.nGateFailures += ts.nGateFailures;
+      merged.worstFallWithinFloor = std::max(merged.worstFallWithinFloor, ts.worstFallWithinFloor);
+      merged.floorDecidedNodes += ts.floorDecidedNodes;
       if (ts.nGateFailures > 0) merged.worstNGateLoc = ts.worstNGateLoc;
       if (ts.worstDT2b > merged.worstDT2b) { merged.worstDT2b = ts.worstDT2b; merged.worstDT2bLoc = ts.worstDT2bLoc; }
       merged.frozenLower += ts.frozenLower;
@@ -1123,6 +1158,9 @@ int main(int argc, char** argv) {
                 candidateNames[candidate], attemptStats.worstTurnBack, locStr(attemptStats.worstTurnBackLoc).c_str(),
                 attemptStats.nGateFailures, attemptStats.nGateFailures ? (" (worst at " + locStr(attemptStats.worstNGateLoc) + ")").c_str() : "",
                 wall);
+    std::printf("  turn-back round-off floor (%.0e |c_eq|): %zu nodes with an uncounted fall above %.0e of the span; "
+                "the largest uncounted fall %.3e of |c_eq|\n",
+                kTurnBackFloor, attemptStats.floorDecidedNodes, kTurnBackGate, attemptStats.worstFallWithinFloor);
     std::printf("  its 2(b) worst |dT| %.3f K at %s; 2(c) frozen lower %zu, upper %zu, integrator failures %zu; "
                 "criterion 1 |sum Y - 1| %.2e, elements %.2e after projection\n",
                 attemptStats.worstDT2b, locStr(attemptStats.worstDT2bLoc).c_str(), attemptStats.frozenLower,

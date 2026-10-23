@@ -1205,6 +1205,39 @@ The Director's order (23 October, 01:05 by the message): fix the table builder a
 - (iii) The gate stays as written, and the table fails 2(a) at these 7 nodes.
 - None of these is built tonight.
 
+### Fixes 1 and 2 measured on rl10_s: 2(c) passes, the turn-back passes, the N gate's 7 remain (23 October 2026, about 01:02 CDT)
+
+The rebuild uses the registered command, without `_WRITE_ANYWAY`. The output is `table_b/rl10_s_fixes_build_2026-10-23.txt`, with nodes in `rl10_s_fixes_nodes_2026-10-23.csv`: 990 nodes in 21 s on 3 threads.
+
+| | Before (21 October) | After the fixes | Verdict |
+|---|---|---|---|
+| 2(c), integrator failures | 11 | **0** | T1 met |
+| 2(a), the turn-back | worst 7.34e-7; 20 nodes over 1e-9 | **0 counted anywhere**; every fall in the table is at most 2.5e-15 \|c_eq\|, a quarter of the floor | T3 met |
+| 2(a), the N gate | 7 | 7, the same nodes (η 1, ρ 1e-3 to 0.017) | T4 met; 2(a) still FAILS here |
+| 2(b) | 0.028 K | 0.028 K | pass |
+| E2, eighth points | 2.06 K, 7.1e-3 | 2.06 K, 7.1e-3 | pass |
+| Frozen branches (reported) | lower 18, upper 37 | lower 19, upper 37 | |
+| Criterion 1 | 4.4e-16, 3.6e-16 | unchanged | pass |
+
+**The 11 dense nodes, now built** (all at ρ 80; their rows are in the node report):
+- T_eq is 3,386 to 4,369 K. The lower spans are 4,479 to 6,909 J/(kg K) from the mixed start; the upper spans are 7 to 101.
+- None has a counted turn-back, and all pass the N gate.
+- 2(b) is at most 0.0051 K. E2's quarter points reach at most 1.90 K and dY 6.4e-3, under 3 K and 0.01. They needed 2 to 20 refinement points, and no E2 integration failed.
+- One lower branch is frozen, at f_H 0.1333, Z_N 0, η 0.8 (T_eq 4,369 K): it is still short of its stop at 1e15 s. That is the new frozen lower branch in the table above. A frozen branch is reported, not gated, as for the other 18.
+
+**T2 is not met as worded.**
+- All 979 other nodes' rows are identical to 21 October's in every column but `turn_back`.
+- But `turn_back` changed at 340 nodes, not only the 20. The other 320 had passed already: their turn-backs were at most 8.9e-10 of the span, and their falls at most 5.4e-16 |c_eq|. They now read 0 because those falls are under the floor too.
+- So every non-zero turn-back in the 21 October table was round-off. The registration's prediction was wrong, not the fix: it expected only the 20 failing nodes to move.
+- No stored value moved at any of the 979 nodes.
+
+**T5:** `ctest -R reaction` passes. The one `[CVODES ERROR] ... error test failed repeatedly` line in the log is also in the 21 October log and in the diagnostic run, so it predates the fixes. It is not an integrator failure: 2(c) counts 0, and E2 0.
+
+**Where this leaves 2(a):** only the N gate's 7 nodes at η 1 and low ρ fail, and their cause is physical: the equilibrium has more moles than the reactants. Options (i) to (iii) above are for the Director.
+- Because 2(a) still fails, the builder does not write the table without `_WRITE_ANYWAY`.
+- The tier-1 runs keep the 21 October `rl10_s.bin`. In that table, the 11 dense nodes' stored data is unfinished.
+- Whether tier 1 moves to the rebuilt table is decided with the N-gate decision, not before B4 is read.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
