@@ -1,0 +1,115 @@
+RL10A-3-3A tier 1, the run mode (DEVELOPMENT (protocol §6): not the reported case; tier1_run_definition.md, *The run mode*): the gates on the base mesh, then the run; no measured value is read
+element: d_L 3.5400 mm, t 0.9629 mm (0.272 d_L), h 0.9487 mm (0.268 d_L), post OD 5.4658 mm, annulus OD 7.3632 mm, recess 1.7700 mm (0.500 d_L)
+face: R_c 130.3020 mm, pitch 15.7144 mm, r_8 122.4448 mm (R_c - 0.500 p), r_1 12.4436 mm (pitch 12.4436 mm, ring 1's smallest 11.8164 mm, clear of ring 2 from 12.4436 mm), ring spacing 15.7144 mm; per ring LOX area 265.7420 mm2, H2 area 516.1942 mm2
+
+ring  r [mm]    H2 inner slot [mm]   tip   LOX slot [mm] (w)          tip   H2 outer slot [mm]   cup width [mm]
+1    12.444   [  3.677,   9.781]   0.963  [ 10.744,  14.143] (3.3989)   0.963  [ 15.106,  17.617]   13.940
+2    28.158   [ 24.842,  26.444]   0.963  [ 27.407,  28.909] (1.5020)   0.963  [ 29.872,  31.217]   6.375
+3    43.873   [ 41.448,  42.428]   0.963  [ 43.391,  44.355] (0.9640)   0.963  [ 45.317,  46.215]   4.767
+4    59.587   [ 57.560,  58.269]   0.963  [ 59.232,  59.942] (0.7098)   0.963  [ 60.905,  61.576]   4.016
+5    75.301   [ 73.501,  74.058]   0.963  [ 75.021,  75.582] (0.5617)   0.963  [ 76.545,  77.080]   3.579
+6    91.016   [ 89.362,  89.821]   0.963  [ 90.784,  91.248] (0.4647)   0.963  [ 92.211,  92.656]   3.293
+7   106.730   [105.179, 105.569]   0.963  [106.532, 106.928] (0.3963)   0.963  [107.891, 108.271]   3.092
+8   122.445   [120.970, 121.309]   0.963  [122.272, 122.617] (0.3454)   0.963  [123.580, 123.912]   2.942
+
+G2   pass  no overlap: ring 1's inner H2 slot from 3.6769 mm (axis clear), ring 8's outer to 123.9123 mm (wall at 130.3020 mm)
+G2   pass  slot areas: largest relative error 3.65e-14 against A_L and A_H / 2
+G2   pass  cups 12784.04 mm2 + porous 40555.84 mm2 = pi R_c^2 to 0
+G3   pass  oxidizer 13.952500 kg/s, fuel 2.760138 kg/s, O/F 5.055000, chamber flow 16.712638 kg/s
+G3   pass  transpired 0.100000 of the fuel at 6.805773 kg/(m2 s) on every porous band (spread 0); ring O/F 5.61667
+
+G4 (reported) at a nominal 2.8 MPa face pressure, H2 at 199.67 K: rho_H2 3.4002 kg/m3, mu 6.844e-06 Pa s; LOX at 101.17 K: rho_L 1084.65 kg/m3
+  ring 1: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 2: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 3: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 4: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 5: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 6: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 7: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 8: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  transpired: 2.0016 m/s; viscosity ratios from I 0.05: slots 137 to 2520 (L = 0.070 D_h, 0.0465 to 0.8546 mm), porous 524.2 (L = p, 15.7144 mm)
+G8   pass  every ring's group 5.0276 inside the digitised curve's table [0.23, 14.50]
+  q 3.2073 (D30 / D-bar 0.455000), SMD / D-bar 0.8511; D-bar / D_L 0.1483: SMD 447.0 um central, 262.9 um low (curve / 1.7), 581.0 um high (curve x 1.3)
+  core length: LOX at 101.17 K: mu_l 0.0001484 Pa s, sigma 0.01045 N/m; Oh 0.0007409, M = J 2.680; Porcheron 6.84 mm (1.933 d_L, used), Lasheras-Hopfinger 12.97 mm (3.665 d_L)
+
+=== 149 x 16 (radial stretching 0)
+G1   pass  throat station 33 radius to 0; face at -13.0862 in (+0.0138 from -13.1); face radius to 0; exit radius to 0; dz 10.0724 mm, face ring heights 8.1439 to 8.1439 mm
+  supply         [inner, outer] mm        true mm2   rings  mesh mm2   A_mesh/A_true  J_mesh/J
+  porous 0     [   0.000,    3.677]      42.47      0       0.00     0.0000   -
+  H2 in 1      [   3.677,    9.781]     258.10      1     208.36     0.8073   1.5344
+  H2 out 1     [  15.106,   17.617]     258.10      0       0.00     0.0000   -
+  porous 1     [  17.617,   24.842]     963.83      1    1041.79     1.0809   0.8559
+  H2 in 2      [  24.842,   26.444]     258.10      0       0.00     0.0000   -
+  H2 out 2     [  29.872,   31.217]     258.10      0       0.00     0.0000   -
+  porous 2     [  31.217,   41.448]    2335.65      1    1875.23     0.8029   1.5513
+  H2 in 3      [  41.448,   42.428]     258.10      0       0.00     0.0000   -
+  H2 out 3     [  45.317,   46.215]     258.10      0       0.00     0.0000   -
+  porous 3     [  46.215,   57.560]    3698.67      1    2708.67     0.7323   1.8646
+  H2 in 4      [  57.560,   58.269]     258.10      0       0.00     0.0000   -
+  H2 out 4     [  60.905,   61.576]     258.10      1    3125.38    12.1093   0.0068
+  porous 4     [  61.576,   73.501]    5060.62      1    3542.10     0.6999   2.0412
+  H2 in 5      [  73.501,   74.058]     258.10      0       0.00     0.0000   -
+  H2 out 5     [  76.545,   77.080]     258.10      0       0.00     0.0000   -
+  porous 5     [  77.080,   89.362]    6422.30      2    8334.36     1.2977   0.5938
+  H2 in 6      [  89.362,   89.821]     258.10      0       0.00     0.0000   -
+  H2 out 6     [  92.211,   92.656]     258.10      0       0.00     0.0000   -
+  porous 6     [  92.656,  105.179]    7783.87      2   10001.23     1.2849   0.6057
+  H2 in 7      [ 105.179,  105.569]     258.10      0       0.00     0.0000   -
+  H2 out 7     [ 107.891,  108.271]     258.10      0       0.00     0.0000   -
+  porous 7     [ 108.271,  120.970]    9145.39      2   11668.10     1.2758   0.6143
+  H2 in 8      [ 120.970,  121.309]     258.10      0       0.00     0.0000   -
+  H2 out 8     [ 123.580,  123.912]     258.10      0       0.00     0.0000   -
+  porous 8     [ 123.912,  130.302]    5103.05      1    6459.13     1.2657   0.6242
+G5   FAIL  0 of 25 supplies within 5% of their true area; 15 hold no ring centre (worst held: H2 out 4, 12.109)
+  merged band    [inner, outer] mm      slots mm2   cup mm2   rings  mesh mm2   J_mesh/J
+  ring 1       [   3.677,   17.617]     516.19    932.50      2     833.44   0.3836
+  ring 2       [  24.842,   31.217]     516.19   1122.65      1    1458.51   0.1253
+  ring 3       [  41.448,   46.215]     516.19   1312.79      1    2291.95   0.0507
+  ring 4       [  57.560,   61.576]     516.19   1502.93      1    3125.38   0.0273
+  ring 5       [  73.501,   77.080]     516.19   1693.08      0       0.00   -
+  ring 6       [  89.362,   92.656]     516.19   1883.22      0       0.00   -
+  ring 7       [ 105.179,  108.271]     516.19   2073.36      0       0.00   -
+  ring 8       [ 120.970,  123.912]     516.19   2263.51      0       0.00   -
+G6   FAIL  true slots: A supply contains no injector-face ring centre; widen it or refine the radial mesh.
+G6   FAIL  merged (each ring's H2 slots as one band across its cup): A supply contains no injector-face ring centre; widen it or refine the radial mesh.
+F3   pass  149 x 16, wall functions and corrections: 33 supplies; per ring, face mass flow to 8.61e-15; per supply, face mass flow and rho u A_true (38 supply-rings) to 1.04e-14; supply areas to 1.05e-14 (limit 1e-12)
+     one step: dt 1.436e-06 s, budgets mass -7.038e-16, energy -1.011e-08
+F3   pass  AMR level 0, wall functions and corrections (step D, D4): 33 supplies; per ring, face mass flow to 8.61e-15; per supply, face mass flow and rho u A_true (38 supply-rings) to 1.04e-14; supply areas to 1.05e-14 (limit 1e-12)
+F3   pass  AMR level 1, wall functions and corrections (step D, D4): 33 supplies; per ring, face mass flow to 9.47e-15; per supply, face mass flow and rho u A_true (51 supply-rings) to 1.04e-14; supply areas to 1.05e-14 (limit 1e-12)
+F3   pass  AMR level 2, wall functions and corrections (step D, D4): 33 supplies; per ring, face mass flow to 1.03e-14; per supply, face mass flow and rho u A_true (76 supply-rings) to 1.04e-14; supply areas to 1.05e-14 (limit 1e-12)
+G7   FAIL  the cup: 0.18 cells across its depth (need 4), fewest across a slot 0.04 and a tip 0.12 (need 2); Mesh is one body-fitted map of r(z) from the face plane, with no cells behind it, so it cannot carry the cup's walls
+
+4 check(s) failed
+gates (G1 to G4, G8, F3 on the run's Definition): 0 failed; G5 and G6 test the ring-centre rule decision 6 superseded, G7 is declared (decision 5)
+
+DEVELOPMENT (protocol §6): not the reported case
+Table B /private/tmp/rl10rebuild/rl10_s.bin: Table B built 2026-10-21 02:43 CDT by crucible_build_manifold_table from /Users/ben/inquiry-project/tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes {0.133333,0.142857,0.153846,0.166667,0.181818} as given, Z_N {0.000000,0.300000}, eta 11 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 990 nodes in 16 s on 3 threads; node element error 5.78e-10 raw, 3.64e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE
+development: base 149 x 16 plus 3 levels (1192 x 128 finest), 4 threads, to 0.02 ms; parcels 5e+05 per s per injector; throat station 33 (A_t 1.236549e-02 m2), p0 column 7 at z 75.5376 mm, face area 5.333988e-02 m2
+tags (provisional): interval 2, buffer 2, throat 0.50 r_t to level 2, wall y+ 300, f_H 0.02, T 0.05, p 0.1, vorticity 0.05; the face column to the top within 6.844 mm
+
+--- t 0.000 ms  [DEVELOPMENT (protocol §6): not the reported case]
+  0 base steps (0 redone), 0 regrids; wall 0 s, the spray's share 0.0%; active cells 1: 0 2: 0 3: 0
+  F_vac 0 N, Isp_vac 0 s (chamber flow) and 0 s (engine-inlet flow); outlet 0 kg/s
+  p0 nan Pa, face pressure 1000 Pa, c* nan m/s; hot-gas wall -0 W, face -0 W (gas to wall)
+  liquid 0 kg in 0 parcels; within 6.84 mm of the face: T_max 300.0 K, 0 parcels in 0 finest cells (0.00 per cell)
+  budgets: none before the first step
+  Table B, table / all updates: level 0: chamber 0 / 0, convergent 0 / 0, divergent 0 / 0; level 1: chamber 0 / 0, convergent 0 / 0, divergent 0 / 0; level 2: chamber 0 / 0, convergent 0 / 0, divergent 0 / 0; level 3: chamber 0 / 0, convergent 0 / 0, divergent 0 / 0
+error: Flow::exchange left a cell non-admissible.
+        7.32 real        19.81 user         0.27 sys
+           892583936  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               56868  page reclaims
+                  12  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   4  voluntary context switches
+               22251  involuntary context switches
+        215976375860  instructions retired
+         59160640738  cycles elapsed
+           823528640  peak memory footprint

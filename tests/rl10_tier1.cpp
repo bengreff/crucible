@@ -28,7 +28,9 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -377,8 +379,11 @@ int runCase(const Setup& s) {
   const auto clock0 = std::chrono::steady_clock::now();
   auto print = [&](const Sample& x) {
     const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - clock0).count();
-    const auto b = budgets();
-    for (int k = 0; k < 3; ++k) worstBudget[k] = std::max(worstBudget[k], b[k]);
+    // The budgets have no reference before the first step.
+    const bool stepped = amr.steps() > 0;
+    const auto b = stepped ? budgets() : std::array<double, 3>{};
+    if (stepped)
+      for (int k = 0; k < 3; ++k) worstBudget[k] = std::max(worstBudget[k], b[k]);
     const double quantities[] = {x.mdot, x.fvac, x.ispChamber, x.ispInlet, x.pFace, x.qWall, x.qFace, x.liquid, b[0], b[1], b[2]};
     for (double v : quantities) nonfinite += !std::isfinite(v);
     double tMax = 0;
@@ -416,7 +421,10 @@ int runCase(const Setup& s) {
                 x.cstar, x.qWall, x.qFace);
     std::printf("  liquid %.6g kg in %.0f parcels; within %.2f mm of the face: T_max %.1f K, %ld parcels in %ld finest cells (%.2f per cell)\n",
                 x.liquid, x.parcels, core * 1e3, tMax, near, cells, cells ? static_cast<double>(near) / cells : 0.0);
-    std::printf("  budgets: (a) gas %.2e, (b) liquid %.2e, (c) whole system %.2e (limit 1e-11)\n", b[0], b[1], b[2]);
+    if (stepped)
+      std::printf("  budgets: (a) gas %.2e, (b) liquid %.2e, (c) whole system %.2e (limit 1e-11)\n", b[0], b[1], b[2]);
+    else
+      std::printf("  budgets: none before the first step\n");
     std::printf("  Table B, table / all updates: ");
     for (int l = 0; l < amr.levels(); ++l) {
       const auto& st = reacting[static_cast<std::size_t>(l)]->stats();
@@ -444,7 +452,14 @@ int runCase(const Setup& s) {
     const std::uint64_t n = spray.parcels().size();
     std::fwrite(&t, sizeof t, 1, f);
     std::fwrite(&n, sizeof n, 1, f);
-    std::fwrite(spray.parcels().data(), sizeof(Parcel), spray.parcels().size(), f);
+    // Each parcel with its trailing padding zeroed, so equal states give equal files.
+    for (const Parcel& p : spray.parcels()) {
+      unsigned char bytes[sizeof(Parcel)];
+      std::memcpy(bytes, &p, sizeof(Parcel));
+      constexpr std::size_t used = offsetof(Parcel, phase) + sizeof(int);
+      std::memset(bytes + used, 0, sizeof(Parcel) - used);
+      std::fwrite(bytes, 1, sizeof(Parcel), f);
+    }
     std::fwrite(&spray.ledger(), sizeof(Spray::Ledger), 1, f);
     std::fclose(f);
     std::printf("  state written: %s_%s_amr.bin and _spray.bin (not a restart: no reader, and the spray's pending stores, "

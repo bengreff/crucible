@@ -388,6 +388,8 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
     if(law) pool_->blocks(wallFaces_.size(),kFaces,[&](std::size_t begin,std::size_t end,int worker) {
         for(std::size_t n=begin;n<end;++n) {
             const std::size_t q=wallFaces_[n].cell;
+            // Under AMR a wall face outside N_2 has no computed state, and no reader takes its solution.
+            if(!inRegion(q,2)) continue;
             wallSolutions_[n]=wallSolve(wallFaces_[n],primitives_[q],temperature_[q],fractions_.data()+q*nw_,viscosity_[q],transportScratch_[worker]);
         }
     });

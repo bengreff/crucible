@@ -207,6 +207,32 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
     - (iii) the 2-level probe to 0.02 ms (149 × 16, 4 threads) writes a series byte-identical to its series before the fix;
     - (iv) the 3-level probe passes its first step.
   - Flagged to inquiry2 in the handoff.
+- **The wall-face fix, scored (23 October 2026, about 00:23 to 00:28 CDT; `run_mode_2026-10-23/`).** All four criteria are met.
+  - (i) A0's md5 is unchanged, `e95251ab…`.
+  - (ii) The dry run is byte-identical.
+  - (iii) The 2-level probe's series and AMR dump are byte-identical to those from before the fix.
+    - The spray dump differed only in the 4 trailing padding bytes of each 152-byte `Parcel`, 63 bytes over 72 parcels. The dump wrote raw structs, so those bytes were never set.
+    - The driver now zeroes them. The padding-zeroed dump differs from the old one in no other byte.
+  - (iv) The 3-level probe passes the wall functions. It then stops in the same first step, on the first of the two findings below.
+  - The driver's t = 0 print now says "none before the first step" for the budgets, and leaves t = 0 out of the worst budgets. Before, it printed 1.00 there, because the budget has no reference until a step is taken.
+- **Two findings block R3 (23 October 2026, about 00:28 CDT). Neither is fixed. R3 is not met, and nothing past the probes was run.**
+  1. **The start-up's explicit evaporation overdraws a fine cell (the spray's coupling, this line).**
+     - The 3-level probe stops in the first step: `Flow::exchange left a cell non-admissible`.
+     - The cell is level 3's (4, 28): active, its full ring 2.33e-7 m³ (1.26 mm by 1.02 mm at r of about 29 mm).
+     - Before the deposit its gas density was 0.096 kg/m³. The chamber starts at 1,000 Pa and is still filling with H2.
+     - One step's deposit is 7.16e-8 kg of O2 vapour, about three times the cell's gas, and −0.0323 J of energy. That leaves ρE at −1.57e5 J/m³, below the floor: the gas gave the drops more heat than it held.
+     - The spray has no bound on a step's exchange against its cell's content.
+     - At 2 levels each cell holds 4 times the volume, and the probe ran to 0.02 ms with 72 parcels. Whether that holds to 0.3 ms is not known.
+     - Options, none chosen:
+       - (a) A step bound from the exchange: the deposit in a step stays a set fraction of the owning cell's gas mass and of its thermal energy above the floor. This is numerics. It is registered like the other spray changes, and A0's md5 holds if the bound never binds in S3 and S8(c).
+       - (b) The start: the chamber's initial fill, or the LOX lag behind the H2. This is a choice in the Definition, so it is the Director's.
+       - Recommended: (a). It keeps the Definition, and the physics it enforces is real: in one step a drop cannot draw more heat than its cell holds. Its cost during the start-up on level 3 has to be measured.
+  2. **The gas energy budget (the face inlet and the wall functions, inquiry2's lane).**
+     - R3(a) needs every budget within 1e-11. At 2 levels, budget (a) is 2.45e-7 at 0.02 ms, all of it energy: 1.08e-4 J against a scale of 441 J. Mass is −3.5e-16 and momentum −1.9e-16.
+     - With no spray and no AMR, the single-level gas step on this Definition (F3's run-mode line) already ends at −1.011e-8 of the initial energy (`Flow::measurements`, `energyBalanceError`). About 30 such steps give the order of 2.45e-7 (inferred).
+     - So the source is the gas path's energy accounting on this Definition, not the spray or AMR. The candidates are the open-area supplies, the plate's wall-function share (`lawFlux` scaled by `plateShare_`) and the wall-function heat. Inferred, not isolated.
+     - Step D's and the face inlet's checks did not score the energy budget on this Definition.
+- **R1(b): met (23 October 2026, about 00:24 CDT).** Every line of `tier1_dry_run_length_2026-10-21.log`'s header and of its 149 × 16 section appears unchanged in the run mode's output. The run mode only adds its F3 lines, G7, the gates line and the run's own lines.
 
 ## What it waits on
 
