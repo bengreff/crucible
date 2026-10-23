@@ -2,6 +2,45 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (22 October, about 23:25 CDT; inquiry, Thursday night, second brief)
+
+**The Director's decisions of 22:40 are recorded** (70682ae):
+- S7 low and high: batch-means SE of at most 25 K, over 15 to 55 ms (`MASCOTTE_A10_PREDICTION.md` §4).
+- The RL10 tier-1 settle rule, over 40 to 60 ms (`tier1_run_definition.md` and protocol §3).
+- The budget: go.
+
+**Spray on AMR is built and tested, but a defect makes it unfit for tier 1** (`SPRAY.md`, *Spray on AMR* for the design and *Spray on AMR: results*; evidence in `docs/evidence/spray_amr/`). All values measured on the Mac:
+- **A0 met.** The uniform path is unchanged, `cmp`-identical, md5 `e95251ab…`.
+- **A1(a) met bit for bit.** S3, frozen, single-level `Amr` against `Flow::step` with `Spray::advance`.
+- **A1(b) not met as written.** S8(c) with SST: 1,544 of 2,168 steps' dt differ, and the gas differs by 1.390e-13.
+  - The cause is the gas path: with no spray, single-level `Amr` is not bit-identical to `Flow::step` under SST. It differs from the second step, by 1.562e-13 at the end.
+  - One source is `Amr::advance`'s second `stableDt`. A second source is not isolated.
+  - The spray adds nothing larger: 1.180e-13 with the spray against 1.378e-13 without, on the matched driver.
+  - **For the Director:** make AMR's single-level SST step bit-identical (an AMR change), or amend A1(b). Nothing applied.
+- **A2 met as registered.** S3 on 16 × 6 plus 2 levels, 0.5 ms, 98 pattern-changing regrids, 338 moves to a finer owner and 1,344 to a coarser one. Every budget and ledger is at most 1.2e-13 against 1e-11.
+- **But a defect was found (SPRAY.md, *A defect the printed comparison found*).** On a mixed-level pattern, two-way deposits drive a spurious jet at the fine patch's corner (113 to 130 m/s, against 50 m/s drops). Evaporation and breakup roughly double.
+  - With every level active, the result matches the uniform 64 × 24 run (2.398e-7 against 2.399e-7 kg). One-way coupling and the gas alone are smooth.
+  - **The spray on AMR is not fit for tier 1 until this is fixed.** Criterion A4 is registered for the fix, and the next diagnostics are listed there.
+- **A3 met.** 1 against 4 threads, bit for bit.
+- **ctest** `spray_amr_verification`: only A1(b)'s three checks fail.
+- **Recorded beside the registered design:**
+  - wallThrust is set at the end of the base step, not at the next one.
+  - The reference driver is `Flow::step` with `Spray::advance`, because `ReactingFlow::step`'s extra `stableDt` is a rounding difference of its own (8.155e-15 at the second step).
+
+**S7:** relaunched runs are still going. The done-file is `/home/greff/crucible_s7z/runs2/all_done`, expected around Sunday 25 October.
+
+**The RL10 is not cleared to run.** What still blocks it:
+1. **The mixed-level jet in the spray on AMR.** This is next. The order (in `SPRAY.md`):
+   - dump p, T and u at the patch corner at 0.1 to 0.2 ms, in `a2_levels_probe` modes 0 and 1;
+   - switch off the mass, momentum and energy deposits one at a time;
+   - try a static 2-level patch.
+   - Then fix it and score A4, which is registered, and rerun A0 to A3.
+   - Build the probes with the `c++` line in `spray_amr/README.md`; each mode runs 1 to 2 minutes on the Mac.
+2. The driver's run mode, not started. The pattern is `tests/amr_budget.cpp`: one `ReactingFlow` per level, with `react(dt)` in afterStep after `spray.afterStep`, plus `setRedo`.
+3. Step D's verdicts and D0's ctest, then the y+ target and tag thresholds.
+4. Protocol §4's two amendments.
+5. A1(b)'s decision.
+
 ## Stopped at (22 October, about 22:40 CDT; inquiry, Thursday night)
 
 The brief: (1) score S7; (2) if S7 passes or its failure is understood, freeze the RL10's tier-1 inputs so inquiry2 can launch the central run.

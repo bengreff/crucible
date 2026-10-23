@@ -1,0 +1,15 @@
+# A1 probes, run 22 October 2026 on the change's tree (Mac). a1_reference_probe modes 1, 2, 3; a1b_sst_probe modes 0, 1, 2.
+a1_reference_probe 1:
+step 1: dt 9.4440414631306887e-08 vs 9.4440414631306887e-08; gas same 0, parcels same 1 (0 vs 0)
+  gas difference 8.155e-15
+a1_reference_probe 2:
+no divergence
+a1_reference_probe 3:
+step 1: dt 9.4440414631306887e-08 vs 9.4440414631306887e-08; gas same 0, parcels same 1 (0 vs 0)
+  gas difference 8.155e-15
+a1b_sst_probe 0:
+mode 0: 2165 steps; first difference at step 1; end gas difference 1.562e-13; parcels 0 vs 0, identical 1
+a1b_sst_probe 1:
+mode 1: 2165 steps; first difference at step 3; end gas difference 1.378e-13; parcels 0 vs 0, identical 1
+a1b_sst_probe 2:
+mode 2: 2168 steps; first difference at step 3; end gas difference 1.180e-13; parcels 48 vs 47, identical 0

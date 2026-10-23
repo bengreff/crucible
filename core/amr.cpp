@@ -552,6 +552,7 @@ void Amr::save() {
         s.correction=f.integratedCorrection_;s.momentum=f.integratedMomentumSource_;s.gross=f.integratedMomentumGross_;
         s.clipped=f.clippedTurbulentEnergy_;s.prescribed=f.prescribedTurbulentEnergy_;s.steps=f.steps_;
         s.massCompensation=f.massCompensation_;s.energyCompensation=f.energyCompensation_;s.correctionCompensation=f.correctionCompensation_;s.momentumCompensation=f.momentumCompensation_;
+        s.exchangedMass=f.exchangedMass_;s.exchangedEnergy=f.exchangedEnergy_;s.exchangedMomentum=f.exchangedMomentum_;
     }
 }
 void Amr::restore() {
@@ -562,6 +563,7 @@ void Amr::restore() {
         f.integratedCorrection_=s.correction;f.integratedMomentumSource_=s.momentum;f.integratedMomentumGross_=s.gross;
         f.clippedTurbulentEnergy_=s.clipped;f.prescribedTurbulentEnergy_=s.prescribed;f.steps_=s.steps;
         f.massCompensation_=s.massCompensation;f.energyCompensation_=s.energyCompensation;f.correctionCompensation_=s.correctionCompensation;f.momentumCompensation_=s.momentumCompensation;
+        f.exchangedMass_=s.exchangedMass;f.exchangedEnergy_=s.exchangedEnergy;f.exchangedMomentum_=s.exchangedMomentum;
     }
 }
 Amr::Budget Amr::content() const {
@@ -611,6 +613,7 @@ double Amr::step(double maxDt) {
             return dt;
         }
         restore();++rejected_;dt*=0.5;landing=false;
+        if(redo_) redo_();
     }
     throw std::runtime_error("AMR: could not advance an admissible state after 14 base-step reductions.");
 }

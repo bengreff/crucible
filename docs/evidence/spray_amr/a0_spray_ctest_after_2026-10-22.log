@@ -1,0 +1,89 @@
+Test project /Users/ben/inquiry-project/build
+    Start 14: spray_verification
+1/1 Test #14: spray_verification ...............***Failed   18.06 sec
+S0. Properties
+  table 54.3610 to 154.4140 K
+  (a) T(h(T)) at 10,000 temperatures across the table                            3.370e-16 (limit 1e-12)  PASS
+  (a) T_sat(p_sat(T)) likewise (the vapour-pressure inverse)                     2.396e-16 (limit 1e-12)  PASS
+     75 K: h_medium - h_NIST  -1245.1 J/kg
+     90 K: h_medium - h_NIST   -873.7 J/kg
+    100 K: h_medium - h_NIST   -673.5 J/kg
+    120 K: h_medium - h_NIST   -370.2 J/kg
+    150 K: h_medium - h_NIST   -106.7 J/kg
+    200 K: h_medium - h_NIST    +23.5 J/kg
+    250 K: h_medium - h_NIST    +10.9 J/kg
+    300 K: h_medium - h_NIST     +0.2 J/kg
+  medium O2 against NIST's 1e-6 MPa isobar, 75 to 300 K (the table's range): largest at 75 K
+  (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+S1. The drop model's algebra and integrator
+  N2:1 at 300 K, 3 film points: wet bulb 108.553227074 K (T_sat 119.621223957 K, evaporating), B_M 1.1024e+00, K 9.716492e-08 m^2/s, time to d_min 1.029177e-01 s
+  1700 sub-steps; drop temperature at the end 108.553227074 K
+  (a) d^2 against d0^2 - K t at 1,000 times (relative to d0^2)                   2.947e-15 (limit 1e-10)  PASS
+  (a) alive at (1 - 1e-10) and vaporised by (1 + 1e-10) of (d0^2 - d_min^2)/K    0.000e+00 (limit 1e-10)  PASS
+  H2:1 at 1200 K, 3 film points: wet bulb 115.155594844 K (T_sat 119.621223957 K, evaporating), B_M 5.1106e+01, K 1.873295e-06 m^2/s, time to d_min 5.338181e-03 s
+  1393 sub-steps; drop temperature at the end 115.155594844 K
+  (a) d^2 against d0^2 - K t at 1,000 times (relative to d0^2)                   6.971e-15 (limit 1e-10)  PASS
+  (a) alive at (1 - 1e-10) and vaporised by (1 + 1e-10) of (d0^2 - d_min^2)/K    0.000e+00 (limit 1e-10)  PASS
+  208 evaporating cases, B_M 1.000e-06 to 2.000e+01, Re to 400.0; largest difference in B_T
+  (b) Re, B_M, Sh*, Nu*, B_T, mdot, Q against the paper's forms (evaporating)    6.513e-16 (limit 1e-12)  PASS
+  (b) boiling at saturation: Nu*, B_T, mdot, Q against the paper's forms         0.000e+00 (limit 1e-12)  PASS
+  (c) the film's lean transport against Medium::transport (lambda, D_O2, R)      7.120e-16 (limit 1e-13)  PASS
+S5. Breakup
+  (a) KH and RT wavelengths and growth rates against the published forms         3.398e-16 (limit 1e-12)  PASS
+  KH alone: 2 parcels at 0.2 ms, 17 children, 0 RT events of the blob, liquid 3.095701e-07 of 5.980043e-07 kg (exchanged 2.884e-07 kg)
+  (b) KH alone: liquid mass through every child (relative)                       5.312e-16 (limit 1e-13)  PASS
+  (b) KH alone: no RT event                                                      0.000e+00 (limit 5e-01)  PASS
+  17 children of the blob checked against it at creation
+  (b) each child's diameter against 2 B0 Lambda at its creation                  0.000e+00 (limit 1e-12)  PASS
+  KH-RT: 0 parcels at 0.5 ms, 0 children, 4 RT events of the blob, liquid 0.000000e+00 of 5.980043e-07 kg (exchanged 5.980e-07 kg)
+  (b) KH-RT: liquid mass through every child and RT event                        1.363e-14 (limit 1e-13)  PASS
+  (b) KH-RT: the blob breaks by RT at least once                                 0.000e+00 (limit 5e-01)  PASS
+S3. Budgets with parcels (16 by 6 cold chamber to 0.5 ms)
+  5415 steps in 4.8 s; 99 parcels injected, 201 children, 247 held at the end; 4 wall hits, 0 flashes, 3 vaporised, 0 clamped condensation sub-steps, 525926 sub-steps
+  liquid injected 1.000000e-06 kg, evaporated 2.578226e-07 kg, out 1.481351e-07 kg, held 5.940422e-07 kg; wall impulse 0.0000e+00 N s, wall loss 4.5544e-06 J
+  (a) gas mass balance with the exchange                                         1.082e-15 (limit 1e-11)  PASS
+  (a) gas energy balance with the exchange                                       3.386e-17 (limit 1e-11)  PASS
+  (a) gas axial momentum balance with the exchange                               3.180e-19 (limit 1e-11)  PASS
+  (a) liquid mass ledger                                                         6.427e-14 (limit 1e-11)  PASS
+  (a) liquid energy ledger                                                       4.297e-14 (limit 1e-11)  PASS
+  (a) liquid axial momentum ledger                                               4.400e-14 (limit 1e-11)  PASS
+  (b) whole system mass                                                          1.230e-14 (limit 1e-11)  PASS
+  (b) whole system energy                                                        4.516e-15 (limit 1e-11)  PASS
+  (b) whole system axial momentum                                                8.105e-18 (limit 1e-11)  PASS
+  injection, evaporation, wall rebounds and parcels leaving all occurred         0.000e+00 (limit 5e-01)  PASS
+S4. Threads
+  final gas state and parcel list on 4 threads against 1, bit for bit            0.000e+00 (limit 5e-01)  PASS
+  final gas state and parcel list on 6 threads against 1, bit for bit            0.000e+00 (limit 5e-01)  PASS
+S8. Turbulent dispersion
+  102 cases bound by the crossing time, 298 by the eddy lifetime
+  (b) interaction time against the formulas (both branches)                      3.934e-16 (limit 1e-14)  PASS
+  d 15.079 um, tau_p 2.1429e-03 s, tau_e 4.2857e-02 s (ratio 20.00), Re at 3 sigma slip 7.79e-03; 10000 parcels left, 8095682 sub-steps, 0 clamped, 0 vaporised
+  <dz> 1.6690e-07 m (3 se 1.0461e-06); <dz^2> 1.215990e-09 m^2 against 1.212551e-09 (+0.284%); <r^2> 2.398162e-09 against 2.425102e-09 (-1.111%)
+  (a) every parcel kept, no mass passed                                          0.000e+00 (limit 5e-01)  PASS
+  (a) <dz> against 0, in standard errors                                         4.786e-01 (limit 3e+00)  PASS
+  (a) <dz^2> against the held-velocity expectation, in s.e.                      2.005e-01 (limit 3e+00)  PASS
+  (a) <r^2> against twice it, in standard errors                                 1.111e+00 (limit 3e+00)  PASS
+  (c) 47 of the parcels held are inside an eddy at the end
+  (c) dispersion acted (parcels inside an eddy)                                  0.000e+00 (limit 5e-01)  PASS
+  2168 steps in 1.1 s; 40 parcels injected, 9 children, 48 held at the end; 0 wall hits, 0 flashes, 1 vaporised, 0 clamped condensation sub-steps, 51304 sub-steps
+  liquid injected 4.000000e-07 kg, evaporated 4.292516e-08 kg, out 0.000000e+00 kg, held 3.570748e-07 kg; wall impulse 0.0000e+00 N s, wall loss 0.0000e+00 J
+  (c) gas mass balance with the exchange                                         5.701e-17 (limit 1e-11)  PASS
+  (c) gas energy balance with the exchange                                       2.137e-16 (limit 1e-11)  PASS
+  (c) gas axial momentum balance with the exchange                               5.019e-19 (limit 1e-11)  PASS
+  (c) liquid mass ledger                                                         2.832e-14 (limit 1e-11)  PASS
+  (c) liquid energy ledger                                                       2.375e-14 (limit 1e-11)  PASS
+  (c) liquid axial momentum ledger                                               2.649e-14 (limit 1e-11)  PASS
+  (c) whole system mass                                                          2.586e-15 (limit 1e-11)  PASS
+  (c) whole system energy                                                        6.720e-16 (limit 1e-11)  PASS
+  (c) whole system axial momentum                                                3.799e-18 (limit 1e-11)  PASS
+  (c) final gas state and parcel list on 4 threads against 1, bit for bit        0.000e+00 (limit 5e-01)  PASS
+FAIL: 1 failure(s)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =  18.06 sec
+
+The following tests FAILED:
+	 14 - spray_verification (Failed)
+Errors while running CTest

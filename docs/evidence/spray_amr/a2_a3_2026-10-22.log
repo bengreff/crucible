@@ -1,0 +1,40 @@
+A2 on 1 thread: 16 x 6 base plus 2 levels (64 x 24 finest), to 0.5 ms
+  5477 base steps (0 redone), 98 regrids that changed the pattern, 80.9 s of wall
+  it exercises regrids: pattern-changing regrids (at least 50)                           9.800e+01 (limit 5e+01)  PASS
+  it exercises moves: parcel moves to a finer owner within a step (at least 100)         3.380e+02 (limit 1e+02)  PASS
+  it exercises moves: parcel moves to a coarser owner within a step (at least 100)       1.344e+03 (limit 1e+02)  PASS
+  (a) composite gas budget with the exchange: mass                                       3.765e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: energy                                     3.354e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: axial momentum                             2.207e-17 (limit 1e-11)  PASS
+  (b) liquid ledger: mass                                                                1.208e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: energy                                                              6.415e-14 (limit 1e-11)  PASS
+  (b) liquid ledger: axial momentum                                                      8.786e-14 (limit 1e-11)  PASS
+  (c) whole system: mass                                                                 2.608e-14 (limit 1e-11)  PASS
+  (c) whole system: energy                                                               9.030e-15 (limit 1e-11)  PASS
+  (c) whole system: axial momentum                                                       3.927e-17 (limit 1e-11)  PASS
+      printed: exchanged mass by the gas 4.2679646103732319e-07 kg, by the liquid ledger 4.2679646103731388e-07 kg
+      printed, not judged: evaporated 4.267965e-07 kg, 852 parcels held, 99 injected, 1178 children, 4709886 sub-steps; level moves 338 finer, 1344 coarser; spray 34.53 s of 80.90 s (42.7%)
+      printed: level 1 ends with 120 active cells of 384
+      printed: level 2 ends with 264 active cells of 1536
+A2 on 4 threads: 16 x 6 base plus 2 levels (64 x 24 finest), to 0.5 ms
+  5477 base steps (0 redone), 98 regrids that changed the pattern, 114.0 s of wall
+  it exercises regrids: pattern-changing regrids (at least 50)                           9.800e+01 (limit 5e+01)  PASS
+  it exercises moves: parcel moves to a finer owner within a step (at least 100)         3.380e+02 (limit 1e+02)  PASS
+  it exercises moves: parcel moves to a coarser owner within a step (at least 100)       1.344e+03 (limit 1e+02)  PASS
+  (a) composite gas budget with the exchange: mass                                       3.765e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: energy                                     3.354e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: axial momentum                             2.207e-17 (limit 1e-11)  PASS
+  (b) liquid ledger: mass                                                                1.208e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: energy                                                              6.415e-14 (limit 1e-11)  PASS
+  (b) liquid ledger: axial momentum                                                      8.786e-14 (limit 1e-11)  PASS
+  (c) whole system: mass                                                                 2.608e-14 (limit 1e-11)  PASS
+  (c) whole system: energy                                                               9.030e-15 (limit 1e-11)  PASS
+  (c) whole system: axial momentum                                                       3.927e-17 (limit 1e-11)  PASS
+      printed: exchanged mass by the gas 4.2679646103732319e-07 kg, by the liquid ledger 4.2679646103731388e-07 kg
+      printed, not judged: evaporated 4.267965e-07 kg, 852 parcels held, 99 injected, 1178 children, 4709886 sub-steps; level moves 338 finer, 1344 coarser; spray 29.80 s of 114.01 s (26.1%)
+      printed: level 1 ends with 120 active cells of 384
+      printed: level 2 ends with 264 active cells of 1536
+A3: A2 on 1 and 4 threads
+  every level's state and partial densities bit-identical                                0.000e+00 (limit 0e+00)  PASS
+  parcel list bit-identical, every field                                                 0.000e+00 (limit 0e+00)  PASS
+PASS (0 failed)

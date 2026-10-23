@@ -6,6 +6,7 @@
 #include <vector>
 
 namespace crucible {
+class Amr;
 // Liquid oxygen spray: Lagrangian parcels in the axisymmetric gas of a Flow (TECHNICAL_PLAN step 5;
 // design, limits and criteria in docs/evidence/SPRAY.md, stated before this code). Subcritical only:
 // every cell a parcel meets must lie below oxygen's critical pressure.
@@ -56,6 +57,7 @@ struct Parcel {
   std::uint64_t random{};  // the parcel's own random stream (splitmix64 state)
   int cell{-1};
   int injector{-1};      // its injector (sets the RT breakup length), -1 for a parcel placed by add()
+  int phase{};           // on AMR: the finest sub-intervals of the current base step it has crossed (SPRAY.md, Spray on AMR)
   [[nodiscard]] double dropMass(double density) const;
 };
 
@@ -109,14 +111,26 @@ class Spray {
     double droppedSwirl{};       // |azimuthal momentum| passed to the gas as heat (no swirl in the gas)
     long parcelsInjected{}, children{}, wallHits{}, flashes{}, vaporised{}, clampedCondensation{};
     long substeps{};
-    // The last advance(): injector thrust and wall thrust over its dt [N].
+    // On AMR: parcels that moved to a finer owner level, and to a coarser one, within a step (not by regrids).
+    long finerMoves{}, coarserMoves{};
+    // The last advance(): injector thrust and wall thrust over its dt [N]. On AMR: the last complete
+    // base step's wall thrust, and the injector thrust at its end.
     double injectionThrust{}, wallThrust{};
   };
 
   Spray(Flow& flow, LiquidOxygen liquid, Settings settings);
+  // On AMR's levels (SPRAY.md, Spray on AMR): each parcel is owned by the highest stepping level active
+  // at its position, located on the finest mesh, and moved in its owner's steps by afterStep, which the
+  // driver calls from Amr::setAfterStep before that level's reaction; redo() goes to Amr::setRedo.
+  Spray(Amr& amr, LiquidOxygen liquid, Settings settings);
   // Moves the parcels across the flow's last step dt (call after Flow::step), exchanges mass, momentum
   // and energy with the gas through Flow::exchange, then releases the step's new parcels.
   void advance(double dt);
+  // On AMR, after level `level`'s step of dt: moves the parcels whose clock that step reaches (SPRAY.md,
+  // Spray on AMR, The clock), exchanges with each level's gas, and at the base level releases the base step's parcels.
+  void afterStep(int level, double dt);
+  // On AMR, when the base step is redone: back to the snapshot taken at its base-level step.
+  void redo();
   // Next injector schedule event after `time` (infinity if none).
   [[nodiscard]] double nextEvent(double time) const;
   [[nodiscard]] const std::vector<Parcel>& parcels() const { return parcels_; }
@@ -124,7 +138,9 @@ class Spray {
   [[nodiscard]] double wallTime() const { return wall_; }  // wall time spent in advance() [s]
   // The last advance()'s exchange per cell, Flow::exchange's input: ns species masses, axial and radial
   // momentum, energy [kg, kg m/s, J] (ns + 3 per cell).
-  [[nodiscard]] const std::vector<double>& exchanged() const { return amounts_; }
+  [[nodiscard]] const std::vector<double>& exchanged() const { return amounts_[0]; }
+  // On AMR, the last exchange given to level l's gas, per level-l cell.
+  [[nodiscard]] const std::vector<double>& exchanged(int level) const { return amounts_[static_cast<std::size_t>(level)]; }
   [[nodiscard]] const LiquidOxygen& liquid() const { return liquid_; }
   // Liquid held now (parcels plus mass the injectors have delivered but not yet released).
   [[nodiscard]] double liquidMass() const;
@@ -178,11 +194,16 @@ class Spray {
     double wallImpulse{}, wallLoss{}, swirl{};
     double outMass{}, outEnergy{}, outMomentum{};
     bool alive{true};
-    long substeps{}, wallHits{}, flashes{}, vaporised{}, clamped{};
+    long substeps{}, wallHits{}, flashes{}, vaporised{}, clamped{}, finer{}, coarser{};
     double conductance{}, drag{}, surface{};  // implicit-coupling loads of the parcel (all its drops)
   };
   struct Pending { double mass{}, energy{}, time{}; };  // delivered, not yet released
-  Flow& flow_;
+  Flow& flow_;  // on AMR, the base level
+  Amr* amr_{};
+  // The levels (one Flow: itself) and the composite cell numbering: level l's cell q is offset_[l] + q.
+  // Every per-cell array below is composite.
+  std::vector<Flow*> levels_;
+  std::vector<std::size_t> offset_;
   LiquidOxygen liquid_;
   Settings settings_;
   std::size_t oxygen_{};
@@ -199,14 +220,33 @@ class Spray {
   std::vector<double> cellTurbulence_;  // per occupied cell with SST: k and omega
   double wall_{};
   std::vector<char> occupied_;
-  std::vector<double> cellSize_;
-  std::vector<double> amounts_;   // Flow::exchange input
-  std::vector<double> unit_;      // pure O2 mass fractions
+  std::vector<double> cellSize_, cellVolume_;
+  std::vector<std::vector<double>> amounts_;   // per level, Flow::exchange input
+  std::vector<std::size_t> moved_;  // the parcels the present step moves, in list order
+  // On AMR: each level's steps so far in the base step, the base step's dt and the wall impulse at its
+  // start, and the spray at its base-level step for a redo (taken in base step snapshotStep_).
+  std::vector<int> calls_;
+  double baseDt_{}, baseImpulse_{};
+  struct Snapshot {
+    std::vector<Parcel> parcels;
+    Ledger ledger;
+    std::vector<Pending> pending;
+    std::vector<std::uint64_t> injectorRandom;
+    std::uint64_t nextId{};
+  } snapshot_;
+  std::uint64_t snapshotStep_{~std::uint64_t{0}};  std::vector<double> unit_;      // pure O2 mass fractions
   std::vector<std::vector<double>> work_;  // per worker scratch
   std::vector<double> gaussNode_, gaussWeight_;  // Gauss-Legendre on [0, 1], settings_.filmPoints of them
   std::vector<double> gaussIntegral_;             // their integration matrix (filmConductances)
   // filmTransport's fits: each species' conductivity, and the binary D of O2 with each species.
   std::vector<std::array<double, 5>> conductivityFit_, oxygenDiffusionFit_;
+  void setCells();
+  [[nodiscard]] const Mesh& finest() const { return levels_.back()->mesh(); }
+  [[nodiscard]] int levelOf(std::size_t cell) const;
+  // The composite cell of the finest cell (i, j)'s owner.
+  [[nodiscard]] int owner(int i, int j) const;
+  // Marks the owned cells over level l's cell (i, j) occupied.
+  void mark(int l, int i, int j);
   [[nodiscard]] int locate(double z, double r) const;
   [[nodiscard]] double wallRadius(double z, double* slope) const;
   [[nodiscard]] Gas seen(int cell) const;
@@ -219,6 +259,8 @@ class Spray {
   void gatherGas();
   void applyLoads(double dt);
   void moveParcel(std::size_t index, double dt, int worker);
+  // Moves the parcels in moved_ across dt and exchanges with the gas; the survivors and their children take `phase`.
+  void move(double dt, int phase);
   void release(double t0, double t1);
 };
 }  // namespace crucible

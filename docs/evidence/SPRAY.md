@@ -289,6 +289,107 @@ Against it: each parcel needs its own clock within the base step, and a redone b
 - **A3. Threads.** A2's run on 1 and 4 threads gives every level's state and the parcel list bit for bit.
 - **Printed, not judged:** A2's liquid evaporated, parcels held and the spray's wall share, beside the uniform 16 × 6 run's.
 
+## Spray on AMR: results (22 October 2026, run about 22:55 to 23:15 CDT)
+
+The code:
+- `core/spray.hpp` and `core/spray.cpp`: the AMR constructor, `afterStep`, `redo`, the per-parcel phase, the composite cells, and the ledger's level moves.
+- `core/amr.hpp` and `core/amr.cpp`: `setRedo`, `top()`, and the exchange sums in `Amr::Saved`.
+- `tests/spray_amr_tests.cpp`: the criteria, run by ctest as `spray_amr_verification`.
+
+The evidence is in `docs/evidence/spray_amr/` (the logs and probes; its README lists them). Every value below was measured on the Mac, on the change's tree.
+
+- **A0: met.**
+  - The dump is `cmp`-identical before and after the change (md5 `e95251ab17e43a961a392dcd4bd0912f`). S3 takes 5,415 steps and ends with 247 parcels; S8(c) takes 2,168 steps and ends with 48.
+  - `crucible_spray_tests` fails as before on one check only: S1(b), |h_medium − h_NIST| = 1.245e3 J/kg against its 1e3 limit, a failure that predates this change (`AMR.md`, B2's ctest). Every other check passes.
+- **A1(a): met, bit for bit.**
+  - The run took 5,415 base steps, none redone. Every dt and the end time are equal.
+  - The final gas state, partial densities and turbulence are identical, and so are all 247 parcels in every field.
+  - The ledgers are equal, wall thrust included. The level moves are 0 and 0.
+  - Printed beside: the largest relative difference of the conserved state is 9.777e-14 from `ReactingFlow`'s frozen driver on the same mesh, and 9.834e-14 on the directly built mesh.
+- **The reference driver (a choice made in the test, recorded here).** The registration names "the spray on a `Flow`", and the test drives it as `Flow::step` followed by `Spray::advance`, in `ReactingFlow`'s order.
+  - `ReactingFlow::step` is not bit-identical to that order, even with no spray. It plans its step with one more `flow.stableDt()`. That extra refresh restarts each cell's temperature Newton iteration from a new guess, which is B2's guess-history effect (`AMR.md`).
+  - Measured by `a1_reference_probe.cpp`:
+    - `ReactingFlow` with no injectors, against the single-level `Amr`, differs from the second step, by 8.155e-15.
+    - `Flow::step` with a `stableDt()` before it differs at the same step, by the same 8.155e-15.
+    - `Flow::step` with `Spray::advance` never differs, over all 5,415 steps.
+  - The tier-1 driver on AMR has to make the same choice.
+- **A1(b): not met as written.**
+  - 1,544 of 2,168 steps have a different dt. The gas differs by 1.390e-13. The parcel lists differ (48 parcels against 48), and so do the ledgers.
+  - **The cause is the gas path, not the spray.** The registered precondition was measured on S3's laminar chamber. With SST it does not hold. Measured by `a1b_sst_probe.cpp` on S8(c)'s chamber to 0.2 ms:
+    - **No injectors.** The single-level `Amr` and `Flow::step` differ from the second step on, and by 1.562e-13 at the end.
+    - **A `stableDt()` before each `Flow::step`,** which mirrors `Amr::advance`'s second `stableDt` with turbulence (`AMR.md`, B2's *stableDt* line). The first difference moves to the fourth step, and the end difference is 1.378e-13. A second source therefore remains in the single-level SST step. It was not isolated tonight.
+    - **The same with the spray.** The first difference is again at the fourth step. The end gas difference is 1.180e-13, the same size as for the gas alone. The runs end with 48 parcels against 47.
+  - By the registration, A1 fails and the bar is not loosened. A1(b)'s three checks fail in `spray_amr_verification`; every other check there passes.
+  - A pass would need one of two things, and the choice is the Director's:
+    - make `Amr`'s single-level SST step bit-identical to `Flow::step`. That is an AMR change with its own criteria, and it moves AMR's SST dumps at rounding level;
+    - or register an amended A1(b).
+- **The build against the registered design:**
+  - **wallThrust.** The registration sets it at the base level's next step. The code sets it at the end of the base step, that is at the finest level's last step within it. The value is the same, the base step's wall impulse over its dt, but it is available one step sooner. On one level this is when `Spray::advance` sets it, and A1(a)'s equal ledgers depend on that.
+  - **Finding the cells.** At the base level's step (`afterStep(0)`), every parcel's cell and owner are found again from its position. Within a base step the pattern is fixed, because `Amr` regrids only after an accepted base step (`core/amr.cpp`, `Amr::step`), and each move finds the cells of the parcels it moves. This is the registered rule.
+- **A2: met.**
+  - The run took 5,477 base steps, none redone.
+  - It exercised what it checks: 98 regrids that changed the pattern (at least 50 needed), 338 parcel moves to a finer owner and 1,344 to a coarser one (at least 100 each).
+  - At the end, level 1 holds 120 active cells of 384 and level 2 holds 264 of 1,536.
+  - Residuals, all against a 1e-11 limit:
+
+    | Check | Mass | Energy | Axial momentum |
+    |---|---|---|---|
+    | (a) composite gas budget | 3.765e-16 | 3.354e-16 | 2.207e-17 |
+    | (b) liquid ledgers | 1.208e-13 | 6.415e-14 | 8.786e-14 |
+    | (c) whole system | 2.608e-14 | 9.030e-15 | 3.927e-17 |
+
+  - The mass exchanged is 4.2679646103732319e-07 kg as seen by the gas and 4.2679646103731388e-07 kg by the liquid ledger, a relative difference of 2.2e-14.
+- **A3: met.** On 4 threads against 1, every level's state, the partial densities and the parcel list are bit-identical, and every check value is the same.
+- **Printed, not judged.**
+  - **A2 on 1 thread.** Evaporated 4.268e-7 kg; 852 parcels held, 99 injected, 1,178 children, 4,709,886 sub-steps. The spray took 34.5 s of the 80.9 s run (42.7%).
+  - **The uniform 16 × 6 run** (A1(a)'s reference, the same chamber to the same end). Evaporated 2.578e-7 kg; 247 parcels held. The spray took 3.76 s of 5.48 s.
+  - **The uniform runs on 16 × 6 and 64 × 24** (`a2_uniform_probe.cpp`):
+
+    | Mesh | Evaporated (kg) | Parcels held | Children |
+    |---|---|---|---|
+    | 16 × 6 | 2.578e-7 | 247 | 201 |
+    | 64 × 24 | 2.399e-7 | 115 | 44 |
+  - **On 4 threads** A2 took 114.0 s. The Mac was shared at the time (load about 9 at 23:05), so this is not a scaling measurement.
+
+**A defect the printed comparison found (22 October, about 23:00 to 23:20 CDT). The spray on AMR is not fit for tier 1 until it is fixed.**
+- **What showed it.** A2 evaporates 4.268e-7 kg and makes 1,178 children. Both uniform meshes give about 2.4e-7 to 2.6e-7 kg and 44 to 201 children, so A2 lies far outside them. A0 to A3 cannot see this, because conservation holds.
+- **Localised by `a2_levels_probe.cpp`** (log `a2_levels_2026-10-22.log`): `Amr(def, 2)` on S3's chamber to 0.5 ms, 1 thread.
+
+  | Mode | Pattern | Coupling | Evaporated (kg) | Parcels | Children |
+  |---|---|---|---|---|---|
+  | 0 | every level active everywhere, no regrid | two-way | 2.3979e-7 | 114 | 43 |
+  | 1 | the static corner tag alone | two-way | 4.541e-7 | 979 | 1,335 |
+  | 5 | the static corner tag alone | one-way | 2.629e-7 | 74 | 4 |
+  | 6 | the static corner tag alone | two-way, no point-implicit loads | 4.546e-7 | 973 | 1,337 |
+  | 3, 4 | modes 1 and 0 with no injectors (the gas alone) | none | – | – | – |
+
+  - **Mode 0 agrees with the uniform 64 × 24 run** (2.3986e-7 kg, 115 parcels, 44 children). With every parcel on the finest level, the multi-level stepping, the clock and the deposits are right.
+  - **The regrids are not the cause.** Mode 1 has no sweeping band, and it shows the whole effect.
+  - **The gas alone is smooth on the corner pattern** (mode 3): about 50 m/s at r = 1.9 mm, as in mode 4. So AMR's face supply across the coarse-fine edge is not the cause.
+  - **One-way coupling is smooth.** The point-implicit loads do not matter: mode 6 is mode 1.
+  - **So the two-way deposits on a mixed-level pattern cause it.**
+- **The field (mode 1 at 0.5 ms).**
+  - On the axis, the gas recirculates in the fine patch at −30 m/s, and at −60 m/s at r = 1.9 mm.
+  - The level-1 strip alternates between +12 and −12 m/s.
+  - The base cells just past the patch run at +125 m/s on the axis and +92 m/s at r = 1.9 mm.
+  - For comparison, mode 0 has 0 to 27 m/s on the axis and about 52 m/s at r = 1.9 mm.
+  - The time trace puts the largest |u_z| at the fine patch's downstream outer corner cell, (2.88, 3.13) mm. It grows from 54 m/s at 0.09 ms to 113 m/s at 0.32 ms.
+  - The drops enter at 50 m/s and the supply at about 53 m/s. Drag alone cannot drive the gas faster than both, so a pressure or deposit mechanism at the coarse-fine edge is at work.
+- **Read and ruled out (not the cause, by the code):**
+  - the deposit's level and cell mapping (`Spray::move`);
+  - `seen`, `seenBy` and the deposit cell, which are the same cell;
+  - `Amr::reflux`, which adds its correction and does not rebuild from the old state;
+  - `Flow::exchange`, which applies at once and is booked;
+  - a double count, which (c)'s system check and the equal exchanged masses exclude.
+- **Next, in order:**
+  1. Dump p, T and u around the patch's corner at 0.1 to 0.2 ms, in modes 0 and 1.
+  2. Switch off the mass, momentum and energy deposits one at a time (a development toggle) to find which one drives it.
+  3. Repeat with a static 2-level corner patch, `Amr(def, 1)`.
+- **Criterion A4, registered here before any fix's code (22 October, about 23:25 CDT).** S3's chamber on `Amr(def, 2)` with the static corner tag alone (`a2_levels_probe.cpp` mode 1), two-way, to 0.5 ms, must meet both:
+  - **(a)** The evaporated mass lies within 0.9 times the lower and 1.1 times the higher of the uniform 16 × 6 and 64 × 24 runs' values, that is [2.16e-7, 2.84e-7] kg.
+  - **(b)** No owned cell's |u_z| exceeds 60 m/s at any of the 500-step trace points. That limit is the larger of the drop and supply speeds plus 7 m/s. The one-way run's largest value is 53.7 m/s.
+  - A0 to A3 are rerun after the fix, unchanged.
+
 ## Literature
 
 From a Sonnet agent's search (8 October, notes screened before use: no Mascotte A-10 outcome appears in them). Where a primary text could not be had, the source actually read is named.

@@ -54,6 +54,11 @@ public:
     // Called after each step of a level (its index and dt), before the levels above it step: e.g. a
     // reaction step, which must keep each cell's mass and energy.
     void setAfterStep(std::function<void(int, double)> afterStep) { afterStep_=std::move(afterStep); }
+    // Called when a base step is redone, after the levels are restored: e.g. the spray restores its own
+    // snapshot (SPRAY.md, Spray on AMR).
+    void setRedo(std::function<void()> redo) { redo_=std::move(redo); }
+    // The highest level that steps (the highest with active cells), as of the current base step.
+    [[nodiscard]] int top() const { return top_; }
     // Step C (AMR.md, Step C: setup): tags on each level below the top decide the level above's active
     // cells, before the first base step (one pass per level above the base, so the initial levels reach the
     // top) and after every interval-th accepted base step. A threshold of zero or less turns its tag off;
@@ -95,6 +100,7 @@ private:
         std::vector<double> species, turbulence, temperature;
         double time{}, dt{}, heat{}, heatCompensation{}, mass{}, energy{}, correction{}, momentum{}, gross{}, clipped{}, prescribed{};
         double massCompensation{}, energyCompensation{}, correctionCompensation{}, momentumCompensation{};
+        double exchangedMass{}, exchangedEnergy{}, exchangedMomentum{};
         std::uint64_t steps{};
     };
     struct Level {
@@ -116,6 +122,7 @@ private:
     int ghost_{2}, top_{0};
     bool checked_{false}, started_{false}, restricted_{true};
     std::function<void(int, double)> afterStep_;
+    std::function<void()> redo_;
     double time_{};
     std::uint64_t steps_{}, rejected_{};
     void check();

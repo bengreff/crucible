@@ -1,4 +1,5 @@
 #include "core/spray.hpp"
+#include "core/amr.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -171,20 +172,8 @@ Spray::Spray(Flow& flow, LiquidOxygen liquid, Settings settings)
       throw std::invalid_argument("Spray injector: Rosin-Rammler needs a positive SMD and exponent above 1.");
   }
   if (!(settings_.restitution >= 0 && settings_.restitution <= 1)) throw std::invalid_argument("Restitution outside [0, 1].");
-  const auto& mesh = flow_.mesh();
-  const auto cells = mesh.cells.size();
-  cellGas_.assign(cells * (6 + ns), 0);
-  for (std::size_t q = 0; q < cells; ++q) cellGas_[q * (6 + ns)] = 300;  // temperature guess
-  cellLoad_.assign(cells * 5, 0);
-  amounts_.assign(cells * (ns + 3), 0);
-  occupied_.assign(cells, 0);
-  if (!flow_.turbulence().empty()) cellTurbulence_.assign(cells * 2, 0);
-  cellSize_.resize(cells);
-  for (int i = 0; i < mesh.nz; ++i)
-    for (int jr = 0; jr < mesh.nr; ++jr) {
-      const double width = 0.5 * (mesh.radius[i] + mesh.radius[i + 1]) * (mesh.fraction[jr + 1] - mesh.fraction[jr]);
-      cellSize_[mesh.index(i, jr)] = std::min(mesh.dz, width);
-    }
+  levels_ = {&flow_};
+  setCells();
   work_.resize(static_cast<std::size_t>(flow_.threads()));
   for (auto& w : work_) w.resize(4 * ns + 8);
   std::uint64_t seed = settings_.seed;
@@ -196,16 +185,80 @@ Spray::Spray(Flow& flow, LiquidOxygen liquid, Settings settings)
   unit_[oxygen_] = 1;
 }
 
+Spray::Spray(Amr& amr, LiquidOxygen liquid, Settings settings) : Spray(amr.level(0), std::move(liquid), std::move(settings)) {
+  amr_ = &amr;
+  levels_.clear();
+  for (int l = 0; l < amr.levels(); ++l) levels_.push_back(&amr.level(l));
+  setCells();
+}
+
+// The composite per-cell arrays over levels_.
+void Spray::setCells() {
+  const auto ns = flow_.medium().size();
+  offset_.assign(1, 0);
+  for (const Flow* f : levels_) offset_.push_back(offset_.back() + f->mesh().cells.size());
+  const auto cells = offset_.back();
+  cellGas_.assign(cells * (6 + ns), 0);
+  for (std::size_t q = 0; q < cells; ++q) cellGas_[q * (6 + ns)] = 300;  // temperature guess
+  cellLoad_.assign(cells * 5, 0);
+  occupied_.assign(cells, 0);
+  if (!flow_.turbulence().empty()) cellTurbulence_.assign(cells * 2, 0);
+  cellSize_.resize(cells);
+  cellVolume_.resize(cells);
+  amounts_.clear();
+  for (std::size_t l = 0; l < levels_.size(); ++l) {
+    const auto& mesh = levels_[l]->mesh();
+    const auto at = offset_[l];
+    for (int i = 0; i < mesh.nz; ++i)
+      for (int jr = 0; jr < mesh.nr; ++jr) {
+        const double width = 0.5 * (mesh.radius[i] + mesh.radius[i + 1]) * (mesh.fraction[jr + 1] - mesh.fraction[jr]);
+        cellSize_[at + mesh.index(i, jr)] = std::min(mesh.dz, width);
+      }
+    for (std::size_t q = 0; q < mesh.cells.size(); ++q) cellVolume_[at + q] = mesh.cells[q].volume;
+    amounts_.emplace_back(mesh.cells.size() * (ns + 3), 0.0);
+  }
+}
+int Spray::levelOf(std::size_t cell) const {
+  int l = 0;
+  while (cell >= offset_[static_cast<std::size_t>(l) + 1]) ++l;
+  return l;
+}
+// A coarse cell is the exact union of its children (Mesh::coarsened), so level l's cell over the finest
+// cell (i, j) is (i, j) shifted right by the levels between; the owner is the highest stepping level active there.
+int Spray::owner(int i, int j) const {
+  if (!amr_) return static_cast<int>(finest().index(i, j));
+  const int f = static_cast<int>(levels_.size()) - 1;
+  for (int l = amr_->top(); l > 0; --l) {
+    const auto q = levels_[static_cast<std::size_t>(l)]->mesh().index(i >> (f - l), j >> (f - l));
+    if (amr_->active(l)[q]) return static_cast<int>(offset_[static_cast<std::size_t>(l)] + q);
+  }
+  return static_cast<int>(levels_[0]->mesh().index(i >> f, j >> f));
+}
+// A covered cell resolves into its owned children, a cell that is not active into the owned cell below holding it.
+void Spray::mark(int l, int i, int j) {
+  const auto& mesh = levels_[static_cast<std::size_t>(l)]->mesh();
+  const auto q = mesh.index(i, j);
+  if (amr_) {
+    if (l < amr_->top() && amr_->active(l + 1)[levels_[static_cast<std::size_t>(l) + 1]->mesh().index(2 * i, 2 * j)]) {
+      for (int a = 0; a < 2; ++a)
+        for (int b = 0; b < 2; ++b) mark(l + 1, 2 * i + a, 2 * j + b);
+      return;
+    }
+    if (l > 0 && !amr_->active(l)[q]) { mark(l - 1, i >> 1, j >> 1); return; }
+  }
+  occupied_[offset_[static_cast<std::size_t>(l)] + q] = 1;
+}
+
 // The wall radius at z, linear in each column, and its slope dR/dz.
 double Spray::wallRadius(double z, double* slope) const {
-  const auto& mesh = flow_.mesh();
+  const auto& mesh = finest();
   const int i = std::clamp(static_cast<int>(z / mesh.dz), 0, mesh.nz - 1);
   const double s = (mesh.radius[i + 1] - mesh.radius[i]) / mesh.dz;
   if (slope) *slope = s;
   return mesh.radius[i] + (z - mesh.dz * i) * s;
 }
 int Spray::locate(double z, double r) const {
-  const auto& mesh = flow_.mesh();
+  const auto& mesh = finest();
   const double span = mesh.dz * mesh.nz;
   if (!(z >= 0 && z < span && r >= 0)) return -1;
   const int i = std::min(static_cast<int>(z / mesh.dz), mesh.nz - 1);
@@ -214,7 +267,7 @@ int Spray::locate(double z, double r) const {
   const double s = r / wall;
   const auto it = std::upper_bound(mesh.fraction.begin(), mesh.fraction.end(), s);
   const int j = std::clamp(static_cast<int>(it - mesh.fraction.begin()) - 1, 0, mesh.nr - 1);
-  return static_cast<int>(mesh.index(i, j));
+  return owner(i, j);
 }
 
 void Spray::add(Parcel parcel) {
@@ -234,23 +287,30 @@ void Spray::add(Parcel parcel) {
 void Spray::gatherGas() {
   const auto& medium = flow_.medium();
   const auto ns = medium.size();
-  const auto& state = flow_.state();
-  const auto& partial = flow_.partialDensities();
-  const auto& turbulence = flow_.turbulence();
-  const std::size_t nt = turbulence.empty() ? 0 : 2;
-  // The parcels' cells and their neighbours: in one step a parcel moves less than a cell (its speed is
-  // below the gas's u + c, which bounds the step), so it stays among these; moveParcel checks.
-  const auto& mesh = flow_.mesh();
+  const std::size_t nt = flow_.turbulence().empty() ? 0 : 2;
+  // The moving parcels' cells and their neighbours (on AMR, the owned cells over the 3 x 3 block of
+  // the owner level's cells): in one step a parcel moves less than a cell (its speed is below the gas's
+  // u + c, which bounds the step), so it stays among these; moveParcel checks.
   std::fill(occupied_.begin(), occupied_.end(), 0);
-  for (const auto& p : parcels_) {
-    const int i = p.cell / mesh.nr, j = p.cell % mesh.nr;
+  for (const auto n : moved_) {
+    const auto cell = static_cast<std::size_t>(parcels_[n].cell);
+    const int l = levelOf(cell);
+    const auto& mesh = levels_[static_cast<std::size_t>(l)]->mesh();
+    const auto q = static_cast<int>(cell - offset_[static_cast<std::size_t>(l)]);
+    const int i = q / mesh.nr, j = q % mesh.nr;
     for (int a = std::max(i - 1, 0); a <= std::min(i + 1, mesh.nz - 1); ++a)
-      for (int b = std::max(j - 1, 0); b <= std::min(j + 1, mesh.nr - 1); ++b) occupied_[mesh.index(a, b)] = 1;
+      for (int b = std::max(j - 1, 0); b <= std::min(j + 1, mesh.nr - 1); ++b) mark(l, a, b);
   }
-  flow_.pool().blocks(state.size(), 256, [&](std::size_t begin, std::size_t end, int) {
-    for (std::size_t q = begin; q < end; ++q) {
-      if (!occupied_[q]) continue;
-      double* g = cellGas_.data() + q * (6 + ns);
+  flow_.pool().blocks(occupied_.size(), 256, [&](std::size_t begin, std::size_t end, int) {
+    for (std::size_t c = begin; c < end; ++c) {
+      if (!occupied_[c]) continue;
+      const int l = levelOf(c);
+      const Flow& level = *levels_[static_cast<std::size_t>(l)];
+      const auto& state = level.state();
+      const auto& partial = level.partialDensities();
+      const auto& turbulence = level.turbulence();
+      const std::size_t q = c - offset_[static_cast<std::size_t>(l)];
+      double* g = cellGas_.data() + c * (6 + ns);
       double* y = g + 6;
       double sum = 0;
       for (std::size_t k = 0; k < ns; ++k) sum += std::max(partial[q * ns + k], 0.0);
@@ -267,8 +327,8 @@ void Spray::gatherGas() {
       g[4] = u[2] / u[0];
       g[5] = medium.cv(t, y);
       if (nt) {
-        cellTurbulence_[q * 2] = k;
-        cellTurbulence_[q * 2 + 1] = turbulence[q * nt + 1] / u[0];
+        cellTurbulence_[c * 2] = k;
+        cellTurbulence_[c * 2 + 1] = turbulence[q * nt + 1] / u[0];
       }
       if (g[1] > tableTop) throw std::runtime_error("Spray: a parcel's cell is above oxygen's critical pressure.");
     }
@@ -580,8 +640,9 @@ double Spray::blobDiameter(int injector) const {
 // become the backward-Euler end state under those loads.
 void Spray::applyLoads(double dt) {
   const auto ns = flow_.medium().size();
-  flow_.pool().blocks(parcels_.size(), 64, [&](std::size_t begin, std::size_t end, int worker) {
-    for (std::size_t i = begin; i < end; ++i) {
+  flow_.pool().blocks(moved_.size(), 64, [&](std::size_t begin, std::size_t end, int worker) {
+    for (std::size_t n = begin; n < end; ++n) {
+      const auto i = moved_[n];
       const auto& p = parcels_[i];
       const auto r = rates(p, seenBy(p), work_[static_cast<std::size_t>(worker)]);
       slots_[i].drag = p.count * p.dropMass(liquid_.at(p.t).density) / r.tau;
@@ -590,7 +651,7 @@ void Spray::applyLoads(double dt) {
     }
   });
   std::fill(cellLoad_.begin(), cellLoad_.end(), 0.0);
-  for (std::size_t i = 0; i < parcels_.size(); ++i) {
+  for (const auto i : moved_) {
     const auto& p = parcels_[i];
     double* l = cellLoad_.data() + static_cast<std::size_t>(p.cell) * 5;
     l[0] += slots_[i].drag;
@@ -599,12 +660,11 @@ void Spray::applyLoads(double dt) {
     l[3] += slots_[i].conductance;
     l[4] += slots_[i].conductance * slots_[i].surface;
   }
-  const auto& cells = flow_.mesh().cells;
-  for (std::size_t q = 0; q < cells.size(); ++q) {
+  for (std::size_t q = 0; q < cellVolume_.size(); ++q) {
     const double* l = cellLoad_.data() + q * 5;
     if (l[0] == 0 && l[3] == 0) continue;
     double* g = cellGas_.data() + q * (6 + ns);
-    const double gasMass = g[2] * cells[q].volume;
+    const double gasMass = g[2] * cellVolume_[q];
     g[3] = (gasMass * g[3] + dt * l[1]) / (gasMass + dt * l[0]);
     g[4] = (gasMass * g[4] + dt * l[2]) / (gasMass + dt * l[0]);
     const double capacity = gasMass * g[5];
@@ -623,10 +683,10 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
   slot.children.clear();
   slot.wallImpulse = slot.wallLoss = slot.swirl = slot.outMass = slot.outEnergy = slot.outMomentum = 0;
   slot.alive = true;
-  slot.substeps = slot.wallHits = slot.flashes = slot.vaporised = slot.clamped = 0;
+  slot.substeps = slot.wallHits = slot.flashes = slot.vaporised = slot.clamped = slot.finer = slot.coarser = 0;
   Parcel& p = parcels_[index];
   auto& work = work_[static_cast<std::size_t>(worker)];
-  const auto& mesh = flow_.mesh();
+  const auto& mesh = finest();
   const double span = mesh.dz * mesh.nz;
   const auto& breakup = settings_.breakup;
   const double e = settings_.restitution;
@@ -821,6 +881,11 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
       p.cell = locate(p.z, p.r);
       if (p.cell < 0) throw std::runtime_error("Spray: a parcel left the domain through a wall.");
     }
+    if (amr_) {
+      const int from = levelOf(static_cast<std::size_t>(cell)), to = levelOf(static_cast<std::size_t>(p.cell));
+      if (to > from) ++slot.finer;
+      else if (to < from) ++slot.coarser;
+    }
     // Breakup, at the sub-step's end state inside the domain; it keeps every total of the liquid.
     if (breakup.on) {
       const double u = std::sqrt(sq(gas.uz - p.uz) + sq(gas.ur - p.ur) + sq(gas.ut - p.ut));
@@ -941,64 +1006,145 @@ void Spray::release(double t0, double t1) {
   }
 }
 
-void Spray::advance(double dt) {
-  if (!(dt > 0)) return;
-  struct Timer {
-    double& total;
-    std::chrono::steady_clock::time_point start{std::chrono::steady_clock::now()};
-    ~Timer() { total += std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count(); }
-  } timer{wall_};
-  const double t1 = flow_.time(), t0 = t1 - dt;
+namespace {
+struct Timer {
+  double& total;
+  std::chrono::steady_clock::time_point start{std::chrono::steady_clock::now()};
+  ~Timer() { total += std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count(); }
+};
+}  // namespace
+
+void Spray::move(double dt, int phase) {
   const auto ns = flow_.medium().size();
+  if (work_.size() != static_cast<std::size_t>(flow_.threads())) {
+    work_.resize(static_cast<std::size_t>(flow_.threads()));
+    for (auto& w : work_) w.resize(4 * ns + 8);
+  }
+  gatherGas();
+  slots_.resize(parcels_.size());
+  if (settings_.implicitCoupling && settings_.twoWay) applyLoads(dt);
+  flow_.pool().blocks(moved_.size(), 16, [&](std::size_t begin, std::size_t end, int worker) {
+    for (std::size_t n = begin; n < end; ++n) moveParcel(moved_[n], dt, worker);
+  });
+  for (auto& a : amounts_) std::fill(a.begin(), a.end(), 0.0);
+  std::vector<char> deposited(levels_.size(), 0);
+  std::vector<Parcel> kept;
+  kept.reserve(parcels_.size());
+  std::size_t next = 0;  // moved_ is in list order
+  for (std::size_t i = 0; i < parcels_.size(); ++i) {
+    if (next == moved_.size() || moved_[next] != i) {
+      kept.push_back(parcels_[i]);
+      continue;
+    }
+    ++next;
+    const auto& s = slots_[i];
+    for (const auto& d : s.deposits) {
+      const auto cell = static_cast<std::size_t>(d.cell);
+      const auto l = static_cast<std::size_t>(levelOf(cell));
+      double* a = amounts_[l].data() + (cell - offset_[l]) * (ns + 3);
+      deposited[l] = 1;
+      a[oxygen_] += d.mass;
+      a[ns] += d.pz;
+      a[ns + 1] += d.pr;
+      a[ns + 2] += d.energy;
+      ledger_.exchangedMass += d.mass;
+      ledger_.exchangedMomentum += d.pz;
+      ledger_.exchangedEnergy += d.energy;
+    }
+    ledger_.wallImpulse += s.wallImpulse;
+    ledger_.wallLoss += s.wallLoss;
+    ledger_.droppedSwirl += s.swirl;
+    ledger_.outflowMass += s.outMass;
+    ledger_.outflowEnergy += s.outEnergy;
+    ledger_.outflowMomentum += s.outMomentum;
+    ledger_.substeps += s.substeps;
+    ledger_.wallHits += s.wallHits;
+    ledger_.flashes += s.flashes;
+    ledger_.vaporised += s.vaporised;
+    ledger_.clampedCondensation += s.clamped;
+    ledger_.finerMoves += s.finer;
+    ledger_.coarserMoves += s.coarser;
+    if (s.alive) {
+      kept.push_back(parcels_[i]);
+      kept.back().phase = phase;
+    }
+    for (const auto& c : s.children) {
+      kept.push_back(c);
+      kept.back().phase = phase;
+      ++ledger_.children;
+    }
+  }
+  parcels_.swap(kept);
+  if (settings_.twoWay)
+    for (std::size_t l = 0; l < levels_.size(); ++l)
+      if (!amr_ || deposited[l]) levels_[l]->exchange(amounts_[l]);
+}
+
+void Spray::advance(double dt) {
+  if (amr_) throw std::logic_error("Spray on AMR: step it with afterStep, not advance.");
+  if (!(dt > 0)) return;
+  Timer timer{wall_};
+  const double t1 = flow_.time(), t0 = t1 - dt;
   const double impulse = ledger_.wallImpulse;
   if (!parcels_.empty()) {
-    if (work_.size() != static_cast<std::size_t>(flow_.threads())) {
-      work_.resize(static_cast<std::size_t>(flow_.threads()));
-      for (auto& w : work_) w.resize(4 * ns + 8);
-    }
-    gatherGas();
-    slots_.resize(parcels_.size());
-    if (settings_.implicitCoupling && settings_.twoWay) applyLoads(dt);
-    flow_.pool().blocks(parcels_.size(), 16, [&](std::size_t begin, std::size_t end, int worker) {
-      for (std::size_t i = begin; i < end; ++i) moveParcel(i, dt, worker);
-    });
-    std::fill(amounts_.begin(), amounts_.end(), 0.0);
-    std::vector<Parcel> kept;
-    kept.reserve(parcels_.size());
-    for (std::size_t i = 0; i < parcels_.size(); ++i) {
-      const auto& s = slots_[i];
-      for (const auto& d : s.deposits) {
-        double* a = amounts_.data() + static_cast<std::size_t>(d.cell) * (ns + 3);
-        a[oxygen_] += d.mass;
-        a[ns] += d.pz;
-        a[ns + 1] += d.pr;
-        a[ns + 2] += d.energy;
-        ledger_.exchangedMass += d.mass;
-        ledger_.exchangedMomentum += d.pz;
-        ledger_.exchangedEnergy += d.energy;
-      }
-      ledger_.wallImpulse += s.wallImpulse;
-      ledger_.wallLoss += s.wallLoss;
-      ledger_.droppedSwirl += s.swirl;
-      ledger_.outflowMass += s.outMass;
-      ledger_.outflowEnergy += s.outEnergy;
-      ledger_.outflowMomentum += s.outMomentum;
-      ledger_.substeps += s.substeps;
-      ledger_.wallHits += s.wallHits;
-      ledger_.flashes += s.flashes;
-      ledger_.vaporised += s.vaporised;
-      ledger_.clampedCondensation += s.clamped;
-      if (s.alive) kept.push_back(parcels_[i]);
-      for (const auto& c : s.children) {
-        kept.push_back(c);
-        ++ledger_.children;
-      }
-    }
-    parcels_.swap(kept);
-    if (settings_.twoWay) flow_.exchange(amounts_);
+    moved_.resize(parcels_.size());
+    for (std::size_t i = 0; i < moved_.size(); ++i) moved_[i] = i;
+    move(dt, 0);
   }
   ledger_.wallThrust = (ledger_.wallImpulse - impulse) / dt;
   release(t0, t1);
+}
+
+// SPRAY.md, Spray on AMR, The clock: the k-th step of level m within the base step ends at phase
+// k 2^(top - m); it moves the parcels owned at or below m that are short of that phase, which are all at
+// (k - 1) 2^(top - m), so all by the level's dt.
+void Spray::afterStep(int level, double dt) {
+  if (!amr_) throw std::logic_error("Spray: afterStep is for a spray on AMR.");
+  if (!(dt > 0)) return;
+  Timer timer{wall_};
+  const int top = amr_->top();
+  if (level == 0) {
+    snapshot_ = {parcels_, ledger_, pending_, injectorRandom_, nextId_};
+    snapshotStep_ = amr_->steps();
+    calls_.assign(static_cast<std::size_t>(top) + 1, 0);
+    baseDt_ = dt;
+    baseImpulse_ = ledger_.wallImpulse;
+    // The pattern can have changed since the last base step (a regrid); within one it is fixed and each
+    // move finds its parcels' cells again.
+    for (auto& p : parcels_) {
+      p.phase = 0;
+      p.cell = locate(p.z, p.r);
+      if (p.cell < 0) throw std::runtime_error("Spray on AMR: a parcel is outside the domain.");
+    }
+  }
+  if (level > top || calls_.size() != static_cast<std::size_t>(top) + 1)
+    throw std::logic_error("Spray on AMR: a level stepped outside its base step.");
+  const int width = 1 << (top - level);
+  const int end = ++calls_[static_cast<std::size_t>(level)] * width;
+  moved_.clear();
+  for (std::size_t i = 0; i < parcels_.size(); ++i) {
+    const auto& p = parcels_[i];
+    if (levelOf(static_cast<std::size_t>(p.cell)) > level || p.phase >= end) continue;
+    if (p.phase != end - width) throw std::logic_error("Spray on AMR: a parcel to move is not at the step's start phase.");
+    moved_.push_back(i);
+  }
+  if (!moved_.empty()) move(dt, end);
+  if (level == 0) {
+    const double t1 = flow_.time();
+    const auto before = parcels_.size();
+    release(t1 - dt, t1);
+    for (std::size_t i = before; i < parcels_.size(); ++i) parcels_[i].phase = 1 << top;
+  }
+  if (level == top && end == 1 << top) ledger_.wallThrust = (ledger_.wallImpulse - baseImpulse_) / baseDt_;
+}
+
+void Spray::redo() {
+  if (!amr_ || snapshotStep_ != amr_->steps()) return;  // the failed attempt did not reach the spray
+  parcels_ = snapshot_.parcels;
+  ledger_ = snapshot_.ledger;
+  pending_ = snapshot_.pending;
+  injectorRandom_ = snapshot_.injectorRandom;
+  nextId_ = snapshot_.nextId;
 }
 
 double Spray::nextEvent(double time) const {
