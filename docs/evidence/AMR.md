@@ -850,6 +850,15 @@ The change: `Flow::transportFluxes` skips `wallSolve` for a wall face whose cell
 - **The accessor.** On a single level every cell is in N_2, so nothing changes there; the dry run and the probes are byte-identical, as 762806e records. Under AMR, `Flow::wallYPlus()` would return stale values for faces outside N_2. It has no AMR caller today (only `face_inlet_tests` and `chamber_study`, both single-level). A future AMR caller must filter by activity.
 - **No conflict** with the leak fix of FACE_INLET.md section 5. That fix is in the end-face gather and does not touch the wall solve.
 
+## Criterion 4's runs: the history costs more than the flow (23 October, about 01:16 CDT, before any result)
+
+The three first-wave runs (s1, s2, u; launched 22 October 23:55 CDT on the Mac) slowed sharply once the burnt gas reached the chamber-end column.
+- **Measured, from their logs:** s1 reached 1.5 ms at 67 s and 2.0 ms at 2041 s; s2 at 70 s and 2725 s; u at 1.0 ms at 56 s and 1.5 ms at 579 s. None had printed its next 0.5 ms by 01:15. Each run had a full core (`ps`, about 100% each), so this is not the Mac's load.
+- **Measured, a 3 s stack sample of u:** all 2279 main-thread samples are in the history's `record`, through `addStagnation` and `stagnationPressure` (`tests/c1_eqtt.hpp:56-68`) into Cantera's `ChemEquil::equilibrate`. None are in the step.
+- **Inferred, the cause:** `stagnationPressure` stops at |step| < 1e-13, but each `equilibrate("SP")` converges only to Cantera's default relative tolerance of 1e-9. On hot gas the step's noise is then above 1e-13, and the loop probably runs all 50 iterations: about 100 equilibrium solves per cell for each 10 µs record. While the column is still unburnt, the loop ends early.
+- **Derived, the cost:** s1's 1.5 to 2.0 ms took 1974 s for 50 records, about 40 s each and rising. The roughly 600 records left would take more than 6.5 hours per run. The second wave (s4, s8, the budget run) starts only when the first ends, so criterion 4's results will come in a later session.
+- **Not changed.** The runs continue as launched, and the history is still as registered (*Criterion 4: the Director's additions*). A looser loop tolerance or a wider spacing would need a new registration and a restart. That is left to the Director.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.

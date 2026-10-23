@@ -1,0 +1,71 @@
+Merged tree: inquiry2 rebased onto main 3888dc4, HEAD 8a8d192 Handoff: step D's reruns on the new spread running on backhouse (tmux inq2sd3, done-file /home/greff/crucible_sd3/out/all_done).
+Mac, ctest -LE slow -j 2, 2 threads a test (OMP/MKL/OPENBLAS 2); started Fri Oct 23 01:12:41 CDT 2026, finished Fri Oct 23 01:26:25 CDT 2026
+Concurrent load: criterion 4's three runs (about 1 core each).
+
+== build
+build exit 0
+warnings: 0
+
+== ctest (ctest exit 8)
+Test project /Users/ben/inquiry-project/.claude/worktrees/inquiry2/build
+      Start  4: amr_verification
+      Start  5: amr_subcycling_verification
+ 1/13 Test  #4: amr_verification .................***Failed    0.14 sec
+      Start  8: transport_verification
+ 2/13 Test  #5: amr_subcycling_verification ......***Failed   71.14 sec
+      Start 14: spray_verification
+ 3/13 Test #14: spray_verification ...............***Failed   25.42 sec
+      Start  9: turbulence_verification
+ 4/13 Test  #9: turbulence_verification ..........   Passed   50.96 sec
+      Start  6: thermo_cea_verification
+ 5/13 Test  #6: thermo_cea_verification ..........   Passed   40.93 sec
+      Start  1: core_verification
+ 6/13 Test  #1: core_verification ................   Passed   34.43 sec
+      Start 16: mixture_verification
+ 7/13 Test  #8: transport_verification ...........***Failed  225.50 sec
+      Start  7: reaction_verification
+ 8/13 Test  #7: reaction_verification ............   Passed    1.02 sec
+      Start 11: wall_function_threads
+ 9/13 Test #11: wall_function_threads ............   Passed    0.32 sec
+      Start  2: wall_function_verification
+10/13 Test  #2: wall_function_verification .......   Passed    0.19 sec
+      Start 12: face_inlet
+11/13 Test #16: mixture_verification .............   Passed    4.73 sec
+      Start 15: spray_amr_verification
+12/13 Test #12: face_inlet .......................   Passed    3.26 sec
+13/13 Test #15: spray_amr_verification ...........   Passed  275.76 sec
+
+69% tests passed, 4 tests failed out of 13
+
+Total Test time (real) = 503.38 sec
+
+The following tests FAILED:
+	  4 - amr_verification (Failed)
+	  5 - amr_subcycling_verification (Failed)
+	  8 - transport_verification (Failed)
+	 14 - spray_verification (Failed)
+Errors while running CTest
+Output from these tests are in: /Users/ben/inquiry-project/.claude/worktrees/inquiry2/build/Testing/Temporary/LastTest.log
+Use "--rerun-failed --output-on-failure" to re-run the failed cases verbosely.
+
+== FAIL lines from --rerun-failed --output-on-failure, sorted (full output in the _rerun file)
+  (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+  128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.856e-03 (limit 0.001)  FAIL
+  256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.440e-03 (limit 0.001)  FAIL
+  4b. radial momentum: observed order (two finest grids)     1.444e+00 (limit 1.8e+00)  FAIL
+  64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.503e-03 (limit 0.001)  FAIL
+  level 1 (300 x 32) closure, relative to the faces                          1.912e-14 (limit 1e-14)  FAIL
+  level 2 (600 x 64) closure, relative to the faces                          3.938e-14 (limit 1e-14)  FAIL
+  level 3 (1200 x 128) closure, relative to the faces                        8.132e-14 (limit 1e-14)  FAIL
+  observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+  radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL
+FAIL: 1 failure(s)
+FAILED (3 failures)
+FAILED (5 failures)
+The following tests FAILED:
+
+== Note
+The four failing tests are the standing four (amr 0(d), amr_subcycling, transport, spray); face_inlet passes.
+The shock-behind, order and h_NIST values equal main's spread-fix run (docs/evidence/spray_amr/fix2_2026-10-22.log);
+the closure and radial-momentum lines are the standing ones (amr_c/ctest_mass_error_2026-10-21.txt, amr_d/ctest_rerun.txt).
