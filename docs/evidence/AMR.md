@@ -804,6 +804,17 @@ Step D's last item, as the order of work states it, is "thresholds fixed and rec
   - D1's budgets and igniter. The s = 1 run of criterion 4 prints them on the same case.
   - Step D's recorded results stand as measured on the spread before the fix (7d16d45, step D's commit after the rebase onto 28d87b1).
 
+## Criterion 4: the Director's additions (22 October, about 23:50 CDT, recorded before their code and before the runs)
+
+- **Light-off is judged as registered.** Criterion 4 is a consistency check, AMR against uniform, and an event set by mixing is still a fair comparison (the Director).
+  - *Note, dated 22 October 2026:* in a case that is put at equilibrium every step, as `eqtt` is, "light-off" measures how the propellant fills and mixes, not ignition. The igniter cannot influence it.
+- **A second quantity, measured and reported, not pass or fail: t90, the time the chamber pressure reaches 90% of its 8 ms value,** AMR at s\* against uniform.
+  - **Chamber pressure:** the quantity in c\*'s numerator, the mass-flux-weighted equilibrium stagnation pressure on the same composite chamber-end column (chamber_study's chamber pressure).
+  - **The history:** that pressure is sampled at the first step ending at or after each multiple of 10 µs from 0, and at the end. A sample whose column carries no net outflow (mass flux ≤ 0) has no chamber pressure, and counts as below.
+  - **t90:** after the last sample below 0.9 p(8 ms), the time where the pressure crosses 0.9 p(8 ms), linear between that sample and the next. Taking the last crossing means an early transient that touches 90% does not count.
+  - **Printed:** t90 and p(8 ms) for every run. For s\* against uniform, the difference in t90, absolute, relative and in base steps.
+- **5(a)'s wall time excludes the history's sampling.** The sampling's own wall time is printed beside it.
+
 ## The spread fix, read from the AMR side (22 October, about 23:50 CDT)
 
 The fix registered in 28d87b1 (`SPRAY.md`, *The fix, registered before its code*) changes this lane's `Amr::spread`. Read against `core/amr.cpp:223-288`.
