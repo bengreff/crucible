@@ -50,6 +50,52 @@ Status: drafted 21 October 2026, about 02:40 CDT, before any tier-1 run. It hold
 6. **Threads and machines.** 4 threads per run (the budget's basis), through the slot limiter on the Mac, or on backhouse in tmux with the thread caps of the worker rules. Each run is detached and writes a done-file.
 7. **The warm start.** The central case writes its settled state (`CRUCIBLE_STATE_DUMP`'s format, or AMR's own if that differs) for the deviations. The re-meshed members (2, 3, 12, 13) start cold unless a mapping exists then (the plan).
 
+## Frozen inputs (22 October 2026, about 22:35 CDT, before any tier-1 run)
+
+The Director's brief of 22 October gated the freeze on S7 passing or its failure being understood. S7 did not pass, and the failure is understood (`MASCOTTE_A10_PREDICTION.md` §4, 22 October). No tier-1 run has been made, and no measured RL10 value has been read.
+
+**Frozen.** Every physical and model input listed above under *Fixed by the dry run and the plan's decisions*, plus these items from *Proposed*, adopted as written (engineering):
+- **The start (item 1):** the 0.5 ms ramp, and the 7 kJ over 1 ms torch. The second cold start at half the igniter energy is not run unless the Director asks for it.
+- **The quantities (item 3)**, the face's heat flow kept apart.
+- **The parcel rate (item 5):** 5e5 per second per injector, with its doubling check.
+- **The threads (item 6)** and **the warm start (item 7)**.
+
+The files that carry these inputs, pinned by SHA-256:
+
+| File | SHA-256 |
+|---|---|
+| `tests/rl10_tier1.cpp` (the Definition, the LOX injectors, the env defaults) | `b8de323ebd2aaee4c96e7ccb009eb631f56b5aa4b4ca8df8c2ca74d47fa88789` |
+| `tests/rl10_geometry.hpp` | `f4370ff953a13d54d8f60bf4e97212f96cad21e29cdaa09a9c52808a98e03682` |
+| `tests/rl10_wall.hpp` | `44efe872e792e77277e04d278ab34414e97a82c1f5357694b6fbfff380639941` |
+| `tools/mechanisms/h2o2_highT.yaml` | `b65874b8b5fb2038d85c5b751c58aabeefdf8d71879f0d0536b410dc85e9e6b5` |
+| `tools/o2_saturation_nist.tsv` | `ab63f25c9690a1ebb44e41ed7884fd77589f7999076956377ebe71cc1c512e08` |
+| `docs/evidence/table_b/build_rl10_table.sh` | `11f90f1f445e1b6aacbb0c4b262ba6f1f2369dded9e70e9ad90e685e2656308e` |
+| Table B's data after its header | `14f7af124e4509f22eade1a6a03904080d3fbedd3a42d9406960b2f824a1a404` (checked 21 October, about 02:43) |
+
+The run mode is still to be added to `tests/rl10_tier1.cpp`. It may change the driver file, but not one input value: the dry run's printed Definition and G2 to G4 and G8 lines must stay identical (`diff` against `tier1_dry_run_length_2026-10-21.log`), apart from the switch to face inlet (a), the LOX ports and the plate's temperature, which are decisions 6 and 8. From here, a change to any frozen input is dated and reruns every member already run (the plan's *Pre-registration*).
+
+**Not frozen: the numerical settings, which wait on the Director.**
+- **The mesh (item 4):** the y+ target (300 or 956) and the tag thresholds, which wait on step D's verdicts (D1's igniter, D2's measure; `docs/evidence/AMR.md`).
+- **The settle rule's reading under a spray (below).**
+
+**What S7 shows for tier 1.**
+1. **The spray's cost (measured, S7's Rosin-Rammler runs, one injector at 5e5 parcels per second):** 33.4% and 41.3% of the wall time, so the whole step costs 1.50 and 1.70 times the gas step's. The blob legs cost 2.81 and 1.83 times.
+   - The budget's guessed row (1.5 to 4) keeps its range: its low end now matches S7's measurement, but the RL10's parcels per cell are not known.
+   - The central case's first ms measures the RL10's own ratio.
+2. **The settle rule may not be reachable with a spray (S7 measured; the carry-over to the RL10 inferred).**
+   - Over 36 one-ms windows each in S7's stationary runs (low and high), protocol §3's measure (max − min) / |last| never fell below 0.1% for the outlet flow: median 1.76% (low) and 4.85% (high).
+   - It fell below 0.1% for the injector-face pressure once in 72 windows, and that with the pressure imposed at S7's outlet.
+   - S7's 1 ms mean evaporation rate varies by 2.7% to 5.0%.
+   - The RL10 is choked, and its face inlet mixes the streams within one cell, so its own noise is not known. S7's is mostly the flow's own, not the parcels' (inferred, §4).
+   - *Proposed (protocol §3 is registered, so this is the Director's call):* the central run keeps the 0.1% test, and runs on to the 60 ms ceiling if the test is not met, so the history is there either way. The Director decides, before any tier-1 output is read, how a run that is stationary but unsteady is judged. One option is the S7 amendment's form: batch means over the stationary span, with their standard error against 0.1%.
+   - The parcel-rate check's 0.1% bar needs the same reading.
+3. **The face corner.** S7's low run holds a pocket of about 3,000 K in front of the LOX post (§4). Tier 1's LOX slots are closed ports with the plate beside them, and the face column is held at the finest level, so the case is not the same. The central run's first ms is checked for T_max at the face before it goes on (inferred to be worth a look, not a gate).
+4. **A missing piece found while freezing: the spray does not run on AMR.**
+   - `Spray` takes one `Flow` (`core/spray.hpp:116`). It locates parcels on a single uniform-dz mesh (SPRAY.md, *Mesh*).
+   - `docs/evidence/AMR.md:18` leaves parcels on AMR's levels to the spray owner, which is this line, and nothing has been built.
+   - Tier 1 needs 3 levels and the liquid LOX together, so **the central case cannot run as defined until the spray couples to `Amr`.** Coupling means: parcels located on the finest active level covering them, the gas read there, and the deposits booked to owned cells, with the composite budgets closed.
+   - That design is registered before its code, with the spray checks S1 to S5 rerun on levels.
+
 ## What it waits on
 
 - **The face inlet (a) and the face's wall temperature,** inquiry2's lane (the handoff's spec, 21 October, about 02:40), after S7 and AMR step C. The driver then sets the switch, adds the LOX ports and the face temperature, and reruns G5 and G6 as the spec's gate F3.

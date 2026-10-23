@@ -1,0 +1,32 @@
+== low
+  window 15 to 25 ms: drift 93.4 K (z 10: max 93.4 rms 20.5; z 250: max 13.2 rms 5.0; z 410: max 31.1 rms 25.5)
+  window 25 to 35 ms: drift 94.0 K (z 10: max 94.0 rms 34.0; z 250: max 8.6 rms 5.7; z 410: max 14.8 rms 9.7); change from the previous window: max 21.7 rms 8.4 K
+  window 35 to 45 ms: drift 59.3 K (z 10: max 59.3 rms 17.6; z 250: max 15.7 rms 9.2; z 410: max 12.5 rms 10.4); change from the previous window: max 35.9 rms 7.5 K
+  end 51.50 ms; liquid held: 5 ms 0.034 g, 10 ms 0.033 g, 15 ms 0.033 g, 20 ms 0.032 g, 25 ms 0.034 g, end 0.032 g; liquid out 0.000 g
+  from 15 ms: outlet 72.0 to 75.6 g/s, mean 73.72; inlet (gas) 23.70 g/s
+  1 ms drift (max - min) / |last| over 36 windows from 15 ms: outlet median 1.76% (min 0.88%), injector pressure median 0.169% (min 0.082%); under 0.1%: outlet 0, pressure 1
+  1 ms mean evaporation rate: mean 50.06 g/s, sd 1.35 g/s (2.70%)
+  spray 23140 s of 69214 s wall (33.4%; the whole step at 1.50 times the gas step's cost); parcels at the end 6466
+== high
+  window 15 to 25 ms: drift 117.5 K (z 10: max 103.0 rms 30.1; z 250: max 117.5 rms 80.0; z 410: max 105.4 rms 102.9)
+  window 25 to 35 ms: drift 122.2 K (z 10: max 122.2 rms 39.2; z 250: max 45.3 rms 29.8; z 410: max 22.2 rms 19.3); change from the previous window: max 124.8 rms 34.5 K
+  window 35 to 45 ms: drift 90.7 K (z 10: max 90.7 rms 33.6; z 250: max 50.4 rms 35.8; z 410: max 13.3 rms 8.4); change from the previous window: max 142.9 rms 30.1 K
+  end 51.80 ms; liquid held: 5 ms 0.085 g, 10 ms 0.086 g, 15 ms 0.077 g, 20 ms 0.079 g, 25 ms 0.079 g, end 0.080 g; liquid out 0.000 g
+  from 15 ms: outlet 68.5 to 84.3 g/s, mean 74.19; inlet (gas) 23.70 g/s
+  1 ms drift (max - min) / |last| over 36 windows from 15 ms: outlet median 4.85% (min 1.61%), injector pressure median 0.495% (min 0.109%); under 0.1%: outlet 0, pressure 0
+  1 ms mean evaporation rate: mean 49.95 g/s, sd 2.51 g/s (5.02%)
+  spray 28604 s of 69283 s wall (41.3%; the whole step at 1.70 times the gas step's cost); parcels at the end 10163
+== blob
+  window 15 to 25 ms: drift 620.7 K (z 10: max 59.7 rms 29.0; z 250: max 620.7 rms 468.7; z 410: max 594.2 rms 485.6)
+  end 27.10 ms; liquid held: 5 ms 0.212 g, 10 ms 0.383 g, 15 ms 0.503 g, 20 ms 0.586 g, 25 ms 0.648 g, end 0.673 g; liquid out 0.000 g
+  from 15 ms: outlet 54.4 to 62.5 g/s, mean 58.60; inlet (gas) 23.70 g/s
+  1 ms drift (max - min) / |last| over 12 windows from 15 ms: outlet median 2.64% (min 1.31%), injector pressure median 0.300% (min 0.182%); under 0.1%: outlet 0, pressure 0
+  1 ms mean evaporation rate: mean 35.87 g/s, sd 2.70 g/s (7.54%)
+  spray 44471 s of 69081 s wall (64.4%; the whole step at 2.81 times the gas step's cost); parcels at the end 84742
+== blob_fine
+  window 15 to 25 ms: drift 380.6 K (z 10: max 86.6 rms 25.7; z 250: max 380.6 rms 287.8; z 410: max 300.8 rms 259.8)
+  end 25.70 ms; liquid held: 5 ms 0.207 g, 10 ms 0.360 g, 15 ms 0.461 g, 20 ms 0.533 g, 25 ms 0.590 g, end 0.598 g; liquid out 0.000 g
+  from 15 ms: outlet 49.8 to 62.2 g/s, mean 56.99; inlet (gas) 23.70 g/s
+  1 ms drift (max - min) / |last| over 10 windows from 15 ms: outlet median 3.28% (min 1.82%), injector pressure median 0.330% (min 0.214%); under 0.1%: outlet 0, pressure 0
+  1 ms mean evaporation rate: mean 37.06 g/s, sd 2.03 g/s (5.47%)
+  spray 31366 s of 69148 s wall (45.4%; the whole step at 1.83 times the gas step's cost); parcels at the end 75516

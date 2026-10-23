@@ -2,6 +2,37 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (22 October, about 22:40 CDT; inquiry, Thursday night)
+
+The brief: (1) score S7; (2) if S7 passes or its failure is understood, freeze the RL10's tier-1 inputs so inquiry2 can launch the central run.
+
+**S7 is not scorable as registered. The failure is understood, and the runs are relaunched to their registered ends.** The record is `MASCOTTE_A10_PREDICTION.md` §4's note of 22 October; the evidence is in `docs/evidence/mascotte/s7z/` (`analysis.txt`, `analyse.py`, the two field PNGs, windows, histories, logs).
+- **The stop.** `bh_s7z.sh`'s runs stopped at about 17:00 CDT on 22 October, when backhouse's default tmux server exited (cause not found). low was at 51.5 ms, high 51.8, blob 27.1 and blob-fine 25.7.
+- **No closed window meets §2's 50 K test (measured).** low 93/94/59 K, high 118/122/91 K, blob 621 K, blob-fine 381 K.
+- **low and high are stationary in mass but unsteady at the 10 mm station.** Their liquid held is flat, and the outlet flow matches the inflow. The 5 ms half test may never pass there except by chance.
+- **The blob legs are still filling with liquid,** with a time constant of about 15 ms (derived), so they settle at about 65 to 85 ms.
+- **No measured value has been read or digitised,** and §6 is empty.
+- **Relaunched at 22:26 CDT** by `docs/evidence/mascotte/bh_s7r.sh`: same binary and table, output in `/home/greff/crucible_s7z/runs2`, tmux on its own socket `-L crucible_s7r` (session `s7r`).
+  - **Done-file:** `/home/greff/crucible_s7z/runs2/all_done`. Each run also writes `<name>_done`.
+  - **At the old pace (derived):** low and high reach 55 ms around 18:30 CDT on Friday 23 October; the blob legs reach 85 ms around 10:30 to 14:00 CDT on Sunday 25 October.
+  - **Poll:** `printf 'tail -1 /home/greff/crucible_s7z/runs2/*.log' | ssh backhouse "wsl bash -l"`.
+  - **Score:** re-run `analyse.py` on the new windows (field files stay on backhouse).
+- **For the Director:** a proposed amendment for low and high (§4's last bullet: batch means over the stationary span, standard error at most 25 K), made before any measured value is read. Not applied.
+
+**The RL10's tier-1 inputs are frozen** (`tier1_run_definition.md`, *Frozen inputs*: the input list, plus the start, quantities, parcel rate, threads and warm start; the files pinned by SHA-256, the table data by its hash). The mesh's y+ target and tag thresholds are not frozen; they wait on step D's verdicts.
+
+**The RL10 is not cleared to run.** What still blocks it:
+1. **New: the spray does not run on AMR** (`core/spray.hpp:116` takes one `Flow`; AMR.md:18 left it to the spray owner, this line; nothing built). The central case needs 3 levels and liquid LOX together.
+   - Next: register the coupling's design (parcels on the finest covering level, gas read there, deposits booked to owned cells, composite budgets closed; S1 to S5 rerun on levels), then code it.
+   - This is the longest item.
+2. The driver's run mode (this line), as before.
+3. Step D's verdicts and D0's pending ctest (the Director; inquiry2's `score_sd.sh`). Then the y+ target and tag thresholds.
+4. **New, the Director's call:** how a spray run that is stationary but unsteady meets protocol §3's 0.1% per 1 ms. In S7, no 1 ms window of 36 met it for the outlet flow (median 1.8% low, 4.9% high).
+   - Proposed: the central run runs to the 60 ms ceiling regardless, and the judging rule is decided before its output is read.
+5. Protocol §4's two amendments (inquiry2's), and the restated budget with the Director's go.
+   - The spray's cost is now measured on S7: the whole step at 1.50 and 1.70 times the gas step's cost on the Rosin-Rammler runs.
+   - The table's data hash was already checked (21 October, 02:43).
+
 ## Stopped at (22 October, about 02:30 CDT; READY TO CLEAR)
 
 **The Director's second decision is done: b2's rules and round 3.**

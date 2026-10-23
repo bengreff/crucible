@@ -114,6 +114,53 @@ The correlating group, (V_g − V_L)/(V_L MR), is (317.1 − 2.18)/(2.183 × 2.1
   - Ends: 55 ms for low and high, 85 ms for blob and blob-fine. Threads 4, 4, 4 and 6.
 - The 25 ms runs' histories, station files, OH lines and logs are in `docs/evidence/mascotte/s7_25ms/`. They are not the result.
 
+**The extended runs stopped before their ends, and none settled; relaunched (22 October 2026, about 22:30 CDT).**
+
+The runs are read from their own output only. No measured value has been read or digitised, and section 6 stays empty. Numbers are from `docs/evidence/mascotte/s7z/analysis.txt`, made by `analyse.py` in the same directory.
+
+- **The stop.** At about 17:00 CDT on 22 October, backhouse's default tmux server exited and the four runs stopped with it.
+  - The last history rows are at 51.5 ms (low), 51.8 (high), 27.1 (blob) and 25.7 (blob-fine), against registered ends of 55 and 85 ms.
+  - There is no OOM entry in dmesg, and the WSL VM had been up 6 days. The cause is not found.
+  - The closed windows are 15 to 25, 25 to 35 and 35 to 45 ms for low and high, and 15 to 25 ms for the blob legs.
+- **Section 2's test (measured): no window meets 50 K, so no run has a result.**
+
+  | Run | 15 to 25 ms | 25 to 35 ms | 35 to 45 ms |
+  |---|---|---|---|
+  | low | 93.4 K | 94.0 K | 59.3 K |
+  | high | 117.5 K | 122.2 K | 90.7 K |
+  | blob | 620.7 K | not reached | not reached |
+  | blob-fine | 380.6 K | not reached | not reached |
+
+  Each value is the largest half-to-half difference at r ≤ 20 mm.
+- **Why low and high fail (mass measured, the reading inferred).** Both are stationary in mass but unsteady near the face.
+  - The liquid held stays flat from 5 ms: 0.032 to 0.034 g (low) and 0.077 to 0.086 g (high). From 15 ms the mean outlet flow is 73.72 g/s (low) and 74.19 g/s (high), against 73.7 g/s in (23.7 g/s gas plus 50 g/s liquid).
+  - **low:** the drift sits at the 10 mm station (59 to 94 K). At 250 and 410 mm it is at most 31 K in the first window and at most 16 K after. Its window means move by an rms of 7.5 to 8.4 K from one window to the next.
+  - **high:** the drift sits at 10 mm (90 to 122 K) and at 250 mm (45 to 50 K after the first window). Its window means still move by an rms of 30 to 35 K (max 125 to 143 K). So high may still be evolving slowly (inferred).
+  - The 1 ms mean evaporation rate varies with a standard deviation of 2.7% (low) and 5.0% (high) (measured).
+    - That is more than parcel discreteness alone would give: 1/√(parcels in flight) is 1.2% and 1.0% (derived).
+    - high, with more parcels, is the noisier of the two, so the unsteadiness is mostly the flow's own (inferred).
+  - **The test's limit (inferred).** Section 2 compares two 5 ms means inside a 10 ms window that moves. For a flow that is stationary but unsteady, the spread of that difference is set by the flow's fluctuations and their correlation time, and moving the window does not shrink it. A window could pass by chance, not because the flow settled.
+- **Why the blob legs fail (measured, with a derived fit).** They are still filling with liquid.
+  - Liquid held at 5, 10, 15, 20, 25 ms and the end: 0.212, 0.383, 0.503, 0.586, 0.648 and 0.673 g (blob), and 0.207, 0.360, 0.461, 0.533, 0.590 and 0.598 g (blob-fine).
+  - No liquid leaves. Evaporation runs at 36 to 37 g/s against 50 g/s injected.
+  - A saturating exponential gives a time constant of about 15 ms and about 0.83 g held at the end (derived, blob).
+  - So the hold-up settles at about 65 to 85 ms (inferred: 4 to 5 time constants), and the registered 85 ms end is kept.
+  - The cool far field and the drift at 250 and 410 mm follow from the O2 still held as liquid (inferred).
+- **Field plots (model output; `s7z/s7_fields.png`, `s7z/s7_nearfield.png`, each run's latest window).**
+  - A thin flame sheet runs from the post's lip out to r ≈ 20 mm by z ≈ 40 mm.
+  - A cold, H2-rich recirculation zone sits in the face corner.
+  - In low and high, the axis holds a cold spray and O2 core.
+  - In low, a pocket of about 3,000 K sits in front of the LOX post (z 0 to 3 mm, r < 2.8 mm). That is the face-corner region of `docs/evidence/COST.md`'s lever 3, next to the 10 mm station where low's drift peaks. It is not yet tied to a cause.
+- **Relaunched as registered.** The ends are 55 ms (low, high) and 85 ms (blob legs), with the same binary (md5 05314599…) and table (md5 62e730fb…).
+  - Script: `docs/evidence/mascotte/bh_s7r.sh`, started 22:26 CDT into `/home/greff/crucible_s7z/runs2`, in tmux on its own socket (`-L crucible_s7r`). The done-file is `runs2/all_done`.
+  - The stopped runs' field files stay in `/home/greff/crucible_s7z/runs`, with their md5s in `s7z/field_md5.txt`.
+  - At the old pace, low and high reach 55 ms in about 20 h and the blob legs reach 85 ms in about 60 to 64 h (derived from the stopped runs' wall time per ms).
+- **Proposed amendment for low and high (for the Director; not applied).** It is stated before any measured value is read, and before checking whether it would pass on these runs, since a rule should not be chosen by its outcome.
+  - A run whose liquid held and outlet flow are stationary (each 10 ms window's mean within 5% of the next) averages over every closed window from 15 ms to its end.
+  - It is settled if, at every station point with r ≤ 20 mm, the standard error of the window means (taken as batch means, about 1.7 residence times each) is at most 25 K, that is, about ±50 K at two standard errors.
+  - Section 5's half-to-half widening becomes twice the largest standard error.
+  - The registered 50 K test is still printed beside it.
+
 ## 5. The band and the judging rules
 
 - **The band.** At each station and radius, the band runs from the lowest to the highest of the three production runs' time-averaged T. It is widened on each side by:
