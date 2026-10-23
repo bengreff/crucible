@@ -16,6 +16,9 @@
 //   steps and a transport evaluation at the final state, every plate face's q_w is zero to rounding
 //   (|q_w| below 1e-9 of the side wall's largest) and its T_w lies in [T_1, T_1 + u_1^2 / (2 c_p(T_1))] to 1e-9 K.
 //   Reported: (T_w - T_1) / (u_1^2 / (2 c_p)), near Pr^(1/3), and the open-area run's budgets.
+// f6 (FACE_INLET.md, *The gas energy leak*): F4's layout on one level (its closed port a supply ring with a
+//   wall share), each model set and plate temperature, and a ring-centre run on ring nodes: the mass, energy
+//   and axial momentum budgets after one step and after 200 steps, each below 1e-13.
 #include "adapters/reaction.hpp"
 #include "core/amr.hpp"
 #include "core/flow.hpp"
@@ -215,6 +218,66 @@ void f5(const Mixture& g) {
     check(above <= 1e-9, p + "T_w - (T_1 + u_1^2 / (2 c_p)) at its largest (K)", above, 1e-9);
   }
 }
+
+void f6(const Mixture& g) {
+  std::printf("F6: the budgets with a supply ring that has a wall share, one step and 200 steps\n");
+  struct Variant {
+    const char* label;
+    bool open, turbulent, law, corrections, viscous;
+    double plate;
+  };
+  const Variant variants[] = {
+      {"open-area, SST, wall functions and corrections, plate 400 K", true, true, true, true, true, 400},
+      {"open-area, SST, wall functions, plate 400 K", true, true, true, false, true, 400},
+      {"open-area, SST, wall functions, adiabatic plate", true, true, true, false, true, 0},
+      {"open-area, resolved SST, plate 400 K", true, true, false, false, true, 400},
+      {"open-area, laminar, plate 400 K", true, false, false, false, true, 400},
+      {"open-area, inviscid", true, false, false, false, false, 0},
+      {"ring-centre on ring nodes, SST, wall functions and corrections, plate 400 K", false, true, true, true, true, 400}};
+  for (const auto& v : variants) {
+    Definition d = chamber(g, v.turbulent, v.law);
+    d.turbulence.propertyCorrections = v.corrections;
+    if (v.viscous) d.plateTemperature = v.plate;
+    else d.transport = {};
+    const Mesh mesh(d);
+    if (v.open) {
+      d.openAreaSupplies = true;
+      d.supplies = {supply(0, 1.3e-3, 3e-4, g.mixture, 0), supply(2.1e-3, 2.9e-3, 0, g.nitrogen, 0),
+                    supply(3.3e-3, 4.6e-3, 2e-3, g.nitrogen, 0)};
+    } else {
+      auto node = [&](int j) { return mesh.radius[0] * mesh.fraction[static_cast<std::size_t>(j)]; };
+      d.supplies = {supply(0, node(2), 5e-4, g.mixture, 0), supply(node(3), node(4), 1e-3, g.nitrogen, 0)};
+    }
+    // Each face ring's wall share w_j as Flow::openAreaShares sets it; the supply rings with one (0 < w_j < 1/2).
+    std::string shared;
+    if (v.open)
+      for (int j = 0; j < mesh.nr; ++j) {
+        const double lo = mesh.radius[0] * mesh.fraction[static_cast<std::size_t>(j)];
+        const double hi = mesh.radius[0] * mesh.fraction[static_cast<std::size_t>(j) + 1];
+        double covered = 0;
+        for (const auto& s : d.supplies) {
+          const double a = std::max(0.0, std::min(s.outerRadius, hi) * std::min(s.outerRadius, hi) -
+                                             std::max(s.innerRadius, lo) * std::max(s.innerRadius, lo));
+          if (s.outerRadius > lo && s.innerRadius < hi) covered += a / (hi * hi - lo * lo);
+        }
+        const double w = 1 - covered;
+        if (w > 1e-12 && w < 0.5) shared += " j " + std::to_string(j) + " (w " + std::to_string(w).substr(0, 5) + ")";
+      }
+    Flow flow(d);
+    flow.step();
+    const auto one = flow.measurements();
+    for (int n = 1; n < 200; ++n) flow.step();
+    const auto end = flow.measurements();
+    std::printf("  %s; supply rings with a wall share:%s\n    one step: mass %.3e energy %.3e momentum %.3e, plate heat "
+                "%.4e W (booked, into the gas); 200 steps (t %.4e s): mass %.3e energy %.3e momentum %.3e\n",
+                v.label, shared.empty() ? " none" : shared.c_str(), one.massBalanceError, one.energyBalanceError,
+                one.momentumBalanceError, one.plateHeatFlow, end.time, end.massBalanceError, end.energyBalanceError,
+                end.momentumBalanceError);
+    const double worst = std::max({std::abs(one.massBalanceError), std::abs(one.energyBalanceError), std::abs(one.momentumBalanceError),
+                                   std::abs(end.massBalanceError), std::abs(end.energyBalanceError), std::abs(end.momentumBalanceError)});
+    check(worst < 1e-13, std::string(v.label) + ": largest |budget|", worst, 1e-13);
+  }
+}
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -224,6 +287,7 @@ int main(int argc, char** argv) {
     if (mode == "all" || mode == "f2") f2(g);
     if (mode == "all" || mode == "f4") f4(g);
     if (mode == "all" || mode == "f5") f5(g);
+    if (mode == "all" || mode == "f6") f6(g);
     std::printf("%d failures\n", failures);
     return failures ? 1 : 0;
   } catch (const std::exception& e) {

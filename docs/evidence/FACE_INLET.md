@@ -59,3 +59,49 @@ Measured on backhouse (Release, 4 threads at most) at 566b12c, against the regis
 - **F3, pass,** for every grid named: per ring, the face mass flow equals Σ a_sj ṁ_s/A_s to 5.8e-16 (149 × 16), 2.5e-14 (1192 × 128) and 7.3e-15 at most over the AMR levels; per supply, the face mass flow and ρu A_true on each ring it touches to 1.0e-15, 1.0e-15 and 3.0e-15 (38, 129 and up to 76 supply-rings); the supply areas to 8.6e-16 and 1.0e-15 of the true ones. Under the switch Flow accepts the true slots (33 supplies), which the ring-centre code refuses at both grids (G6, unchanged). One step on each grid gives a mass budget of 1e-15; its energy budgets (1.9e-7 at 149 × 16, 2.9e-8 at 1192 × 128) are reported, not gated: the run is cold and unignited and one step says nothing about the walk.
 - **F4, pass.** At the uniform state the children's area × flux matches each coarse ring's to 2.9e-16 (mass), 1.7e-16 (axial momentum) and 4.6e-16 (energy). After 100 base steps (t 2.5e-5 s) mass and energy still match to 2.9e-16 and 4.6e-16; the momentum flux differs by 3.1e-2 relative, as expected: it carries each level's own interior pressure (reported).
 - **F5, pass.** (a) Empty and 400 K (= `wallTemperature`) give bit-identical state, species, ρk, ρω and budgets, with the wall functions and with resolved SST. (b) With `plateTemperature` 0 and the wall functions, the largest plate |q_w| is 1.5e-12 W/m² (ring-centre, 2 plate faces) and 2.3e-12 W/m² (open-area, 3 plate faces), against the side wall's 1.8e4 W/m² (ratios 8e-17 and 1.2e-16, limit 1e-9). T_w lies between T_1 and T_1 + u_1²/(2 c_p) on every plate face (both bounds met to 0 K), at 0.892 of the dynamic temperature rise, which the law sets to Pr_w^(1/3) (Pr_w about 0.71, inferred, not printed).
+
+## 5. The gas energy leak (23 October 2026)
+
+Registered about 00:50 CDT, before the fix's code. The Director (00:35) relayed inquiry's finding: one plain gas step on tier 1's run Definition (149 × 16, no spray, no AMR) leaves an energy budget of −1.0e-8, and the 2-level probe reaches 2.45e-7 at 0.02 ms against R3(a)'s 1e-11, while mass and momentum close at 1e-16. Both reproduce on this tree (measured, `face_inlet/leak_2026-10-23/before/`): −1.011e-08 and 2.45e-07.
+
+**Isolation (measured, before the fix).** F6, a new mode of `crucible_face_inlet_tests`, runs F4's layout on one level. The closed port (2.1 to 2.9 mm) leaves ring 2 a supply ring with a wall share, w = 0.470. The gas is N2 at 300 K and 1 atm, the side wall is at 400 K, and each variant prints the budgets after one step and after 200 steps (`face_inlet/leak_2026-10-23/f6_before.log`):
+
+| variant | energy, 1 step | energy, 200 steps | momentum, 200 steps |
+|---|---|---|---|
+| open-area, wall functions and corrections, plate 400 K | 2.147e-08 | 4.288e-06 | −3.7e-17 |
+| open-area, wall functions, plate 400 K | 2.147e-08 | 4.288e-06 | 4.9e-17 |
+| open-area, wall functions, adiabatic plate | −7.5e-17 | 3.4e-16 | 3.7e-17 |
+| open-area, resolved SST, plate 400 K | 1.728e-08 | 3.266e-06 | 8.038e-08 |
+| open-area, laminar, plate 400 K | 1.755e-08 | 3.314e-06 | 8.002e-08 |
+| open-area, inviscid (the face inlet alone) | 5.2e-17 | −5.6e-17 | −8.5e-17 |
+| ring-centre on ring nodes, wall functions and corrections, plate 400 K (the walls alone) | −7.7e-18 | 2.0e-16 | 8.0e-18 |
+
+The face inlet's convective accounting closes, and so do the walls and the wall functions on ring-centre supplies. The corrections play no part. Only open-area supplies with a plate that exchanges heat leak, under every viscous model.
+
+**The mechanism.** `Flow::transportFluxes` forms ring j's viscous end flux at i = 0 under open-area supplies as w_j times the wall's, on every ring with w_j > 0 (section 1, *Viscous, the wall share*), and the boundary rates book it on the same rings. The cell gather (`endFace`) skips any face whose kind is Supply. So on a supply ring with 0 < w_j < 1/2, the wall share's heat and momentum are booked but never reach the cell. That is the code from 4a7178c: I changed the face flux and the rates, but not the gather.
+
+A temporary print, reverted and not committed, gave ring 2's booked share as +0.0179 W and +0.0180 W in the first step's two stages, heat into the gas. Times dt = 2.5e-7 s that is 4.6e-9 J (derived). Over |E0|, about 0.21 J for a 2.1e-6 m³ chamber of N2 at 300 K and 1 atm (derived, e about −87 kJ/kg on the formation datum), that is 2.1e-8, the measured 2.147e-8.
+
+E0 is negative here (inferred from the signs), so heat that is booked but not received shows as a positive error. On tier 1's run, with the plate at 199.67 K below the 300 K gas, the sign flips to the −1.0e-8 seen.
+
+Under the wall functions the law's traction on the plate has no axial part, so the axial momentum budget still closed. Resolved, the partial wall's normal stress is lost from it too (8e-8).
+
+**A missed signal, recorded.** Section 4's F3 printed one-step energy budgets of 1.9e-7 and 2.9e-8. I set them aside as "reported, not gated: the run is cold and unignited". That was wrong: a conservation budget closes to rounding in any state, so they were this leak, visible on 22 October. No gate had a supply ring with a wall share and a plate that exchanges heat. F2's supplies sit on ring nodes, F5(b)'s plate is adiabatic, and F4 compares face fluxes, not budgets. F6 covers it from now on.
+
+**The fix.** `endFace` skips an end face on the same condition the boundary rates use. At i = 0 under open-area supplies it skips only a ring with no wall share; elsewhere it skips a supply face, as now. A supply ring with w_j > 0 then passes w_j times the wall's momentum and heat to its cell, as section 1 registered. Its k and ω flux stays out: it is zero on such a ring, and the gather's turbulence term keeps its Wall-kind test. Without open-area supplies, and on rings with w_j = 0 or w_j ≥ 1/2, nothing changes.
+
+**The checks.**
+- **L1:** F6 passes. Each variant's mass, energy and axial momentum budgets are below 1e-13 after one step and after 200 steps. Before the fix, 4 of 7 fail.
+- **L2:**
+  - F2 and F5(a) print the same text as before the fix (diff). Neither has a supply ring with a wall share.
+  - F4 and F5(b) still pass. Both have such rings: F4's closed port, and F5(b)'s ring 3 at w = 0.434. Their states change.
+  - Ring-centre runs never reach the change, so the C1 eqtt cases, criterion 4's runs and step D's drivers are unchanged. That is by construction (the branch needs `openAreaSupplies`) and is not rerun.
+- **L3:** on tier 1, every F3 one-step energy budget is below 1e-13:
+  - the dry run under `CRUCIBLE_T1_OPEN_AREA=1` at 76 × 8, 149 × 16 and 1192 × 128 (before: 1.944e-07, 1.906e-07, 2.941e-08);
+  - the run Definition's, from `run development` (before: −1.011e-08).
+- **L4:** inquiry's 2-level probe, with the same settings (`run development`, `CRUCIBLE_T1_LEVELS=2`, to 0.02 ms, 4 threads, Table B `rl10_s.bin`): budgets (a) gas and (c) whole system below 1e-11 at 0.02 ms (R3(a)'s limit; before: 2.45e-07).
+  - If L4 fails while L1 to L3 pass, a second leak remains on the AMR side. It will be looked for next, and is not fixed under this registration.
+
+**Predictions** (inferred, before the code):
+- L1 to L3 come out at rounding, 1e-16 to 1e-15, as F6's passing variants already do.
+- L4 passes. The probe's leak per base step, 2.45e-7 / 31 = 7.9e-9, is the size of the one-step leak, so nothing else is needed to explain it. Still, AMR adds plate faces at coarse-fine boundaries that one level does not test.
