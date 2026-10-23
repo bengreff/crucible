@@ -302,6 +302,19 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
   - (d) Lighter parcels while the LOX ramps (the parcel rate is numerics).
   - Recommended: (a) first, since B4 measures whether the reported case flashes at all; then (b) if it does.
 
+- **The Director's flash decision, registered before any of B4's output past its header is read (00:55 by the message; about 00:49 CDT by the clock).** The start amendment and registration B are accepted as built.
+  - The flash is real physics, but only in the start transient, which is discarded. The prediction is steady running near 30 bar, where LOX at 101.17 K does not flash.
+  - **The branch is chosen by B4's face pressure at the LOX's opening.** That is fixed here as the gate's second mean: the face pressure over [t_L − 1, t_L] ms.
+    - **At least 3.1 bar** (10% above the 2.8 bar saturation, for the thin margin and local dips): **(a)**, rely on the lead, with the flash check below.
+    - **Below 3.1 bar: (b),** a sourced, superheat-dependent finite flash-rate model, its source and validity range cited, built under development mode. Not (c) or (d), which are numerical stand-ins.
+  - **The flash check (built now; both branches report it):**
+    - The spray counts the mass flashed over the whole run (`Spray::Ledger::flashedMass`, the drops' mass times the flashed share), and the driver prints it with the flash count.
+    - From the sample at t_L + 1 ms on, any further flash stops `run central` (exit 5, with a dump). `run development` prints it once and goes on.
+  - **The flash check's criteria:**
+    - (F1) A0's md5 is unchanged.
+    - (F2) In `crucible_spray_tests`: a parcel of LOX at 95 K in O2 at 1 atm (saturation 90.2 K) flashes on its first step. The ledger's flashed mass equals the liquid mass before the step times (h(95 K) − h(T_sat)) / L(T_sat), from the liquid's own tables, within 1e-12 relative. The flash count is 1.
+    - (F3) The dry run is byte-identical.
+
 - **R1(b): met (23 October 2026, about 00:24 CDT).** Every line of `tier1_dry_run_length_2026-10-21.log`'s header and of its 149 × 16 section appears unchanged in the run mode's output. The run mode only adds its F3 lines, G7, the gates line and the run's own lines.
 
 ## What it waits on
