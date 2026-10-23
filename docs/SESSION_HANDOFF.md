@@ -2,7 +2,31 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Stopped at (23 October, about 00:50 CDT; inquiry, Friday night, the Director's 00:35 message)
+## Stopped at (23 October, about 00:53 CDT; inquiry, Friday night, the Director's 00:55 message)
+
+**The Director (00:55) accepted the start amendment and the bound as built and decided the flash** (registered in 2cdd02c before B4 was read):
+- The branch is chosen by B4's face pressure over [t_L − 1, t_L] ms (the gate's second mean).
+- **At least 3.1 bar: (a),** rely on the lead, with the flash check. The check is built and met F1 to F3 (ab3aa03): `Ledger::flashedMass` is printed, and `run central` stops on any flash after t_L + 1 ms.
+- **Below 3.1 bar: (b),** a sourced, superheat-dependent finite flash-rate model, its source and validity range cited, built under development mode. Not (c) or (d).
+
+**B4 restarted at 00:51 CDT** on the flash-check build, `/tmp/t1run/b/tier1_f` (ab3aa03). The 00:47 launch, on the build before it, was stopped; its log is in `b4_old/`.
+- The log is `b4.log`, the done-file `done_b4`, the prefix `b4_DEVELOPMENT`. 3 levels, 4 threads, the lead to 20 ms, then the LOX to 21 ms.
+- **The pace:** under 0.5 ms in the first 3.5 minutes, so the lead takes hours.
+- **Read in this order:**
+  1. the gate's face pressure over [t_L − 1, t_L] against 3.1 bar, which picks the branch;
+  2. the gate's three lines;
+  3. the lead's wall time per ms;
+  4. after t_L, the exchange-bound lines, the flashes and the flashed mass, and whether the run passes t_L + 0.5 ms.
+- **A risk to the gate, seen in the first launch:** a Cantera warning that `equilibrate` met 188.7 K, below h2o2_highT's 200 K. Inferred: p0's stagnation in the cold H2. If the gate fails on p0 alone, that is the cause, not an unsteady lead.
+
+**Table B's gates 2a and 2c are not started** (the budget). The failing nodes were already mapped (`TABLE_B.md`, *The gates on rl10_s, as written*):
+- 2(c): 11 integrator failures, at ρ 80 and about 200 MPa, on the lower branch.
+- 2(a): 20 turn-back nodes, up to 7.3e-7 against the 1e-9 bar, at η 0.1 to 0.2 and ρ 1e-3, 4.1e-3 or 80.
+- The N gate: 7 failures, at η 1 and ρ 1e-3 to 0.017.
+- The table is marked "not for use".
+- **The design question for the Director:** fix the builder at those nodes, or restate the gates' domain to the RL10's reachable states and let the run's refusal counts show they are never met. Note that cold O2-rich mixing near 4.5 MPa can reach ρ about 50, so the ρ 80 row cannot simply be dropped (derived).
+
+### The 00:35 message's work (kept for the record)
 
 The Director (00:35) decided the spray overload:
 - (1) start from a warm state already in the plan, recorded as a setup amendment before any RL10 output;
