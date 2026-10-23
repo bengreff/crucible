@@ -1,0 +1,42 @@
+[100%] Linking CXX executable crucible_spray_amr_tests
+[100%] Built target crucible_spray_amr_tests
+A2 on 1 thread: 16 x 6 base plus 2 levels (64 x 24 finest), to 1 ms
+  10840 base steps (0 redone), 194 regrids that changed the pattern, 103.4 s of wall
+  it exercises regrids: pattern-changing regrids (at least 50)                           1.940e+02 (limit 5e+01)  PASS
+  it exercises moves: parcel moves to a finer owner within a step (at least 100)         3.550e+02 (limit 1e+02)  PASS
+  it exercises moves: parcel moves to a coarser owner within a step (at least 100)       7.590e+02 (limit 1e+02)  PASS
+  (a) composite gas budget with the exchange: mass                                       4.191e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: energy                                     7.730e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: axial momentum                             0.000e+00 (limit 1e-11)  PASS
+  (b) liquid ledger: mass                                                                2.201e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: energy                                                              1.310e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: axial momentum                                                      1.151e-13 (limit 1e-11)  PASS
+  (c) whole system: mass                                                                 7.569e-14 (limit 1e-11)  PASS
+  (c) whole system: energy                                                               2.949e-14 (limit 1e-11)  PASS
+  (c) whole system: axial momentum                                                       3.149e-17 (limit 1e-11)  PASS
+      printed: exchanged mass by the gas 6.5813446067190492e-07 kg, by the liquid ledger 6.5813446067188883e-07 kg
+      printed, not judged: evaporated 6.581345e-07 kg, 160 parcels held, 200 injected, 174 children, 2812720 sub-steps; level moves 355 finer, 759 coarser; spray 19.90 s of 103.43 s (19.2%)
+      printed: level 1 ends with 120 active cells of 384
+      printed: level 2 ends with 264 active cells of 1536
+A2 on 4 threads: 16 x 6 base plus 2 levels (64 x 24 finest), to 1 ms
+  10840 base steps (0 redone), 194 regrids that changed the pattern, 84.9 s of wall
+  it exercises regrids: pattern-changing regrids (at least 50)                           1.940e+02 (limit 5e+01)  PASS
+  it exercises moves: parcel moves to a finer owner within a step (at least 100)         3.550e+02 (limit 1e+02)  PASS
+  it exercises moves: parcel moves to a coarser owner within a step (at least 100)       7.590e+02 (limit 1e+02)  PASS
+  (a) composite gas budget with the exchange: mass                                       4.191e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: energy                                     7.730e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: axial momentum                             0.000e+00 (limit 1e-11)  PASS
+  (b) liquid ledger: mass                                                                2.201e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: energy                                                              1.310e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: axial momentum                                                      1.151e-13 (limit 1e-11)  PASS
+  (c) whole system: mass                                                                 7.569e-14 (limit 1e-11)  PASS
+  (c) whole system: energy                                                               2.949e-14 (limit 1e-11)  PASS
+  (c) whole system: axial momentum                                                       3.149e-17 (limit 1e-11)  PASS
+      printed: exchanged mass by the gas 6.5813446067190492e-07 kg, by the liquid ledger 6.5813446067188883e-07 kg
+      printed, not judged: evaporated 6.581345e-07 kg, 160 parcels held, 200 injected, 174 children, 2812720 sub-steps; level moves 355 finer, 759 coarser; spray 18.86 s of 84.87 s (22.2%)
+      printed: level 1 ends with 120 active cells of 384
+      printed: level 2 ends with 264 active cells of 1536
+A3: A2 on 1 and 4 threads
+  every level's state and partial densities bit-identical                                0.000e+00 (limit 0e+00)  PASS
+  parcel list bit-identical, every field                                                 0.000e+00 (limit 0e+00)  PASS
+PASS (0 failed)

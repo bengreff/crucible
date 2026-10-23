@@ -500,6 +500,12 @@ The evidence is in `docs/evidence/spray_amr/` (the logs and probes; its README l
   - **The new length.** Whole periods of the sweeping band, which repeats every 0.5 ms: the run goes to 1.0 ms, two sweeps down and back. If the finer moves are still below 100 there, it goes to 1.5 ms, then 2.0 ms; beyond that the Director decides. Nothing else in the run changes: the mesh, the tags, the regrid interval, the injectors, the threads.
   - **Recorded plainly: the length was changed after the count of 98 was seen,** on the 0.5 ms run of the revision (`fix2_2026-10-22.log`).
   - **Why this is not moving the goalposts.** The move floors are not a physical prediction. They are A2's precondition, "the run must exercise what it checks": they make sure the code path that books a parcel's crossing to a finer owner, and the budgets across that crossing, are exercised often enough to be tested. The registration already says a run that falls short "is resized and rerun before it counts, and it is not a pass". A longer run tests that path more, not less; every budget must still close to 1e-11 over the longer run, where residuals have more steps in which to accumulate. Lowering the floor to 98 would have weakened the test; lengthening the run keeps it.
+- **A2 at 1.0 ms, scored (23 October 2026, about 00:00 to 00:04 CDT; `spray_amr/a2_1ms_2026-10-23.log`, the change's tree). A2 and A3 are met.**
+  - **The coverage:** 194 regrids that changed the pattern (at least 50), 355 moves to a finer owner and 759 to a coarser one (at least 100 each). The first length tried, 1.0 ms, was enough.
+  - **The budgets,** against 1e-11: (a) the gas at most 7.7e-16; (b) the liquid at most 2.2e-13; (c) the whole system at most 7.6e-14. The exchanged mass is 6.5813446067190492e-07 kg by the gas and …188883e-07 by the liquid ledger.
+  - **A3:** 4 threads against 1, every level's state, the partial densities and the parcel list bit for bit.
+  - **Printed, not judged.** 10,840 base steps, none redone. Evaporated 6.581e-7 kg; 160 parcels held, 200 injected, 174 children. The spray took 19.9 s of 103.4 s on 1 thread; 4 threads took 84.9 s.
+  - `spray_amr_verification` now runs A2 to 1.0 ms (`tests/spray_amr_tests.cpp`).
 
 ## Literature
 

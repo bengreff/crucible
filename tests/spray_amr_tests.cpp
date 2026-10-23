@@ -366,8 +366,9 @@ int main(int argc, char** argv) {
       a1(source, true, 0.2e-3);
     }
     if (part.empty() || part == "a2") {
-      const Run one = a2(source, 1, 0.5e-3);
-      const Run four = a2(source, 4, 0.5e-3);
+      // Two whole periods of the band (SPRAY.md, A2's run length, the Director's decision of 23 October).
+      const Run one = a2(source, 1, 1.0e-3);
+      const Run four = a2(source, 4, 1.0e-3);
       std::printf("A3: A2 on 1 and 4 threads\n");
       bool gas = true;
       for (std::size_t k = 0; k < one.state.size(); ++k) gas = gas && same(one.state[k], four.state[k]) && same(one.partial[k], four.partial[k]);

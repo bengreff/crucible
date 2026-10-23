@@ -40,3 +40,4 @@ All of these were run on the Mac, on the change's tree. Every value is measured.
   - The log holds A5, A4, A0 (dump md5 and `crucible_spray_tests`), `crucible_spray_amr_tests` (A1 to A3) and AMR's ctest.
   - A2 is not met as written on its finer-move count, 98 against 100. Everything else is met or as before.
 - `a1b_sst_probe.cpp` mode 3 and `a1b_second_source_2026-10-22.log`: A1(b)'s second rounding source. Under SST, `Amr::step` steps with its first `stableDt()` call's dt, while `Flow::step` steps with its own call's, which comes after a second refresh of T.
+- `a2_1ms_2026-10-23.log`: A2 and A3 at 1.0 ms, the Director's run length (SPRAY.md). Met: 355 moves to a finer owner, 759 to a coarser one, 194 regrids, every budget within 2.2e-13; 1 against 4 threads bit for bit.
