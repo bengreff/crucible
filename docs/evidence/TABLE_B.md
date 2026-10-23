@@ -1238,6 +1238,27 @@ The rebuild uses the registered command, without `_WRITE_ANYWAY`. The output is 
 - The tier-1 runs keep the 21 October `rl10_s.bin`. In that table, the 11 dense nodes' stored data is unfinished.
 - Whether tier 1 moves to the rebuilt table is decided with the N-gate decision, not before B4 is read.
 
+### T2's wording miss, recorded; the N gate: the Director's decision (i), stated before its code (23 October 2026, about 01:08 CDT)
+
+**T2, recorded as measured (the Director, 01:15 by the message).** T2 predicted that `turn_back` would move only at the 20 failing nodes. It moved at 340.
+- The other 320 are listed with both values and their `fall_within_floor` in `table_b/rl10_s_fixes_t2_turnback_moved_2026-10-23.csv`.
+- Every one of them passed on 21 October: turn-back at most 8.9e-10 of the span, fall at most 5.4e-16 |c_eq|. Each now reads 0, because its largest fall is under the floor.
+- At all 320, every other column of the node report, and so every stored value, is unchanged.
+- They are spread over the table: 160 at each Z_N, every η node from 0.2 to 1 (5 to 53 per node) and every ρ node (28 to 42 per node). So round-off falls are everywhere, not a local feature.
+
+**The N gate: (i), decided by the Director (01:15).**
+- **The rule.** Where the lower branch has a fall in N (N_0 − N_eq > 1e-15), the gate is unchanged: strict fall from c_a to c_cp.
+  - Where it has none (N_eq ≥ N_0 − 1e-15), the strict fall is checked over the upper branch only, from c_eq to c_cp, which is where the node's fall is.
+  - The node is counted and named as "no fall in N (CVODES at runtime)". The runtime already sends such a node's cells to CVODES, so they cannot give a wrong state.
+  - The node report gains a last column, `n_no_fall`. The build prints the count and each node's place.
+- **Why these nodes may be left to CVODES** (the Director's reasoning): they lie at ρ 1e-3 to 0.017 kg/m³ and η 1, far from the RL10's running states, and the runtime refuses them safely.
+- **The upgrade rule, registered now:** if the central run's refusal counts show those cells above 1% of its CVODES calls, upgrade to (ii), extending the placement to a rising-N lower branch.
+  - Measured by the runtime's "no fall in N" cause count against the run's total CVODES calls, over the run.
+- **Acceptance (rl10_s rebuilt with the registered command, without `_WRITE_ANYWAY`):**
+  - **N1:** exactly the 7 nodes are named "no fall in N", and the N gate has 0 failures. With the turn-back's 0, 2(a) passes.
+  - **N2:** every node-report column except the new one and `n_gate_ok` is identical to the fixes build's at all 990 nodes. `n_gate_ok` changes only at the 7. No stored value moves.
+  - **N3:** every gate passes, so the builder writes the table. Its md5 is recorded.
+
 ## The igniter and a guard above 6,000 K (20 October 2026, 19:15 to 19:45 CDT)
 
 The Director's ruling: the 12,176 K igniter cell is unphysical. Real torch or spark igniters do not make 12,000 K bulk gas in a finite-volume cell. So both sides are fixed: the igniter is sized to a physical one, and a guard on h2o2_highT means the inversion can never fail.
