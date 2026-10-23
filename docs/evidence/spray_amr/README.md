@@ -24,3 +24,15 @@ All of these were run on the Mac, on the change's tree. Every value is measured.
   - The modes: 0, every level active; 1, the static corner tag; 3 and 4, modes 1 and 0 with no injectors; 5, one-way; 6, no point-implicit loads.
   - Modes 0, 3 and 4 ran before the 500-step time trace was added, and modes 1, 5 and 6 with it.
   - Each mode prints the end field's u_z along finest rings 0 and 4 (the level that owns each cell, then u_z), and the parcels per 4 finest columns.
+- `a1_amended_2026-10-22.log`: `crucible_spray_amr_tests a1` under A1(b) as amended (22 October, about 23:30 CDT). Met: gas 1.390e-13, parcels 5.206e-13, ledger 2.524e-14 (limit 1e-12).
+
+## The mixed-level jet: diagnosis and fix (22 October 2026, from about 23:25 CDT; SPRAY.md, *A defect the printed comparison found*)
+
+- `a4_probe.cpp`: the diagnosis's probe. It runs S3's chamber, frozen, on 1 thread, on uniform meshes or on static one-cell, axis-cell and block patches, all-level-1, and the corner tag. A `+o2` kind is the gas alone with an O2 stream across the patch, which is criterion A5. It traces each level's largest owned u_z every 0.02 ms.
+- `a4_2026-10-22.log`: the diagnosis's 22 runs, made under commit 28d87b1's development toggles (the deposit mask, the piecewise-constant spread). They locate the cause in `Amr::spread`.
+- `fix1_2026-10-22.log`: the fix as first registered (one common limiter over every component).
+  - A5 and A4 are met.
+  - AMR's ctest has one new failure: 3(a)'s reflection.
+- `fix1_pulse_2026-10-22.log`: that failure's diagnosis, made under working-tree toggles (`CRUCIBLE_DEV_SIG`, `CRUCIBLE_DEV_MODE`, `CRUCIBLE_DEV_STATS`, not committed).
+  - It gives the component that set the limiter, and ρu_z's and ρu_r's ranges over ρ√(RT) by decade.
+  - It runs 3(a) under the revision's scales.

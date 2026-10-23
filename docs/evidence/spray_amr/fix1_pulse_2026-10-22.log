@@ -1,0 +1,163 @@
+# The new 3(a) failure's diagnosis (SPRAY.md), 22 October about 23:42 to 23:47 CDT: crucible_amr_subcycling_tests 3a [3b] 1 under working-tree toggles.
+# CRUCIBLE_DEV_SIG: a component whose neighbours' range is at most this fraction of its scale keeps its own limiter.
+# Mode 1 (sig_*, stats_*): scale = the component's own magnitude (the momentum pair's larger). Mode 2 (stats2_*): rho, rho sqrt(RT), rho R T.
+### sig_0
+AMR step B2, criteria 1 and 3 (1 threads)
+3(b) Sod shock tube, level 1 over the middle third, to t = 0.25
+  64 columns (level 1 over base columns 21 to 42, the interfaces at 0.3281 and 0.6719): L1 8.3495e-03; uniform 64: 1.1456e-02, uniform 128: 6.3968e-03
+  64 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)   3.860e-01 (limit 1)  PASS
+  64 columns: shock place against exact 0.938039, in base cells              3.644e-01 (limit 1)  PASS
+  64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.808e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 4.446e-02
+  128 columns (level 1 over base columns 43 to 84, the interfaces at 0.3359 and 0.6641): L1 4.7162e-03; uniform 128: 6.3977e-03, uniform 256: 3.5661e-03
+  128 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  4.062e-01 (limit 1)  PASS
+  128 columns: shock place against exact 0.938039, in base cells             3.951e-01 (limit 1)  PASS
+  128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.793e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 2.490e-02
+  256 columns (level 1 over base columns 85 to 170, the interfaces at 0.3320 and 0.6680): L1 2.6127e-03; uniform 256: 3.5663e-03, uniform 512: 2.0416e-03
+  256 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  3.746e-01 (limit 1)  PASS
+  256 columns: shock place against exact 0.938039, in base cells             4.111e-01 (limit 1)  PASS
+  256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.429e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 1.434e-02
+  observed order, 64 to 128 columns (at least)                               8.241e-01 (limit 0.8)  PASS
+  observed order, 128 to 256 columns (at least)                              8.521e-01 (limit 0.8)  PASS
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 2.7 s of wall; difference from the uniform 384-column run 4.9210e-03 of the pulse's density amplitude; reflection 3.2414e-02 of its pressure amplitude
+  384 columns: 2700 base steps, 9.4 s of wall; difference from the uniform 768-column run 1.6501e-03 of the pulse's density amplitude; reflection 1.9975e-02 of its pressure amplitude
+  768 columns: 4500 base steps, 34.6 s of wall; difference from the uniform 1536-column run 5.8683e-04 of the pulse's density amplitude; reflection 1.0646e-02 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.576e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.492e+00 (limit 1.8)  FAIL
+  reflection on 768 columns, relative to the pulse                           1.065e-02 (limit 0.001)  FAIL
+  reflection falls, 192 to 384 columns (ratio below 1)                       6.162e-01 (limit 1)  PASS
+  reflection falls, 384 to 768 columns (ratio below 1)                       5.329e-01 (limit 1)  PASS
+FAILED (6 failures)
+### sig_1e-12
+AMR step B2, criteria 1 and 3 (1 threads)
+3(b) Sod shock tube, level 1 over the middle third, to t = 0.25
+  64 columns (level 1 over base columns 21 to 42, the interfaces at 0.3281 and 0.6719): L1 8.3495e-03; uniform 64: 1.1456e-02, uniform 128: 6.3968e-03
+  64 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)   3.860e-01 (limit 1)  PASS
+  64 columns: shock place against exact 0.938039, in base cells              3.644e-01 (limit 1)  PASS
+  64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.808e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 4.446e-02
+  128 columns (level 1 over base columns 43 to 84, the interfaces at 0.3359 and 0.6641): L1 4.7162e-03; uniform 128: 6.3977e-03, uniform 256: 3.5661e-03
+  128 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  4.062e-01 (limit 1)  PASS
+  128 columns: shock place against exact 0.938039, in base cells             3.951e-01 (limit 1)  PASS
+  128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.793e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 2.490e-02
+  256 columns (level 1 over base columns 85 to 170, the interfaces at 0.3320 and 0.6680): L1 2.6127e-03; uniform 256: 3.5663e-03, uniform 512: 2.0416e-03
+  256 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  3.746e-01 (limit 1)  PASS
+  256 columns: shock place against exact 0.938039, in base cells             4.111e-01 (limit 1)  PASS
+  256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.429e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 1.434e-02
+  observed order, 64 to 128 columns (at least)                               8.241e-01 (limit 0.8)  PASS
+  observed order, 128 to 256 columns (at least)                              8.521e-01 (limit 0.8)  PASS
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 2.7 s of wall; difference from the uniform 384-column run 4.9210e-03 of the pulse's density amplitude; reflection 3.2414e-02 of its pressure amplitude
+  384 columns: 2700 base steps, 9.4 s of wall; difference from the uniform 768-column run 1.6501e-03 of the pulse's density amplitude; reflection 1.9975e-02 of its pressure amplitude
+  768 columns: 4500 base steps, 31.6 s of wall; difference from the uniform 1536-column run 5.8683e-04 of the pulse's density amplitude; reflection 1.0646e-02 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.576e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.492e+00 (limit 1.8)  FAIL
+  reflection on 768 columns, relative to the pulse                           1.065e-02 (limit 0.001)  FAIL
+  reflection falls, 192 to 384 columns (ratio below 1)                       6.162e-01 (limit 1)  PASS
+  reflection falls, 384 to 768 columns (ratio below 1)                       5.329e-01 (limit 1)  PASS
+FAILED (6 failures)
+### sig_1e-9
+AMR step B2, criteria 1 and 3 (1 threads)
+3(b) Sod shock tube, level 1 over the middle third, to t = 0.25
+  64 columns (level 1 over base columns 21 to 42, the interfaces at 0.3281 and 0.6719): L1 8.3495e-03; uniform 64: 1.1456e-02, uniform 128: 6.3968e-03
+  64 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)   3.860e-01 (limit 1)  PASS
+  64 columns: shock place against exact 0.938039, in base cells              3.644e-01 (limit 1)  PASS
+  64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.808e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 4.446e-02
+  128 columns (level 1 over base columns 43 to 84, the interfaces at 0.3359 and 0.6641): L1 4.7162e-03; uniform 128: 6.3977e-03, uniform 256: 3.5661e-03
+  128 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  4.062e-01 (limit 1)  PASS
+  128 columns: shock place against exact 0.938039, in base cells             3.951e-01 (limit 1)  PASS
+  128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.793e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 2.490e-02
+  256 columns (level 1 over base columns 85 to 170, the interfaces at 0.3320 and 0.6680): L1 2.6127e-03; uniform 256: 3.5663e-03, uniform 512: 2.0416e-03
+  256 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  3.746e-01 (limit 1)  PASS
+  256 columns: shock place against exact 0.938039, in base cells             4.111e-01 (limit 1)  PASS
+  256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.429e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 1.434e-02
+  observed order, 64 to 128 columns (at least)                               8.241e-01 (limit 0.8)  PASS
+  observed order, 128 to 256 columns (at least)                              8.521e-01 (limit 0.8)  PASS
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 2.7 s of wall; difference from the uniform 384-column run 4.9504e-03 of the pulse's density amplitude; reflection 3.5426e-03 of its pressure amplitude
+  384 columns: 2700 base steps, 9.4 s of wall; difference from the uniform 768-column run 1.6501e-03 of the pulse's density amplitude; reflection 1.9975e-02 of its pressure amplitude
+  768 columns: 4500 base steps, 31.6 s of wall; difference from the uniform 1536-column run 5.8683e-04 of the pulse's density amplitude; reflection 1.0646e-02 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.585e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.492e+00 (limit 1.8)  FAIL
+  reflection on 768 columns, relative to the pulse                           1.065e-02 (limit 0.001)  FAIL
+  reflection falls, 192 to 384 columns (ratio below 1)                       5.639e+00 (limit 1)  FAIL
+  reflection falls, 384 to 768 columns (ratio below 1)                       5.329e-01 (limit 1)  PASS
+FAILED (7 failures)
+### stats_0
+spread stats: 139200 spreads
+  component 0 set phi in 35071 (mean own-phi gap 0.000e+00)
+  component 1 set phi in 14155 (mean own-phi gap 8.021e-02)
+  component 2 set phi in 49049 (mean own-phi gap 5.448e-01)
+  component 3 set phi in 2110 (mean own-phi gap 3.743e-01)
+AMR step B2, criteria 1 and 3 (1 threads)
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 2.8 s of wall; difference from the uniform 384-column run 4.9210e-03 of the pulse's density amplitude; reflection 3.2414e-02 of its pressure amplitude
+  384 columns: 2700 base steps, 9.2 s of wall; difference from the uniform 768-column run 1.6501e-03 of the pulse's density amplitude; reflection 1.9975e-02 of its pressure amplitude
+  768 columns: 4500 base steps, 34.7 s of wall; difference from the uniform 1536-column run 5.8683e-04 of the pulse's density amplitude; reflection 1.0646e-02 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.576e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.492e+00 (limit 1.8)  FAIL
+  reflection on 768 columns, relative to the pulse                           1.065e-02 (limit 0.001)  FAIL
+  reflection falls, 192 to 384 columns (ratio below 1)                       6.162e-01 (limit 1)  PASS
+  reflection falls, 384 to 768 columns (ratio below 1)                       5.329e-01 (limit 1)  PASS
+FAILED (3 failures)
+### stats_1e-9
+spread stats: 139200 spreads
+  component 0 set phi in 19938 (mean own-phi gap 0.000e+00)
+  component 1 set phi in 22881 (mean own-phi gap 2.867e-01)
+  component 2 set phi in 48767 (mean own-phi gap 5.966e-01)
+  component 3 set phi in 58 (mean own-phi gap 1.935e-02)
+AMR step B2, criteria 1 and 3 (1 threads)
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 2.7 s of wall; difference from the uniform 384-column run 4.9504e-03 of the pulse's density amplitude; reflection 3.5426e-03 of its pressure amplitude
+  384 columns: 2700 base steps, 9.2 s of wall; difference from the uniform 768-column run 1.6501e-03 of the pulse's density amplitude; reflection 1.9975e-02 of its pressure amplitude
+  768 columns: 4500 base steps, 31.7 s of wall; difference from the uniform 1536-column run 5.8683e-04 of the pulse's density amplitude; reflection 1.0646e-02 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.585e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.492e+00 (limit 1.8)  FAIL
+  reflection on 768 columns, relative to the pulse                           1.065e-02 (limit 0.001)  FAIL
+  reflection falls, 192 to 384 columns (ratio below 1)                       5.639e+00 (limit 1)  FAIL
+  reflection falls, 384 to 768 columns (ratio below 1)                       5.329e-01 (limit 1)  PASS
+FAILED (4 failures)
+### stats2_1e-9
+spread stats: 139200 spreads
+  component 0 set phi in 359 (mean own-phi gap 0.000e+00)
+  component 1 set phi in 137 (mean own-phi gap 3.260e-05)
+  component 3 set phi in 110 (mean own-phi gap 1.531e-04)
+  rho u_z range / (rho sqrt(RT)) by decade 1e-19..1e0: 6 12 188 3948 12788 1182 898 952 1036 1108 37674 38242 7446 10788 21264 1668 0 0 0 0
+  rho u_r range / (rho sqrt(RT)) by decade 1e-19..1e0: 369 707 45370 81800 10954 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+AMR step B2, criteria 1 and 3 (1 threads)
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 2.7 s of wall; difference from the uniform 384-column run 4.9507e-03 of the pulse's density amplitude; reflection 3.5426e-03 of its pressure amplitude
+  384 columns: 2700 base steps, 9.3 s of wall; difference from the uniform 768-column run 1.6435e-03 of the pulse's density amplitude; reflection 1.1499e-03 of its pressure amplitude
+  768 columns: 4500 base steps, 31.8 s of wall; difference from the uniform 1536-column run 5.6943e-04 of the pulse's density amplitude; reflection 3.3899e-04 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+  reflection on 768 columns, relative to the pulse                           3.390e-04 (limit 0.001)  PASS
+  reflection falls, 192 to 384 columns (ratio below 1)                       3.246e-01 (limit 1)  PASS
+  reflection falls, 384 to 768 columns (ratio below 1)                       2.948e-01 (limit 1)  PASS
+FAILED (2 failures)
+### stats2_1e-6
+spread stats: 139200 spreads
+  component 0 set phi in 189 (mean own-phi gap 0.000e+00)
+  component 1 set phi in 68 (mean own-phi gap 6.568e-05)
+  component 3 set phi in 213 (mean own-phi gap 5.991e-01)
+  rho u_z range / (rho sqrt(RT)) by decade 1e-19..1e0: 6 12 188 3948 12643 1329 896 952 1036 1108 37674 38242 7446 10788 21264 1668 0 0 0 0
+  rho u_r range / (rho sqrt(RT)) by decade 1e-19..1e0: 369 766 45552 81852 10661 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+AMR step B2, criteria 1 and 3 (1 threads)
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 2.7 s of wall; difference from the uniform 384-column run 4.9507e-03 of the pulse's density amplitude; reflection 3.5426e-03 of its pressure amplitude
+  384 columns: 2700 base steps, 9.3 s of wall; difference from the uniform 768-column run 1.6435e-03 of the pulse's density amplitude; reflection 1.1499e-03 of its pressure amplitude
+  768 columns: 4500 base steps, 32.1 s of wall; difference from the uniform 1536-column run 5.6943e-04 of the pulse's density amplitude; reflection 3.3899e-04 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+  reflection on 768 columns, relative to the pulse                           3.390e-04 (limit 0.001)  PASS
+  reflection falls, 192 to 384 columns (ratio below 1)                       3.246e-01 (limit 1)  PASS
+  reflection falls, 384 to 768 columns (ratio below 1)                       2.948e-01 (limit 1)  PASS
+FAILED (2 failures)

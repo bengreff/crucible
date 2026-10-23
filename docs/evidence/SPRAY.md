@@ -443,6 +443,33 @@ The evidence is in `docs/evidence/spray_amr/` (the logs and probes; its README l
   - **(a)** The evaporated mass lies within 0.9 times the lower and 1.1 times the higher of the uniform 16 × 6 and 64 × 24 runs' values, that is [2.16e-7, 2.84e-7] kg.
   - **(b)** No owned cell's |u_z| exceeds 60 m/s at any of the 500-step trace points. That limit is the larger of the drop and supply speeds plus 7 m/s. The one-way run's largest value is 53.7 m/s.
   - A0 to A3 are rerun after the fix, unchanged.
+- **The fix as first registered, scored (22 October, about 23:38 to 23:47 CDT; `spray_amr/fix1_2026-10-22.log`).** The code was not committed: the revision below replaces it.
+  - **A5: met.** The largest owned |u_z| over the trace points is 53.9 m/s (axis patch), 54.2 ((2, 1)) and 53.7 (block). Uniform 16 × 6 and 32 × 12 give 53.9 and 57.6 (the defect's were 262, 219 and 214).
+  - **A4: met.** (a) 2.4395e-7 kg evaporated. (b) The largest is 53.6 m/s, on level 2 at (0.12, 3.13) mm.
+  - **The diagnosis's spray runs, to 0.3 ms, printed.** The largest |u_z| is 55.0 m/s ((2, 1)), 53.9 (block), 53.6 (corner2) and 54.1 (axis). Evaporated: 9.656e-8, 9.561e-8, 9.136e-8 and 9.740e-8 kg, against uniform 9.690e-8 and 9.355e-8 (16 × 6, 32 × 12).
+  - **AMR's ctest: not as before.** Both tests already failed checks before the fix (`merge_inquiry2_ctest_af91015_2026-10-21.txt`, `amr_c/ctest_mass_error_2026-10-21.txt`), so "as before" is read as: the same checks pass and fail, and changed values are recorded.
+    - `amr_verification`: its three failing closure checks, (d), are the old ones, unchanged to the digit. `spread` is not in that test's path.
+    - `amr_subcycling_verification`: the same five checks fail as before (Sod's three interface checks, 3(a)'s two order checks), with values moved in the third digit.
+    - One new failure: 3(a)'s reflection on 768 columns, 1.065e-2 against 3.390e-4 before (limit 1e-3). On 192 columns it is 3.24e-2 against 3.54e-3.
+  - **Printed by the same ctest pattern, `spray_amr_verification`.** A2's moves to a finer owner are 98 (at least 100 registered), against 338 before the fix. The coarser moves are 225, against 1,344. The jet had been carrying parcels across the patch edges.
+  - **The new failure's cause (diagnosed with toggles in the working tree, not committed; `spray_amr/fix1_pulse_2026-10-22.log`).**
+    - 3(a)'s cylinder has two rings, so ρu_r is zero to rounding. Its Barth-Jespersen ratio is noise, and in a common limiter that noise cuts every component. ρu_r set φ in 49,049 of the 768-column run's 139,200 spreads, a mean of 0.54 below the next component's.
+    - A threshold relative to the momentum's own magnitude (1e-9) does not remove it, because in still gas that magnitude is noise too.
+    - Measured against ρ√(RT), ρu_r's range is below 1e-14 in every spread. With significance taken on that scale, 3(a) returns exactly to the old record's values (reflections 3.5426e-3, 1.1499e-3 and 3.3899e-4; orders 1.591 and 1.529), for a threshold of 1e-9 and of 1e-6 alike.
+    - These are measurements of 3(a) alone, made before the revision below was registered.
+- **The revision, registered before its code (22 October, about 23:49 CDT).**
+  - **The design.** A component joins the common limiter only if its neighbours' range, the parent included, exceeds 1e-9 of its scale at the parent:
+    - ρ, for ρ and the partial densities;
+    - ρ√(RT), for ρu_z and ρu_r;
+    - p = ρRT, for E and ρk.
+  - **The terms.** R comes from the parent's mass fractions (negatives clipped, then normalised), and T is the parent's stored temperature. ρω never joins, because it does not enter p, T or u.
+  - **A component that does not join** keeps its own Barth-Jespersen limiter, as every component had before the fix. So it stays within its neighbours' range, and the partial densities stay non-negative. The content is conserved as before.
+  - **What it gives up.** At a contact, a component left out differs from the consistent value by at most its range. So u is off by at most 1e-9 √(RT), and p and T by about 1e-9 relative.
+  - **Criteria unchanged:**
+    - A5 and A4;
+    - A0 to A3, with A1(b) as amended;
+    - AMR's ctest as before, read as above.
+  - **If A2's moves to a finer owner fall below 100** because the jet no longer carries parcels across, A2 is reported not met as written, and the Director decides. Nothing is changed to meet it.
 
 ## Literature
 
