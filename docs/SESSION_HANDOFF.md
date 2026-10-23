@@ -2,6 +2,41 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (23 October, about 00:50 CDT; inquiry, Friday night, the Director's 00:35 message)
+
+The Director (00:35) decided the spray overload:
+- (1) start from a warm state already in the plan, recorded as a setup amendment before any RL10 output;
+- (2) an exchange bound only as a step limit or exact subcycling, registered with the test that it changes nothing where it never binds.
+
+The energy leak goes to inquiry2. Table B's gates 2a and 2c are on this line, after the above and before any central run. All in `tier1_run_definition.md`; values measured on the Mac.
+
+- **(1), recorded as "the start amendment" (d93830e), built in 59a99d6.**
+  - The plan names no imported warm field for the central case. TECHNICAL_PLAN step 1 reports "valves open, ignite" from ambient, and a declared partly developed start is a development fallback only.
+  - So the warm start is an **H2 lead within the march:** the H2 opens at 0; the LOX opens at t_L = 20 ms; the igniter fires at t_L + 0.2 ms.
+  - A gate at t_L: the outlet flow, p0 and the face pressure, over [t_L − 2, t_L − 1] and [t_L − 1, t_L] ms, within 0.1%. Central stops if it fails; development prints and goes on.
+  - The judge's times count from t_L. Development sets `CRUCIBLE_T1_LEAD`; `_END` is the absolute simulated time.
+  - **If the Director meant an imported gas-only field, that overrides this;** say so.
+- **(2), registration B (d93830e), built and scored (59a99d6).**
+  - `Spray::exchangeDt()` is const: f 0.25 of each owning cell's gas thermal and vapour times, level l counted 2^l times. The driver passes it only as `maxDt`.
+  - Met: B0 (A0's md5), B1 (never binds; smallest bound / dt: S3 143, S8(c) 143, A1 143, A2 60) and B2 (A2 bit-identical with and without it). The dry run is still byte-identical.
+  - **B3 not met.** At t_L = 0 the 3-level probe still stops in `Flow::exchange`.
+- **B3's cause, measured: the LOX flashes. A step limit cannot bound a flash.**
+  - The LOX enters at 101.17 K, above saturation below about 2.8 bar (derived). On its first move into the 1,000 Pa start, each parcel flashes about 30% at once.
+  - The vapour deposited equals the flashed mass to 4 or 5 digits. Rate-driven vapour is at most 1.4e-13 kg per sub-step.
+  - A parcel's flash is its mass (the flow over the parcel rate) times a fixed share, so no dt changes it.
+  - Options (a) to (d) for the Director are in `tier1_run_definition.md`. Recommended: (a) rely on the lead if B4 shows no flash, else (b) a finite flash rate.
+  - **The margin is thin:** the lead's pressure was estimated at about 3 bar, against about 2.8 bar saturation.
+- **B4 is running** (launched 00:47 CDT through `slot.py`, 3 levels, 4 threads, a development run).
+  - It runs the lead's 20 ms, then the LOX to 21 ms. Directory `/tmp/t1run/b`: log `b4.log`, done-file `done_b4`, prefix `b4_DEVELOPMENT`. The binary is `tier1_b4`, at 59a99d6.
+  - Expected to take hours (*inferred*: 2 levels ran 0.02 ms in 8 s, and every chemistry update in pure H2 takes the fallback).
+  - **To score it:** the lead's cost (wall time per ms); the gate's lines at t_L, especially the face pressure against 2.8 bar; the flash count and the exchange-bound line after t_L; and whether it passes t_L + 0.5 ms.
+- **Next on this line, in order:**
+  1. Score B4.
+  2. The Director's choice on the flash.
+  3. Table B's gates 2a and 2c for `rl10_s.bin` (`docs/evidence/TABLE_B.md`, *The small table rebuilt on h2o2_highT*: 2(a) N-gate and turn-backs, 2(c) CVODES failures at t = 0 at the dense end). Before any central run.
+- **Unchanged blockers:** the energy budget (inquiry2), the restart reader, step D's reruns, then the y+ target, tags and `kNumericsFrozen`, protocol §4's two amendments, S7 scored, and the Director's clearance.
+- **`spray_verification` fails S0(b)** at 1.245e3 J/kg against 1e3, the same as on 22 October. It predates this work and is not looked into.
+
 ## Stopped at (23 October, about 00:30 CDT; inquiry, Friday night, fourth brief)
 
 The brief (the Director, 00:00 23 October): record two decisions, then build the driver's run mode in `tests/rl10_tier1.cpp`, spec and acceptance first. The RL10 central run launches only when the acceptance passes, S7 low and high are scored (Friday evening) and the Director clears it. The blind protocol is unchanged. All values measured on the Mac.
