@@ -114,6 +114,80 @@ The run mode is still to be added to `tests/rl10_tier1.cpp`. It may change the d
    - Tier 1 needs 3 levels and the liquid LOX together, so **the central case cannot run as defined until the spray couples to `Amr`.** Coupling means: parcels located on the finest active level covering them, the gas read there, and the deposits booked to owned cells, with the composite budgets closed.
    - That design is registered before its code, with the spray checks S1 to S5 rerun on levels.
 
+## The run mode: spec and acceptance (23 October 2026, about 00:11 CDT, before its code)
+
+The Director's brief (23 October, 00:00): the driver's run mode is built under development mode, spec and acceptance first. The central run launches only when this acceptance passes, S7 low and high are scored, and the Director clears it. The blind protocol is unchanged: a development run's outputs are the model's, labelled as below, and no measured RL10 value is read.
+
+**Invocation.** `crucible_rl10_tier1 run development` or `crucible_rl10_tier1 run central`. With no `run` argument the driver is the dry run, unchanged.
+- **central:** the frozen run. The base is 149 × 16 with 3 levels on 4 threads. It runs to 60 ms, then the continuation at twice the parcel rate to 85 ms.
+  - It refuses to start while the numerical settings are not frozen. A compiled constant, false until the Director freezes the y+ target and the tag thresholds, makes it exit non-zero before the Definition is built. Setting it is a dated commit.
+- **development (protocol §6):** every output (each printed line's header, the file names, the series' first line) is labelled `DEVELOPMENT (protocol §6): not the reported case`.
+  - The environment sets the run: `CRUCIBLE_T1_BASE` (default 149x16), `CRUCIBLE_T1_LEVELS` (3), `CRUCIBLE_T1_END` (s, 1e-3), `CRUCIBLE_T1_THREADS` (4), `CRUCIBLE_T1_OUT` (the files' prefix) and `CRUCIBLE_T1_RATE_FACTOR` (1).
+  - The numerical settings are provisional: step C's `Tags` defaults (y+ 300).
+  - The member inputs are read from the environment as in the dry run.
+- **Table B** in both modes is `CRUCIBLE_MANIFOLD_TABLE`, whose provenance must name `h2o2_highT.yaml` (as `chamber_study` checks). The repo has no SHA-256 code, so the launch script checks the data hash against the frozen one with `shasum` and records it.
+
+**The Definition** is the dry run's F3 Definition:
+- face inlet (a) with the 8 LOX slots as closed ports (decision 6), and the plate at 199.67 K (decision 8);
+- the supplies on their 0.5 ms ramp;
+- the igniter's region as in the dry run, at 7 kJ from 0.2 ms over 1 ms (item 1).
+
+**Gates, before any step,** on the base mesh:
+- G1, G2, G3, G4 and G8 as in the dry run, and F3 on the run's own Definition.
+- G5 and G6 test the old ring-centre rule, which decision 6 superseded; they are printed, not gated. G7 is printed as declared (decision 5).
+- Any failing gate makes the run exit non-zero with no step.
+
+**The coupling.**
+- `Amr(definition, levels)` with step C's tags, plus item 4's static face tag. That tag is `Tags::custom`: true on a level below the top where the cell's centroid lies within the core length (6.84 mm) of the face.
+- One `ReactingFlow` per level on Table B.
+- One `Spray` on the `Amr` with the 8 injectors at 5e5 parcels per second each (times the rate factor), restitution 0.5.
+- After each level's step: the spray's `afterStep(l, dt)`, then that level's `react(dt)`. On a redo: the spray's `redo()`.
+- Each base step is bounded by the spray's next event and by the next sample time, so samples fall on a 10 μs grid.
+
+**The quantities,** composite over the levels (each from its owned cells and faces), sampled every 10 μs:
+- ṁ = Σ outlet flow.
+- F_vac = Σ (inlet momentum flux + wall axial force + body axial force), plus the spray ledger's injection thrust and wall thrust.
+- Isp_vac = F_vac / (g0 ṁ_s), on the chamber flow (ṁ_s = 16.7126 kg/s) and on the engine-inlet flow (2.7946 + 13.9525 kg/s).
+- p0, by `columnStagnation` on level 0's last column before the cylinder's end (rl10dev's rule).
+- The face pressure: the area average over every level's owned face-column cells. The owned area must equal the face's area to 1e-12, checked at every sample.
+- c* = p0 A_t / ṁ.
+- The hot-gas wall's heat flow, −(Σ wall heat − Σ plate heat), and the face's, −Σ plate heat.
+  - This needs one additive engine change: `BoundaryRates` books the i = 0 share of the wall heat apart as well, exposed as `Measurements::plateHeatFlow`. Nothing else in the step changes.
+- Printed every 0.5 ms, not sampled:
+  - the liquid mass and the parcels in flight;
+  - Table B's causes by level and by region (chamber to the cylinder's end, convergent to the throat, divergent);
+  - T_max over the owned cells within the core length of the face;
+  - the parcels per occupied cell within the core length (at 1 ms);
+  - the spray's share of the wall time;
+  - the budgets (a) to (c) as in A2.
+
+**The settle judge** is the Director's rule as registered above. It runs at 60 ms over 40 to 60 ms, and at 85 ms over 65 to 85 ms with the continuation's move test. τ is taken from the 10 μs series.
+- The continuation needs the parcel rate changed mid-run: an additive `Spray::setParcelRate(factor)`.
+- **The outputs:**
+  - the series (`<prefix>_series.csv`);
+  - the state at 60 and 85 ms, or at the end in development (`writeAmrDump`, plus the parcels' bytes);
+  - `<prefix>_done` with the exit status.
+- **Not built tonight: a restart reader.** A crash in a multi-day run loses it. It is recommended before the central launch.
+
+**Acceptance:**
+- **R0:** the engine changes are additive. A0's dump md5 stays `e95251ab…`.
+- **R1:** the dry run is unchanged. With no `run` argument, its output on the default meshes is byte-identical to the output of 543d50b's tree. The run mode's printed Definition, G2 to G4 and G8 lines match `tier1_dry_run_length_2026-10-21.log`'s 149 × 16 lines, apart from decisions 6 and 8 and item 1's igniter.
+- **R2:** the gates stop the run. Each of these exits non-zero with no step:
+  - (a) `run central`, while the numerical settings are not frozen;
+  - (b) `run development` with `CRUCIBLE_T1_BASE=76x8`, where G1 fails (the face at −13.2542 in).
+- **R3:** a short development run on the real configuration: 149 × 16 with 3 levels, 4 threads, through the slot limiter.
+  - First a cost probe to 0.02 ms.
+  - Then to 0.3 ms, through the igniter's start at 0.2 ms, if the probe puts that under 3 hours. Otherwise it goes to the longest whole 0.05 ms that fits, and the shortfall is recorded.
+  - Met if:
+    - (a) budgets (a) to (c) are each within 1e-11 at every print;
+    - (b) every quantity is finite at every print, and the series' rows are finite on a uniform 10 μs grid (to 1e-12 s);
+    - (c) the face-area check holds at every sample;
+    - (d) the run reaches its end (its rejected steps printed).
+- **R4:** the settle judge's selftest, on synthetic 10 μs series over 40 to 60 ms:
+  - (a) a constant is settled, with SE and halves difference 0;
+  - (b) a +1% step at 50 ms is unsettled, its halves differing by the expected 1% to 1e-9, and its batches flagged shorter than 10 τ;
+  - (c) a sine of period 2 ms gives τ within 2% of P / (2π), so b = 4 ms, and is settled.
+
 ## What it waits on
 
 - **Budget (the Director's decision, 22 October 2026, 22:40 CDT):** go for tonight's work, within Ben's raised cap. The spray-on-AMR coupling is now tier 1's critical path, and tonight's main item (below and `docs/evidence/SPRAY.md`, *Spray on AMR*). The driver's run mode follows it.
