@@ -187,6 +187,11 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
   - (a) a constant is settled, with SE and halves difference 0;
   - (b) a +1% step at 50 ms is unsettled, its halves differing by the expected 1% to 1e-9, and its batches flagged shorter than 10 τ;
   - (c) a sine of period 2 ms gives τ within 2% of P / (2π), so b = 4 ms, and is settled.
+- **Two points found while writing the code, recorded before any run (23 October 2026, about 00:47 CDT):**
+  - **R3(b) amended.** p0 is a mass-flux average over its column, and c* divides by the outlet flow. At the start the gas is at rest, so both flows are zero and p0 and c* are undefined there, not wrong.
+    - They are written as NaN while their column's net forward flux, or the outlet flow, is not positive. Those samples are counted and printed.
+    - R3(b) holds for every other quantity at every sample, and for p0 and c* wherever they are defined.
+  - **`Spray::setParcelRate` takes the rate per second,** not a factor. The driver passes twice its rate at 60 ms.
 
 ## What it waits on
 

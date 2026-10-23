@@ -602,7 +602,7 @@ Flow::BoundaryRates Flow::BoundaryRates::average(const BoundaryRates& a,const Bo
     return {mean(a.mass,b.mass),mean(a.energy,b.energy),mean(a.inlet,b.inlet),mean(a.outlet,b.outlet),
         mean(a.inletMomentum,b.inletMomentum),mean(a.outletMomentum,b.outletMomentum),
         mean(a.wallAxial,b.wallAxial),mean(a.bodyAxial,b.bodyAxial),mean(a.heat,b.heat),mean(a.wallHeat,b.wallHeat),
-        mean(a.correction,b.correction)};
+        mean(a.correction,b.correction),mean(a.plateHeat,b.plateHeat)};
 }
 void Flow::resetAccounting() {
     initialMass_=initialEnergy_=initialMomentum_=0;
@@ -1627,7 +1627,7 @@ Measurements Flow::measurements() const {
     result.clippedTurbulentEnergy=clippedTurbulentEnergy_;result.prescribedTurbulentEnergy=prescribedTurbulentEnergy_;
     result.inletMassFlow=lastRates_.inlet;result.outletMassFlow=lastRates_.outlet;
     result.inletMomentumFlux=lastRates_.inletMomentum;result.outletMomentumFlux=lastRates_.outletMomentum;
-    result.wallAxialForce=lastRates_.wallAxial;result.bodyAxialForce=lastRates_.bodyAxial;result.wallHeatFlow=lastRates_.wallHeat;
+    result.wallAxialForce=lastRates_.wallAxial;result.bodyAxialForce=lastRates_.bodyAxial;result.wallHeatFlow=lastRates_.wallHeat;result.plateHeatFlow=lastRates_.plateHeat;
     result.minPressure=std::numeric_limits<double>::infinity();
     double exitArea=0;
     for(int i=0;i<mesh_.nz;++i) for(int j=0;j<mesh_.nr;++j) {

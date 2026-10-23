@@ -133,6 +133,9 @@ class Spray {
   void redo();
   // Next injector schedule event after `time` (infinity if none).
   [[nodiscard]] double nextEvent(double time) const;
+  // Every injector's parcel rate [1/s] from the next release, between steps (tier 1's parcel-rate check:
+  // the same liquid in more, lighter parcels).
+  void setParcelRate(double rate);
   [[nodiscard]] const std::vector<Parcel>& parcels() const { return parcels_; }
   [[nodiscard]] const Ledger& ledger() const { return ledger_; }
   [[nodiscard]] double wallTime() const { return wall_; }  // wall time spent in advance() [s]

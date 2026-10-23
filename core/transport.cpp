@@ -769,7 +769,7 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
         const auto f=static_cast<std::size_t>(i)*m.nr+j;
         const double sign=i==0?1:-1,area=axialArea_[f];const auto& flux=axialViscous_[f];
         rates.energy+=sign*area*flux[3];
-        if(share || kind==Neighbour::Wall) { rates.wallAxial+=area*flux[1];rates.wallHeat+=area*flux[3]; }
+        if(share || kind==Neighbour::Wall) { rates.wallAxial+=area*flux[1];rates.wallHeat+=area*flux[3];if(i==0) rates.plateHeat+=area*flux[3]; }
         else if(i==0) rates.inletMomentum+=area*flux[1];
         else rates.outletMomentum+=area*flux[1];
     }

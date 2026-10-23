@@ -9,6 +9,10 @@
 // ring-centre rule, constructs Flow and Spray on each, and exits before any step. No measured value is read.
 //
 // Usage: crucible_rl10_tier1 [NZxNR ...]   (default 76x8 149x16 1192x128)
+//        crucible_rl10_tier1 run development|central   (tier1_run_definition.md, *The run mode*)
+//        crucible_rl10_tier1 selftest                  (the settle judge, R4)
+// The run takes CRUCIBLE_MANIFOLD_TABLE (Table B), and in development CRUCIBLE_T1_BASE (149x16), _LEVELS (3),
+// _END [s] (1e-3), _THREADS (4), _OUT (the files' prefix, rl10_t1) and _RATE_FACTOR (1).
 // A member's element dimensions replace the central ones through the environment (the skeleton's brackets):
 //   CRUCIBLE_T1_POST_ID      d_L [mm], central 3.54
 //   CRUCIBLE_T1_TIP          t / d_L, central 0.272
@@ -22,19 +26,27 @@
 //   CRUCIBLE_RADIAL_STRETCHING  Definition::radialStretching, 0
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <memory>
 #include <numbers>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "adapters/reacting_flow.hpp"
 #include "adapters/reaction.hpp"
+#include "cantera/core.h"
 #include "core/amr.hpp"
 #include "core/flow.hpp"
+#include "core/manifold_runtime.hpp"
+#include "core/manifold_table.hpp"
 #include "core/spray.hpp"
+#include "tests/amr_dump.hpp"
 #include "tests/rl10_geometry.hpp"
 
 using namespace crucible;
@@ -54,12 +66,14 @@ double env(const char* name, double fallback) {
   return v ? std::atof(v) : fallback;
 }
 
-int failures = 0;
+int failures = 0, gateFailures = 0;
 void check(const char* name, bool ok, const std::string& detail) {
   if (!ok) ++failures;
+  // The run mode's gates: G5 and G6 test the ring-centre rule decision 6 superseded, and G7 is declared.
+  if (!ok && std::string(name) != "G5" && std::string(name) != "G6" && std::string(name) != "G7") ++gateFailures;
   std::printf("%-4s %s  %s\n", name, ok ? "pass" : "FAIL", detail.c_str());
 }
-std::string fmt(const char* f, double a, double b = 0, double c = 0, double d = 0) {
+std::string strf(const char* f, double a, double b = 0, double c = 0, double d = 0) {
   char s[256];
   std::snprintf(s, sizeof s, f, a, b, c, d);
   return s;
@@ -96,6 +110,421 @@ double burick(double x) {
 // A mass-based Rosin-Rammler's D30 / D-bar; Burick's Eq. (5) sets it to 0.455.
 double d30OverMedian(double q) { return std::pow(std::tgamma(1 - 3 / q), -1.0 / 3) / std::pow(std::log(2.0), 1 / q); }
 
+// The settle judge (tier1_run_definition.md, *Settled*: the Director's decision of 22 October 2026, about 22:40
+// CDT) on a series sampled every dt over a window of `span`: the batch-means standard error and the halves'
+// difference, each over the window's mean. tau is the autocorrelation integrated to its first zero; the batch
+// length is the shortest of 1, 2, 4 and 5 ms at least 10 tau, and the judged SE the larger of its and the next
+// longer length's.
+struct Settle {
+  double mean{}, se{}, halves{}, tau{}, batch{};
+  bool shortBatches{false}, settled{false};
+};
+double batchSe(const std::vector<double>& x, std::size_t batches) {
+  const std::size_t n = x.size() / batches;
+  std::vector<double> m(batches, 0.0);
+  for (std::size_t b = 0; b < batches; ++b) {
+    for (std::size_t k = 0; k < n; ++k) m[b] += x[b * n + k];
+    m[b] /= static_cast<double>(n);
+  }
+  double mean = 0, s = 0;
+  for (double v : m) mean += v;
+  mean /= static_cast<double>(batches);
+  for (double v : m) s += (v - mean) * (v - mean);
+  return std::sqrt(s / (static_cast<double>(batches) * static_cast<double>(batches - 1)));
+}
+Settle settle(const std::vector<double>& x, double dt, double span) {
+  Settle s;
+  const std::size_t n = x.size(), half = n / 2;
+  double a = 0, b = 0, var = 0;
+  for (std::size_t k = 0; k < n; ++k) (k < half ? a : b) += x[k];
+  s.mean = (a + b) / static_cast<double>(n);
+  s.halves = std::abs(b / static_cast<double>(n - half) - a / static_cast<double>(half)) / std::abs(s.mean);
+  for (double v : x) var += (v - s.mean) * (v - s.mean);
+  if (var > 0) {
+    double previous = 1;
+    for (std::size_t k = 1; k < n; ++k) {
+      double c = 0;
+      for (std::size_t i = 0; i + k < n; ++i) c += (x[i] - s.mean) * (x[i + k] - s.mean);
+      const double r = c / var;
+      if (r <= 0) {  // to the zero between k - 1 and k, linearly
+        s.tau += 0.5 * dt * previous * previous / (previous - r);
+        break;
+      }
+      s.tau += 0.5 * dt * (previous + r);
+      previous = r;
+    }
+  }
+  constexpr std::array<double, 4> lengths{1e-3, 2e-3, 4e-3, 5e-3};
+  std::size_t pick = lengths.size() - 1;
+  s.shortBatches = true;
+  for (std::size_t i = 0; i < lengths.size(); ++i)
+    if (lengths[i] >= 10 * s.tau) { pick = i, s.shortBatches = false; break; }
+  s.batch = lengths[pick];
+  auto se = [&](std::size_t i) { return batchSe(x, static_cast<std::size_t>(std::lround(span / lengths[i]))); };
+  s.se = se(pick);
+  if (pick + 1 < lengths.size()) s.se = std::max(s.se, se(pick + 1));
+  s.se /= std::abs(s.mean);
+  s.settled = s.se <= 0.002 && s.halves <= 0.005;
+  return s;
+}
+
+// R4 (tier1_run_definition.md, *The run mode*): the judge on synthetic 10 us series over 40 to 60 ms.
+int selftest() {
+  constexpr double dt = 1e-5, span = 20e-3, period = 2e-3;
+  std::vector<double> constant, step, sine;
+  for (int k = 1; k <= 2000; ++k) {
+    const double t = 40e-3 + k * dt;
+    constant.push_back(3.0);
+    step.push_back(k <= 1000 ? 3.0 : 3.03);
+    sine.push_back(1 + 1e-3 * std::sin(2 * kPi * t / period));
+  }
+  const Settle c = settle(constant, dt, span), s = settle(step, dt, span), w = settle(sine, dt, span);
+  const double expected = 0.01 / 1.005, tau = period / (2 * kPi);
+  check("R4", c.settled && c.se == 0 && c.halves == 0, strf("(a) constant: settled %.0f, SE %.3g, halves %.3g", c.settled, c.se, c.halves));
+  check("R4", !s.settled && std::abs(s.halves - expected) <= 1e-9 && s.shortBatches,
+        strf("(b) +1%% step at 50 ms: settled %.0f, halves %.12f (expected %.12f), batches shorter than 10 tau %.0f", s.settled,
+            s.halves, expected, s.shortBatches) + strf(" (tau %.4f ms, SE %.4g)", s.tau * 1e3, s.se));
+  check("R4", std::abs(w.tau / tau - 1) <= 0.02 && w.batch == 4e-3 && w.settled,
+        strf("(c) sine of period 2 ms: tau %.5f ms against P / 2 pi %.5f ms (%+.3f%%), batch %.0f ms", w.tau * 1e3, tau * 1e3,
+            100 * (w.tau / tau - 1), w.batch * 1e3) + strf(", settled %.0f (SE %.3g, halves %.3g)", w.settled, w.se, w.halves));
+  std::printf("%d check(s) failed\n", failures);
+  return failures ? 1 : 0;
+}
+
+// Equilibrium isentropic stagnation pressure of a cell, and its column's mass-flux average (chamber_study's, which
+// rl10dev used); NaN while the column's net forward mass flux is not positive.
+double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const double* y, double kinetic) {
+  gas.setState_TPY(t, p, y);
+  gas.equilibrate("TP");
+  const double s = gas.entropy_mass(), h0 = gas.enthalpy_mass() + kinetic;
+  double p0 = p;
+  for (int n = 0; n < 50; ++n) {
+    gas.setState_SP(s, p0);
+    gas.equilibrate("SP");
+    double step = (h0 - gas.enthalpy_mass()) / (p0 / gas.density());
+    p0 *= std::exp(step);
+    if (std::abs(step) < 1e-13) break;
+  }
+  return p0;
+}
+double columnStagnation(const Flow& flow, Cantera::ThermoPhase& gas, int column) {
+  const auto& mesh = flow.mesh();
+  double p0 = 0, flux = 0;
+  for (int j = 0; j < mesh.nr; ++j) {
+    auto q = mesh.index(column, j);
+    auto w = flow.cellPrimitive(q);
+    auto y = flow.massFractions(q);
+    double g = w.rho * w.uz * mesh.axialArea(column + 1, j);
+    if (g == 0) continue;
+    p0 += g * stagnationPressure(gas, flow.temperature(q), w.p, y.data(), 0.5 * (w.uz * w.uz + w.ur * w.ur));
+    flux += g;
+  }
+  return flux > 0 ? p0 / flux : std::nan("");
+}
+
+// The run (tier1_run_definition.md, *The run mode*).
+constexpr bool kNumericsFrozen = false;  // the y+ target and the tag thresholds; set by a dated commit
+constexpr double kG0 = 9.80665, kEngineFuel = 2.7946, kParcelRate = 5e5, kSample = 1e-5;
+struct Setup {
+  std::string mode, out, mechanism;
+  int levels{3}, threads{4};
+  double end{1e-3}, rateFactor{1}, core{}, cylinderEnd{}, chamberFlow{};
+  Definition definition;
+  Spray::Settings spray;
+  std::vector<double> o2;
+};
+std::string doneFile;
+
+int runCase(const Setup& s) {
+  const bool development = s.mode == "development";
+  const std::string label = development ? "DEVELOPMENT (protocol §6): not the reported case" : "RL10A-3-3A tier 1, the central case";
+  const char* tablePath = std::getenv("CRUCIBLE_MANIFOLD_TABLE");
+  if (!tablePath) throw std::runtime_error("the run needs CRUCIBLE_MANIFOLD_TABLE (Table B)");
+  const ManifoldTable manifold = ManifoldTable::load(tablePath);
+  if (manifold.provenance.find(s.mechanism.substr(s.mechanism.find_last_of('/') + 1)) == std::string::npos)
+    throw std::runtime_error(std::string("the table ") + tablePath + " was not built from " + s.mechanism);
+  std::printf("\n%s\nTable B %s: %s\n", label.c_str(), tablePath, manifold.provenance.c_str());
+
+  Amr amr(s.definition, s.levels);
+  amr.setThreads(s.threads);
+  auto solution = Cantera::newSolution(s.mechanism, "", "none");
+  Cantera::ThermoPhase& gas = *solution->thermo();
+  Amr::Tags tags;  // step C's defaults: provisional until the Director freezes them
+  const std::size_t eH = gas.elementIndex("H");
+  for (const auto& sp : s.definition.species) {
+    const std::size_t k = gas.speciesIndex(sp.name);
+    tags.hydrogen.push_back(gas.nAtoms(k, eH) * gas.atomicWeight(eH) / gas.molecularWeight(k));
+  }
+  const double core = s.core;
+  tags.custom = [&amr, core](int l, int i, int j) {  // item 4's static face tag
+    const Mesh& m = amr.level(l).mesh();
+    return m.cells[m.index(i, j)].z < core;
+  };
+  amr.setTags(tags);
+  std::vector<std::unique_ptr<thermo::ReactingFlow>> reacting;
+  for (int l = 0; l < amr.levels(); ++l) {
+    reacting.push_back(std::make_unique<thermo::ReactingFlow>(amr.level(l), s.mechanism, s.threads, 1e-6, 1e-12,
+                                                              thermo::Chemistry::FiniteRate));
+    reacting.back()->useManifoldTable(manifold);
+  }
+  Spray::Settings settings = s.spray;
+  for (auto& j : settings.injectors) j.parcelRate = kParcelRate * s.rateFactor;
+  Spray spray(amr, LiquidOxygen::load(kSaturation, amr.level(0).medium().enthalpy(298.15, s.o2.data())), settings);
+  amr.setAfterStep([&](int l, double dt) {
+    spray.afterStep(l, dt);
+    reacting[static_cast<std::size_t>(l)]->react(dt);
+  });
+  amr.setRedo([&] { spray.redo(); });
+
+  // The base's stations: the throat (A_t, the regions), p0's column, the face's area.
+  const Flow& base = amr.level(0);
+  const Mesh& mesh0 = base.mesh();
+  int throat = 0, endColumn = 0;
+  for (int i = 0; i <= mesh0.nz; ++i)
+    if (mesh0.radius[i] < mesh0.radius[throat]) throat = i;
+  for (int i = 0; i < mesh0.nz; ++i)
+    if (mesh0.cells[mesh0.index(i, 0)].z < s.cylinderEnd) endColumn = i;
+  const double at = kPi * mesh0.radius[throat] * mesh0.radius[throat], zThroat = throat * mesh0.dz;
+  double faceArea = 0;
+  for (int j = 0; j < mesh0.nr; ++j) faceArea += mesh0.axialArea(0, j);
+  std::printf("%s: base %d x %d plus %d levels (%d x %d finest), %d threads, to %.4g ms; parcels %.3g per s per injector; "
+              "throat station %d (A_t %.6e m2), p0 column %d at z %.4f mm, face area %.6e m2\n",
+              s.mode.c_str(), mesh0.nz, mesh0.nr, s.levels, mesh0.nz << s.levels, mesh0.nr << s.levels, s.threads, s.end * 1e3,
+              kParcelRate * s.rateFactor, throat, at, endColumn, mesh0.cells[mesh0.index(endColumn, 0)].z * 1e3, faceArea);
+  std::printf("tags (%s): interval %d, buffer %d, throat %.2f r_t to level %d, wall y+ %.0f, f_H %.3g, T %.3g, p %.3g, "
+              "vorticity %.3g; the face column to the top within %.3f mm\n", kNumericsFrozen ? "frozen" : "provisional",
+              tags.interval, tags.buffer, tags.throatHalfWidth, tags.throatLevel, tags.wallYPlus, tags.mixture,
+              tags.temperature, tags.pressure, tags.vorticity, core * 1e3);
+
+  // The composite owned cells.
+  auto owned = [&](int l, std::size_t q) {
+    return (l == 0 || amr.active(l)[q]) && !(l + 1 < amr.levels() && amr.covered(l, q));
+  };
+  struct Sample {
+    double t{}, mdot{}, fvac{}, ispChamber{}, ispInlet{}, p0{}, pFace{}, cstar{}, qWall{}, qFace{}, liquid{}, parcels{};
+    double areaError{};
+  };
+  auto sample = [&]() {
+    Sample x;
+    x.t = amr.time();
+    double wallHeat = 0, plateHeat = 0, pressureArea = 0, area = 0;
+    for (int l = 0; l < amr.levels(); ++l) {
+      const Flow& f = amr.level(l);
+      const auto m = f.measurements();
+      x.mdot += m.outletMassFlow;
+      x.fvac += m.inletMomentumFlux + m.wallAxialForce + m.bodyAxialForce;
+      wallHeat += m.wallHeatFlow;
+      plateHeat += m.plateHeatFlow;
+      for (int j = 0; j < f.mesh().nr; ++j) {
+        const std::size_t q = f.mesh().index(0, j);
+        if (!owned(l, q)) continue;
+        area += f.mesh().axialArea(0, j);
+        pressureArea += f.mesh().axialArea(0, j) * f.cellPrimitive(q).p;
+      }
+    }
+    x.fvac += spray.ledger().injectionThrust + spray.ledger().wallThrust;
+    x.ispChamber = x.fvac / (kG0 * s.chamberFlow);
+    x.ispInlet = x.fvac / (kG0 * (kEngineFuel + kOxidizer));
+    x.p0 = columnStagnation(base, gas, endColumn);
+    x.pFace = pressureArea / area;
+    x.areaError = rel(area, faceArea);
+    x.cstar = x.mdot > 0 ? x.p0 * at / x.mdot : std::nan("");
+    x.qWall = -(wallHeat - plateHeat);
+    x.qFace = -plateHeat;
+    x.liquid = spray.liquidMass();
+    x.parcels = static_cast<double>(spray.parcels().size());
+    return x;
+  };
+
+  // Budgets (a) to (c) as A2's (SPRAY.md, Spray on AMR), over the gas's initial content.
+  double mass0 = 0, energy0 = 0;
+  for (std::size_t q = 0; q < base.state().size(); ++q) {
+    mass0 += base.state()[q][0] * mesh0.cells[q].volume;
+    energy0 += base.state()[q][3] * mesh0.cells[q].volume;
+  }
+  auto budgets = [&]() {
+    const auto& l = spray.ledger();
+    const auto b = amr.budget();
+    double exchangedMass = 0, exchangedEnergy = 0, exchangedMomentum = 0;
+    for (int k = 0; k < amr.levels(); ++k) {
+      const auto& m = amr.level(k).measurements();
+      exchangedMass += m.exchangedMass;
+      exchangedEnergy += m.exchangedEnergy;
+      exchangedMomentum += m.exchangedMomentum;
+    }
+    const double massScale = mass0 + l.injectedMass;
+    const double energyScale = std::abs(energy0) + std::abs(l.injectedEnergy) + std::abs(l.outflowEnergy) + l.wallLoss;
+    const double momentumScale = b.momentumGross + std::abs(l.injectedMomentum) + std::abs(l.outflowMomentum) + std::abs(l.wallImpulse);
+    const auto e = spray.balanceErrors();
+    const double systemMass = b.massResidual + exchangedMass + spray.liquidMass() - (l.injectedMass - l.outflowMass);
+    const double systemEnergy = b.energyResidual + exchangedEnergy + spray.liquidEnergy() - (l.injectedEnergy - l.outflowEnergy - l.wallLoss);
+    const double systemMomentum =
+        b.momentumResidual + exchangedMomentum + spray.liquidMomentum() - (l.injectedMomentum - l.outflowMomentum + l.wallImpulse);
+    return std::array<double, 3>{
+        std::max({std::abs(b.massResidual) / massScale, std::abs(b.energyResidual) / energyScale, std::abs(b.momentumResidual) / momentumScale}),
+        std::max({std::abs(e[0]), std::abs(e[1]), std::abs(e[2])}),
+        std::max({std::abs(systemMass) / massScale, std::abs(systemEnergy) / energyScale, std::abs(systemMomentum) / momentumScale})};
+  };
+
+  std::FILE* csv = std::fopen((s.out + "_series.csv").c_str(), "w");
+  if (!csv) throw std::runtime_error("cannot write " + s.out + "_series.csv");
+  std::fprintf(csv, "# %s\nt_s,mdot_kg_s,fvac_N,isp_chamber_s,isp_inlet_s,p0_Pa,pface_Pa,cstar_m_s,qwall_W,qface_W,liquid_kg,parcels\n",
+               label.c_str());
+  std::vector<Sample> series;
+  std::array<double, 3> worstBudget{};
+  double worstArea = 0, worstGrid = 0;
+  long nonfinite = 0, undefined = 0;
+  const auto clock0 = std::chrono::steady_clock::now();
+  auto print = [&](const Sample& x) {
+    const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - clock0).count();
+    const auto b = budgets();
+    for (int k = 0; k < 3; ++k) worstBudget[k] = std::max(worstBudget[k], b[k]);
+    const double quantities[] = {x.mdot, x.fvac, x.ispChamber, x.ispInlet, x.pFace, x.qWall, x.qFace, x.liquid, b[0], b[1], b[2]};
+    for (double v : quantities) nonfinite += !std::isfinite(v);
+    double tMax = 0;
+    for (int l = 0; l < amr.levels(); ++l) {
+      const Flow& f = amr.level(l);
+      for (std::size_t q = 0; q < f.mesh().cells.size(); ++q)
+        if (f.mesh().cells[q].z < core && owned(l, q)) tMax = std::max(tMax, f.temperature(q));
+    }
+    // Parcels within the core length, by the finest level's cell they lie in.
+    const Mesh& fine = amr.level(amr.levels() - 1).mesh();
+    std::vector<unsigned char> occupied(fine.cells.size(), 0);
+    long near = 0, cells = 0;
+    for (const Parcel& p : spray.parcels()) {
+      if (!(p.z < core)) continue;
+      const int i = std::min(fine.nz - 1, static_cast<int>(p.z / fine.dz));
+      const double eta = p.r / (fine.radius[i] + (fine.radius[i + 1] - fine.radius[i]) * (p.z / fine.dz - i));
+      const int j = std::clamp(static_cast<int>(std::upper_bound(fine.fraction.begin(), fine.fraction.end(), eta) - fine.fraction.begin()) - 1, 0, fine.nr - 1);
+      ++near;
+      auto& o = occupied[fine.index(i, j)];
+      cells += !o;
+      o = 1;
+    }
+    std::printf("\n--- t %.3f ms  [%s]\n  %llu base steps (%llu redone), %llu regrids; wall %.0f s, the spray's share %.1f%%; active cells",
+                x.t * 1e3, label.c_str(), static_cast<unsigned long long>(amr.steps()),
+                static_cast<unsigned long long>(amr.rejectedSteps()), static_cast<unsigned long long>(amr.regrids()), wall,
+                wall > 0 ? 100 * spray.wallTime() / wall : 0.0);
+    for (int l = 1; l < amr.levels(); ++l) {
+      long n = 0;
+      for (const auto a : amr.active(l)) n += a;
+      std::printf(" %d: %ld", l, n);
+    }
+    std::printf("\n  F_vac %.6g N, Isp_vac %.6g s (chamber flow) and %.6g s (engine-inlet flow); outlet %.6g kg/s\n", x.fvac,
+                x.ispChamber, x.ispInlet, x.mdot);
+    std::printf("  p0 %.6g Pa, face pressure %.6g Pa, c* %.6g m/s; hot-gas wall %.6g W, face %.6g W (gas to wall)\n", x.p0, x.pFace,
+                x.cstar, x.qWall, x.qFace);
+    std::printf("  liquid %.6g kg in %.0f parcels; within %.2f mm of the face: T_max %.1f K, %ld parcels in %ld finest cells (%.2f per cell)\n",
+                x.liquid, x.parcels, core * 1e3, tMax, near, cells, cells ? static_cast<double>(near) / cells : 0.0);
+    std::printf("  budgets: (a) gas %.2e, (b) liquid %.2e, (c) whole system %.2e (limit 1e-11)\n", b[0], b[1], b[2]);
+    std::printf("  Table B, table / all updates: ");
+    for (int l = 0; l < amr.levels(); ++l) {
+      const auto& st = reacting[static_cast<std::size_t>(l)]->stats();
+      const Mesh& m = amr.level(l).mesh();
+      constexpr auto causes = static_cast<std::size_t>(ManifoldRuntime::Cause::Count);
+      std::array<long, 3> table{}, all{};
+      for (std::size_t q = 0; q < m.cells.size() && (q + 1) * causes <= st.manifoldCellCauses.size(); ++q) {
+        const double z = m.cells[q].z;
+        const int region = z < s.cylinderEnd ? 0 : z < zThroat ? 1 : 2;
+        for (std::size_t c = 0; c < causes; ++c) all[region] += st.manifoldCellCauses[q * causes + c];
+        table[region] += st.manifoldCellCauses[q * causes];
+      }
+      std::printf("%slevel %d: chamber %ld / %ld, convergent %ld / %ld, divergent %ld / %ld", l ? "; " : "", l, table[0], all[0],
+                  table[1], all[1], table[2], all[2]);
+    }
+    std::printf("\n");
+    std::fflush(stdout);
+  };
+  auto dump = [&](const std::string& tag) {
+    writeAmrDump(amr, s.out + "_" + tag + "_amr.bin");
+    std::FILE* f = std::fopen((s.out + "_" + tag + "_spray.bin").c_str(), "wb");
+    if (!f) throw std::runtime_error("cannot write the spray dump");
+    for (int l = 1; l < amr.levels(); ++l) std::fwrite(amr.active(l).data(), 1, amr.active(l).size(), f);
+    const double t = amr.time();
+    const std::uint64_t n = spray.parcels().size();
+    std::fwrite(&t, sizeof t, 1, f);
+    std::fwrite(&n, sizeof n, 1, f);
+    std::fwrite(spray.parcels().data(), sizeof(Parcel), spray.parcels().size(), f);
+    std::fwrite(&spray.ledger(), sizeof(Spray::Ledger), 1, f);
+    std::fclose(f);
+    std::printf("  state written: %s_%s_amr.bin and _spray.bin (not a restart: no reader, and the spray's pending stores, "
+                "random streams and clock are not in it)\n", s.out.c_str(), tag.c_str());
+  };
+  auto window = [&](long last, const char* name) {  // the 20 ms ending at sample `last`
+    std::printf("\nThe settle judge over %.0f to %.0f ms (%s) [%s]\n", (last - 2000) * kSample * 1e3, last * kSample * 1e3, name,
+                label.c_str());
+    std::array<Settle, 8> out{};
+    const char* names[] = {"face pressure", "c*", "F_vac", "outlet flow", "p0", "Isp_vac (chamber)", "hot-gas wall heat", "face heat"};
+    for (std::size_t k = 0; k < out.size(); ++k) {
+      std::vector<double> x;
+      for (long n = last - 2000; n < last; ++n) {
+        const Sample& v = series[static_cast<std::size_t>(n)];
+        const double values[] = {v.pFace, v.cstar, v.fvac, v.mdot, v.p0, v.ispChamber, v.qWall, v.qFace};
+        x.push_back(values[k]);
+      }
+      out[k] = settle(x, kSample, 20e-3);
+      std::printf("  %-18s mean %.7g, SE %.3f%%, halves %.3f%%, tau %.4f ms, batch %.0f ms%s%s\n", names[k], out[k].mean,
+                  100 * out[k].se, 100 * out[k].halves, out[k].tau * 1e3, out[k].batch * 1e3,
+                  out[k].shortBatches ? " (batches shorter than 10 tau)" : "", k < 2 ? (out[k].settled ? ": settled" : ": NOT settled") : "");
+    }
+    std::printf("  the run is %s\n", out[0].settled && out[1].settled ? "settled" : "NOT settled (reported with these values, flagged)");
+    return out;
+  };
+
+  std::array<Settle, 8> first{};
+  long k = 0;
+  print(sample());
+  while (amr.time() < s.end - 1e-13) {
+    const double t = amr.time(), next = static_cast<double>(k + 1) * kSample;
+    amr.step(std::min({s.end - t, spray.nextEvent(t) - t, next - t}));
+    if (amr.time() < next - 1e-13) continue;
+    ++k;
+    const Sample x = sample();
+    worstGrid = std::max(worstGrid, std::abs(x.t - static_cast<double>(k) * kSample));
+    worstArea = std::max(worstArea, x.areaError);
+    const double row[] = {x.mdot, x.fvac, x.ispChamber, x.ispInlet, x.pFace, x.qWall, x.qFace, x.liquid};
+    for (double v : row) nonfinite += !std::isfinite(v);
+    undefined += !std::isfinite(x.p0) || !std::isfinite(x.cstar);
+    std::fprintf(csv, "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.0f\n", x.t, x.mdot, x.fvac, x.ispChamber,
+                 x.ispInlet, x.p0, x.pFace, x.cstar, x.qWall, x.qFace, x.liquid, x.parcels);
+    series.push_back(x);
+    if (k % 50 == 0 || amr.time() >= s.end - 1e-13) {
+      std::fflush(csv);
+      print(x);
+    }
+    if (k == 6000) {
+      first = window(k, "the frozen parcel rate");
+      dump("60ms");
+      if (s.end > 60e-3 + 1e-13) {
+        spray.setParcelRate(2 * kParcelRate * s.rateFactor);
+        std::printf("  from 60 ms: the parcel rate doubled to %.3g per s per injector (item 5's check)\n", 2 * kParcelRate * s.rateFactor);
+      }
+    }
+    if (k == 8500) {
+      const auto second = window(k, "twice the parcel rate");
+      dump("85ms");
+      bool doubles = false;
+      const char* names[] = {"face pressure", "c*", "F_vac", "outlet flow", "p0", "Isp_vac (chamber)", "hot-gas wall heat", "face heat"};
+      for (std::size_t q = 0; q < first.size(); ++q) {
+        if (q == 3) continue;  // the outlet flow is not an item-3 quantity
+        const double move = std::abs(second[q].mean - first[q].mean) / std::abs(first[q].mean);
+        const double combined = std::hypot(first[q].se * std::abs(first[q].mean), second[q].se * std::abs(second[q].mean)) / std::abs(first[q].mean);
+        const bool moved = move > 0.005 || move > 2 * combined;
+        doubles = doubles || moved;
+        std::printf("  %-18s moves %.3f%% (bar 0.5%%, twice the combined SE %.3f%%)%s\n", names[q], 100 * move, 200 * combined,
+                    moved ? ": MOVED" : "");
+      }
+      std::printf("  item 5: the parcel rate %s\n", doubles ? "DOUBLES for every run" : "holds");
+    }
+  }
+  std::fclose(csv);
+  if (k < 6000) dump("end");
+  std::printf("\nend [%s]: %ld samples, the grid to %.3g s; face area to %.3g at worst; %ld non-finite values; %ld samples with p0 or c* "
+              "undefined (no forward flux); worst budgets (a) %.2e, (b) %.2e, (c) %.2e\n",
+              label.c_str(), k, worstGrid, worstArea, nonfinite, undefined, worstBudget[0], worstBudget[1], worstBudget[2]);
+  return 0;
+}
+
 struct Ring {
   double r{}, w{};
   double h2InInner{}, h2InOuter{}, loxInner{}, loxOuter{}, h2OutInner{}, h2OutOuter{};
@@ -112,7 +541,24 @@ struct Stream {
 int main(int argc, char** argv) {
   try {
     std::vector<std::pair<int, int>> meshes;
-    for (int a = 1; a < argc; ++a) {
+    std::string mode;  // empty: the dry run
+    if (argc > 1 && std::string(argv[1]) == "selftest") return selftest();
+    if (argc > 1 && std::string(argv[1]) == "run") {
+      mode = argc == 3 ? argv[2] : "";
+      if (mode != "development" && mode != "central") throw std::invalid_argument("run development|central");
+      if (mode == "central" && !kNumericsFrozen) {
+        std::printf("run central: refused. The numerical settings (the y+ target and the tag thresholds) are not frozen "
+                    "(tier1_run_definition.md, *Frozen inputs*); no Definition is built and no step is taken.\n");
+        return 2;
+      }
+      int nz = 149, nr = 16;
+      if (mode == "development" && std::getenv("CRUCIBLE_T1_BASE") &&
+          std::sscanf(std::getenv("CRUCIBLE_T1_BASE"), "%dx%d", &nz, &nr) != 2)
+        throw std::invalid_argument("CRUCIBLE_T1_BASE: NZxNR");
+      meshes.push_back({nz, nr});
+    }
+    const bool run = !mode.empty();
+    for (int a = run ? argc : 1; a < argc; ++a) {
       int nz = 0, nr = 0;
       if (std::sscanf(argv[a], "%dx%d", &nz, &nr) != 2) throw std::invalid_argument("mesh: NZxNR");
       meshes.push_back({nz, nr});
@@ -181,7 +627,11 @@ int main(int argc, char** argv) {
       r1 = r1Clear = hi;
     }
     const double spacing = (r8 - r1) / (kRings - 1);
-    std::printf("RL10A-3-3A tier 1, central case dry run (tier1_setup.md): no step is taken, no measured value is read\n");
+    if (run)
+      std::printf("RL10A-3-3A tier 1, the run mode (%s; tier1_run_definition.md, *The run mode*): the gates on the base mesh, "
+                  "then the run; no measured value is read\n", mode == "development" ? "DEVELOPMENT (protocol §6): not the reported case" : "central");
+    else
+      std::printf("RL10A-3-3A tier 1, central case dry run (tier1_setup.md): no step is taken, no measured value is read\n");
     std::printf("element: d_L %.4f mm, t %.4f mm (%.3f d_L), h %.4f mm (%.3f d_L), post OD %.4f mm, annulus OD %.4f mm, "
                 "recess %.4f mm (%.3f d_L)\n", dL * 1e3, t * 1e3, t / dL, h * 1e3, h / dL, dO * 1e3, dA * 1e3,
                 recess * 1e3, recess / dL);
@@ -202,7 +652,7 @@ int main(int argc, char** argv) {
 
     // G2: the layout.
     std::printf("\n");
-    check("G2", ordered(rings), fmt("no overlap: ring 1's inner H2 slot from %.4f mm (axis clear), ring 8's outer to %.4f mm "
+    check("G2", ordered(rings), strf("no overlap: ring 1's inner H2 slot from %.4f mm (axis clear), ring 8's outer to %.4f mm "
                              "(wall at %.4f mm)", rings.front().h2InInner * 1e3, rings.back().h2OutOuter * 1e3, rc * 1e3));
     double areaError = 0, cups = 0;
     for (const Ring& g : rings) {
@@ -211,7 +661,7 @@ int main(int argc, char** argv) {
                             rel(kPi * (g.h2OutOuter * g.h2OutOuter - g.h2OutInner * g.h2OutInner), aH / 2)});
       cups += kPi * (g.h2OutOuter * g.h2OutOuter - g.h2InInner * g.h2InInner);
     }
-    check("G2", areaError < 1e-12, fmt("slot areas: largest relative error %.3g against A_L and A_H / 2", areaError));
+    check("G2", areaError < 1e-12, strf("slot areas: largest relative error %.3g against A_L and A_H / 2", areaError));
 
     // The streams: 16 H2 slots, 9 porous bands (choice 3).
     const double fuel = kOxidizer / kMixtureRatio, sweep = fuel * transpired;
@@ -225,7 +675,7 @@ int main(int argc, char** argv) {
     for (const auto& g : gaps) porous += kPi * (g[1] * g[1] - g[0] * g[0]);
     const double flux = sweep / porous;
     check("G2", rel(cups + porous, kPi * rc * rc) < 1e-12,
-          fmt("cups %.2f mm2 + porous %.2f mm2 = pi R_c^2 to %.3g", cups * 1e6, porous * 1e6,
+          strf("cups %.2f mm2 + porous %.2f mm2 = pi R_c^2 to %.3g", cups * 1e6, porous * 1e6,
               rel(cups + porous, kPi * rc * rc)));
     for (std::size_t g = 0; g < gaps.size(); ++g) {
       Stream s{"porous " + std::to_string(g), gaps[g][0], gaps[g][1]};
@@ -262,10 +712,10 @@ int main(int argc, char** argv) {
     }
     const double oxSum = kRings * (kOxidizer / kRings);
     check("G3", rel(oxSum, kOxidizer) < 1e-12 && rel(fuelSum, fuel) < 1e-12,
-          fmt("oxidizer %.6f kg/s, fuel %.6f kg/s, O/F %.6f, chamber flow %.6f kg/s", oxSum, fuelSum, oxSum / fuelSum,
+          strf("oxidizer %.6f kg/s, fuel %.6f kg/s, O/F %.6f, chamber flow %.6f kg/s", oxSum, fuelSum, oxSum / fuelSum,
               oxSum + fuelSum));
     check("G3", rel(sweepSum / fuel, transpired) < 1e-12 && fluxSpread < 1e-12,
-          fmt("transpired %.6f of the fuel at %.6f kg/(m2 s) on every porous band (spread %.3g); ring O/F %.5f",
+          strf("transpired %.6f of the fuel at %.6f kg/(m2 s) on every porous band (spread %.3g); ring O/F %.5f",
               sweepSum / fuel, flux, fluxSpread, (kOxidizer / kRings) / ((fuel - sweep) / kRings)));
 
     // G4: the injection numbers at the nominal face pressure, and each stream's viscosity ratio from its length scale:
@@ -313,9 +763,9 @@ int main(int argc, char** argv) {
     const double group = (vG - vL) / (vL * ringOF), momentum = rhoG * vG * vG / (rhoL * vL * vL);
     const double medianRatio = burick(group);
     check("G8", std::isfinite(medianRatio),
-          fmt("every ring's group %.4f inside the digitised curve's table [%.2f, %.2f]", group, kBurick.front()[0],
+          strf("every ring's group %.4f inside the digitised curve's table [%.2f, %.2f]", group, kBurick.front()[0],
               kBurick.back()[0]) +
-              (group > kBurick.back()[0] ? fmt(" or past its end: EXTRAPOLATED at slope %.3f, %.2f times the data's "
+              (group > kBurick.back()[0] ? strf(" or past its end: EXTRAPOLATED at slope %.3f, %.2f times the data's "
                                                "last group (about 11)", kBurickSlope, group / 11)
                                          : std::string()));
     const auto lox = liquid.at(kOxidizerT);
@@ -382,6 +832,24 @@ int main(int argc, char** argv) {
       d.igniter = {0.005 * scale, 0.015 * scale, 0.010 * scale, 0.5, 2e-4, 2e-4};
       return d;
     };
+    // The run's Definition (tier1_run_definition.md, *The run mode*): face inlet (a) with each ring's LOX slot a
+    // closed port (decision 6), the plate at the fuel's temperature (decision 8), the torch at 7 kJ over 1 ms (item 1).
+    auto tier1 = [&](int nz, int nr) {
+      Definition dm = define(nz, nr, false);
+      dm.openAreaSupplies = true;
+      for (int i = 0; i < kRings; ++i) {
+        Supply p = dm.supplies.front();
+        p.innerRadius = rings[i].loxInner;
+        p.outerRadius = rings[i].loxOuter;
+        p.massFlow = 0;
+        p.composition = o2;
+        dm.supplies.push_back(p);
+      }
+      dm.plateTemperature = kFuelT;
+      dm.igniter.energy = 7e3;
+      dm.igniter.duration = 1e-3;
+      return dm;
+    };
 
     // G1, G5, G6 per mesh; G7 at the finest.
     for (const auto& [nz, nr] : meshes) {
@@ -399,10 +867,10 @@ int main(int argc, char** argv) {
       const double throatR = mesh.radius[wall.throatStation];
       check("G1", rel(throatR, wall.rt) < 1e-12 && std::abs(wall.face - rl10::kNominalFace) <= 0.03 &&
                       rel(mesh.radius[0], rc) < 1e-12 && rel(mesh.radius[nz], wall.rt * std::sqrt(61.0)) < 1e-12,
-            fmt("throat station %.0f radius to %.3g; face at %.4f in (%+.4f from -13.1)", wall.throatStation,
+            strf("throat station %.0f radius to %.3g; face at %.4f in (%+.4f from -13.1)", wall.throatStation,
                 rel(throatR, wall.rt), wall.face, wall.face - rl10::kNominalFace) +
-                fmt("; face radius to %.3g; exit radius to %.3g", rel(mesh.radius[0], rc), rel(mesh.radius[nz], wall.rt * std::sqrt(61.0))) +
-                fmt("; dz %.4f mm, face ring heights %.4f to %.4f mm",
+                strf("; face radius to %.3g; exit radius to %.3g", rel(mesh.radius[0], rc), rel(mesh.radius[nz], wall.rt * std::sqrt(61.0))) +
+                strf("; dz %.4f mm, face ring heights %.4f to %.4f mm",
                     mesh.dz * 1e3, (mesh.fraction[1] - mesh.fraction[0]) * rc * 1e3,
                     (mesh.fraction[nr] - mesh.fraction[nr - 1]) * rc * 1e3));
       // Flow's rule: a face ring belongs to the supply that holds its centre.
@@ -423,11 +891,11 @@ int main(int argc, char** argv) {
         if (count > 0 && std::abs(ratio - 1) > worst) { worst = std::abs(ratio - 1); worstIndex = static_cast<int>(s); }
         std::printf("  %-12s [%8.3f, %8.3f]  %9.2f   %4d  %9.2f   %8.4f   %s\n", st.name.c_str(), st.inner * 1e3,
                     st.outer * 1e3, st.area() * 1e6, count, area * 1e6, ratio,
-                    count ? fmt("%.4f", 1 / (ratio * ratio)).c_str() : "-");
+                    count ? strf("%.4f", 1 / (ratio * ratio)).c_str() : "-");
       }
       check("G5", resolved == static_cast<int>(streams.size()),
-            fmt("%.0f of %.0f supplies within 5%% of their true area; %.0f hold no ring centre", resolved, streams.size(), empty) +
-                (worstIndex >= 0 ? " (worst held: " + streams[worstIndex].name + fmt(", %.3f)", 1 + worst) : std::string()));
+            strf("%.0f of %.0f supplies within 5%% of their true area; %.0f hold no ring centre", resolved, streams.size(), empty) +
+                (worstIndex >= 0 ? " (worst held: " + streams[worstIndex].name + strf(", %.3f)", 1 + worst) : std::string()));
       // The merged layout's bands: each carries its ring's two slots' flow over the cup, so its J against the slots'
       // is (A_H / A_mesh)^2.
       std::printf("  merged band    [inner, outer] mm      slots mm2   cup mm2   rings  mesh mm2   J_mesh/J\n");
@@ -441,7 +909,7 @@ int main(int argc, char** argv) {
         }
         std::printf("  ring %d       [%8.3f, %8.3f]  %9.2f  %8.2f   %4d  %9.2f   %s\n", i + 1, g.h2InInner * 1e3,
                     g.h2OutOuter * 1e3, aH * 1e6, kPi * (g.h2OutOuter * g.h2OutOuter - g.h2InInner * g.h2InInner) * 1e6,
-                    count, area * 1e6, count ? fmt("%.4f", std::pow(aH / area, 2)).c_str() : "-");
+                    count, area * 1e6, count ? strf("%.4f", std::pow(aH / area, 2)).c_str() : "-");
       }
       for (bool merged : {false, true}) {
         const char* name = merged ? "merged (each ring's H2 slots as one band across its cup)" : "true slots";
@@ -466,13 +934,13 @@ int main(int argc, char** argv) {
           }
           settings.restitution = 0.5;
           [[maybe_unused]] Spray spray(flow, LiquidOxygen::load(kSaturation, fm.enthalpy(298.15, o2.data())), settings);
-          check("G6", true, std::string(name) + fmt(": Flow and Spray constructed (%.0f supplies, %.0f injectors, %.0f cells)",
+          check("G6", true, std::string(name) + strf(": Flow and Spray constructed (%.0f supplies, %.0f injectors, %.0f cells)",
                                                     dm.supplies.size(), settings.injectors.size(), flow.mesh().cells.size()));
         } catch (const std::exception& e) {
           check("G6", false, std::string(name) + ": " + e.what());
         }
       }
-      if (std::getenv("CRUCIBLE_T1_OPEN_AREA")) {
+      if (run || std::getenv("CRUCIBLE_T1_OPEN_AREA")) {
         // F3 (docs/evidence/FACE_INLET.md): the true layout under openAreaSupplies, each ring's LOX slot a
         // closed port, the valves open (ramp 0) so the face carries every supply's flow at t = 0. Each ring's
         // face mass flow against sum_s a_sj mdot_s / A_s (a_sj and A_s the true annuli's, computed here);
@@ -480,6 +948,11 @@ int main(int argc, char** argv) {
         // first cell, against mdot_s; the engine's supply areas against the true. On AMR (3 levels, every
         // cell active) the wall functions and the corrections stay on (AMR.md, step D, D4).
         auto open = [&]() {
+          if (run) {  // the run's own Definition, the valves open
+            Definition dm = tier1(nz, nr);
+            for (Supply& p : dm.supplies) p.ramp = 0;
+            return dm;
+          }
           Definition dm = define(nz, nr, false);
           dm.openAreaSupplies = true;
           for (int i = 0; i < kRings; ++i) {
@@ -529,13 +1002,13 @@ int main(int argc, char** argv) {
             if (p.massFlow > 0) supplyError = std::max(supplyError, rel(sum, p.massFlow));
           }
           check("F3", ringError < 1e-12 && supplyError < 1e-12 && areaError < 1e-12,
-                label + fmt(": %.0f supplies; per ring, face mass flow to %.3g; per supply, face mass flow and rho u A_true "
+                label + strf(": %.0f supplies; per ring, face mass flow to %.3g; per supply, face mass flow and rho u A_true "
                             "(%.0f supply-rings)", dm.supplies.size(), ringError, touched) +
-                    fmt(" to %.3g; supply areas to %.3g (limit 1e-12)", supplyError, areaError));
+                    strf(" to %.3g; supply areas to %.3g (limit 1e-12)", supplyError, areaError));
         };
         try {
           Flow flow(open());
-          judge(flow, fmt("%.0f x ", nz) + fmt("%.0f, wall functions and corrections", nr));
+          judge(flow, strf("%.0f x ", nz) + strf("%.0f, wall functions and corrections", nr));
           flow.step();
           const auto m = flow.measurements();
           std::printf("     one step: dt %.3e s, budgets mass %.3e, energy %.3e\n", m.dt, m.massBalanceError, m.energyBalanceError);
@@ -546,7 +1019,7 @@ int main(int argc, char** argv) {
           try {
             Amr amr(open(), 2);
             for (int l = 1; l < amr.levels(); ++l) amr.setActive(l, std::vector<unsigned char>(amr.level(l).mesh().cells.size(), 1));
-            for (int l = 0; l < amr.levels(); ++l) judge(amr.level(l), fmt("AMR level %.0f, wall functions and corrections (step D, D4)", l));
+            for (int l = 0; l < amr.levels(); ++l) judge(amr.level(l), strf("AMR level %.0f, wall functions and corrections (step D, D4)", l));
           } catch (const std::exception& e) {
             check("F3", false, std::string("AMR: ") + e.what());
           }
@@ -569,15 +1042,61 @@ int main(int argc, char** argv) {
           minTip = std::min({minTip, across(g.h2InOuter, g.loxInner), across(g.loxOuter, g.h2OutInner)});
         }
         check("G7", false,
-              fmt("the cup: %.2f cells across its depth (need 4), fewest across a slot %.2f and a tip %.2f (need 2); ",
+              strf("the cup: %.2f cells across its depth (need 4), fewest across a slot %.2f and a tip %.2f (need 2); ",
                   recess / mesh.dz, minSlot, minTip) +
                   "Mesh is one body-fitted map of r(z) from the face plane, with no cells behind it, so it cannot carry the cup's walls");
       }
     }
     std::printf("\n%d check(s) failed\n", failures);
-    return 0;
+    if (!run) return 0;
+    std::printf("gates (G1 to G4, G8, F3 on the run's Definition): %d failed; G5 and G6 test the ring-centre rule decision 6 "
+                "superseded, G7 is declared (decision 5)\n", gateFailures);
+    if (gateFailures) {
+      std::printf("run %s: stopped at the gates, no step taken\n", mode.c_str());
+      return 3;
+    }
+    Setup setup;
+    setup.mode = mode;
+    setup.mechanism = mechanism;
+    const auto& [nz, nr] = meshes.front();
+    setup.definition = tier1(nz, nr);
+    setup.core = core;
+    setup.cylinderEnd = (-10.00 - rl10::wall(nz).face) * rl10::kInch;
+    setup.chamberFlow = oxSum + fuelSum;
+    setup.o2 = o2;
+    setup.out = "rl10_t1_central";
+    if (mode == "development") {
+      setup.levels = static_cast<int>(env("CRUCIBLE_T1_LEVELS", 3));
+      setup.threads = static_cast<int>(env("CRUCIBLE_T1_THREADS", 4));
+      setup.end = env("CRUCIBLE_T1_END", 1e-3);
+      setup.rateFactor = env("CRUCIBLE_T1_RATE_FACTOR", 1);
+      setup.out = std::string(std::getenv("CRUCIBLE_T1_OUT") ? std::getenv("CRUCIBLE_T1_OUT") : "rl10_t1") + "_DEVELOPMENT";
+    } else {
+      setup.end = 85e-3;
+    }
+    for (int i = 0; i < kRings; ++i) {
+      Spray::Injector j;
+      j.rInner = rings[i].loxInner;
+      j.rOuter = rings[i].loxOuter;
+      j.massFlow = kOxidizer / kRings;
+      j.opens = 0;
+      j.ramp = kRamp;
+      j.temperature = kOxidizerT;
+      j.size = Spray::Injector::Size::RosinRammler;
+      j.sauterDiameter = smd;
+      j.exponent = q;
+      j.coreLength = core;
+      setup.spray.injectors.push_back(j);
+    }
+    setup.spray.restitution = 0.5;
+    doneFile = setup.out + "_done";
+    const int status = runCase(setup);
+    if (std::FILE* f = std::fopen(doneFile.c_str(), "w")) std::fprintf(f, "exit %d\n", status), std::fclose(f);
+    return status;
   } catch (const std::exception& e) {
     std::fprintf(stderr, "error: %s\n", e.what());
+    if (!doneFile.empty())
+      if (std::FILE* f = std::fopen(doneFile.c_str(), "w")) std::fprintf(f, "exit 1: %s\n", e.what()), std::fclose(f);
     return 1;
   }
 }

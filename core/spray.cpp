@@ -941,6 +941,11 @@ double openedTime(const Spray::Injector& j, double t) {
 }
 }  // namespace
 
+void Spray::setParcelRate(double rate) {
+  if (!(rate > 0)) throw std::invalid_argument("Spray: the parcel rate must be positive.");
+  for (auto& j : settings_.injectors) j.parcelRate = rate;
+}
+
 // The injectors deliver [t0, t1]'s liquid into their pending stores, and release a parcel every
 // 1 / parcelRate of open time, each carrying an equal share of what is pending.
 void Spray::release(double t0, double t1) {

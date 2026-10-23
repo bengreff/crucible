@@ -240,8 +240,9 @@ struct Measurements {
     // Chamber: scheduled supply flow (the Isp denominator), igniter power and energy delivered so
     // far, and the area-averaged pressure of the cells on the injector face.
     double supplyMassFlow{}, igniterPower{}, igniterEnergy{}, injectorPressure{};
-    // Heat conducted into the gas through the walls [W] (molecular transport only).
-    double wallHeatFlow{};
+    // Heat conducted into the gas through the walls [W] (molecular transport only), and the part of it through
+    // the injector face (i = 0: its walls, or the plate's share under open-area supplies).
+    double wallHeatFlow{}, plateHeatFlow{};
     // Turbulence: rho k V added so far where a stage left rho k below zero [J] (Flow::step), and by
     // the wall functions' prescription of the first cells' k (at fixed total energy).
     double clippedTurbulentEnergy{}, prescribedTurbulentEnergy{};
@@ -419,6 +420,7 @@ private:
     struct BoundaryRates {
         double mass{}, energy{}, inlet{}, outlet{}, inletMomentum{}, outletMomentum{}, wallAxial{}, bodyAxial{}, heat{}, wallHeat{};
         double correction{};  // the integral of Phi_k dV (Turbulence::propertyCorrections)
+        double plateHeat{};   // wallHeat's part through the injector face (i = 0)
         [[nodiscard]] double netMomentum() const { return inletMomentum-outletMomentum+wallAxial+bodyAxial; }
         [[nodiscard]] double grossMomentum() const;
         static BoundaryRates average(const BoundaryRates& a, const BoundaryRates& b);
