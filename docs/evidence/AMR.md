@@ -830,6 +830,18 @@ The fix registered in 28d87b1 (`SPRAY.md`, *The fix, registered before its code*
 - **The children's ρ.** With each partial density linear as well, a child's sum of partial densities equals its linear ρ to rounding only. Either one can be the one kept.
 - **Conflicts with this lane's code: none.** This lane's uncommitted work touched only `tests/` and `CMakeLists.txt`. The ordering is the only overlap, and it is above.
 
+## Step D's checks rerun on the new spread (launched 23 October, 01:07 CDT, recorded before any result)
+
+The Director's note: rerun step D's checks on inquiry's spread revision (b7f232b). They will not reproduce bit for bit, but the verdicts must hold. The checks are D0 to D4 as amended (*Step D: results under the amendments*), with nothing changed. The code is inquiry2's 2058db1, which has the spread revision and the gas energy leak fix (FACE_INLET.md section 5).
+- **D0's parent.** D0 compares against a parent, and that parent must now carry the new spread too. It is 2058db1 with step D's core changes reversed: bca7c94's, then 2ff039f's (`patch -R`; core/ applies whole).
+  - The parent's budget driver drops only what its core no longer has: D2's mismatch judge and D1's test 1 print, both print or judge lines after the run.
+  - D0's runs use neither `wall` nor the ledgers.
+  - Its fast-ctest comparison is new against the parent, both on backhouse. A parent target that needs step D's API and does not build is named, and not compared.
+- **D1** is run at 4 threads on backhouse with its dump. D3 compares that dump with the same run on 1 thread. The Mac's criterion 4 script also runs D1 at 2 threads (`budget.log`).
+- **D2** is the inert fixed pattern with `law` and `hp`, to 8 ms.
+- **D4** is met on the rebased tree, from the RL10 probe's gates (measured, 00:57 CDT): F3 passes on AMR levels 0, 1 and 2 with the wall functions and corrections, to 1.05e-14 at most against 1e-12 (`face_inlet/leak_2026-10-23/rebased_after/probe2.log`).
+- **Where.** Script `amr_d/bh_sd3.sh`, run on backhouse in `/home/greff/crucible_sd3`, with the parent in `crucible_sd3p` and tmux `inq2sd3`. The done-file is `out/all_done`. Each 4-thread job waits for a load of 24 or less.
+
 ## Inquiry's wall-face fix (762806e), read from the AMR side (23 October, about 01:00 CDT)
 
 The change: `Flow::transportFluxes` skips `wallSolve` for a wall face whose cell is outside N_2. Under AMR such a cell has no computed state, so the solve read stale primitives. The review finds it sound (derived from the code):
