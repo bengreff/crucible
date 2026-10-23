@@ -682,6 +682,34 @@ Run by `bh_stepd.sh` in `/home/greff/crucible_sd` (inquiry2 at b84ae3a, code as 
   - `crucible_amr_budget` prints no light-off time, so none is reported.
   - Wall time: D1 2,352 s on AMR against 186 s on one level, at load about 24. It says nothing about cost.
 
+## Step D: D0's last runs, and the Director's amendments to D1 and D2 (recorded 22 October, about 22:25 CDT, before the code and runs they govern)
+
+**D0: met.** Scored on backhouse on 22 October (evening) from `/home/greff/crucible_sd/out`; the outputs are copied to `amr_d/`.
+
+- The fast ctest gives 8 pass and 4 fail of 12. Its 16 sorted rerun FAIL lines are identical to `face_inlet/ctest_2026-10-22_backhouse.txt`'s, values included (`amr_d/ctest.txt`, `amr_d/ctest_rerun.txt`).
+- Check 3's dump is `cmp`-identical, new against the parent. The driver writes it as `out/c3n/d_c3.bin` and `out/c3b/d_c3.bin`; `score_sd.sh` compared another path and printed a false "differs", so the comparison was made by hand.
+- The two check 3 logs differ only in wall time (10.8 s against 11.0 s).
+
+**D2, amended (the Director's decision, relayed 22 October evening).** The 1e-12 relative residual is ill-posed where the law's ρk goes to 0, and one level fails it too (4.373e-3). It is replaced by a direct check of what D2 is meant to show:
+
+- At the end of every base step, every owned wall-function cell's conserved state, mass fractions, ρk and ρω are bitwise (`memcmp`) what that cell's last prescription left, on the stage or after the reflux. `Flow::prescribeCell` keeps the values it leaves beside it.
+- Judged on the inert fixed pattern (`crucible_amr_budget 8e-3 4 wall inert`): 0 mismatches over every base step, on every level, and 0 on the single level as the control. If the control fails, D2 is not met, because the check would then not show what it is meant to.
+- D1's run prints its count, not judged: the reaction step moves the state after the prescription there.
+
+**D1, the igniter's cause (the Director's decision: up to an hour on it; if it is summation order or rounding, the bound is amended to 1e-13 with the evidence; if it is real, it is fixed).**
+
+- *Inferred from the code (`core/amr.cpp:515-548, 592-615`), not yet tested:* level 1's time chain does not close on the base step's. Take a base step over [t, t + dt]. Level 1 steps over [t, m] and [m, fl(m + dt/2)], with m = fl(t + dt/2). The next base step starts at fl(t + dt), or at the event when it lands on one.
+- Each level's igniter power is (E/D) × overlap / dt over its own [time, time + dt]. So level 1's deposit time in a base step is fl(m + dt/2) − t, against level 0's fl(t + dt) − t. The two can differ by one ulp of t, 5.4e-20 s near 0.3 ms (derived).
+- Level 1 then delivers about (E/D) × ulp = 1.4e-16 J too much or too little in that base step, scaled by its share of the igniter (derived). Over the deposit's base steps that sums to the order of the 2.143e-14 measured, either as a random walk or as a partly systematic drift.
+- **Test 1 (printed, not judged).** For each base step (its last attempt's), sum each level's igniter power times its step in long double. Print three things over the run:
+  - each level's |Σ / 0.5 J − 1|;
+  - the number of base steps where level 1's sum differs from level 0's by more than 1e-17 J (the products round at about 1e-19 J, derived);
+  - those differences' net.
+  - The hypothesis predicts level 0 at 1e-16 or below, level 1 near 1e-14, and a count on the order of the base steps in the deposit.
+- **Test 2 (a counterfactual build, not committed unless adopted).** Each level's step is handed its end time: level 1's second substep ends at its parent's end, and a landing base step at the event. The igniter overlap uses that end, with dt unchanged. The hypothesis predicts D1's igniter error falls to about 1e-15 or below, with the other budgets unchanged in their leading digits.
+- **Reading.** If both tests bear the hypothesis out, the cause is rounding in the time arithmetic, and D1's igniter bound is amended to 1e-13 on this evidence. Test 2's change is then reported as an option, not adopted: it moves criterion 2's and check 3's dumps by ulps, so D0 would need a new baseline. If the tests do not bear it out, the cause is looked for further within the hour, and fixed if it is real.
+- D1's rerun on the new code must reproduce its first run's dump (`out/d1_t4.txt`) under `cmp`: the D2 check and Test 1 read the state and do not change it.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.

@@ -1,0 +1,38 @@
+Test project /home/greff/crucible_sd/build
+      Start  1: core_verification
+      Start  2: wall_function_verification
+ 1/12 Test  #2: wall_function_verification .......   Passed    0.30 sec
+      Start  4: amr_verification
+ 2/12 Test  #4: amr_verification .................***Failed    0.02 sec
+      Start  5: amr_subcycling_verification
+ 3/12 Test  #1: core_verification ................   Passed   57.21 sec
+      Start  6: thermo_cea_verification
+ 4/12 Test  #6: thermo_cea_verification ..........   Passed   70.67 sec
+      Start  7: reaction_verification
+ 5/12 Test  #7: reaction_verification ............   Passed    1.25 sec
+      Start  8: transport_verification
+ 6/12 Test  #5: amr_subcycling_verification ......***Failed  134.63 sec
+      Start  9: turbulence_verification
+ 7/12 Test  #9: turbulence_verification ..........   Passed   78.78 sec
+      Start 11: wall_function_threads
+ 8/12 Test #11: wall_function_threads ............   Passed    0.17 sec
+      Start 12: face_inlet
+ 9/12 Test #12: face_inlet .......................   Passed    4.61 sec
+      Start 14: spray_verification
+10/12 Test #14: spray_verification ...............***Failed   48.44 sec
+      Start 15: mixture_verification
+11/12 Test #15: mixture_verification .............   Passed    8.11 sec
+12/12 Test  #8: transport_verification ...........***Failed  395.13 sec
+
+67% tests passed, 4 tests failed out of 12
+
+Total Test time (real) = 524.26 sec
+
+The following tests FAILED:
+	  4 - amr_verification (Failed)
+	  5 - amr_subcycling_verification (Failed)
+	  8 - transport_verification (Failed)
+	 14 - spray_verification (Failed)
+Errors while running CTest
+Output from these tests are in: /home/greff/crucible_sd/build/Testing/Temporary/LastTest.log
+Use "--rerun-failed --output-on-failure" to re-run the failed cases verbosely.
