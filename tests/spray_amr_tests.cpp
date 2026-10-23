@@ -187,17 +187,22 @@ void a1(thermo::ReactionSource& source, bool turbulent, double end) {
   double dtDifference = 0;
   const auto start = std::chrono::steady_clock::now();
   double uniformWall = 0;
+  // B1 (tier1_run_definition.md, registration B): the exchange bound, taken and not applied, against each dt.
+  double boundRatio = std::numeric_limits<double>::infinity();
   while (amr.time() < end) {
     const double t = amr.time();
+    const double boundA = spray.exchangeDt(), boundB = uniform.exchangeDt();
     const double a = amr.step(std::min(end - t, spray.nextEvent(t) - t));
     const auto u0 = std::chrono::steady_clock::now();
     const double b = flow.step(std::min(end - flow.time(), uniform.nextEvent(flow.time()) - flow.time()));
+    boundRatio = std::min({boundRatio, boundA / a, boundB / b});
     uniform.advance(b);
     uniformWall += seconds(u0);
     if (a != b) ++differ;
     dtDifference = std::max(dtDifference, relative(a, b));
     ++steps;
   }
+  check(boundRatio > 1, "B1: the exchange bound never binds, either run (smallest bound / dt)", boundRatio, 1);
   const Flow& base = amr.level(0);
   std::printf("  %ld base steps (%llu redone), t %.17g against %.17g; %.1f s of wall\n", steps,
               static_cast<unsigned long long>(amr.rejectedSteps()), amr.time(), flow.time(), seconds(start));
@@ -263,9 +268,9 @@ struct Run {
   std::vector<std::vector<double>> partial;
   std::vector<unsigned char> parcels;
 };
-Run a2(thermo::ReactionSource& source, int threads, double end) {
-  std::printf("A2 on %d thread%s: 16 x 6 base plus 2 levels (64 x 24 finest), to %.2g ms\n", threads, threads > 1 ? "s" : "",
-              end * 1e3);
+Run a2(thermo::ReactionSource& source, int threads, double end, bool bound = false) {
+  std::printf("A2 on %d thread%s: 16 x 6 base plus 2 levels (64 x 24 finest), to %.2g ms%s\n", threads, threads > 1 ? "s" : "",
+              end * 1e3, bound ? ", the exchange bound applied (B2)" : "");
   const Definition d = chamber(source, false);
   Amr amr(d, 2);
   amr.setThreads(threads);
@@ -295,11 +300,15 @@ Run a2(thermo::ReactionSource& source, int threads, double end) {
     energy0 += base.state()[q][3] * base.mesh().cells[q].volume;
   }
   const auto start = std::chrono::steady_clock::now();
+  double boundRatio = std::numeric_limits<double>::infinity();
   while (amr.time() < end) {
     const double t = amr.time();
-    amr.step(std::min(end - t, spray.nextEvent(t) - t));
+    const double b = spray.exchangeDt();
+    const double dt = amr.step(std::min({end - t, spray.nextEvent(t) - t, bound ? b : std::numeric_limits<double>::infinity()}));
+    boundRatio = std::min(boundRatio, b / dt);
   }
   const double wall = seconds(start);
+  check(boundRatio > 1, "B1: the exchange bound never binds (smallest bound / dt)", boundRatio, 1);
   const auto& l = spray.ledger();
   std::printf("  %llu base steps (%llu redone), %llu regrids that changed the pattern, %.1f s of wall\n",
               static_cast<unsigned long long>(amr.steps()), static_cast<unsigned long long>(amr.rejectedSteps()),
@@ -374,6 +383,13 @@ int main(int argc, char** argv) {
       for (std::size_t k = 0; k < one.state.size(); ++k) gas = gas && same(one.state[k], four.state[k]) && same(one.partial[k], four.partial[k]);
       check(gas, "every level's state and partial densities bit-identical", gas ? 0.0 : 1.0, 0);
       check(one.parcels == four.parcels, "parcel list bit-identical, every field", one.parcels == four.parcels ? 0.0 : 1.0, 0);
+      const Run bounded = a2(source, 4, 1.0e-3, true);
+      std::printf("B2: A2 on 4 threads with the exchange bound applied, against without\n");
+      bool equal = true;
+      for (std::size_t k = 0; k < four.state.size(); ++k)
+        equal = equal && same(four.state[k], bounded.state[k]) && same(four.partial[k], bounded.partial[k]);
+      check(equal, "every level's state and partial densities bit-identical", equal ? 0.0 : 1.0, 0);
+      check(four.parcels == bounded.parcels, "parcel list bit-identical, every field", four.parcels == bounded.parcels ? 0.0 : 1.0, 0);
     }
   } catch (const std::exception& e) {
     std::printf("exception: %s\n", e.what());

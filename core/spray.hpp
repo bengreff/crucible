@@ -133,6 +133,11 @@ class Spray {
   void redo();
   // Next injector schedule event after `time` (infinity if none).
   [[nodiscard]] double nextEvent(double time) const;
+  // The base step's bound from the exchange (tier1_run_definition.md, registration B): `fraction` of the
+  // smallest owning cell's gas thermal relaxation time toward its drops, m c_v / sum N G, and vapour time,
+  // m / sum N mdot, from the parcels in it now; level l's cells count 2^l times. Infinity with no exchange.
+  // Reads the levels' states only, so taking it changes nothing; a driver passes it as a step limit.
+  [[nodiscard]] double exchangeDt(double fraction = 0.25) const;
   // Every injector's parcel rate [1/s] from the next release, between steps (tier 1's parcel-rate check:
   // the same liquid in more, lighter parcels).
   void setParcelRate(double rate);

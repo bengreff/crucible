@@ -507,6 +507,7 @@ struct Run {
   Spray::Ledger ledger;
   std::array<double, 3> liquidErrors{};
   double liquidMass{}, liquidEnergy{}, liquidMomentum{}, wall{};
+  double boundRatio = std::numeric_limits<double>::infinity();  // smallest exchange bound / dt (registration B)
   long steps{};
 };
 
@@ -555,7 +556,8 @@ Run chamberRun(thermo::ReactionSource& source, int threads, bool withSpray, doub
   run.start = flow.measurements();
   const auto t0 = std::chrono::steady_clock::now();
   while (flow.time() < endTime) {
-    reacting.step(endTime - flow.time());
+    const double bound = spray.exchangeDt();
+    run.boundRatio = std::min(run.boundRatio, bound / reacting.step(endTime - flow.time()));
     ++run.steps;
   }
   run.wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
@@ -634,6 +636,7 @@ void budgets(thermo::ReactionSource& source) {
   const auto& l = run.ledger;
   const bool happened = l.parcelsInjected > 0 && l.exchangedMass > 0 && l.wallHits > 0 && l.outflowMass > 0;
   closes(run, "(a)", "(b)");
+  check(run.boundRatio > 1, "B1: the exchange bound never binds (smallest bound / dt)", run.boundRatio, 1);
   check(happened, "injection, evaporation, wall rebounds and parcels leaving all occurred", happened ? 0 : 1, 0.5);
 
   std::printf("S4. Threads\n");
@@ -738,6 +741,7 @@ void dispersion(thermo::ReactionSource& source) {
   std::printf("  (c) %ld of the parcels held are inside an eddy at the end\n", eddying);
   check(eddying > 0, "(c) dispersion acted (parcels inside an eddy)", eddying > 0 ? 0 : 1, 0.5);
   closes(run, "(c)", "(c)");
+  check(run.boundRatio > 1, "B1 (c): the exchange bound never binds (smallest bound / dt)", run.boundRatio, 1);
   const Run other = chamberRun(source, 4, true, 0.2e-3, true);
   const bool same = identical(run, other);
   check(same, "(c) final gas state and parcel list on 4 threads against 1, bit for bit", same ? 0 : 1, 0.5);

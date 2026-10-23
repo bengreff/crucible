@@ -11,3 +11,9 @@ Two lines from temporary diagnostic builds, reverted and not committed:
   (the state u after the deposit; a is the deposit: mass, axial and radial momentum, energy).
 - The 2-level budget (a), by component, at 0.02 ms. The driver's `budgets()` printed each part:
   `gas mass -3.491e-16 energy 2.446e-07 momentum -1.873e-16 (residuals -1.761e-18 kg 1.079e-04 J -6.072e-18; scales 5.044e-03 4.411e+02 3.241e-02)`
+
+## Registration B and the start amendment (23 October 2026, about 00:40 to 00:47 CDT, on the Mac)
+
+- `b3_probe_3level_lead0_0.02ms.log`: B3, the 3-level probe with the exchange bound and t_L = 0 (`CRUCIBLE_T1_LEAD=0 CRUCIBLE_T1_END=2e-5`). It stops in `Flow::exchange` before the first 10 μs sample, as before. CVODES warnings are stripped.
+- `b3_flash_diagnostic.txt`: the same probe on a temporary build, reverted and not committed. After each level's move it printed the mass flashed and the vapour exchanged. Only the 5 sub-steps with a flash are kept; the other 120 sub-steps with vapour carry at most 1.4e-13 kg.
+- B4, the lead's probe (`CRUCIBLE_T1_LEAD=20e-3 CRUCIBLE_T1_END=21e-3`, 3 levels, 4 threads), launched at 00:47 CDT from `/tmp/t1run/b` (`b4.log`, done-file `done_b4`). Not scored yet.

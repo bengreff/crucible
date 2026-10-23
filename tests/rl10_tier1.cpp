@@ -12,7 +12,8 @@
 //        crucible_rl10_tier1 run development|central   (tier1_run_definition.md, *The run mode*)
 //        crucible_rl10_tier1 selftest                  (the settle judge, R4)
 // The run takes CRUCIBLE_MANIFOLD_TABLE (Table B), and in development CRUCIBLE_T1_BASE (149x16), _LEVELS (3),
-// _END [s] (1e-3), _THREADS (4), _OUT (the files' prefix, rl10_t1) and _RATE_FACTOR (1).
+// _LEAD [s] (t_L, 20e-3), _END [s] (the simulated time, t_L + 1e-3), _THREADS (4), _OUT (the files' prefix, rl10_t1) and
+// _RATE_FACTOR (1).
 // A member's element dimensions replace the central ones through the environment (the skeleton's brackets):
 //   CRUCIBLE_T1_POST_ID      d_L [mm], central 3.54
 //   CRUCIBLE_T1_TIP          t / d_L, central 0.272
@@ -231,6 +232,7 @@ struct Setup {
   std::string mode, out, mechanism;
   int levels{3}, threads{4};
   double end{1e-3}, rateFactor{1}, core{}, cylinderEnd{}, chamberFlow{};
+  double lead{20e-3};  // t_L, the H2 lead (tier1_run_definition.md, the start amendment)
   Definition definition;
   Spray::Settings spray;
   std::vector<double> o2;
@@ -297,6 +299,11 @@ int runCase(const Setup& s) {
               "vorticity %.3g; the face column to the top within %.3f mm\n", kNumericsFrozen ? "frozen" : "provisional",
               tags.interval, tags.buffer, tags.throatHalfWidth, tags.throatLevel, tags.wallYPlus, tags.mixture,
               tags.temperature, tags.pressure, tags.vorticity, core * 1e3);
+  // The start amendment: H2 alone from t = 0, the LOX from t_L, the judge's times counted from t_L.
+  const long leadK = std::lround(s.lead / kSample);
+  std::printf("the start: the H2 supplies open at 0, the LOX at t_L = %.4g ms on its %.2g ms ramp, the igniter at %.4g ms; "
+              "the lead's gate %s; the exchange bound (registration B) a step limit, f 0.25\n", s.lead * 1e3, kRamp * 1e3,
+              s.definition.igniter.start * 1e3, leadK >= 200 ? "judged at t_L" : "not judged (a lead under 2 ms)");
 
   // The composite owned cells.
   auto owned = [&](int l, std::size_t q) {
@@ -466,8 +473,8 @@ int runCase(const Setup& s) {
                 "random streams and clock are not in it)\n", s.out.c_str(), tag.c_str());
   };
   auto window = [&](long last, const char* name) {  // the 20 ms ending at sample `last`
-    std::printf("\nThe settle judge over %.0f to %.0f ms (%s) [%s]\n", (last - 2000) * kSample * 1e3, last * kSample * 1e3, name,
-                label.c_str());
+    std::printf("\nThe settle judge over %.0f to %.0f ms, t_L + %.0f to t_L + %.0f (%s) [%s]\n", (last - 2000) * kSample * 1e3,
+                last * kSample * 1e3, (last - leadK - 2000) * kSample * 1e3, (last - leadK) * kSample * 1e3, name, label.c_str());
     std::array<Settle, 8> out{};
     const char* names[] = {"face pressure", "c*", "F_vac", "outlet flow", "p0", "Isp_vac (chamber)", "hot-gas wall heat", "face heat"};
     for (std::size_t k = 0; k < out.size(); ++k) {
@@ -487,11 +494,15 @@ int runCase(const Setup& s) {
   };
 
   std::array<Settle, 8> first{};
-  long k = 0;
+  long k = 0, shortened = 0;
+  double smallestBound = std::numeric_limits<double>::infinity();
   print(sample());
   while (amr.time() < s.end - 1e-13) {
     const double t = amr.time(), next = static_cast<double>(k + 1) * kSample;
-    amr.step(std::min({s.end - t, spray.nextEvent(t) - t, next - t}));
+    const double other = std::min({s.end - t, spray.nextEvent(t) - t, next - t}), bound = spray.exchangeDt();
+    const double dt = amr.step(std::min(other, bound));
+    smallestBound = std::min(smallestBound, bound);
+    shortened += bound < other && dt >= bound * (1 - 1e-12);
     if (amr.time() < next - 1e-13) continue;
     ++k;
     const Sample x = sample();
@@ -506,16 +517,43 @@ int runCase(const Setup& s) {
     if (k % 50 == 0 || amr.time() >= s.end - 1e-13) {
       std::fflush(csv);
       print(x);
+      std::printf("  exchange bound: smallest %.3g s since the last line; %ld base steps shortened by it so far; %ld flashes so far\n",
+                  smallestBound, shortened, spray.ledger().flashes);
+      smallestBound = std::numeric_limits<double>::infinity();
     }
-    if (k == 6000) {
-      first = window(k, "the frozen parcel rate");
-      dump("60ms");
-      if (s.end > 60e-3 + 1e-13) {
-        spray.setParcelRate(2 * kParcelRate * s.rateFactor);
-        std::printf("  from 60 ms: the parcel rate doubled to %.3g per s per injector (item 5's check)\n", 2 * kParcelRate * s.rateFactor);
+    if (k == leadK && leadK >= 200) {  // the lead's gate: the means over [t_L - 2, t_L - 1] and [t_L - 1, t_L] ms
+      std::printf("\nThe lead's gate at t_L = %.4g ms [%s]\n", s.lead * 1e3, label.c_str());
+      const char* names[] = {"outlet flow", "p0", "face pressure"};
+      bool pass = true;
+      for (int q = 0; q < 3; ++q) {
+        double a = 0, b = 0;
+        for (long n = leadK - 200; n < leadK; ++n) {
+          const Sample& v = series[static_cast<std::size_t>(n)];
+          const double value = q == 0 ? v.mdot : q == 1 ? v.p0 : v.pFace;
+          (n < leadK - 100 ? a : b) += value / 100;
+        }
+        const double change = std::abs(b - a) / std::abs(a);
+        const bool ok = change < 1e-3;  // NaN fails
+        pass = pass && ok;
+        std::printf("  %-14s %.7g, then %.7g: %.4f%%%s\n", names[q], a, b, 100 * change, ok ? "" : ": FAILS");
+      }
+      std::printf("  the gate %s\n", pass ? "passes" : development ? "FAILS (development: the run goes on)" : "FAILS: run central stops");
+      if (!pass && !development) {
+        std::fclose(csv);
+        dump("lead");
+        return 4;
       }
     }
-    if (k == 8500) {
+    if (k == leadK + 6000) {
+      first = window(k, "the frozen parcel rate");
+      dump("60ms");
+      if (s.end > s.lead + 60e-3 + 1e-13) {
+        spray.setParcelRate(2 * kParcelRate * s.rateFactor);
+        std::printf("  from t_L + 60 ms: the parcel rate doubled to %.3g per s per injector (item 5's check)\n",
+                    2 * kParcelRate * s.rateFactor);
+      }
+    }
+    if (k == leadK + 8500) {
       const auto second = window(k, "twice the parcel rate");
       dump("85ms");
       bool doubles = false;
@@ -533,10 +571,11 @@ int runCase(const Setup& s) {
     }
   }
   std::fclose(csv);
-  if (k < 6000) dump("end");
+  if (k < leadK + 6000) dump("end");
   std::printf("\nend [%s]: %ld samples, the grid to %.3g s; face area to %.3g at worst; %ld non-finite values; %ld samples with p0 or c* "
-              "undefined (no forward flux); worst budgets (a) %.2e, (b) %.2e, (c) %.2e\n",
-              label.c_str(), k, worstGrid, worstArea, nonfinite, undefined, worstBudget[0], worstBudget[1], worstBudget[2]);
+              "undefined (no forward flux); worst budgets (a) %.2e, (b) %.2e, (c) %.2e; %ld base steps shortened by the exchange "
+              "bound\n", label.c_str(), k, worstGrid, worstArea, nonfinite, undefined, worstBudget[0], worstBudget[1], worstBudget[2],
+              shortened);
   return 0;
 }
 
@@ -1083,18 +1122,20 @@ int main(int argc, char** argv) {
     if (mode == "development") {
       setup.levels = static_cast<int>(env("CRUCIBLE_T1_LEVELS", 3));
       setup.threads = static_cast<int>(env("CRUCIBLE_T1_THREADS", 4));
-      setup.end = env("CRUCIBLE_T1_END", 1e-3);
+      setup.lead = env("CRUCIBLE_T1_LEAD", 20e-3);
+      setup.end = env("CRUCIBLE_T1_END", setup.lead + 1e-3);  // the simulated time, not counted from t_L
       setup.rateFactor = env("CRUCIBLE_T1_RATE_FACTOR", 1);
       setup.out = std::string(std::getenv("CRUCIBLE_T1_OUT") ? std::getenv("CRUCIBLE_T1_OUT") : "rl10_t1") + "_DEVELOPMENT";
     } else {
-      setup.end = 85e-3;
+      setup.end = setup.lead + 85e-3;
     }
+    setup.definition.igniter.start = setup.lead + 2e-4;
     for (int i = 0; i < kRings; ++i) {
       Spray::Injector j;
       j.rInner = rings[i].loxInner;
       j.rOuter = rings[i].loxOuter;
       j.massFlow = kOxidizer / kRings;
-      j.opens = 0;
+      j.opens = setup.lead;
       j.ramp = kRamp;
       j.temperature = kOxidizerT;
       j.size = Spray::Injector::Size::RosinRammler;

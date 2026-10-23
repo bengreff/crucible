@@ -1,0 +1,8 @@
+G2   pass  slot areas: largest relative error 3.65e-14 against A_L and A_H / 2
+Table B /private/tmp/rl10rebuild/rl10_s.bin: Table B built 2026-10-21 02:43 CDT by crucible_build_manifold_table from /Users/ben/inquiry-project/tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes {0.133333,0.142857,0.153846,0.166667,0.181818} as given, Z_N {0.000000,0.300000}, eta 11 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 990 nodes in 16 s on 3 threads; node element error 5.78e-10 raw, 3.64e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE
+DIAGF step 2 level 3 dt 1.349e-07 moved 8 flashed 2.4734e-08 exchanged 2.4734e-08
+DIAGF step 4 level 3 dt 8.692e-08 moved 16 flashed 4.9820e-08 exchanged 4.9820e-08
+DIAGF step 7 level 3 dt 6.799e-08 moved 24 flashed 7.8293e-08 exchanged 7.8294e-08
+DIAGF step 11 level 3 dt 6.177e-08 moved 32 flashed 1.1456e-07 exchanged 1.1456e-07
+DIAGF step 15 level 3 dt 6.138e-08 moved 40 flashed 1.1119e-07 exchanged 1.1119e-07
+error: Flow::exchange left a cell non-admissible.

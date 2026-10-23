@@ -1161,6 +1161,67 @@ double Spray::nextEvent(double time) const {
   return out;
 }
 
+double Spray::exchangeDt(double fraction) const {
+  if (parcels_.empty()) return std::numeric_limits<double>::infinity();
+  const auto& medium = flow_.medium();
+  const auto ns = medium.size();
+  const std::size_t n = parcels_.size(), threads = static_cast<std::size_t>(flow_.threads());
+  // The gas of level l's cell q as it stands (its own temperature guess; the spray's cache is not touched).
+  auto gasOf = [&](std::size_t c, double* y) {
+    const int l = levelOf(c);
+    const Flow& level = *levels_[static_cast<std::size_t>(l)];
+    const std::size_t q = c - offset_[static_cast<std::size_t>(l)];
+    const auto& partial = level.partialDensities();
+    double sum = 0;
+    for (std::size_t k = 0; k < ns; ++k) sum += std::max(partial[q * ns + k], 0.0);
+    for (std::size_t k = 0; k < ns; ++k) y[k] = std::max(partial[q * ns + k], 0.0) / sum;
+    const auto& u = level.state()[q];
+    const double t = level.temperature(q);
+    return Gas{t, u[0] * medium.gasConstant(y) * t, u[0], u[1] / u[0], u[2] / u[0], y};
+  };
+  std::vector<int> cell(n);
+  std::vector<double> conductance(n), vapour(n);
+  std::vector<std::vector<double>> work(threads, std::vector<double>(4 * ns + 8)), fractions(threads, std::vector<double>(ns));
+  flow_.pool().blocks(n, 64, [&](std::size_t begin, std::size_t end, int worker) {
+    auto& w = work[static_cast<std::size_t>(worker)];
+    double* y = fractions[static_cast<std::size_t>(worker)].data();
+    for (std::size_t i = begin; i < end; ++i) {
+      const Parcel& p = parcels_[i];
+      cell[i] = locate(p.z, p.r);
+      if (cell[i] < 0) continue;
+      Gas gas = gasOf(static_cast<std::size_t>(cell[i]), y);
+      gas.uz += p.eddyZ;
+      gas.ur += p.eddyR;
+      gas.ut = p.eddyT;
+      const auto r = rates(p, gas, w);
+      conductance[i] = p.count * r.conductance;
+      vapour[i] = p.count * r.mass;
+    }
+  });
+  // Summed per cell in parcel order, so the bound does not depend on the threads.
+  std::vector<double> sumG(offset_.back(), 0.0), sumM(offset_.back(), 0.0);
+  std::vector<std::size_t> occupied;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (cell[i] < 0) continue;
+    const auto c = static_cast<std::size_t>(cell[i]);
+    if (sumG[c] == 0 && sumM[c] == 0) occupied.push_back(c);
+    sumG[c] += conductance[i];
+    sumM[c] += vapour[i];
+  }
+  double out = std::numeric_limits<double>::infinity();
+  std::vector<double> y(ns);
+  for (const auto c : occupied) {
+    const int l = levelOf(c);
+    const Gas gas = gasOf(c, y.data());
+    const double m = gas.rho * levels_[static_cast<std::size_t>(l)]->mesh().cells[c - offset_[static_cast<std::size_t>(l)]].volume;
+    double tau = std::numeric_limits<double>::infinity();
+    if (sumG[c] > 0) tau = std::min(tau, m * medium.cv(gas.t, y.data()) / sumG[c]);
+    if (sumM[c] > 0) tau = std::min(tau, m / sumM[c]);
+    out = std::min(out, static_cast<double>(1 << l) * fraction * tau);
+  }
+  return out;
+}
+
 double Spray::liquidMass() const {
   double out = 0;
   for (const auto& p : parcels_) out += p.count * (p.dropMass(liquid_.at(p.t).density) + p.shed);

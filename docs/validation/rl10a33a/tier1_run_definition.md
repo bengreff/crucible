@@ -241,7 +241,7 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
     - So a gas-only field imported as the initial state would break that rule. An H2 lead inside the same march does not: the H2 valves open first, and the LOX opens once the H2-only flow has settled. That is the real start's order, and it is a declared valve schedule (valve travel is an input).
     - (1) is therefore done as the H2 lead within the march. If the Director meant an imported field, this is the point to say so.
 
-- **Amendment A1 to the start (item 1), registered before its code (23 October 2026, about 00:33 CDT).** Item 1 was frozen on 22 October. This changes it by the Director's decision, before any RL10 output.
+- **The start amendment (item 1), registered before its code (23 October 2026, about 00:33 CDT).** Item 1 was frozen on 22 October. This changes it by the Director's decision, before any RL10 output.
   - **The ambient fill is unchanged:** 1,000 Pa, 300 K, at rest.
   - **The H2 lead:** every fuel supply (the H2 slots and the porous face) opens at t = 0 on its 0.5 ms ramp, as now. The LOX injectors stay closed.
   - **The LOX opens at t_L = 20 ms** on its 0.5 ms ramp. The igniter fires at t_L + 0.2 ms, 7 kJ over 1 ms as frozen.
@@ -260,7 +260,7 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
     - The spray moves its parcels against the gas as it stood at the start of the step, then deposits the step's exchange (`Flow::exchange`).
     - When the drops can draw more heat in one step than the cell's gas holds, or add more vapour than the cell holds gas, the explicit deposit overshoots. The 3-level probe's cell took three times its gas mass and went below the energy floor.
   - **The bound:** for each owning cell c, from the parcels in it at the step's start and their `Spray::rates` against the cell's gas:
-    - the gas's thermal relaxation time toward the drops, τ_T = m_c c_p,c / Σ N_p G_p, with G_p the per-drop conductance `Rates::conductance` (heat flow per kelvin of T_gas − T_surface) and N_p the drops per parcel;
+    - the gas's thermal relaxation time toward the drops, τ_T = m_c c_v,c / Σ N_p G_p, with G_p the per-drop conductance `Rates::conductance` (heat flow per kelvin of T_gas − T_surface) and N_p the drops per parcel;
     - the vapour time, τ_m = m_c / Σ N_p ṁ_p.
     - On AMR the cell's level l steps at the base step over 2^l, so the base step's bound is the minimum over cells of 2^l f min(τ_T, τ_m), with f = 0.25 (*declared*, engineering). Without AMR, l = 0.
     - The physics it holds to: in a step the gas gives the drops at most a quarter of its heat above the drop surface's temperature, and gains at most a quarter of its mass as vapour, so the frozen-gas move stays close to the coupled one.
@@ -270,10 +270,37 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
   - **Criteria:**
     - (B0) A0's md5 is unchanged (the engine change is additive).
     - (B1) The bound never binds on S3, S8(c), A1 and A2: in each, every step's dt is below the bound. The smallest ratio of bound to dt is printed.
-    - (B2) Applied in A2's driver, A2 to A3's results are bit-identical to 543d50b's.
+    - (B2) Applied in A2's driver (4 threads, to 1 ms), the gas state, partial densities and parcels are bit-identical to the same run without it, in the same process.
     - (B3) The tier-1 3-level probe to 0.02 ms runs through, with t_L = 0 so the LOX meets the thin chamber. Budget (b) stays within 1e-11, and the count of steps the bound shortened is printed. Budget (a) is inquiry2's energy finding, so (a) and (c) are reported, not judged.
-    - (B4) The lead's own probe (A1) with t_L = 20 ms: its gas-only cost is measured, and the bound is printed at the LOX's opening.
+    - (B4) The lead's own probe (the start amendment) with t_L = 20 ms: its gas-only cost is measured, and the bound is printed at the LOX's opening.
+  - **Wording corrected before any B run (about 00:38 CDT):** the amendment was first named "A1", which clashes with the spray's A1, so it is now "the start amendment". τ_T's heat capacity is c_v (the cell's gas holds its volume in the step), not c_p. B2 first read "bit-identical to 543d50b's". 543d50b's results are not kept as files, so B2 compares in-process against the same run without the bound; B0's md5 covers the engine's other paths. A3 never takes the bound, so it is not part of B2.
   - Local subcycling of the exchange is the alternative, if the restriction proves too costly in the start. It is not built now.
+
+- **Registration B scored (23 October 2026, about 00:47 CDT; the Mac; logs in `run_mode_2026-10-23/`). B0 to B2 met, B3 not met, B4 running.**
+  - **(B0) met:** A0's md5 is e95251ab17e43a961a392dcd4bd0912f, unchanged.
+  - **(B1) met.** The smallest ratio of bound to dt:
+    - S3 143.1 and S8(c) 143.4 (`crucible_spray_tests`);
+    - A1 143.1 and 143.4 (its two chambers, AMR and uniform runs together);
+    - A2 59.75, on 1 thread and on 4.
+  - **(B2) met:** with the bound applied, A2's state, partial densities and parcels are bit-identical to the same run without it.
+  - **R1(a) still holds:** the dry run is byte-identical. `spray_verification` fails S0(b) at 1.245e3 J/kg, the same value as on 22 October (`docs/evidence/spray_amr/a0_spray_ctest_after_2026-10-22.log`). It is not this change.
+  - **(B3) not met.** With t_L = 0 the 3-level probe stops as before, in `Flow::exchange` before the first 10 μs sample (`b3_probe_3level_lead0_0.02ms.log`).
+- **B3's cause, measured (about 00:45 CDT, a temporary instrumented build, reverted, not committed): the LOX flashes. A step limit cannot bound a flash.**
+  - The LOX enters at 101.17 K. O2's saturation pressure there is about 2.8 bar (*derived* from NIST's 2.54 bar at 100 K); the chamber starts at 1,000 Pa.
+  - On its first move each new parcel flashes the enthalpy above saturation at once (`Spray::move`, *A drop above saturation*).
+  - In each of the 5 level-3 sub-steps with a flash, the vapour deposited equals the flashed mass to 4 or 5 digits (1.1e-7 kg in the last). The largest rate-driven vapour in any of the other 120 sub-steps is 1.4e-13 kg (`b3_flash_diagnostic.txt`).
+  - **Not a rate.** A parcel's flashed mass is a fixed share of its mass, the injector's flow over the parcel rate. A shorter step or subcycling the exchange cannot reduce it.
+  - **B is kept as built.** It never binds on the A-series, and it guards the rate-driven exchange.
+- **What this means for the start amendment (*derived*):**
+  - At t_L the LOX meets the lead's H2. Where that gas is above about 2.8 bar, nothing flashes. The lead's pressure was estimated at about 3 bar, a thin margin.
+  - Below it the flash is small per parcel: about 1% at 2.5 bar. But a parcel at full flow carries 3.5e-6 kg, so 1% is still near the gas a level-3 face cell holds (about 5e-8 kg).
+  - B4 (running) prints the gate's face pressure at t_L and the count of flashes.
+- **For the Director, a design question: the flash is an instantaneous point source.**
+  - (a) Rely on the start amendment, if B4 shows no flash after t_L.
+  - (b) A finite flash rate: a physics model, registered like the drop model.
+  - (c) A flash that stops when the cell's own vapour brings it to saturation at the drop's temperature (thermodynamic, but it acts like a limit on the exchange).
+  - (d) Lighter parcels while the LOX ramps (the parcel rate is numerics).
+  - Recommended: (a) first, since B4 measures whether the reported case flashes at all; then (b) if it does.
 
 - **R1(b): met (23 October 2026, about 00:24 CDT).** Every line of `tier1_dry_run_length_2026-10-21.log`'s header and of its 149 × 16 section appears unchanged in the run mode's output. The run mode only adds its F3 lines, G7, the gates line and the run's own lines.
 
