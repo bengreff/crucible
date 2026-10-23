@@ -1,6 +1,54 @@
 # Session handoff
 
-21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
+23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
+
+## Stopped at (23 October, about 00:30 CDT; inquiry, Friday night, fourth brief)
+
+The brief (the Director, 00:00 23 October): record two decisions, then build the driver's run mode in `tests/rl10_tier1.cpp`, spec and acceptance first. The RL10 central run launches only when the acceptance passes, S7 low and high are scored (Friday evening) and the Director clears it. The blind protocol is unchanged. All values measured on the Mac.
+
+- **The Director's decisions, recorded:**
+  - **A2:** the floor stays at 100 and the run is lengthened to 1.0 ms (5b7d1e6). Scored in 543d50b: met, with 355 moves to a finer owner. A3 is met.
+  - **Step D on the new `spread`:** inquiry2 reruns its AMR checks and criterion 4 on b7f232b. This line does not (SPRAY.md, e7d126f).
+- **The run mode is registered, built and partly accepted** (`tier1_run_definition.md`, *The run mode*):
+  - registered in e7d126f, built in 53b82b4, with time corrections in 3e5aac8 and 3bb7f12;
+  - the wall-face fix registered in 42d3da9, applied and scored in 762806e.
+  - `crucible_rl10_tier1 run development|central`, and `selftest`.
+    - `central` refuses while `kNumericsFrozen` is false. It is false.
+    - Development takes its settings from the environment (`CRUCIBLE_T1_BASE`, `_LEVELS`, `_END`, `_THREADS`, `_OUT`, `_RATE_FACTOR`) and needs `CRUCIBLE_MANIFOLD_TABLE`.
+  - **Met:**
+    - R0, A0's md5;
+    - R1(a), the dry run byte-identical;
+    - R1(b), the Definition and gate lines identical to the 21 October log's 149 × 16 lines;
+    - R2(a) and (b), exit 2 and 3 with no step;
+    - R4, the settle judge's selftest.
+  - **R3 is not met.** Two findings block it (below).
+  - **The dumps are not a restart.** A restart reader is recommended before the central launch.
+- **For inquiry2, two changes in your files (`core/transport.cpp`), both additive and checked:**
+  - `BoundaryRates::plateHeat` and `Measurements::plateHeatFlow`, the i = 0 share of the wall heat (`transport.cpp:772`, `flow.cpp`; 53b82b4).
+  - **The wall-face fix** (`transport.cpp:388-395`; 762806e). The wall-solve loop skips a face whose cell is outside `inRegion(q, 2)`.
+    - With 3 levels, level 3 holds only the face column, so its side-wall cells were never filled. The loop then threw `Invalid wall-function layer`.
+    - Unchanged without AMR. The 2-level probe's series and AMR dump are byte-identical.
+    - Please rebase over both.
+- **The two findings that block R3** (`tier1_run_definition.md`, the bullet after the fix's score; logs in `run_mode_2026-10-23/`):
+  1. **This line: the start-up's explicit evaporation overdraws a fine cell.**
+     - At 3 levels the first step stops in `Flow::exchange`. A level-3 cell at 0.096 kg/m³ (the chamber starts at 1,000 Pa) took three times its own gas mass of O2 vapour in one step, and its energy went below the floor.
+     - Options: (a) a step bound from the exchange (recommended; numerics, registered like the other spray changes) or (b) the start in the Definition (the Director's).
+     - Next: register (a) with its criteria (A0's md5 if it never binds in S3 and S8(c), plus the 3-level probe), then build it.
+  2. **inquiry2's lane: the gas energy budget on this Definition.**
+     - R3(a) needs 1e-11. The 2-level probe gives 2.45e-7, all energy. With no spray and no AMR, F3's single-level step already ends at −1.011e-8 of the initial energy.
+     - So the leak is in the gas path's boundary accounting: the open-area supplies, the plate's wall-function share or the wall-function heat. Inferred, not isolated.
+     - Step D's and the face inlet's checks did not score it.
+- **Cost so far:** at 2 levels, 31 base steps to 0.02 ms in 8 s on 4 threads, the spray 1.0% of it. At 3 levels it is not measured yet.
+- **Table B's build gates 2a and 2c FAIL** for `rl10_s.bin`. The run mode prints this (known since 21 October, `docs/evidence/table_b/rl10_s_build_2026-10-21.txt`). It should be settled before the central run.
+
+**S7:** still running. The done-file is `/home/greff/crucible_s7z/runs2/all_done`. Low and high are to be scored on Friday evening.
+
+**The RL10 is not cleared.** What blocks it:
+1. R3: the two findings above.
+2. The restart reader (recommended).
+3. Step D's reruns on the new `spread` (inquiry2), then the y+ target and tag thresholds, then `kNumericsFrozen`.
+4. Protocol §4's two amendments.
+5. S7 scored, and the Director's clearance.
 
 ## Stopped at (22 October, about 23:55 CDT; inquiry, Thursday night, third brief)
 
