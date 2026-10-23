@@ -2,6 +2,45 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (23 October, about 01:05 CDT; inquiry, Friday night, the Director's 01:05 message)
+
+**The Director (01:05):** fix the Table B builder at the failing points of gates 2(a) and 2(c), without restricting the gates (50 against 80 kg/m³ is too close to call the dense row unreachable). The 188.7 K warning is a fidelity gap, not only a p0 artefact. Stop at a clean commit by about 02:45.
+
+**The builder fix: registered in 460f767 before code, built and scored in 5d10ed8** (`docs/evidence/TABLE_B.md`, the two 23 October sections):
+- **2(c) passes: 11 integrator failures down to 0.**
+  - The cause: at ρ 80 no frozen start up to 6,000 K carries the node's energy.
+  - Fix 1 continues the start family past 6,000 K's frozen composition, mixing it with the reactants at 200 K.
+  - The 11 nodes now build (T_eq 3,386 to 4,369 K) and pass 2(b), E2, the turn-back and the N gate. One lower branch is frozen (reported, not gated).
+- **The turn-back passes: 20 nodes down to 0 counted.**
+  - The cause: all 20 were upper branches of almost zero span. Their falls were at most 4 units in the last place of s, which is round-off in evaluating s, not a turn-back.
+  - Fix 2 counts a fall only above a derived floor of 1e-14 |c_eq|. The largest fall in the whole table is 2.5e-15 |c_eq|.
+  - **T2 not met as worded:** `turn_back` moved at 340 nodes, not 20. The other 320 had passed already, and no stored value moved.
+- **The N gate still fails at its 7 nodes (η 1, ρ 1e-3 to 0.017), so 2(a) still fails.**
+  - The cause is physical, not the builder's: the strongly dissociated equilibrium has more moles than the reactants, so N rises along the lower branch.
+  - The runtime already sends such a node's cells to CVODES ("no fall in N"), so this cannot give a wrong state.
+  - **Decision for the Director**, (i) to (iii) in TABLE_B.md:
+    - (i) gate the fall only where one exists, and count and name the nodes without one;
+    - (ii) extend the runtime placement to a rising-N lower branch;
+    - (iii) keep the gate as written.
+- The tier-1 runs keep the 21 October `rl10_s.bin`, whose 11 dense nodes are unfinished. The rebuilt table is not written while 2(a) fails. Moving tier 1 to it waits for the N-gate decision, and is not done while B4 runs.
+
+**B4 is still running** on `/tmp/t1run/b/tier1_f` (ab3aa03), launched at 00:51 CDT through `slot.py`.
+- **Done-file for the Director: `/tmp/t1run/b/done_b4`**, log `/tmp/t1run/b/b4.log`, series `/tmp/t1run/b/b4_DEVELOPMENT_series.csv`.
+- **Its pace (measured at 01:02 CDT): 0.21 ms of the 21 in 11 minutes.** At that rate the 20 ms lead takes about 17 hours (inferred; the pace may change as the flow settles), so B4 finishes on Friday afternoon or evening.
+- The read order is in the 00:53 section below. Its face pressure over [t_L − 1, t_L] against 3.1 bar picks flash branch (a) or (b) (2cdd02c).
+- **The temperature warnings, corrected:** 333 so far, the lowest 175.7 K.
+  - The Director's reading: H2 is supplied at 199.67 K, below the 200 K floor of the thermo fits. So this is a fidelity gap in the species' thermo, not only a p0 artefact as the 00:53 section inferred.
+
+**Next on this line, in order:**
+1. **Score B4** when its done-file appears: the flash branch first, then the gate's lines, the lead's cost, the flashes after t_L, and whether it passes t_L + 0.5 ms.
+2. **The Director's N-gate decision**, (i) to (iii). Then whether tier 1 moves to the rebuilt table.
+3. **The species' low-temperature thermo (the Director's next item):** extend H2, O2 and H2O below 200 K with sourced NASA-9 or equivalent fits. The test: nothing above 200 K changes.
+   - Points to settle when it is registered (*inferred*, not checked):
+     - NASA Glenn's NASA-9 fits (McBride, Zehe and Gordon 2002) mostly start at 200 K, so the source below 200 K is likely the JANAF tables (Chase 1998) or NIST.
+     - Below about 200 K, normal hydrogen (ortho 3 : para 1, frozen in a fast flow) and equilibrium hydrogen differ in c_p. Which one the supply is must be stated.
+     - h2o2_highT and the table builder's Cantera fits must move together, or Table B and the engine's thermo disagree below 200 K.
+4. **A central run** only after acceptance, S7 low and high scored, and the Director's clearance.
+
 ## Stopped at (23 October, about 00:53 CDT; inquiry, Friday night, the Director's 00:55 message)
 
 **The Director (00:55) accepted the start amendment and the bound as built and decided the flash** (registered in 2cdd02c before B4 was read):
