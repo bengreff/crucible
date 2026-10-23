@@ -213,11 +213,11 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
   - (iii) The 2-level probe's series and AMR dump are byte-identical to those from before the fix.
     - The spray dump differed only in the 4 trailing padding bytes of each 152-byte `Parcel`, 63 bytes over 72 parcels. The dump wrote raw structs, so those bytes were never set.
     - The driver now zeroes them. The padding-zeroed dump differs from the old one in no other byte.
-  - (iv) The 3-level probe passes the wall functions. It then stops in the same first step, on the first of the two findings below.
+  - (iv) The 3-level probe passes the wall functions. It then stops before the first 10 μs sample, on the first of the two findings below.
   - The driver's t = 0 print now says "none before the first step" for the budgets, and leaves t = 0 out of the worst budgets. Before, it printed 1.00 there, because the budget has no reference until a step is taken.
 - **Two findings block R3 (23 October 2026, about 00:28 CDT). Neither is fixed. R3 is not met, and nothing past the probes was run.**
   1. **The start-up's explicit evaporation overdraws a fine cell (the spray's coupling, this line).**
-     - The 3-level probe stops in the first step: `Flow::exchange left a cell non-admissible`.
+     - The 3-level probe stops before the first 10 μs sample: `Flow::exchange left a cell non-admissible`. On AMR the spray releases parcels at the end of each base step, so the first base step deposits nothing; the stop came in a later one (corrected 23 October, about 00:33 CDT; it first said "the first step").
      - The cell is level 3's (4, 28): active, its full ring 2.33e-7 m³ (1.26 mm by 1.02 mm at r of about 29 mm).
      - Before the deposit its gas density was 0.096 kg/m³. The chamber starts at 1,000 Pa and is still filling with H2.
      - One step's deposit is 7.16e-8 kg of O2 vapour, about three times the cell's gas, and −0.0323 J of energy. That leaves ρE at −1.57e5 J/m³, below the floor: the gas gave the drops more heat than it held.
@@ -232,6 +232,49 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
      - With no spray and no AMR, the single-level gas step on this Definition (F3's run-mode line) already ends at −1.011e-8 of the initial energy (`Flow::measurements`, `energyBalanceError`). About 30 such steps give the order of 2.45e-7 (inferred).
      - So the source is the gas path's energy accounting on this Definition, not the spray or AMR. The candidates are the open-area supplies, the plate's wall-function share (`lawFlux` scaled by `plateShare_`) and the wall-function heat. Inferred, not isolated.
      - Step D's and the face inlet's checks did not score the energy budget on this Definition.
+- **The Director's decision on the spray overload (23 October 2026, 00:35 by the Director's message; recorded about 00:33 CDT by the Mac's clock), and two registrations made before their code and before any RL10 output.** The only RL10 runs so far are the development probes to 0.02 ms (protocol §6), with no settled or performance value.
+  - **The decision:**
+    - (1) The LOX must not enter the near-empty chamber. We predict steady performance, and the 1,000 Pa start without propellant is not the engine's state when its LOX arrives. Use a gas-only converged field (or the H2-lead pre-fill), then introduce the LOX.
+    - (2) Add a numerical bound that protects against the same failure in transient pockets. It may only be a time-step restriction or a local subcycling of the exchange, each sub-step conserving exactly, never a clamp on the exchanged amount.
+  - **Found when applying (1):** the run definition names neither a gas-only field nor a pre-fill for the central case. Item 7's warm start is for the deviations.
+    - The plan's step 1 (Ben's rule) starts the reported case "valves open, ignite", from ambient gas at rest, with a declared valve schedule. A partly developed initial state is "never the reported RL10 case".
+    - So a gas-only field imported as the initial state would break that rule. An H2 lead inside the same march does not: the H2 valves open first, and the LOX opens once the H2-only flow has settled. That is the real start's order, and it is a declared valve schedule (valve travel is an input).
+    - (1) is therefore done as the H2 lead within the march. If the Director meant an imported field, this is the point to say so.
+
+- **Amendment A1 to the start (item 1), registered before its code (23 October 2026, about 00:33 CDT).** Item 1 was frozen on 22 October. This changes it by the Director's decision, before any RL10 output.
+  - **The ambient fill is unchanged:** 1,000 Pa, 300 K, at rest.
+  - **The H2 lead:** every fuel supply (the H2 slots and the porous face) opens at t = 0 on its 0.5 ms ramp, as now. The LOX injectors stay closed.
+  - **The LOX opens at t_L = 20 ms** on its 0.5 ms ramp. The igniter fires at t_L + 0.2 ms, 7 kJ over 1 ms as frozen.
+    - 20 ms is *derived* from estimates: H2 at about 2.8 kg/s through the throat gives about 3 bar and a residence time of about 2 ms. An approach with a time constant near 3 ms drifts under 0.1% per ms after about 17 ms.
+  - **The lead's gate:**
+    - At t_L, the means of the outlet flow, p0 and the face pressure over [t_L − 2, t_L − 1] ms and [t_L − 1, t_L] ms must each differ by under 0.1%.
+    - The run prints them. `run central` stops at t_L if any fails. `run development` prints the result and goes on.
+    - If the gate fails, t_L is amended with a dated note before the central run, and the gate's result is not used to tune anything else.
+  - **Every later time counts from t_L:** the settle window is t_L + 40 to t_L + 60 ms, and the continuation at twice the parcel rate runs to t_L + 85 ms with the move test. The end is t_L + 85 ms.
+  - **In development,** `CRUCIBLE_T1_LEAD` sets t_L (default 20 ms). R3's probes may shorten it, and each states its lead.
+  - **Cost:** 20 ms more simulated time, about a quarter of the central run's (*derived*). Pure-H2 cells lie outside Table B's f_H range (0.133 to 0.182), so their updates take the fallback. In the 0.02 ms probe every chemistry update took it (measured). The lead's cost is measured in development before the central launch.
+  - **The deviations** start warm from the central settled state (item 7), so the lead does not touch them. Member 4's cold-start check uses the same lead.
+
+- **Registration B: the spray-gas exchange bound, a time-step restriction (23 October 2026, about 00:33 CDT, before its code).**
+  - **The defect:**
+    - The spray moves its parcels against the gas as it stood at the start of the step, then deposits the step's exchange (`Flow::exchange`).
+    - When the drops can draw more heat in one step than the cell's gas holds, or add more vapour than the cell holds gas, the explicit deposit overshoots. The 3-level probe's cell took three times its gas mass and went below the energy floor.
+  - **The bound:** for each owning cell c, from the parcels in it at the step's start and their `Spray::rates` against the cell's gas:
+    - the gas's thermal relaxation time toward the drops, τ_T = m_c c_p,c / Σ N_p G_p, with G_p the per-drop conductance `Rates::conductance` (heat flow per kelvin of T_gas − T_surface) and N_p the drops per parcel;
+    - the vapour time, τ_m = m_c / Σ N_p ṁ_p.
+    - On AMR the cell's level l steps at the base step over 2^l, so the base step's bound is the minimum over cells of 2^l f min(τ_T, τ_m), with f = 0.25 (*declared*, engineering). Without AMR, l = 0.
+    - The physics it holds to: in a step the gas gives the drops at most a quarter of its heat above the drop surface's temperature, and gains at most a quarter of its mass as vapour, so the frozen-gas move stays close to the coupled one.
+  - **Applied as a step limit only:** `Spray::exchangeDt()` (const, no side effect) returns the bound, and the driver passes it with its other limits to `Amr::step`'s or `Flow::step`'s `maxDt`.
+    - The deposit, the parcels' sub-steps and the ledgers are untouched. Each step conserves exactly as now; only the step can be shorter.
+    - Parcels released at the base step's end, and parcels that cross into another cell during the step, are not in that step's bound. f's margin covers them (*inferred*). The count of base steps the bound shortened is printed.
+  - **Criteria:**
+    - (B0) A0's md5 is unchanged (the engine change is additive).
+    - (B1) The bound never binds on S3, S8(c), A1 and A2: in each, every step's dt is below the bound. The smallest ratio of bound to dt is printed.
+    - (B2) Applied in A2's driver, A2 to A3's results are bit-identical to 543d50b's.
+    - (B3) The tier-1 3-level probe to 0.02 ms runs through, with t_L = 0 so the LOX meets the thin chamber. Budget (b) stays within 1e-11, and the count of steps the bound shortened is printed. Budget (a) is inquiry2's energy finding, so (a) and (c) are reported, not judged.
+    - (B4) The lead's own probe (A1) with t_L = 20 ms: its gas-only cost is measured, and the bound is printed at the LOX's opening.
+  - Local subcycling of the exchange is the alternative, if the restriction proves too costly in the start. It is not built now.
+
 - **R1(b): met (23 October 2026, about 00:24 CDT).** Every line of `tier1_dry_run_length_2026-10-21.log`'s header and of its 149 × 16 section appears unchanged in the run mode's output. The run mode only adds its F3 lines, G7, the gates line and the run's own lines.
 
 ## What it waits on

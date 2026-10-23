@@ -31,7 +31,7 @@ The brief (the Director, 00:00 23 October): record two decisions, then build the
     - Please rebase over both.
 - **The two findings that block R3** (`tier1_run_definition.md`, the bullet after the fix's score; logs in `run_mode_2026-10-23/`):
   1. **This line: the start-up's explicit evaporation overdraws a fine cell.**
-     - At 3 levels the first step stops in `Flow::exchange`. A level-3 cell at 0.096 kg/m³ (the chamber starts at 1,000 Pa) took three times its own gas mass of O2 vapour in one step, and its energy went below the floor.
+     - At 3 levels the run stops in `Flow::exchange` before the first 10 μs sample. A level-3 cell at 0.096 kg/m³ (the chamber starts at 1,000 Pa) took three times its own gas mass of O2 vapour in one step, and its energy went below the floor.
      - Options: (a) a step bound from the exchange (recommended; numerics, registered like the other spray changes) or (b) the start in the Definition (the Director's).
      - Next: register (a) with its criteria (A0's md5 if it never binds in S3 and S8(c), plus the 3-level probe), then build it.
   2. **inquiry2's lane: the gas energy budget on this Definition.**
