@@ -802,7 +802,7 @@ Step D's last item, as the order of work states it, is "thresholds fixed and rec
 - **What this lane reruns after the fix,** on the Mac: the step C and D results that inquiry's list (A5, A4, A0 to A3, AMR's ctest) leaves out.
   - Criterion 2's fill content (1e-14), from `crucible_amr_budget 8e-3 4 wall tags`.
   - D1's budgets and igniter. The s = 1 run of criterion 4 prints them on the same case.
-  - Step D's recorded results stand as measured on 3d52ed2's spread.
+  - Step D's recorded results stand as measured on the spread before the fix (7d16d45, step D's commit after the rebase onto 28d87b1).
 
 ## The spread fix, read from the AMR side (22 October, about 23:50 CDT)
 
