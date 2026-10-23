@@ -874,6 +874,13 @@ The Director's decision (01:35 by their clock): the Mac must not carry 6.5 h or 
   - **Pass:** |p0_new - p0_old| is less than half a unit in the 6th significant digit of p0_old. That is the `%.6g` with which the history's pressure is printed. The relative difference is also printed beside c\*'s printed precision (`%.4f` m/s), for information, not judged.
   - If it fails, nothing is launched and the result goes to the Director.
 - **The relaunch.** All of `c4_runs.sh`'s runs as registered (s1, s2 and u, then s4, s8 and the budget run, then the judge), at 2 threads a job, on backhouse at nice 10, beside S7 and B4, after the load is checked. All runs are on one machine, so AMR against uniform stays a like-for-like comparison. The killed Mac logs are not used.
+- **The check: pass (measured, Mac, a855310, 23 October 01:33 to 01:37 CDT; `amr_d/c4_exit_check_2026-10-23.log`).**
+  - At the first record at or after 1.5 ms (t 1.500052 ms, uniform 64 x 12), the new exit took 3 SP solves in each of the 12 cells. The old one took 50 (the cap) in 6 cells and 3 to 5 in the rest. That record exercises the change.
+  - The column's p0 was 2.945464344101e6 Pa with the new exit and 2.945464344475e6 Pa with the old: a difference of 3.7e-4 Pa, 1.3e-10 relative. Half a unit in the 6th digit is 5 Pa, so it passes by more than four orders of magnitude.
+  - Not judged: the difference is also below c\*'s printed half unit (2.0e-8 relative at 2447.7 m/s).
+  - The measured difference is below the derived floor of a few times 1e-8. That floor bounds the noise rather than predicting it.
+- **The relaunch, done.** Backhouse at 01:34 CDT: 28 cores, load 35 to 37, CPU 94 to 95% busy (`vmstat`). S7's four runs, B4 at nice 10 and another user's job were running. The runs therefore take what S7 and B4 leave, and the Director's nice 10 keeps them from slowing either. Script `amr_d/bh_c4.sh` in `/home/greff/crucible_c4`, tmux `inq2c4`, done-file `real/all_done`.
+- **Step D's reruns** were waiting on their own gate (load ≤ 24), which cannot open beside S7 and B4. After D0's new-tree runs, they were resumed at 01:36 CDT at nice 10 with no gate (`amr_d/bh_sd3b.sh`, tmux `inq2sd3b`, the same commands). The done-file is unchanged: `/home/greff/crucible_sd3/out/all_done`.
 
 ## Deviations from the plan's text
 
