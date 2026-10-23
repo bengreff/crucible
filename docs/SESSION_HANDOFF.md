@@ -996,11 +996,15 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
     - D0 is met on the dump and C1 comparisons.
   - **D0: met (scored 22 October evening; AMR.md, *Step D: D0's last runs, and the Director's amendments*).** `score_sd.sh`'s check 3 comparison reads the wrong path (the dumps are `out/c3n/d_c3.bin` and `out/c3b/d_c3.bin`); they were compared by hand, identical.
   - **The Director's amendments (22 October, about 22:25 CDT), registered in f7256f7, coded in 71755ce:** D2 is now a bitwise check (each owned wall-function cell as its last prescription left it; 0 on AMR and 0 on one level, inert fixed pattern). D1's igniter cause gets two tests: test 1, each level's power times step summed per base step; test 2, a counterfactual build (`docs/evidence/amr_d/d1_test2_chain.patch`, kept as a patch, not applied) that hands each level step its end time. If they bear out the time-chain rounding, D1's igniter bound is amended to 1e-13.
-  - **Running (22 October, from 22:28 CDT):** tmux `inq2sd2` on backhouse, script `/home/greff/crucible_sd2/bh_sd2.sh`. Build a is 71755ce in `/home/greff/crucible_sd2`, build b is the same plus the patch in `/home/greff/crucible_sd2b`. Outputs are in `/home/greff/crucible_sd2/out`: `d1a.txt` (D1 rerun), `d1b.txt` (test 2), `d2a.txt` (D2), `d1a_cmp.txt` (the rerun's dump against the first). The done-file is `out/all_done`.
+  - **Step D is met, 5 of 5, under the amendments (22 October, about 23:25 CDT; AMR.md, *Step D: results under the amendments*; outputs `amr_d/sd2_*.txt`).**
+    - D2: 0 mismatches on AMR and 0 on one level.
+    - D1: the igniter's 2.143e-14 is rounding in the time arithmetic. Test 1 found level 1's base-step sum off level 0's in 901 of 1,799 steps; test 2's patch gives exactly 0. So the bound is amended to 1e-13, and the driver now judges 1e-13 with `wall`.
+    - *Derived caution:* the mechanism's worst case here is 4.9e-13. The patch (`amr_d/d1_test2_chain.patch`) is worth taking with the next change that re-baselines D0, before tier 1.
+    - The D1 rerun's dump is `cmp`-identical to the first run's.
   - **Can the RL10 central run launch next session? No.** Still missing:
     1. The driver's run mode. `crucible_rl10_tier1` is still a dry run. The run definition must set `openAreaSupplies`, the LOX slots as closed ports and `plateTemperature` (the F3 block shows the form), and replace G5 and G6 by F3. That is inquiry's line, per `tier1_run_definition.md`.
     2. Protocol §4's two amendments, inquiry2's: choice 1's face, and decision 7's length scale (the protocol still says "one element pitch"). Both go in before the prediction run.
-    3. Step D's D1 and D2 under the Director's amendments (running). Also still open: the AMR tag thresholds and the y+ target (criterion 4).
+    3. Done: step D is met. Still open: the AMR tag thresholds and criterion 4. The RL10 run is also blocked on the spray-on-AMR coupling, which inquiry builds (Director, 22 October evening).
     4. The budget's two measurements (the spray's cost on S7, the gas-side cost on AMR), the RL10 table rebuilt with its data hash recorded, and the Director's go on the restated budget.
     - Items 2 and 3 are short. Item 1 is the longest.
 - **The entropy method for `core/medium.*`: accepted as proposed** (the answer is under inquiry's proposal above).

@@ -642,7 +642,7 @@ Checks, judged as written:
 
 Run by `bh_stepd.sh` in `/home/greff/crucible_sd` (inquiry2 at b84ae3a, code as 2ff039f), with D0's parent built in `/home/greff/crucible_fi/build` (566b12c, code as 4a7178c). The raw outputs are in `amr_d/` (`d0.txt` to `d4.txt`). All values are measured unless labelled.
 
-**In short:** D3 and D4 are met. D1 and D2 are not met as written: D1 on the igniter, and D2 fails on one level as well, by more. D0 is met on the runs finished; its fast ctest and check 3 were still running at parking (how to score them is below).
+**In short** (D0, D1 and D2 are settled in the sections after this one: step D is met, 5 of 5, under the Director's amendments): D3 and D4 are met. D1 and D2 are not met as written: D1 on the igniter, and D2 fails on one level as well, by more. D0 is met on the runs finished; its fast ctest and check 3 were still running at parking (how to score them is below).
 
 - **D0: met on the runs finished. The fast ctest and check 3 are pending.**
   - Criterion 2's fixed-pattern dump to 1 ms is `cmp`-identical to the parent's. The printed budgets, c* 2554.92 m/s, vacuum thrust 1408.02 N and 8,429 base steps are equal too.
@@ -709,6 +709,32 @@ Run by `bh_stepd.sh` in `/home/greff/crucible_sd` (inquiry2 at b84ae3a, code as 
 - **Test 2 (a counterfactual build, not committed unless adopted).** Each level's step is handed its end time: level 1's second substep ends at its parent's end, and a landing base step at the event. The igniter overlap uses that end, with dt unchanged. The hypothesis predicts D1's igniter error falls to about 1e-15 or below, with the other budgets unchanged in their leading digits.
 - **Reading.** If both tests bear the hypothesis out, the cause is rounding in the time arithmetic, and D1's igniter bound is amended to 1e-13 on this evidence. Test 2's change is then reported as an option, not adopted: it moves criterion 2's and check 3's dumps by ulps, so D0 would need a new baseline. If the tests do not bear it out, the cause is looked for further within the hour, and fixed if it is real.
 - D1's rerun on the new code must reproduce its first run's dump (`out/d1_t4.txt`) under `cmp`: the D2 check and Test 1 read the state and do not change it.
+
+## Step D: results under the amendments (22 October, about 23:25 CDT; backhouse, 4 threads, at load about 22 to 26)
+
+Run by `bh_sd2.sh` from 22:28 CDT. Build a is inquiry2 at 71755ce in `/home/greff/crucible_sd2`; build b is 71755ce plus `amr_d/d1_test2_chain.patch` in `/home/greff/crucible_sd2b`. The raw outputs are `amr_d/sd2_d1a.txt` (D1's rerun and test 1), `amr_d/sd2_d1b.txt` (test 2), `amr_d/sd2_d2a.txt` (D2) and `amr_d/sd2_d1a_cmp.txt`. All values are measured unless labelled.
+
+**In short: step D is met, 5 of 5, under the Director's two amendments.** D1 is met only under the amended igniter bound.
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| D0, nothing else moves | Met | Above (*D0's last runs*) and *Step D: results*. |
+| D1, the budgets with both on | Met at the amended 1e-13 | Igniter 2.143e-14. The cause is established below; mass 2.441e-15, energy 7.360e-15, momentum 0. |
+| D2, the prescription holds (amended) | Met | 0 mismatches on AMR and 0 on the single level, over 25,564 and 24,923 steps. |
+| D3, determinism | Met | *Step D: results*. Build a's D1 dump is `cmp`-identical to that run's. |
+| D4, the face inlet on levels | Met | *Step D: results*. |
+
+- **D2: met.** On the inert fixed pattern to 8 ms, no owned wall-function cell on either level ever differed, at the end of a base step, from what its last prescription left: 0 mismatches. The single level gives 0 too, so the control holds. The budgets equal the first D2 run's (mass 1.937e-15, energy 3.475e-16, momentum 0, igniter 3.331e-15).
+- D1's tagged run prints 4,324,450 mismatches on AMR and 2,145,386 on one level, counted over the base steps. That is the reaction step and the regrid moving the state after the prescription, as the amendment says, and it is not judged.
+- **D1's rerun reproduces the first run:** the dump is `cmp`-identical to `out/d1_t4.txt`, and every printed budget is equal. So the D2 check and test 1 change nothing.
+- **Test 1 bears the hypothesis out.** Over the 1,799 base steps with the igniter on, each level's power × step sum gives |Σ / 0.5 J − 1| = 4.825e-17 on level 0 and 2.218e-14 on level 1. Level 1's sum differs from level 0's by more than 1e-17 J in 901 of those base steps, net −1.111e-14 J.
+- That net is the composite's shortfall, scaled by level 1's share of the igniter. The composite has |E − 0.5 J| = 1.071e-14 J, against level 1's own 2.218e-14 × 0.5 J = 1.109e-14 J (derived).
+- **Test 2 bears it out too.** With each level step handed its end time, the composite igniter error is 0, from 2.143e-14. Level 1's sum differs from level 0's in 0 base steps (net +1.0e-19 J).
+- As predicted, mass (2.441e-15), momentum (0), the base steps (67,635), the regrids (181), c* and thrust (2425.21 m/s, 1633.34 N) are unchanged. The energy error moved from 7.360e-15 to 6.599e-15. So "unchanged in their leading digits" does not hold for it as written. It is itself a rounding-level quantity, moved by the ulp changes in the igniter's power.
+- **Reading, as registered:** the cause is rounding in the time arithmetic. Level 1's two substeps end at fl(fl(t + dt/2) + dt/2), and the base step at fl(t + dt); the two differ by one ulp of t in about half the base steps. So D1's igniter bound is amended to 1e-13, and 2.143e-14 meets it.
+- *Derived, a caution on the 1e-13:* the mechanism's worst case is every differing step erring the same way. That is 1,799 × (E/D) × ulp(t) = 1,799 × 2,500 W × 5.4e-20 s, about 2.4e-13 J, or 4.9e-13 relative: above 1e-13. The measured 2.1e-14 is a partly cancelling sum. The bound holds here by a factor of 4.7, but nothing guarantees it for a deposit over more base steps.
+- Test 2's patch makes the igniter exact (0 here), and is about ten lines. It is not adopted, as registered, because it moves criterion 2's and check 3's dumps by ulps and D0 would need a new baseline. *Inferred:* it is worth taking with the next change that re-baselines D0 anyway, before tier 1, since the run's deposit spans more base steps.
+- Wall time, at load about 22 to 26: D1 3,159 s on AMR and 93 s on one level; D2 1,117 s on AMR and 31 s on one level.
 
 ## Deviations from the plan's text
 

@@ -348,8 +348,9 @@ int main(int argc, char** argv) {
   check(std::abs(amrMomentum) <= 10 * std::abs(singleMomentum), "  the same against 10 x the single-level run's",
         std::abs(amrMomentum), 10 * std::abs(singleMomentum));
   // Criterion 2 says "exact to 1e-14 relative"; the first run judged 1e-14 J, twice as loose (AMR.md, criterion 2 results).
-  const double igniterError = std::abs(final.igniterEnergy - kIgniter) / kIgniter;
-  check(igniterError <= 1e-14, "composite igniter energy, |E / 0.5 J - 1|", igniterError, 1e-14);
+  // Step D's D1 judges it to 1e-13: level 1's substeps end an ulp of t from the base step's (AMR.md, step D, results under the amendments).
+  const double igniterError = std::abs(final.igniterEnergy - kIgniter) / kIgniter, igniterLimit = wall ? 1e-13 : 1e-14;
+  check(igniterError <= igniterLimit, "composite igniter energy, |E / 0.5 J - 1|", igniterError, igniterLimit);
   // D2 is judged on the inert fixed pattern only (AMR.md, step D, the amendments); elsewhere it is printed.
   if (wall && inert && !tagged) {
     check(mismatches == 0, "step D, D2: owned wall-function cells not as their last prescription left them, over the base steps",
