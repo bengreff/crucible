@@ -495,6 +495,11 @@ The evidence is in `docs/evidence/spray_amr/` (the logs and probes; its README l
     - At mode 1's step 3, only the dt differs: 9.3832011949488481e-08 against …494e-08.
     - Mode 3 (gas alone) limits `Flow::step` to the first call's dt, which can only lower the dt. Its first difference, at step 6, is again the dt alone, on a step where `Flow::step`'s own call was the smaller (68 such steps of 2,165).
   - A possible change, not made: let `Amr::step` take its dt from the call `advance` makes, or skip the second call when the state has not changed.
+- **A2's run length, the Director's decision (dated 23 October 2026, 00:00 CDT in the brief; recorded about 23:57 CDT on 22 October by the Mac's clock, before A2 is run again).**
+  - **The decision.** The floor of 100 moves to a finer owner stays. The run is lengthened until at least 100 parcels have crossed to a finer level. The budget criteria (a) to (c), the 1e-11 limits and their scales, the regrid floor of 50 and the coarser-move floor of 100 are unchanged, and so is A3.
+  - **The new length.** Whole periods of the sweeping band, which repeats every 0.5 ms: the run goes to 1.0 ms, two sweeps down and back. If the finer moves are still below 100 there, it goes to 1.5 ms, then 2.0 ms; beyond that the Director decides. Nothing else in the run changes: the mesh, the tags, the regrid interval, the injectors, the threads.
+  - **Recorded plainly: the length was changed after the count of 98 was seen,** on the 0.5 ms run of the revision (`fix2_2026-10-22.log`).
+  - **Why this is not moving the goalposts.** The move floors are not a physical prediction. They are A2's precondition, "the run must exercise what it checks": they make sure the code path that books a parcel's crossing to a finer owner, and the budgets across that crossing, are exercised often enough to be tested. The registration already says a run that falls short "is resized and rerun before it counts, and it is not a pass". A longer run tests that path more, not less; every budget must still close to 1e-11 over the longer run, where residuals have more steps in which to accumulate. Lowering the floor to 98 would have weakened the test; lengthening the run keeps it.
 
 ## Literature
 
