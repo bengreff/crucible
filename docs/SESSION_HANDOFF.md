@@ -1030,7 +1030,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
     - Two defects follow: the shape is not kept monotone in [0, 1], and the solve has no NaN guard. The drop is LOX at 65.08 K against T_sat 65.14 K at 2.4 kPa.
   - **Inquiry's wall-face fix 762806e, reviewed (AMR.md):** sound. Every in-step reader sees active cells only. `Flow::wallYPlus()` would be stale outside N_2 under AMR, but it has no AMR caller.
   - **Next for inquiry2, in order:**
-    1. Rerun step D's checks D0, D2 and D3 on the new spread b7f232b, on the leak-fixed tree. D1 is in `c4_runs.sh`'s `budget.log`. They will not reproduce bit for bit; the verdicts must hold.
+    1. **Step D's reruns on the new spread are running on backhouse** (launched 01:07 CDT; AMR.md, *Step D's checks rerun on the new spread*). They are in tmux `inq2sd3` from `/home/greff/crucible_sd3` (2058db1), with D0's parent, step D reversed, in `crucible_sd3p`. The done-file is `/home/greff/crucible_sd3/out/all_done`; the outputs are `out/d0.txt`, `d1.txt`, `d2.txt`, `d3.txt`, `ctest_n.txt` and `ctest_p.txt`, with `builds.txt` for the builds. D4 is already met on the rebased tree. Expected about 4 to 5 h at load 24 (inferred from the 22 October times, with D3's 1-thread run the longest). Score each against its verdict, copy the outputs to `amr_d/sd3_*`, and record them in AMR.md.
     2. When `/tmp/inq2c/c4/real/all_done` appears (the Director wakes me), record criterion 4, s\* and t90. The runs predate the leak fix, which does not touch C1, because C1 has no open-area supplies (derived).
     3. Run 5(a) when the Mac is quiet.
     4. Register step E.
