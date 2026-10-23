@@ -68,7 +68,7 @@ Labels: *derived* is my own reasoning, *guessed* a number not yet measured, *cit
   - T* = (ρ c_v V T + dt Σ H_i T_i)/(ρ c_v V + dt Σ H_i).
   The heat drawn in a step therefore cannot take the cell below the drops' temperature. In a dilute cell u* and T* equal the cell's own values to within the loads' small ratio. A flag turns it off for the checks.
 - **Threads.** Parcels move in parallel on the flow's pool; each writes only its own record. Records are summed into cells, children appended and dead parcels removed in parcel order, serially. Each parcel draws from its own random stream (splitmix64), seeded from its injector's stream at release. The result is the same bit for bit on any number of threads.
-- **Mesh.** The cell is found from z (uniform dz), the wall radius linear between stations, and a binary search on the ring fractions. This is the one place the spray knows the mesh layout; AMR (inquiry2) will replace it.
+- **Mesh.** The cell is found from z (uniform dz), the wall radius linear between stations, and a binary search on the ring fractions. This is the one place the spray knows the mesh layout; AMR (inquiry2) will replace it. On AMR's levels: *Spray on AMR* (below), stated 22 October before its code.
 
 ## Turbulent dispersion (stated 13 October, before its code)
 
@@ -213,6 +213,81 @@ With SST on, a parcel sees the cell's mean velocity plus a fluctuation u′, aft
   - **Fixed** to the published rule (OpenFOAM's ReitzKHRT, read in its source): a child is released when the parcel's shed mass reaches 3% of its injected mass (`Parcel::injectedMass`, set at injection or `add`, inherited by children). That bounds the children per parcel at about 33, and a child, holding 3% of the injected mass, makes no grandchildren.
   - **After the fix** (same run, same steps: 15,954 to 1.1 ms in both): 630 parcels at 1.1 ms, and that 0.1 ms took 29 s, 1 s of it in the spray. S0 to S8 rerun: all as before except S5(b)'s child count (17, was 207), which passes; S0(b) fails as before.
   - S3, S4 and S8 have no breakup, or breakup that releases few children, so their numbers are unchanged (the rerun prints the same values). S5(b) tested the mass carried through each child and the child's size, not the release rule. No criterion tested the release rule, which is how this got through.
+
+## Spray on AMR (stated 22 October 2026, about 22:50 CDT, before its code)
+
+Tier 1 needs AMR's levels and the liquid LOX together (`docs/validation/rl10a33a/tier1_run_definition.md`, *What S7 shows for tier 1*, item 4). `Spray` takes one `Flow` today. This section is the coupling's design and its criteria, registered under the Director's decision of 22 October (22:40): per-level parcels, or parcels on the finest level with the sources restricted, at the worker's choice with reasons; a conservation check across regrids; and a test that a single-level AMR run reproduces the uniform-mesh spray result to a stated tolerance.
+
+**The choice: per-level stepping.** There is one parcel list. Each parcel is owned by the finest active level at its position. It is moved in its owner's step with that level's dt, reads the gas of its owner cell, and deposits into the owned cell where each sub-step starts.
+
+Why, against the finest level with restriction:
+1. **Time.** Each level's gas receives its sources inside its own step, after the flow and before its reaction. That is before the average-down and reflux that sync it to the level below. So per level, the order is the uniform one: flow, spray, react (`adapters/reacting_flow.cpp:286-291`). On one level the method is the uniform algorithm, operation for operation, and that is what lets the reproduction test be bit for bit.
+2. **Cost (derived).** A parcel is moved 2^l times per base step, like its owner's gas, not 2^L times.
+   - On tier 1's 3 levels, the finest-level option moves a base-level parcel 8 times per base step, where once suffices.
+   - The spray was 33% to 41% of S7's wall time on one level (measured, `MASCOTTE_A10_PREDICTION.md` §4), so that factor matters.
+3. **The one-cell rule still holds.** A base step is the smallest of 2^l times each level's stable step over its active cells (`core/amr.cpp`, `Amr::step`). A level-l step therefore moves a parcel less than one of its owner's cells, its speed being below the gas's u + c (as on one level).
+
+Against it: each parcel needs its own clock within the base step, and a redone base step needs a snapshot of the spray. Both are below. The finest-level option needs neither.
+
+**The design.**
+- **Location.** A parcel is located on the finest mesh (its dz, its wall polyline and its ring fractions). Its cell on level l is the finest cell's indices shifted right by L − l.
+  - This is exact, because a coarse cell is the exact union of its children (`Mesh::coarsened`): the coarse ring fractions are the fine ones at every other boundary, and dz doubles.
+  - The owner is the highest level whose cell there is active. A composite cell is (level, cell), numbered offset_l + q. Every per-cell array of the spray is composite: the gas seen, the loads, the occupied flags, the cell sizes, the volumes and the turbulence.
+  - The walls (the side-wall mirror and the outlet) use the finest mesh. On one level that is the uniform mesh itself.
+- **The clock.** L is the number of levels less one. Each parcel holds its phase: the number of finest sub-intervals of the current base step it has crossed, from 0 to 2^L.
+  - At the k-th step of level m within the base step, the end phase is k · 2^(L − m).
+  - That step moves every parcel whose owner is at most m and whose phase is below the end phase, by the level's dt, and leaves it at the end phase.
+  - *Derived:* every parcel the step moves is at phase exactly (k − 1) · 2^(L − m), so all of them move by the same dt.
+    - The coarser levels step first. The last step of the finest level at the previous sync point brought every parcel to that point.
+    - A parcel that crosses into a coarser owner's cells mid-cycle catches up at the next step of any level at or above that owner.
+    - A parcel that crosses into a finer owner's cells waits until that level's clock reaches it.
+  - The code checks the derived property and throws if it fails.
+- **Release.** The injectors release at the base level's step, after its moves, at phase 2^L (the uniform order: release at the end of `advance`).
+- **The occupied set.** The cells whose gas is gathered for a step are every owned cell overlapping the 3 × 3 block of owner-level cells around each moved parcel's owner cell.
+  - A covered neighbour is resolved into its owned children.
+  - An inactive neighbour is resolved to the owned cell of the level below that holds it.
+  - On one level this is the uniform set. Owned cells of finer levels are included, because a parcel can enter them during the step.
+- **The gas a parcel sees** is its owner cell's, at that level's current state. A coarser owner can be ahead in time by at most its own dt. This is a first-order lag, like the uniform method's split.
+- **Deposits.** Each level's deposits go through `Flow::exchange` on that level, into owned cells only. A deposit is booked at the cell where its sub-step started, on whatever level owns that cell.
+  - `Amr::budget` already subtracts every level's exchange sums.
+  - The average-down after the finer steps carries the fine deposits into the base's composite content.
+  - A deposit into a finer level's cell enters before that level steps. A deposit into a coarser level's cell enters after that level's step and is held to its next one. Neither is counted twice.
+- **The point-implicit loads** are summed per composite cell, with that cell's own volume.
+- **Regrids** change no spray state. Every owner is found again at every step, and every parcel's cell is re-found then. The only per-cell value carried over is the temperature guess of the gas inversion, which is a starting point, not a value.
+- **A redone base step.** On a non-admissible stage, `Amr` restores its levels and redoes the base step at half the size.
+  - The spray snapshots its parcels, its ledger, the injectors' pending stores and random streams, and its id counter at the base level's step.
+  - `Amr` gains a redo hook (`setRedo`), and the spray restores its snapshot through it.
+  - `Amr`'s saved levels gain the exchange sums (`exchangedMass_`, `exchangedEnergy_`, `exchangedMomentum_`), which `Amr::save` does not hold today. Without them, any after-step exchange in a redone step would be counted twice.
+- **Interface.**
+  - `Spray(Amr&, LiquidOxygen, Settings)`.
+  - `afterStep(level, dt)`, which the driver calls from `Amr::setAfterStep` before that level's reaction.
+  - `redo()`, for `Amr::setRedo`.
+  - The driver bounds the base step by `nextEvent`, as `ReactingFlow::step` does.
+  - `Spray(Flow&)` and `advance(dt)` stay as they are, and so does their arithmetic, bit for bit.
+  - On AMR, `wallThrust` is the last complete base step's wall impulse over its dt, set at the base level's next step.
+  - The ledger gains the parcels' moves between levels: counts of moves to a finer owner and to a coarser one, by motion within a step. Regrid moves are not counted in these.
+
+**Criteria (stated before the code).**
+- **A0. The uniform path is unchanged.** S3's run (0.5 ms) and S8(c)'s (0.2 ms, SST and dispersion) give the same final gas state, partial densities and parcel list, `cmp`-identical, on the build before this change and after it. The whole `crucible_spray_tests` passes as before.
+- **A1. One level reproduces the uniform mesh, bit for bit.** The reference is S3's chamber with the spray on a `Flow` on the AMR base's mesh (`Mesh::coarsened` of the finest). The run is the same chamber on `Amr(def, 1)` with level 1 left inactive, the spray through `afterStep` and `redo`.
+  - The final gas state, the partial densities and the whole parcel list (every field, S4's comparison) must be identical to the last bit:
+    - (a) S3's run, frozen, to 0.5 ms;
+    - (b) S8(c)'s, SST with dispersion, to 0.2 ms.
+  - The tolerance is zero because the precondition holds. Measured at about 22:45, before this record: the gas alone, with no spray, is bit-identical between a single-level `Amr` and a `Flow` on the same mesh. The probe was S3's chamber over 1,083 steps to 0.1 ms, every step's dt equal.
+  - If the precondition stops holding, A1 fails. The bar is not loosened.
+  - Printed beside, not judged: the largest relative difference of the conserved state from the same run on the directly built mesh.
+- **A2. Conservation across regrids.**
+  - **The run.** S3's chamber on a 16 × 6 base plus 2 levels (64 × 24 at the finest). A custom tag holds the injector corner (z < 2 mm, r < 3 mm). A second custom tag marks a band, 3 mm half-width on the base and 1.5 mm on level 1, that sweeps down the chamber and back within 0.5 ms. The pattern is regridded every 2 base steps; the run goes to 0.5 ms on 1 thread.
+  - **(a) The composite gas budget** (`Amr::budget`, with the exchange) must close within 1e-11:
+    - mass, over the gas's initial mass plus the liquid injected;
+    - energy, over |the gas's initial energy| + |injected| + |outflow| + the wall loss;
+    - axial momentum, over the levels' gross momentum plus |injected| + |outflow| + |the wall impulse|.
+  - **(b) The liquid's ledgers** must close within 1e-11 (`balanceErrors`).
+  - **(c) The whole system**, gas plus liquid with no exchange terms, must close within 1e-11 on the same scales.
+  - **The run must exercise what it checks.** It needs at least 50 regrids that changed the pattern, and at least 100 parcel moves to a finer owner and 100 to a coarser one. Otherwise it is resized and rerun before it counts, and it is not a pass.
+  - Redone base steps are printed. They are not forced.
+- **A3. Threads.** A2's run on 1 and 4 threads gives every level's state and the parcel list bit for bit.
+- **Printed, not judged:** A2's liquid evaporated, parcels held and the spray's wall share, beside the uniform 16 × 6 run's.
 
 ## Literature
 

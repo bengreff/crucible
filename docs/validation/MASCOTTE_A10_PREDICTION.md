@@ -161,6 +161,23 @@ The runs are read from their own output only. No measured value has been read or
   - Section 5's half-to-half widening becomes twice the largest standard error.
   - The registered 50 K test is still printed beside it.
 
+**The Director's decision on low and high's settle test (22 October 2026, about 22:40 CDT, recorded then, before any measured value is read and before the test is computed on any run).** The amendment is approved, with batch means for the standard error.
+- **Scope.** low and high only. The blob legs keep section 2's 50 K half-to-half test and run to their registered 85 ms end.
+- **The condition.** The run is stationary in mass: each 10 ms window's mean liquid held and mean outlet flow lie within 5% of the next window's.
+- **The steady span.** Every closed window from 15 ms to the registered end, 15 to 55 ms. That is 4 windows, or 8 half-windows of 5 ms, each a batch.
+- **The batches are longer than the correlation time (measured).**
+  - The driver writes each station point's T as window and half-window means only, with no time series. So the correlation time is taken from the history's own series over 15 to 51.5 ms of the stopped runs.
+  - The integral time scale (the autocorrelation integrated to its first zero) is 0.24 ms for the outlet flow, 0.22 ms for the injector pressure and 0.21 ms for the evaporation rate in low. In high it is 0.37, 0.36 and 0.27 ms.
+  - A 5 ms batch is therefore 13 to 24 integral times long.
+  - A station's local T may keep a longer memory than these global series (inferred, not measured). The guard below covers that.
+- **The test.** At every station point with r ≤ 20 mm, SE = s / √n, where s is the standard deviation of the batch means and n is the number of batches. The judged SE is the larger of two values: the SE from the 8 half-window batches, and the SE from the 4 window batches. The run is settled if the judged SE is at most 25 K at every such point.
+  - The guard: if the batches were correlated, the longer batches would give the larger SE, and it is the one taken.
+- **The result.** It is the mean over 15 to 55 ms, the mean of the 8 batches.
+  - Section 5's half-to-half widening is replaced, for low and high, by twice their largest judged SE at r ≤ 20 mm.
+  - The blob legs' widening stays their half-to-half drift.
+- **Printed beside it:** the registered 50 K test on every window, and the SE from each batch length.
+- **If low or high fails the test at 55 ms,** the run is reported as not settled, with its SE, and is not extended without a dated note.
+
 ## 5. The band and the judging rules
 
 - **The band.** At each station and radius, the band runs from the lowest to the highest of the three production runs' time-averaged T. It is widened on each side by:

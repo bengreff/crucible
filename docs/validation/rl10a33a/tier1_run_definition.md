@@ -22,6 +22,24 @@ Status: drafted 21 October 2026, about 02:40 CDT, before any tier-1 run. It hold
   - So the prediction commit records the hash of the data after the header, not of the file.
   - Table A (shifting equilibrium) is member 15.
 - **Settled:** F_vac, the injector-face pressure and the outlet mass flow each drift by under 0.1% over the last 1 ms (protocol §3). The drift is (max − min) / |last| over that ms, as `chamber_study` measures it (`tests/chamber_study.cpp:805-815`). That driver also requires |outlet / supply − 1| < 1e-3; tier 1 counts the LOX injected in the supply, and the parcels' inventory is steady once settled.
+  - **Replaced by the Director's decision (22 October 2026, about 22:40 CDT, recorded then, before any tier-1 output exists).** Every run goes to the 60 ms ceiling and is judged over its last 20 ms, 40 to 60 ms.
+    - **Settled** if two conditions hold, each for the chamber pressure and for c*:
+      - the batch-means standard error of the 40 to 60 ms mean is at most 0.2% of that mean;
+      - the means of the two 10 ms halves (40 to 50 and 50 to 60 ms) differ by at most 0.5% of the 20 ms mean.
+    - **The chamber pressure is the injector-face pressure,** which is protocol §3's settled pressure (*read so*). c* is p0 A_t / ṁ, from the nozzle stagnation pressure, as item 3 states.
+    - **The batches (engineering, fixed now).**
+      - τ is the integral time scale of each quantity's 0.5 ms-printed series over 40 to 60 ms: the autocorrelation integrated to its first zero. The run also writes the series at every step it already samples, so τ is not limited by the print interval.
+      - The batch length b is the shortest of 1, 2, 4 and 5 ms that is at least 10 τ. That gives 20, 10, 5 or 4 batches.
+      - The judged SE is the larger of the SE with b and with the next longer length in that list. At b = 5 ms there is no longer length, and the 5 ms SE stands.
+      - If 10 τ exceeds 5 ms, the 5 ms SE is used and flagged as "batches shorter than 10 τ".
+      - This mirrors S7's guard (MASCOTTE_A10_PREDICTION.md §4, *The Director's decision on low and high's settle test*).
+    - **The reported values** are each item-3 quantity's 40 to 60 ms mean, with its judged SE. F_vac and the outlet flow are judged by no bar, but their SE is printed.
+    - **A run that does not meet the rule at 60 ms** is reported with these values and flagged unsettled. Its SE enters the quantity's range as a component, alongside protocol §4's bracket deviations. It is not extended without a dated note.
+    - Protocol §3's 0.1% test over the last 1 ms is printed beside it, not judged.
+    - **Item 5's parcel-rate check, re-expressed (engineering).**
+      - After 60 ms, the central case continues warm at twice the parcel rate to 85 ms, and is judged over 65 to 85 ms by the same rule.
+      - The rate doubles for every run if any item-3 quantity's 20 ms mean moves by more than 0.5% (the halves bar). It also doubles if the move exceeds twice the two runs' combined SE.
+      - This adds 25 ms at about twice the spray's cost to the central case alone (*derived*). It is in the restated budget.
 
 ## Proposed (engineering, stated before the code)
 
@@ -97,6 +115,8 @@ The run mode is still to be added to `tests/rl10_tier1.cpp`. It may change the d
    - That design is registered before its code, with the spray checks S1 to S5 rerun on levels.
 
 ## What it waits on
+
+- **Budget (the Director's decision, 22 October 2026, 22:40 CDT):** go for tonight's work, within Ben's raised cap. The spray-on-AMR coupling is now tier 1's critical path, and tonight's main item (below and `docs/evidence/SPRAY.md`, *Spray on AMR*). The driver's run mode follows it.
 
 - **The face inlet (a) and the face's wall temperature,** inquiry2's lane (the handoff's spec, 21 October, about 02:40), after S7 and AMR step C. The driver then sets the switch, adds the LOX ports and the face temperature, and reruns G5 and G6 as the spec's gate F3.
 - **AMR step C's remaining checks** (2, 4 and 5; the code is on `main` since af91015, and checks 1 and 3 pass by AMR.md and abdda6d's message) and **step D** (the thresholds on C1, and the y+ target).
