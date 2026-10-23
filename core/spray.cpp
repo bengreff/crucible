@@ -1014,9 +1014,6 @@ struct Timer {
 };
 }  // namespace
 
-// DEVELOPMENT (the mixed-level jet's diagnosis, SPRAY.md): bits 1, 2, 4 keep the mass, momentum and
-// energy deposits; bit 8 throws on a deposit to a cell that is not owned. Removed before the fix is committed.
-int sprayDevelopmentMask = 7;
 void Spray::move(double dt, int phase) {
   const auto ns = flow_.medium().size();
   if (work_.size() != static_cast<std::size_t>(flow_.threads())) {
@@ -1046,17 +1043,10 @@ void Spray::move(double dt, int phase) {
       const auto l = static_cast<std::size_t>(levelOf(cell));
       double* a = amounts_[l].data() + (cell - offset_[l]) * (ns + 3);
       deposited[l] = 1;
-      if (amr_ && (sprayDevelopmentMask & 8)) {
-        const auto q = cell - offset_[l];
-        const auto& mesh = levels_[l]->mesh();
-        const int ci = static_cast<int>(q) / mesh.nr, cj = static_cast<int>(q) % mesh.nr;
-        const bool active = l == 0 || amr_->active(static_cast<int>(l))[q];
-        const bool covered = static_cast<int>(l) < amr_->top() && amr_->active(static_cast<int>(l) + 1)[levels_[l + 1]->mesh().index(2 * ci, 2 * cj)];
-        if (!active || covered) throw std::logic_error("DEVELOPMENT: a deposit to a cell that is not owned.");
-      }
-      if (sprayDevelopmentMask & 1) a[oxygen_] += d.mass;
-      if (sprayDevelopmentMask & 2) { a[ns] += d.pz; a[ns + 1] += d.pr; }
-      if (sprayDevelopmentMask & 4) a[ns + 2] += d.energy;
+      a[oxygen_] += d.mass;
+      a[ns] += d.pz;
+      a[ns + 1] += d.pr;
+      a[ns + 2] += d.energy;
       ledger_.exchangedMass += d.mass;
       ledger_.exchangedMomentum += d.pz;
       ledger_.exchangedEnergy += d.energy;

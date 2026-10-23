@@ -215,14 +215,14 @@ void Amr::fill(int l,std::vector<Conserved>& state,std::vector<double>& species,
         }
     });
 }
-// rho, rho u_z, rho u_r and E linear with the parent's least-squares gradient over its face neighbours
-// (across the axis its mirror image, rho u_r odd), limited by Barth and Jespersen to the neighbours'
-// range, times the child's offset from the children's volume-weighted centroid, so the children's
-// content is the parent's. The partial densities, rho k and rho omega scale with the child's density.
-// If a child is not admissible, the parent's children all take its values.
-// DEVELOPMENT (the mixed-level jet's diagnosis, SPRAY.md): 1 spreads each parent's values unchanged to its
-// children. Removed before the fix is committed.
-int amrDevelopmentSpread=0;
+// Every conserved component (rho, rho u_z, rho u_r, E, the partial densities, rho k and rho omega) linear
+// with the parent's least-squares gradient over its face neighbours (across the axis its mirror image,
+// rho u_r odd), times the child's offset from the children's volume-weighted centroid, so the children's
+// content is the parent's. Barth and Jespersen limiters keep each component within the neighbours' range:
+// one common limiter, the smallest over the components that vary and the children, so that each child is
+// one linear combination of the parent's and its neighbours' states and a front of uniform p, T and u (a
+// contact between two compositions) keeps them in the children (SPRAY.md, Spray on AMR: the mixed-level
+// jet's cause, and the revision). If a child is not admissible, the parent's children all take its values.
 void Amr::spread(int l,std::size_t p,std::vector<Conserved>& state,std::vector<double>& species,std::vector<double>& turbulence) {
     const Level& cv=levels_[static_cast<std::size_t>(l-1)];
     const Flow& c=*cv.flow;Flow& f=level(l);
@@ -232,13 +232,17 @@ void Amr::spread(int l,std::size_t p,std::vector<Conserved>& state,std::vector<d
     const std::size_t child[4]={fm.index(2*I,2*J),fm.index(2*I,2*J+1),fm.index(2*I+1,2*J),fm.index(2*I+1,2*J+1)};
     const double* vp=cv.values.data()+p*stride;
     const Cell& cp=cm.cells[p];
-    double m00=0,m01=0,m11=0,b[4][2]={},lo[4],hi[4];
-    for(int k=0;k<4;++k) lo[k]=hi[k]=vp[k];
+    // Per component: the moments (z, r), the range, the gradient (z, r), the axis mirror's state and its own limiter.
+    thread_local std::vector<double> work;
+    work.assign(8*stride,0.0);
+    double* b=work.data();double* lo=b+2*stride;double* hi=lo+stride;double* g=hi+stride;double* mirror=g+2*stride;double* own=mirror+stride;
+    double m00=0,m01=0,m11=0;
+    for(std::size_t k=0;k<stride;++k) lo[k]=hi[k]=vp[k];
     auto add=[&](double dz,double dr,const double* vn) {
         m00+=dz*dz;m01+=dz*dr;m11+=dr*dr;
-        for(int k=0;k<4;++k) {
+        for(std::size_t k=0;k<stride;++k) {
             const double dv=vn[k]-vp[k];
-            b[k][0]+=dz*dv;b[k][1]+=dr*dv;
+            b[2*k]+=dz*dv;b[2*k+1]+=dr*dv;
             lo[k]=std::min(lo[k],vn[k]);hi[k]=std::max(hi[k],vn[k]);
         }
     };
@@ -249,37 +253,54 @@ void Amr::spread(int l,std::size_t p,std::vector<Conserved>& state,std::vector<d
     if(I>0) neighbour(I-1,J);
     if(I<cm.nz-1) neighbour(I+1,J);
     if(J>0) neighbour(I,J-1);
-    else { const double mirror[4]={vp[0],vp[1],-vp[2],vp[3]};add(0,-2*cp.r,mirror); }
+    else { std::copy(vp,vp+stride,mirror);mirror[2]=-vp[2];add(0,-2*cp.r,mirror); }
     if(J<cm.nr-1) neighbour(I,J+1);
     const double det=m00*m11-m01*m01;
-    double g[4][2]={};
-    if(det>0) for(int k=0;k<4;++k) {
-        g[k][0]=(m11*b[k][0]-m01*b[k][1])/det;
-        g[k][1]=(m00*b[k][1]-m01*b[k][0])/det;
+    if(det>0) for(std::size_t k=0;k<stride;++k) {
+        g[2*k]=(m11*b[2*k]-m01*b[2*k+1])/det;
+        g[2*k+1]=(m00*b[2*k+1]-m01*b[2*k])/det;
     }
     // The children's volume-weighted centroid, as offsets from the parent's centroid: in absolute coordinates
     // the offsets' weighted sum cancels only to rounding of |z| rather than of the cell size (AMR.md, Step C: results).
     double volume=0,zbar=0,rbar=0;
     for(auto q:child) { const Cell& cc=fm.cells[q];volume+=cc.volume;zbar+=cc.volume*(cc.z-cp.z);rbar+=cc.volume*(cc.r-cp.r); }
     zbar/=volume;rbar/=volume;
-    double change[4][4],phi[4]={1,1,1,1};
-    if(amrDevelopmentSpread==1) for(auto& x:g) x[0]=x[1]=0;
+    double dz[4],dr[4];
+    for(std::size_t k=0;k<stride;++k) own[k]=1;
     for(int n=0;n<4;++n) {
         const Cell& cc=fm.cells[child[n]];
-        for(int k=0;k<4;++k) {
-            const double d=g[k][0]*((cc.z-cp.z)-zbar)+g[k][1]*((cc.r-cp.r)-rbar);
-            change[n][k]=d;
-            if(d>0) phi[k]=std::min(phi[k],(hi[k]-vp[k])/d);
-            else if(d<0) phi[k]=std::min(phi[k],(lo[k]-vp[k])/d);
+        dz[n]=(cc.z-cp.z)-zbar;dr[n]=(cc.r-cp.r)-rbar;
+        for(std::size_t k=0;k<stride;++k) {
+            const double d=g[2*k]*dz[n]+g[2*k+1]*dr[n];
+            if(d>0) own[k]=std::min(own[k],(hi[k]-vp[k])/d);
+            else if(d<0) own[k]=std::min(own[k],(lo[k]-vp[k])/d);
         }
     }
+    // A component joins the common limiter only if its neighbours' range exceeds 1e-9 of its scale at the
+    // parent: rho for rho and the partial densities, rho sqrt(RT) for the momentum, p for E and rho k. Rounding
+    // in a component that is otherwise uniform (rho u_r in a one-dimensional flow) then cannot cut the others.
+    // rho omega does not enter p, T or u and never joins. One that does not join keeps its own limiter.
+    thread_local std::vector<double> y;
+    y.resize(ns);
+    double sum=0;
+    for(std::size_t k=0;k<ns;++k) sum+=std::max(vp[4+k],0.0);
+    for(std::size_t k=0;k<ns;++k) y[k]=std::max(vp[4+k],0.0)/sum;
+    const double rt=c.medium_.gasConstant(y.data())*c.temperature_[p];
+    auto scale=[&](std::size_t k) {
+        if(k==0 || (k>=4 && k<4+ns)) return vp[0];
+        if(k==1 || k==2) return vp[0]*std::sqrt(rt);
+        return vp[0]*rt;
+    };
+    auto joins=[&](std::size_t k) { return !(nt && k==4+ns+1) && hi[k]-lo[k]>1e-9*scale(k); };
+    double phi=1;
+    for(std::size_t k=0;k<stride;++k) if(joins(k)) phi=std::min(phi,own[k]);
+    auto value=[&](int n,std::size_t k) { return vp[k]+(joins(k)?phi:own[k])*(g[2*k]*dz[n]+g[2*k+1]*dr[n]); };
     bool ok=true;
     for(int n=0;n<4 && ok;++n) {
         const auto q=child[n];
-        for(int k=0;k<4;++k) state[q][k]=vp[k]+phi[k]*change[n][k];
-        const double scale=state[q][0]/vp[0];
-        for(std::size_t k=0;k<ns;++k) species[q*ns+k]=vp[4+k]*scale;
-        for(std::size_t k=0;k<nt;++k) turbulence[q*nt+k]=vp[4+ns+k]*scale;
+        for(int k=0;k<4;++k) state[q][k]=value(n,static_cast<std::size_t>(k));
+        for(std::size_t k=0;k<ns;++k) species[q*ns+k]=value(n,4+k);
+        for(std::size_t k=0;k<nt;++k) turbulence[q*nt+k]=value(n,4+ns+k);
         ok=f.admissible(state[q],species.data()+q*ns,nt?turbulence.data()+q*nt:nullptr);
     }
     if(!ok) for(auto q:child) {

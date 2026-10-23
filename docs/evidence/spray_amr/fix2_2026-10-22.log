@@ -1,0 +1,449 @@
+# The spread revision (SPRAY.md, The revision, scored), 22 October about 23:49 to 23:53 CDT, on the tree with the revision's code (the commit after 9869c4e).
+# A5 (+o2 kinds) and the diagnosis's spray runs (a4_probe KIND 15 0.3), A4 (a2_levels_probe 1), A0 (a0_dump; md5), crucible_spray_tests, crucible_spray_amr_tests (A1 to A3), AMR's ctest.
+### a4_probe axis+o2 15 0.3
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 50.0 at (0.50, 4.22) mm; L1 u_z 15.3 at (2.25, 0.56) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.6 at (0.50, 4.22) mm; L1 u_z 13.3 at (2.25, 1.30) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z 13.9 at (2.25, 1.30) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.4 at (0.50, 4.22) mm; L1 u_z 15.5 at (2.25, 1.30) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.2 at (0.50, 4.22) mm; L1 u_z 13.5 at (2.25, 0.56) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.0 at (0.50, 4.22) mm; L1 u_z 17.5 at (2.25, 0.56) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 16.4 at (2.25, 0.56) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 16.4 at (2.25, 1.30) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.0 at (0.50, 4.22) mm; L1 u_z 16.8 at (2.25, 1.30) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 16.1 at (2.25, 0.56) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.9 at (2.50, 4.22) mm; L1 u_z 17.6 at (2.25, 1.30) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 16.7 at (2.25, 1.30) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 16.9 at (2.25, 1.30) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.2 at (0.50, 4.22) mm; L1 u_z 17.1 at (2.25, 1.30) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.3 at (0.50, 4.22) mm; L1 u_z 17.1 at (2.25, 1.30) mm;
+axis+o2 : 3247 base steps, 0 regrids, 2.2 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children; moves 0 finer, 0 coarser
+### a4_probe cell+o2 15 0.3
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 50.0 at (0.50, 4.22) mm; L1 u_z 40.1 at (2.25, 2.94) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 42.9 at (2.25, 2.94) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.1 at (0.50, 4.22) mm; L1 u_z 44.4 at (2.25, 2.94) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 46.1 at (2.25, 2.94) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.2 at (0.50, 4.22) mm; L1 u_z 47.0 at (2.25, 2.94) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.1 at (1.50, 4.22) mm; L1 u_z 51.9 at (2.25, 2.94) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 47.6 at (2.25, 2.94) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 48.7 at (2.25, 2.94) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 48.8 at (2.25, 2.94) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 50.9 at (2.25, 2.94) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 54.2 at (3.50, 4.22) mm; L1 u_z 52.1 at (2.25, 2.94) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 49.0 at (2.25, 2.94) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 52.8 at (2.25, 2.94) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.2 at (0.50, 4.22) mm; L1 u_z 53.5 at (2.25, 2.94) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.4 at (0.50, 4.22) mm; L1 u_z 51.9 at (2.25, 2.94) mm;
+cell+o2 : 3246 base steps, 0 regrids, 2.3 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children; moves 0 finer, 0 coarser
+### a4_probe block+o2 15 0.3
+  t 0.020 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 51.1 at (0.25, 2.11) mm;
+  t 0.040 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.6 at (0.50, 4.22) mm; L1 u_z 52.3 at (0.25, 2.11) mm;
+  t 0.060 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 50.9 at (0.50, 4.22) mm; L1 u_z 51.4 at (0.25, 2.11) mm;
+  t 0.080 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.4 at (0.50, 4.22) mm; L1 u_z 52.9 at (0.25, 2.94) mm;
+  t 0.100 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 51.2 at (0.50, 4.22) mm; L1 u_z 51.7 at (0.25, 2.94) mm;
+  t 0.120 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 52.8 at (0.25, 2.94) mm;
+  t 0.140 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 52.9 at (0.25, 2.11) mm;
+  t 0.160 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 52.0 at (0.25, 2.94) mm;
+  t 0.180 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.0 at (0.50, 4.22) mm; L1 u_z 53.1 at (0.25, 2.94) mm;
+  t 0.200 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 52.0 at (0.25, 2.11) mm;
+  t 0.220 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.7 at (1.50, 4.22) mm; L1 u_z 53.1 at (0.25, 2.94) mm;
+  t 0.240 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 52.7 at (0.25, 2.94) mm;
+  t 0.260 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 52.3 at (0.25, 2.94) mm;
+  t 0.280 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 53.2 at (0.50, 4.22) mm; L1 u_z 53.1 at (0.25, 2.94) mm;
+  t 0.300 ms, 0 parcels, evaporated 0.0000e+00 kg: L0 u_z 52.3 at (0.50, 4.22) mm; L1 u_z 52.3 at (0.25, 2.94) mm;
+block+o2 : 3250 base steps, 0 regrids, 3.4 s; evaporated 0.000000e+00 kg, 0 parcels held, 0 children; moves 0 finer, 0 coarser
+### a4_probe cell 15 0.3
+  t 0.020 ms, 4 parcels, evaporated 1.0461e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 39.7 at (2.25, 2.94) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.5733e-10 kg: L0 u_z 51.7 at (0.50, 4.22) mm; L1 u_z 42.4 at (2.25, 2.94) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2784e-09 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z 44.5 at (2.25, 2.94) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9943e-09 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 47.9 at (2.25, 2.94) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1807e-08 kg: L0 u_z 51.3 at (0.50, 4.22) mm; L1 u_z 46.2 at (2.25, 2.94) mm;
+  t 0.120 ms, 25 parcels, evaporated 1.7256e-08 kg: L0 u_z 53.1 at (1.50, 4.22) mm; L1 u_z 55.0 at (2.25, 2.94) mm;
+  t 0.140 ms, 29 parcels, evaporated 2.3415e-08 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 48.1 at (2.25, 2.94) mm;
+  t 0.160 ms, 35 parcels, evaporated 2.9659e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 49.2 at (2.25, 2.94) mm;
+  t 0.180 ms, 38 parcels, evaporated 3.5662e-08 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 50.3 at (2.25, 2.94) mm;
+  t 0.200 ms, 45 parcels, evaporated 4.2866e-08 kg: L0 u_z 52.2 at (0.50, 4.22) mm; L1 u_z 49.6 at (2.25, 2.94) mm;
+  t 0.220 ms, 51 parcels, evaporated 5.1866e-08 kg: L0 u_z 54.4 at (3.50, 4.22) mm; L1 u_z 53.6 at (2.25, 2.94) mm;
+  t 0.240 ms, 63 parcels, evaporated 6.2026e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 48.7 at (2.25, 2.94) mm;
+  t 0.260 ms, 79 parcels, evaporated 7.3005e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 51.3 at (2.25, 2.94) mm;
+  t 0.280 ms, 88 parcels, evaporated 8.4498e-08 kg: L0 u_z 53.4 at (0.50, 4.22) mm; L1 u_z 51.0 at (2.25, 2.94) mm;
+  t 0.300 ms, 104 parcels, evaporated 9.6555e-08 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 51.1 at (2.25, 2.94) mm;
+cell : 3252 base steps, 0 regrids, 3.5 s; evaporated 9.655474e-08 kg, 104 parcels held, 46 children; moves 36 finer, 35 coarser
+### a4_probe block 15 0.3
+  t 0.020 ms, 4 parcels, evaporated 1.0170e-10 kg: L0 u_z 49.9 at (0.50, 4.22) mm; L1 u_z 50.7 at (0.25, 2.11) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.3346e-10 kg: L0 u_z 51.6 at (0.50, 4.22) mm; L1 u_z 52.2 at (0.25, 2.11) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2288e-09 kg: L0 u_z 50.9 at (0.50, 4.22) mm; L1 u_z 51.5 at (0.25, 2.11) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9109e-09 kg: L0 u_z 52.4 at (0.50, 4.22) mm; L1 u_z 52.6 at (0.25, 2.11) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1602e-08 kg: L0 u_z 51.2 at (0.50, 4.22) mm; L1 u_z 51.6 at (0.25, 2.94) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.6949e-08 kg: L0 u_z 53.0 at (0.50, 4.22) mm; L1 u_z 52.7 at (0.25, 2.94) mm;
+  t 0.140 ms, 29 parcels, evaporated 2.2987e-08 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z 52.7 at (0.25, 2.11) mm;
+  t 0.160 ms, 33 parcels, evaporated 2.9263e-08 kg: L0 u_z 52.0 at (0.50, 4.22) mm; L1 u_z 51.9 at (0.25, 2.11) mm;
+  t 0.180 ms, 36 parcels, evaporated 3.5258e-08 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 53.1 at (0.25, 2.94) mm;
+  t 0.200 ms, 41 parcels, evaporated 4.2509e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 52.2 at (0.25, 2.94) mm;
+  t 0.220 ms, 49 parcels, evaporated 5.1461e-08 kg: L0 u_z 53.9 at (2.50, 4.22) mm; L1 u_z 53.1 at (0.25, 2.94) mm;
+  t 0.240 ms, 57 parcels, evaporated 6.1558e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 52.7 at (0.25, 2.94) mm;
+  t 0.260 ms, 70 parcels, evaporated 7.2327e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 52.4 at (0.25, 2.94) mm;
+  t 0.280 ms, 77 parcels, evaporated 8.3638e-08 kg: L0 u_z 53.3 at (0.50, 4.22) mm; L1 u_z 53.2 at (0.25, 2.94) mm;
+  t 0.300 ms, 92 parcels, evaporated 9.5608e-08 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 52.3 at (0.25, 2.94) mm;
+block : 3252 base steps, 0 regrids, 4.2 s; evaporated 9.560786e-08 kg, 92 parcels held, 34 children; moves 0 finer, 69 coarser
+### a4_probe corner2 15 0.3
+  t 0.020 ms, 4 parcels, evaporated 1.0043e-10 kg: L0 u_z 28.3 at (15.50, 1.11) mm; L1 u_z 29.9 at (3.25, 2.11) mm; L2 u_z 52.4 at (0.12, 2.71) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.1196e-10 kg: L0 u_z 24.5 at (4.50, 2.59) mm; L1 u_z 33.3 at (3.25, 2.11) mm; L2 u_z 53.2 at (0.12, 3.55) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.1413e-09 kg: L0 u_z 29.8 at (4.50, 2.59) mm; L1 u_z 36.4 at (3.25, 2.11) mm; L2 u_z 52.3 at (0.12, 3.13) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.6919e-09 kg: L0 u_z 35.3 at (4.50, 2.59) mm; L1 u_z 40.7 at (3.25, 2.11) mm; L2 u_z 53.6 at (0.12, 3.13) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1361e-08 kg: L0 u_z 30.8 at (4.50, 2.59) mm; L1 u_z 37.5 at (3.25, 2.11) mm; L2 u_z 52.5 at (0.12, 3.13) mm;
+  t 0.120 ms, 24 parcels, evaporated 1.6588e-08 kg: L0 u_z 45.0 at (4.50, 2.59) mm; L1 u_z 48.9 at (3.25, 2.94) mm; L2 u_z 53.0 at (0.12, 3.13) mm;
+  t 0.140 ms, 28 parcels, evaporated 2.2367e-08 kg: L0 u_z 38.4 at (4.50, 2.59) mm; L1 u_z 42.7 at (3.25, 2.94) mm; L2 u_z 53.5 at (0.12, 3.13) mm;
+  t 0.160 ms, 32 parcels, evaporated 2.8234e-08 kg: L0 u_z 41.5 at (4.50, 2.59) mm; L1 u_z 44.5 at (3.25, 2.11) mm; L2 u_z 52.5 at (0.12, 3.13) mm;
+  t 0.180 ms, 35 parcels, evaporated 3.3899e-08 kg: L0 u_z 42.8 at (4.50, 2.59) mm; L1 u_z 45.5 at (3.25, 2.11) mm; L2 u_z 53.6 at (0.12, 3.13) mm;
+  t 0.200 ms, 39 parcels, evaporated 4.0831e-08 kg: L0 u_z 40.6 at (4.50, 2.59) mm; L1 u_z 43.7 at (3.25, 2.11) mm; L2 u_z 52.5 at (0.12, 3.13) mm;
+  t 0.220 ms, 45 parcels, evaporated 4.9453e-08 kg: L0 u_z 48.7 at (4.50, 2.59) mm; L1 u_z 51.7 at (3.25, 2.94) mm; L2 u_z 53.3 at (0.12, 3.96) mm;
+  t 0.240 ms, 53 parcels, evaporated 5.9073e-08 kg: L0 u_z 40.7 at (4.50, 2.59) mm; L1 u_z 45.5 at (3.25, 2.94) mm; L2 u_z 53.2 at (0.12, 3.13) mm;
+  t 0.260 ms, 60 parcels, evaporated 6.9348e-08 kg: L0 u_z 46.6 at (4.50, 2.59) mm; L1 u_z 48.9 at (3.25, 2.94) mm; L2 u_z 52.7 at (0.12, 3.96) mm;
+  t 0.280 ms, 64 parcels, evaporated 7.9952e-08 kg: L0 u_z 45.7 at (4.50, 2.59) mm; L1 u_z 48.4 at (3.25, 2.94) mm; L2 u_z 53.6 at (0.12, 3.96) mm;
+  t 0.300 ms, 71 parcels, evaporated 9.1398e-08 kg: L0 u_z 45.2 at (4.50, 2.59) mm; L1 u_z 46.9 at (3.25, 2.94) mm; L2 u_z 52.7 at (0.12, 3.96) mm;
+corner2 : 3256 base steps, 2 regrids, 13.3 s; evaporated 9.139758e-08 kg, 71 parcels held, 12 children; moves 0 finer, 99 coarser
+### a4_probe axis 15 0.3
+  t 0.020 ms, 4 parcels, evaporated 1.0420e-10 kg: L0 u_z 50.0 at (0.50, 4.22) mm; L1 u_z 3.9 at (2.75, 1.30) mm;
+  t 0.040 ms, 8 parcels, evaporated 6.5718e-10 kg: L0 u_z 51.6 at (0.50, 4.22) mm; L1 u_z -2.0 at (2.75, 0.56) mm;
+  t 0.060 ms, 12 parcels, evaporated 2.2822e-09 kg: L0 u_z 51.0 at (0.50, 4.22) mm; L1 u_z -2.6 at (2.75, 0.56) mm;
+  t 0.080 ms, 16 parcels, evaporated 6.9837e-09 kg: L0 u_z 52.4 at (0.50, 4.22) mm; L1 u_z -1.2 at (2.75, 0.56) mm;
+  t 0.100 ms, 20 parcels, evaporated 1.1771e-08 kg: L0 u_z 51.3 at (0.50, 4.22) mm; L1 u_z -5.9 at (2.75, 0.56) mm;
+  t 0.120 ms, 25 parcels, evaporated 1.7217e-08 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 4.9 at (2.25, 1.30) mm;
+  t 0.140 ms, 29 parcels, evaporated 2.3402e-08 kg: L0 u_z 52.7 at (0.50, 4.22) mm; L1 u_z -1.7 at (2.75, 0.56) mm;
+  t 0.160 ms, 36 parcels, evaporated 2.9683e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 2.8 at (2.25, 1.30) mm;
+  t 0.180 ms, 41 parcels, evaporated 3.5774e-08 kg: L0 u_z 53.1 at (0.50, 4.22) mm; L1 u_z 2.6 at (2.25, 1.30) mm;
+  t 0.200 ms, 50 parcels, evaporated 4.3055e-08 kg: L0 u_z 52.1 at (0.50, 4.22) mm; L1 u_z 1.1 at (2.25, 1.30) mm;
+  t 0.220 ms, 61 parcels, evaporated 5.2083e-08 kg: L0 u_z 54.1 at (3.50, 4.22) mm; L1 u_z 5.5 at (2.75, 1.30) mm;
+  t 0.240 ms, 75 parcels, evaporated 6.2351e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 1.9 at (2.25, 0.56) mm;
+  t 0.260 ms, 96 parcels, evaporated 7.3476e-08 kg: L0 u_z 52.6 at (0.50, 4.22) mm; L1 u_z 4.6 at (2.75, 1.30) mm;
+  t 0.280 ms, 112 parcels, evaporated 8.5086e-08 kg: L0 u_z 53.3 at (0.50, 4.22) mm; L1 u_z 5.5 at (2.75, 1.30) mm;
+  t 0.300 ms, 142 parcels, evaporated 9.7398e-08 kg: L0 u_z 52.5 at (0.50, 4.22) mm; L1 u_z 4.7 at (2.75, 1.30) mm;
+axis : 3250 base steps, 0 regrids, 3.5 s; evaporated 9.739800e-08 kg, 142 parcels held, 84 children; moves 70 finer, 82 coarser
+### a2_levels_probe 1 (criterion A4)
+  t 0.046 ms, 9 parcels: L0 u_z 19.4 at (4.50, 2.59) mm; L1 u_z 30.3 at (3.25, 2.11) mm; L2 u_z 53.4 at (0.12, 3.13) mm;
+  t 0.092 ms, 18 parcels: L0 u_z 33.4 at (4.50, 2.59) mm; L1 u_z 39.4 at (3.25, 2.94) mm; L2 u_z 53.5 at (0.12, 3.13) mm;
+  t 0.138 ms, 27 parcels: L0 u_z 39.3 at (4.50, 2.59) mm; L1 u_z 44.2 at (3.25, 2.94) mm; L2 u_z 53.6 at (0.12, 3.13) mm;
+  t 0.184 ms, 35 parcels: L0 u_z 42.4 at (4.50, 2.59) mm; L1 u_z 45.2 at (3.25, 2.11) mm; L2 u_z 53.6 at (0.12, 3.13) mm;
+  t 0.230 ms, 48 parcels: L0 u_z 44.4 at (4.50, 2.59) mm; L1 u_z 48.5 at (3.25, 2.94) mm; L2 u_z 53.5 at (0.12, 3.13) mm;
+  t 0.276 ms, 63 parcels: L0 u_z 46.5 at (4.50, 2.59) mm; L1 u_z 49.1 at (3.25, 2.94) mm; L2 u_z 53.6 at (0.12, 3.96) mm;
+  t 0.323 ms, 78 parcels: L0 u_z 48.8 at (4.50, 2.59) mm; L1 u_z 50.9 at (3.25, 2.94) mm; L2 u_z 53.5 at (0.12, 3.13) mm;
+  t 0.369 ms, 87 parcels: L0 u_z 50.7 at (4.50, 2.59) mm; L1 u_z 52.1 at (3.25, 2.94) mm; L2 u_z 53.4 at (0.12, 3.96) mm;
+  t 0.415 ms, 92 parcels: L0 u_z 51.6 at (4.50, 2.59) mm; L1 u_z 52.6 at (3.75, 2.94) mm; L2 u_z 53.2 at (0.38, 3.96) mm;
+  t 0.461 ms, 101 parcels: L0 u_z 51.2 at (4.50, 2.59) mm; L1 u_z 53.0 at (3.75, 3.77) mm; L2 u_z 53.2 at (0.88, 3.96) mm;
+  ring 0 (r 0.28 mm): 2:-0.0 2:0.1 2:0.4 2:1.4 2:3.1 2:5.6 2:8.4 2:11.1 2:13.5 2:16.0 2:18.9 2:21.7 1:23.6 1:23.6 1:23.9 1:23.9 0:23.6 0:23.6 0:23.6 0:23.6 0:23.8 0:23.8 0:23.8 0:23.8  (level:u_z m/s, finest columns 0 to 23, dz 0.250 mm)
+  ring 4 (r 1.88 mm): 2:52.2 2:51.2 2:50.6 2:50.0 2:49.5 2:48.9 2:48.4 2:47.9 2:47.3 2:46.6 2:45.7 2:44.8 1:47.9 1:47.9 1:48.0 1:48.0 0:48.2 0:48.2 0:48.2 0:48.2 0:47.3 0:47.3 0:47.3 0:47.3  (level:u_z m/s, finest columns 0 to 23, dz 0.250 mm)
+  parcels per 4 finest columns: 5 12 5 13 7 6 5 5 5 9 2 12 9 7 4 3; mean d 37.4 um
+mode 1: 5423 base steps, 2 regrids, 21.9 s; evaporated 2.441079e-07 kg, 109 parcels held, 99 injected, 39 children, 580185 sub-steps; level moves 0 finer, 213 coarser
+### a0_dump a0.bin (criterion A0); md5 of a0.bin
+S3: 5415 steps, 247 parcels, evaporated 2.5782261279541006e-07 kg
+S8(c): 2168 steps, 48 parcels, evaporated 4.2925157553655584e-08 kg
+e95251ab17e43a961a392dcd4bd0912f
+### crucible_spray_tests
+S0. Properties
+  table 54.3610 to 154.4140 K
+  (a) T(h(T)) at 10,000 temperatures across the table                            3.370e-16 (limit 1e-12)  PASS
+  (a) T_sat(p_sat(T)) likewise (the vapour-pressure inverse)                     2.396e-16 (limit 1e-12)  PASS
+     75 K: h_medium - h_NIST  -1245.1 J/kg
+     90 K: h_medium - h_NIST   -873.7 J/kg
+    100 K: h_medium - h_NIST   -673.5 J/kg
+    120 K: h_medium - h_NIST   -370.2 J/kg
+    150 K: h_medium - h_NIST   -106.7 J/kg
+    200 K: h_medium - h_NIST    +23.5 J/kg
+    250 K: h_medium - h_NIST    +10.9 J/kg
+    300 K: h_medium - h_NIST     +0.2 J/kg
+  medium O2 against NIST's 1e-6 MPa isobar, 75 to 300 K (the table's range): largest at 75 K
+  (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+S1. The drop model's algebra and integrator
+  N2:1 at 300 K, 3 film points: wet bulb 108.553227074 K (T_sat 119.621223957 K, evaporating), B_M 1.1024e+00, K 9.716492e-08 m^2/s, time to d_min 1.029177e-01 s
+  1700 sub-steps; drop temperature at the end 108.553227074 K
+  (a) d^2 against d0^2 - K t at 1,000 times (relative to d0^2)                   2.947e-15 (limit 1e-10)  PASS
+  (a) alive at (1 - 1e-10) and vaporised by (1 + 1e-10) of (d0^2 - d_min^2)/K    0.000e+00 (limit 1e-10)  PASS
+  H2:1 at 1200 K, 3 film points: wet bulb 115.155594844 K (T_sat 119.621223957 K, evaporating), B_M 5.1106e+01, K 1.873295e-06 m^2/s, time to d_min 5.338181e-03 s
+  1393 sub-steps; drop temperature at the end 115.155594844 K
+  (a) d^2 against d0^2 - K t at 1,000 times (relative to d0^2)                   6.971e-15 (limit 1e-10)  PASS
+  (a) alive at (1 - 1e-10) and vaporised by (1 + 1e-10) of (d0^2 - d_min^2)/K    0.000e+00 (limit 1e-10)  PASS
+  208 evaporating cases, B_M 1.000e-06 to 2.000e+01, Re to 400.0; largest difference in B_T
+  (b) Re, B_M, Sh*, Nu*, B_T, mdot, Q against the paper's forms (evaporating)    6.513e-16 (limit 1e-12)  PASS
+  (b) boiling at saturation: Nu*, B_T, mdot, Q against the paper's forms         0.000e+00 (limit 1e-12)  PASS
+  (c) the film's lean transport against Medium::transport (lambda, D_O2, R)      7.120e-16 (limit 1e-13)  PASS
+S5. Breakup
+  (a) KH and RT wavelengths and growth rates against the published forms         3.398e-16 (limit 1e-12)  PASS
+  KH alone: 2 parcels at 0.2 ms, 17 children, 0 RT events of the blob, liquid 3.095701e-07 of 5.980043e-07 kg (exchanged 2.884e-07 kg)
+  (b) KH alone: liquid mass through every child (relative)                       5.312e-16 (limit 1e-13)  PASS
+  (b) KH alone: no RT event                                                      0.000e+00 (limit 5e-01)  PASS
+  17 children of the blob checked against it at creation
+  (b) each child's diameter against 2 B0 Lambda at its creation                  0.000e+00 (limit 1e-12)  PASS
+  KH-RT: 0 parcels at 0.5 ms, 0 children, 4 RT events of the blob, liquid 0.000000e+00 of 5.980043e-07 kg (exchanged 5.980e-07 kg)
+  (b) KH-RT: liquid mass through every child and RT event                        1.363e-14 (limit 1e-13)  PASS
+  (b) KH-RT: the blob breaks by RT at least once                                 0.000e+00 (limit 5e-01)  PASS
+S3. Budgets with parcels (16 by 6 cold chamber to 0.5 ms)
+  5415 steps in 5.0 s; 99 parcels injected, 201 children, 247 held at the end; 4 wall hits, 0 flashes, 3 vaporised, 0 clamped condensation sub-steps, 525926 sub-steps
+  liquid injected 1.000000e-06 kg, evaporated 2.578226e-07 kg, out 1.481351e-07 kg, held 5.940422e-07 kg; wall impulse 0.0000e+00 N s, wall loss 4.5544e-06 J
+  (a) gas mass balance with the exchange                                         1.082e-15 (limit 1e-11)  PASS
+  (a) gas energy balance with the exchange                                       3.386e-17 (limit 1e-11)  PASS
+  (a) gas axial momentum balance with the exchange                               3.180e-19 (limit 1e-11)  PASS
+  (a) liquid mass ledger                                                         6.427e-14 (limit 1e-11)  PASS
+  (a) liquid energy ledger                                                       4.297e-14 (limit 1e-11)  PASS
+  (a) liquid axial momentum ledger                                               4.400e-14 (limit 1e-11)  PASS
+  (b) whole system mass                                                          1.230e-14 (limit 1e-11)  PASS
+  (b) whole system energy                                                        4.516e-15 (limit 1e-11)  PASS
+  (b) whole system axial momentum                                                8.105e-18 (limit 1e-11)  PASS
+  injection, evaporation, wall rebounds and parcels leaving all occurred         0.000e+00 (limit 5e-01)  PASS
+S4. Threads
+  final gas state and parcel list on 4 threads against 1, bit for bit            0.000e+00 (limit 5e-01)  PASS
+  final gas state and parcel list on 6 threads against 1, bit for bit            0.000e+00 (limit 5e-01)  PASS
+S8. Turbulent dispersion
+  102 cases bound by the crossing time, 298 by the eddy lifetime
+  (b) interaction time against the formulas (both branches)                      3.934e-16 (limit 1e-14)  PASS
+  d 15.079 um, tau_p 2.1429e-03 s, tau_e 4.2857e-02 s (ratio 20.00), Re at 3 sigma slip 7.79e-03; 10000 parcels left, 8095682 sub-steps, 0 clamped, 0 vaporised
+  <dz> 1.6690e-07 m (3 se 1.0461e-06); <dz^2> 1.215990e-09 m^2 against 1.212551e-09 (+0.284%); <r^2> 2.398162e-09 against 2.425102e-09 (-1.111%)
+  (a) every parcel kept, no mass passed                                          0.000e+00 (limit 5e-01)  PASS
+  (a) <dz> against 0, in standard errors                                         4.786e-01 (limit 3e+00)  PASS
+  (a) <dz^2> against the held-velocity expectation, in s.e.                      2.005e-01 (limit 3e+00)  PASS
+  (a) <r^2> against twice it, in standard errors                                 1.111e+00 (limit 3e+00)  PASS
+  (c) 47 of the parcels held are inside an eddy at the end
+  (c) dispersion acted (parcels inside an eddy)                                  0.000e+00 (limit 5e-01)  PASS
+  2168 steps in 1.2 s; 40 parcels injected, 9 children, 48 held at the end; 0 wall hits, 0 flashes, 1 vaporised, 0 clamped condensation sub-steps, 51304 sub-steps
+  liquid injected 4.000000e-07 kg, evaporated 4.292516e-08 kg, out 0.000000e+00 kg, held 3.570748e-07 kg; wall impulse 0.0000e+00 N s, wall loss 0.0000e+00 J
+  (c) gas mass balance with the exchange                                         5.701e-17 (limit 1e-11)  PASS
+  (c) gas energy balance with the exchange                                       2.137e-16 (limit 1e-11)  PASS
+  (c) gas axial momentum balance with the exchange                               5.019e-19 (limit 1e-11)  PASS
+  (c) liquid mass ledger                                                         2.832e-14 (limit 1e-11)  PASS
+  (c) liquid energy ledger                                                       2.375e-14 (limit 1e-11)  PASS
+  (c) liquid axial momentum ledger                                               2.649e-14 (limit 1e-11)  PASS
+  (c) whole system mass                                                          2.586e-15 (limit 1e-11)  PASS
+  (c) whole system energy                                                        6.720e-16 (limit 1e-11)  PASS
+  (c) whole system axial momentum                                                3.799e-18 (limit 1e-11)  PASS
+  (c) final gas state and parcel list on 4 threads against 1, bit for bit        0.000e+00 (limit 5e-01)  PASS
+FAIL: 1 failure(s)
+### crucible_spray_amr_tests
+A1(a) S3, frozen, 0.5 ms
+  5415 base steps (0 redone), t 0.00050000000000000001 against 0.00050000000000000001; 10.0 s of wall
+  every step's dt and the end time equal (steps that differ)                             0.000e+00 (limit 0e+00)  PASS
+  final gas state, partial densities and turbulence bit-identical (largest relative difference) 0.000e+00 (limit 0e+00)  PASS
+  parcel list bit-identical, every field (247 against 247 parcels)                       0.000e+00 (limit 0e+00)  PASS
+      printed: ledgers equal (injected, exchanged, outflow, walls, sub-steps, children, wall thrust): yes; evaporated 2.5782261279540805e-07 kg; level moves 0 finer, 0 coarser
+      printed, not judged: ReactingFlow's frozen driver on the same (coarsened) mesh: largest relative difference of the conserved state 9.777e-14; evaporated 2.5782261279540694e-07 kg, 247 parcels
+      printed, not judged: ReactingFlow's frozen driver on the directly built mesh: largest relative difference of the conserved state 9.834e-14; evaporated 2.5782261279541006e-07 kg, 247 parcels
+      printed: the uniform run's spray 3.51 s of 5.00 s
+A1(b) S8(c), SST and dispersion, 0.2 ms
+  2168 base steps (0 redone), t 0.00020000000000000001 against 0.00020000000000000001; 2.5 s of wall
+      printed: 1544 of 2168 steps' dt differ
+  every step's dt within the limit and the end time equal (largest relative difference)  1.149e-15 (limit 1e-12)  PASS
+  final gas state, partial densities and turbulence (largest relative difference)        1.390e-13 (limit 1e-12)  PASS
+  parcel list, every field (48 against 48 parcels; largest relative difference)          5.206e-13 (limit 1e-12)  PASS
+  ledger: injected, exchanged, outflow mass and wall impulse (largest relative difference) 2.524e-14 (limit 1e-12)  PASS
+      printed: ledgers equal (injected, exchanged, outflow, walls, sub-steps, children, wall thrust): no; evaporated 4.2925157553656623e-08 kg; level moves 0 finer, 0 coarser
+      printed, not judged: ReactingFlow's frozen driver on the same (coarsened) mesh: largest relative difference of the conserved state 2.340e-13; evaporated 4.2925157553655922e-08 kg, 48 parcels
+      printed, not judged: ReactingFlow's frozen driver on the directly built mesh: largest relative difference of the conserved state 1.063e-13; evaporated 4.2925157553655584e-08 kg, 48 parcels
+      printed: the uniform run's spray 0.34 s of 1.19 s
+A2 on 1 thread: 16 x 6 base plus 2 levels (64 x 24 finest), to 0.5 ms
+  5423 base steps (0 redone), 98 regrids that changed the pattern, 47.5 s of wall
+  it exercises regrids: pattern-changing regrids (at least 50)                           9.800e+01 (limit 5e+01)  PASS
+  it exercises moves: parcel moves to a finer owner within a step (at least 100)         9.800e+01 (limit 1e+02)  FAIL
+  it exercises moves: parcel moves to a coarser owner within a step (at least 100)       2.240e+02 (limit 1e+02)  PASS
+  (a) composite gas budget with the exchange: mass                                       2.928e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: energy                                     7.085e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: axial momentum                             0.000e+00 (limit 1e-11)  PASS
+  (b) liquid ledger: mass                                                                1.753e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: energy                                                              1.230e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: axial momentum                                                      1.222e-13 (limit 1e-11)  PASS
+  (c) whole system: mass                                                                 3.599e-14 (limit 1e-11)  PASS
+  (c) whole system: energy                                                               1.286e-14 (limit 1e-11)  PASS
+  (c) whole system: axial momentum                                                       2.593e-17 (limit 1e-11)  PASS
+      printed: exchanged mass by the gas 2.4343796804517185e-07 kg, by the liquid ledger 2.4343796804516639e-07 kg
+      printed, not judged: evaporated 2.434380e-07 kg, 113 parcels held, 99 injected, 41 children, 767716 sub-steps; level moves 98 finer, 224 coarser; spray 5.67 s of 47.51 s (11.9%)
+      printed: level 1 ends with 120 active cells of 384
+      printed: level 2 ends with 264 active cells of 1536
+A2 on 4 threads: 16 x 6 base plus 2 levels (64 x 24 finest), to 0.5 ms
+  5423 base steps (0 redone), 98 regrids that changed the pattern, 23.6 s of wall
+  it exercises regrids: pattern-changing regrids (at least 50)                           9.800e+01 (limit 5e+01)  PASS
+  it exercises moves: parcel moves to a finer owner within a step (at least 100)         9.800e+01 (limit 1e+02)  FAIL
+  it exercises moves: parcel moves to a coarser owner within a step (at least 100)       2.240e+02 (limit 1e+02)  PASS
+  (a) composite gas budget with the exchange: mass                                       2.928e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: energy                                     7.085e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: axial momentum                             0.000e+00 (limit 1e-11)  PASS
+  (b) liquid ledger: mass                                                                1.753e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: energy                                                              1.230e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: axial momentum                                                      1.222e-13 (limit 1e-11)  PASS
+  (c) whole system: mass                                                                 3.599e-14 (limit 1e-11)  PASS
+  (c) whole system: energy                                                               1.286e-14 (limit 1e-11)  PASS
+  (c) whole system: axial momentum                                                       2.593e-17 (limit 1e-11)  PASS
+      printed: exchanged mass by the gas 2.4343796804517185e-07 kg, by the liquid ledger 2.4343796804516639e-07 kg
+      printed, not judged: evaporated 2.434380e-07 kg, 113 parcels held, 99 injected, 41 children, 767716 sub-steps; level moves 98 finer, 224 coarser; spray 4.67 s of 23.64 s (19.8%)
+      printed: level 1 ends with 120 active cells of 384
+      printed: level 2 ends with 264 active cells of 1536
+A3: A2 on 1 and 4 threads
+  every level's state and partial densities bit-identical                                0.000e+00 (limit 0e+00)  PASS
+  parcel list bit-identical, every field                                                 0.000e+00 (limit 0e+00)  PASS
+FAIL (2 failed)
+### ctest -R "^(amr_verification|amr_subcycling_verification)$"
+Test project /Users/ben/inquiry-project/build
+    Start 4: amr_verification
+1/2 Test #4: amr_verification .................***Failed    0.40 sec
+AMR criterion 0, step A
+(c) cylinder, uniform rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                2.045e-16 (limit 1e-14)  PASS
+  cell z                                                                     1.433e-16 (limit 1e-14)  PASS
+  cell r                                                                     3.695e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 0.000e+00 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    1.365e-16 (limit 1e-14)  PASS
+  axial face area                                                            8.180e-17 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, r component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face middle                                                         0.000e+00 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           1.156e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          0.000e+00 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     0.000e+00 (limit 1e-14)  PASS
+  column integral of R^3                                                     0.000e+00 (limit 1e-14)  PASS
+  wall radius at five points per column                                      0.000e+00 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        3.785e-16 (limit 1e-14)  PASS
+(c) cone, uniform rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                1.529e-16 (limit 1e-14)  PASS
+  cell z                                                                     2.868e-16 (limit 1e-14)  PASS
+  cell r                                                                     6.024e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 1.125e-16 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    2.040e-16 (limit 1e-14)  PASS
+  axial face area                                                            1.178e-16 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       1.876e-16 (limit 1e-14)  PASS
+  radial face area vector, r component                                       1.688e-16 (limit 1e-14)  PASS
+  radial face middle                                                         7.071e-17 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           2.828e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          1.160e-16 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     1.126e-16 (limit 1e-14)  PASS
+  column integral of R^3                                                     1.434e-16 (limit 1e-14)  PASS
+  wall radius at five points per column                                      1.388e-16 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        6.341e-16 (limit 1e-14)  PASS
+(c) cylinder, stretched rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                2.599e-16 (limit 1e-14)  PASS
+  cell z                                                                     2.865e-16 (limit 1e-14)  PASS
+  cell r                                                                     4.704e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 2.025e-16 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    6.227e-16 (limit 1e-14)  PASS
+  axial face area                                                            0.000e+00 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, r component                                       0.000e+00 (limit 1e-14)  PASS
+  radial face middle                                                         0.000e+00 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           1.156e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          0.000e+00 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     0.000e+00 (limit 1e-14)  PASS
+  column integral of R^3                                                     0.000e+00 (limit 1e-14)  PASS
+  wall radius at five points per column                                      0.000e+00 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        5.452e-16 (limit 1e-14)  PASS
+(c) cone, stretched rings: 32x16 coarsened against 16x8 built directly
+  cell volume                                                                2.915e-16 (limit 1e-14)  PASS
+  cell z                                                                     1.434e-16 (limit 1e-14)  PASS
+  cell r                                                                     4.313e-16 (limit 1e-14)  PASS
+  cell radialPressureMeasure                                                 1.238e-16 (limit 1e-14)  PASS
+  cell radialSecondMoment                                                    7.446e-16 (limit 1e-14)  PASS
+  axial face area                                                            1.497e-16 (limit 1e-14)  PASS
+  axial face ring middle                                                     0.000e+00 (limit 1e-14)  PASS
+  radial face area vector, z component                                       1.876e-16 (limit 1e-14)  PASS
+  radial face area vector, r component                                       2.251e-16 (limit 1e-14)  PASS
+  radial face middle                                                         7.071e-17 (limit 1e-14)  PASS
+  radial face reference radius r_f                                           2.828e-16 (limit 1e-14)  PASS
+  radial face r^2 moment, less -f^2 (r1 - r0)^2 / 8                          1.832e-16 (limit 1e-14)  PASS
+  station radius                                                             0.000e+00 (limit 1e-14)  PASS
+  ring fraction                                                              0.000e+00 (limit 1e-14)  PASS
+  column integral of R^2                                                     1.126e-16 (limit 1e-14)  PASS
+  column integral of R^3                                                     1.434e-16 (limit 1e-14)  PASS
+  wall radius at five points per column                                      1.388e-16 (limit 1e-14)  PASS
+  side-wall distance of each centroid                                        5.219e-16 (limit 1e-14)  PASS
+(d) RL10 development contour, base 150 x 16, stretching 1.7347
+  level 3 (1200 x 128) closure, relative to the faces                        8.132e-14 (limit 1e-14)  FAIL
+      printed, not judged: relative to the pressure measure 4.199e-11, to pi R^2 7.640e-16
+  level 2 (600 x 64) closure, relative to the faces                          3.938e-14 (limit 1e-14)  FAIL
+      printed, not judged: relative to the pressure measure 9.695e-12, to pi R^2 6.674e-16
+  level 1 (300 x 32) closure, relative to the faces                          1.912e-14 (limit 1e-14)  FAIL
+      printed, not judged: relative to the pressure measure 2.098e-12, to pi R^2 5.651e-16
+  level 0 (150 x 16) closure, relative to the faces                          8.260e-15 (limit 1e-14)  PASS
+      printed, not judged: relative to the pressure measure 4.443e-13, to pi R^2 5.495e-16
+      level 0 coarsened against built directly (printed, not judged): cell volume 2.130e-02 largest, throat station area +0.000e+00, side-wall face area 7.427e-03 largest
+FAILED (3 failures)
+
+    Start 5: amr_subcycling_verification
+2/2 Test #5: amr_subcycling_verification ......***Failed   69.99 sec
+AMR step B2, criteria 1 and 3 (4 threads)
+1(b) uniform Mach 0.3 flow, stretched-ring cylinder 400 x 8 plus two levels, 400 base steps
+  t = 1.3358e-04 s after 400 base steps (0 redone), 2.3 s of wall; judged for z in (0.0603, 0.5675) m
+  level 0 (400 x 8): largest |u - u0| / a0                                   5.936e-16 (limit 1e-10)  PASS
+  level 0 (400 x 8): largest |p / p0 - 1|                                    3.331e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 5.936e-16 and 3.331e-16
+  level 1 (800 x 16): largest |u - u0| / a0                                  3.577e-16 (limit 1e-10)  PASS
+  level 1 (800 x 16): largest |p / p0 - 1|                                   4.441e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 3.577e-16 and 4.441e-16
+  level 2 (1600 x 32): largest |u - u0| / a0                                 4.391e-16 (limit 1e-10)  PASS
+  level 2 (1600 x 32): largest |p / p0 - 1|                                  3.331e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 4.391e-16 and 3.331e-16
+Step C check 3: 1(b)'s flow, two levels moved one base column per regrid, 400 base steps
+  t = 1.2659e-04 s after 400 base steps (0 redone), 4.1 s of wall; judged for z in (0.0571, 0.5692) m
+  regrids that changed the pattern (202 expected)                            2.020e+02 (limit 202)  PASS
+      printed, not judged: level 1's active cells span base columns 248 to 351
+      printed, not judged: level 2's active cells span base columns 269 to 330
+  level 0 (400 x 8): largest |u - u0| / a0                                   6.742e-16 (limit 1e-10)  PASS
+  level 0 (400 x 8): largest |p / p0 - 1|                                    4.441e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 6.742e-16 and 4.441e-16
+  level 1 (800 x 16): largest |u - u0| / a0                                  8.708e-16 (limit 1e-10)  PASS
+  level 1 (800 x 16): largest |p / p0 - 1|                                   4.441e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 8.708e-16 and 4.441e-16
+  level 2 (1600 x 32): largest |u - u0| / a0                                 3.548e-16 (limit 1e-10)  PASS
+  level 2 (1600 x 32): largest |p / p0 - 1|                                  3.331e-16 (limit 1e-12)  PASS
+      printed, not judged: over all its active cells 3.548e-16 and 3.331e-16
+3(b) Sod shock tube, level 1 over the middle third, to t = 0.25
+  64 columns (level 1 over base columns 21 to 42, the interfaces at 0.3281 and 0.6719): L1 8.3545e-03; uniform 64: 1.1456e-02, uniform 128: 6.3968e-03
+  64 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)   3.870e-01 (limit 1)  PASS
+  64 columns: shock place against exact 0.938039, in base cells              3.645e-01 (limit 1)  PASS
+  64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.503e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 4.434e-02
+  128 columns (level 1 over base columns 43 to 84, the interfaces at 0.3359 and 0.6641): L1 4.7169e-03; uniform 128: 6.3977e-03, uniform 256: 3.5661e-03
+  128 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  4.064e-01 (limit 1)  PASS
+  128 columns: shock place against exact 0.938039, in base cells             3.950e-01 (limit 1)  PASS
+  128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.856e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 2.498e-02
+  256 columns (level 1 over base columns 85 to 170, the interfaces at 0.3320 and 0.6680): L1 2.6132e-03; uniform 256: 3.5663e-03, uniform 512: 2.0416e-03
+  256 columns: L1 between the uniform runs' (its place, 0 fine to 1 coarse)  3.749e-01 (limit 1)  PASS
+  256 columns: shock place against exact 0.938039, in base cells             4.111e-01 (limit 1)  PASS
+  256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.440e-03 (limit 0.001)  FAIL
+      printed, not judged: the same from the rarefaction's tail (0.4824) to the interface 1.437e-02
+  observed order, 64 to 128 columns (at least)                               8.247e-01 (limit 0.8)  PASS
+  observed order, 128 to 256 columns (at least)                              8.520e-01 (limit 0.8)  PASS
+3(a) simple-wave pulse (1e-3 p0, half-width at half maximum 8 cells of the 192-column base) through a refined middle third
+  192 columns: 1500 base steps, 5.0 s of wall; difference from the uniform 384-column run 4.9507e-03 of the pulse's density amplitude; reflection 3.5426e-03 of its pressure amplitude
+  384 columns: 2700 base steps, 13.1 s of wall; difference from the uniform 768-column run 1.6435e-03 of the pulse's density amplitude; reflection 1.1499e-03 of its pressure amplitude
+  768 columns: 4500 base steps, 19.4 s of wall; difference from the uniform 1536-column run 5.6943e-04 of the pulse's density amplitude; reflection 3.3899e-04 of its pressure amplitude
+  observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+  reflection on 768 columns, relative to the pulse                           3.390e-04 (limit 0.001)  PASS
+  reflection falls, 192 to 384 columns (ratio below 1)                       3.246e-01 (limit 1)  PASS
+  reflection falls, 384 to 768 columns (ratio below 1)                       2.948e-01 (limit 1)  PASS
+1(a) quiescent RL10 development chamber, base 150 x 16 plus two levels, 1,000 base steps
+  throat column 32 of 150 (R 0.0652 to 0.0627 m)
+  AMR: t = 3.7309e-04 s after 1000 base steps (0 redone), 15.4 s of wall
+  level 0 (150 x 16, 2400 active): largest |u| / a0                          2.567e-14 (limit 1e-10)  PASS
+  level 0 (150 x 16, 2400 active): largest |p / p0 - 1|                      2.665e-15 (limit 1e-12)  PASS
+  level 1 (300 x 32, 3360 active): largest |u| / a0                          8.241e-14 (limit 1e-10)  PASS
+  level 1 (300 x 32, 3360 active): largest |p / p0 - 1|                      8.438e-15 (limit 1e-12)  PASS
+  level 2 (600 x 64, 10944 active): largest |u| / a0                         2.015e-13 (limit 1e-10)  PASS
+  level 2 (600 x 64, 10944 active): largest |p / p0 - 1|                     2.176e-14 (limit 1e-12)  PASS
+      printed, not judged: 150 x 16 alone after 1,000 steps (t = 4.3281e-04 s): |u| / a0 1.830e-14, |p / p0 - 1| 2.554e-15
+      printed, not judged: 600 x 64 alone after 1,000 steps (t = 9.3272e-05 s): |u| / a0 1.347e-13, |p / p0 - 1| 1.699e-14
+FAILED (5 failures)
+
+
+0% tests passed, 2 tests failed out of 2
+
+Total Test time (real) =  70.39 sec
+
+The following tests FAILED:
+	  4 - amr_verification (Failed)
+	  5 - amr_subcycling_verification (Failed)
+Errors while running CTest

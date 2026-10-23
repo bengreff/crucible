@@ -470,6 +470,31 @@ The evidence is in `docs/evidence/spray_amr/` (the logs and probes; its README l
     - A0 to A3, with A1(b) as amended;
     - AMR's ctest as before, read as above.
   - **If A2's moves to a finer owner fall below 100** because the jet no longer carries parcels across, A2 is reported not met as written, and the Director decides. Nothing is changed to meet it.
+- **The revision, scored (22 October, about 23:49 to 23:53 CDT; `spray_amr/fix2_2026-10-22.log`).** The mixed-level jet is fixed. A0, A1, A3, A4 and A5 are met, and AMR's ctest is as before. A2 is not met as written, on its count of moves to a finer owner alone.
+  - **A5: met.** 53.9 m/s (axis patch), 54.2 ((2, 1)) and 53.7 (block).
+  - **A4: met.** (a) 2.4411e-7 kg evaporated. (b) The largest is 53.6 m/s.
+  - **A0: met.** The uniform dump's md5 is unchanged, `e95251ab17e43a961a392dcd4bd0912f`. `crucible_spray_tests` fails S1(b) alone, as before.
+  - **A1(a): met bit for bit. A1(b) as amended: met.** dt 1.149e-15, gas 1.390e-13, parcels 5.206e-13, ledger 2.524e-14, as before the fix: a single level does not spread.
+  - **A2: not met as written.**
+    - Every budget is met: the gas at most 7.1e-16, the liquid at most 1.8e-13, the whole system at most 3.6e-14.
+    - The regrids (98, at least 50) and the moves to a coarser owner (224, at least 100) are met.
+    - The moves to a finer owner are 98 against at least 100, on 1 thread and 4 alike. Before the fix they were 338, and the coarser moves 1,344: the jet carried parcels across the patch edges.
+    - The Director decides.
+  - **A3: met.** 1 thread against 4, bit for bit.
+  - **AMR's ctest: as before.** The same checks pass and fail as in the 21 October records: `amr_verification`'s three closure checks, and `amr_subcycling_verification`'s three Sod interface checks and two 3(a) order checks.
+    - Only Sod's values changed. The interface checks went from 5.458e-3, 3.657e-3 and 1.384e-3 to 5.503e-3, 3.856e-3 and 1.440e-3.
+    - Two PASS values moved in the fourth digit: the 128-column shock place, 0.4065 to 0.4064, and the 128-to-256 order, 0.8521 to 0.8520.
+    - 3(a), 1(a), 1(b) and step C's check 3 print the record's values.
+  - **The diagnosis's spray runs, printed.** The largest |u_z| is 55.0 m/s ((2, 1)), 53.9 (block), 53.6 (corner2) and 54.1 (axis). Evaporated: 9.655e-8, 9.561e-8, 9.140e-8 and 9.740e-8 kg.
+  - **The change reaches beyond the spray.** It alters every AMR run whose fills or regrids meet gradients, so AMR results recorded before it (step D's among them) are not reproducible bit for bit on the new tree.
+- **A1(b)'s second rounding source, named within the Director's 30-minute cap (22 October, about 23:51 to 23:53 CDT; `spray_amr/a1b_second_source_2026-10-22.log`).** Not chased further, and the amendment stands.
+  - Under SST, `Amr::step` takes its dt from a `stableDt()` call, and `Amr::advance` then calls `stableDt()` again for SST's source coefficients.
+  - Each call refreshes the primitives, re-solving T by Newton from the last T. So the second call's state and dt differ from the first's in the last bits.
+  - **The first source** is the second refresh. `a1b_sst_probe` mode 1 matches it with an extra `stableDt()` before `Flow::step`, which moves the first difference from step 1 to step 3.
+  - **The second source** is which call's dt the step takes: `Amr` takes the first call's, while `Flow::step` takes its own, the second.
+    - At mode 1's step 3, only the dt differs: 9.3832011949488481e-08 against …494e-08.
+    - Mode 3 (gas alone) limits `Flow::step` to the first call's dt, which can only lower the dt. Its first difference, at step 6, is again the dt alone, on a step where `Flow::step`'s own call was the smaller (68 such steps of 2,165).
+  - A possible change, not made: let `Amr::step` take its dt from the call `advance` makes, or skip the second call when the state has not changed.
 
 ## Literature
 

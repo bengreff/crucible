@@ -2,6 +2,46 @@
 
 21 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (22 October, about 23:55 CDT; inquiry, Thursday night, third brief)
+
+The brief (the Director, 23:30): amend A1(b) and name its second rounding source within 30 minutes; fix the jet under A4 and rerun A0 to A3; the driver's run mode after A4 passes. Everything is in `SPRAY.md`, *Spray on AMR*, from *The cause, found* on, with the evidence in `docs/evidence/spray_amr/` (README). All values measured on the Mac.
+
+- **A1(b) is amended and met** (19355bb): relative difference at most 1e-12 under SST.
+- **The second rounding source is named,** in about 2 minutes of the 30.
+  - Under SST, `Amr::step` steps with its first `stableDt()` call's dt.
+  - `advance`'s second call re-solves T by Newton, so the dt it would give differs in the last bits, and `Flow::step` takes its own call's dt.
+  - Not chased further. A possible change is listed in SPRAY.md.
+- **The jet's cause was `Amr::spread`, in the gas path, not in the spray** (28d87b1).
+  - The old spread gave each child the parent's mass fractions, so composition fronts got inconsistent ghost states.
+  - With no spray, an O2 stream through a static one-cell patch reached 262 m/s.
+- **The fix went through two rounds.**
+  - **The first, one common limiter over every component, broke AMR's 3(a) pulse reflection** (9869c4e). Rounding noise in ρu_r cut every component.
+  - **The revision is registered and committed:** a component joins the common limiter only if it varies against its physical scale (ρ; ρ√(RT); p; ρω never), and otherwise keeps its own limiter.
+- **The revision's results:**
+  - A5 met, 53.9, 54.2 and 53.7 m/s;
+  - A4 met, 2.4411e-7 kg and 53.6 m/s;
+  - A0 met, md5 unchanged, and S1(b) is the only spray-test failure, as before;
+  - A1(a) and A1(b) met, and A3 met;
+  - AMR's ctest as before, with only Sod's values changed.
+- **A2 is not met as written, on one coverage count.** The moves to a finer owner are 98, against at least 100. All budgets are met.
+- **The fix changes AMR results generally.** Step D's AMR numbers and any AMR dumps were made with the old `spread`.
+
+**For the Director:**
+1. **A2's finer-move count.**
+   - Options: amend its floor, or lengthen or move A2's pattern so that more parcels cross. Changing the threshold after seeing 98 is a criterion change, so it is the Director's.
+   - My recommendation: lengthen A2's run, keeping the floor of 100.
+2. **Whether step D's AMR runs need rerunning** on the new `spread` (inquiry2's line).
+
+**Next (this line):** the driver's run mode in `tests/rl10_tier1.cpp`, which the brief puts after A4 passes, as it now has. The pattern is `tests/amr_budget.cpp`. The Definition and the G2 to G4 and G8 lines must stay identical to `tier1_dry_run_length_2026-10-21.log`, apart from decisions 6 and 8.
+
+**S7:** still running. The done-file is `/home/greff/crucible_s7z/runs2/all_done`, expected around Sunday 25 October.
+
+**The RL10 is not cleared.** The remaining blockers:
+1. the driver's run mode;
+2. A2's decision;
+3. step D's verdicts, D0's ctest, and possibly reruns on the new `spread`; then the y+ target and tag thresholds;
+4. protocol §4's two amendments.
+
 ## Stopped at (22 October, about 23:25 CDT; inquiry, Thursday night, second brief)
 
 **The Director's decisions of 22:40 are recorded** (70682ae):

@@ -1,15 +1,16 @@
 // The mixed-level jet's diagnosis (SPRAY.md, A defect the printed comparison found): S3's chamber, frozen, 1 thread.
-// usage: a4_probe KIND [MASK] [END_MS]
+// usage: a4_probe KIND [MASK] [END_MS]   (the gas-alone runs are criterion A5)
 //   KIND u0, u1, u2: uniform 16 x 6, 32 x 12, 64 x 24 (Flow::step, then Spray::advance)
 //        cell: Amr(def, 1), level 1 static over base cell (2, 1) alone (z 2 to 3 mm, r 1.67 to 3.33 mm)
 //        block: Amr(def, 1), level 1 static over base cells i 0 to 2, j 0 to 1 (z < 3 mm, r < 3.33 mm)
 //        axis: Amr(def, 1), level 1 static over base cell (2, 0) alone (z 2 to 3 mm, r 0 to 1.67 mm)
 //        all1: Amr(def, 1), level 1 active everywhere
+//        corner2: a2_levels_probe mode 1 (Amr(def, 2), the corner tag, regridded every 2 base steps)
 //   A KIND ending in "+o2" has no injectors and a second supply of gaseous O2 at 300 K, 2e-3 kg/s over r < 1.5 mm:
 //   the gas alone with a composition front across the patch.
-//        corner2: a2_levels_probe mode 1 (Amr(def, 2), the corner tag, regridded every 2 base steps)
-//   MASK: sprayDevelopmentMask (bits 1, 2, 4: the mass, momentum and energy deposits kept; 8: a deposit to a cell
-//         that is not owned throws). Default 15.
+//   MASK: ignored since the fix. The diagnosis's runs (a4_2026-10-22.log) used commit 28d87b1's development toggles:
+//         MASK kept the mass (1), momentum (2) and energy (4) deposits, 8 threw on a deposit to a cell not owned; a
+//         4th argument 1 spread each parent's values unchanged.
 // Every 0.02 ms it prints each level's largest owned |u_z| and where. Printed, not judged.
 #include <chrono>
 #include <cmath>
@@ -23,7 +24,6 @@
 #include "adapters/reaction.hpp"
 #include "core/amr.hpp"
 #include "core/spray.hpp"
-namespace crucible { extern int sprayDevelopmentMask; extern int amrDevelopmentSpread; }
 using namespace crucible;
 #include "common.inc"
 }
@@ -65,8 +65,6 @@ int main(int argc, char** argv) {
     if (o2) s.injectors.clear();
     return s;
   };
-  sprayDevelopmentMask = argc > 2 ? std::atoi(argv[2]) : 15;
-  amrDevelopmentSpread = argc > 4 ? std::atoi(argv[4]) : 0;
   const double end = (argc > 3 ? std::atof(argv[3]) : 0.2) * 1e-3;
   thermo::ReactionSource source("h2o2.yaml");
   const auto start = std::chrono::steady_clock::now();
@@ -88,7 +86,7 @@ int main(int argc, char** argv) {
       }
     }
     const auto& l = spray.ledger();
-    std::printf("%s%s mask %d: %d x %d, %.1f s; evaporated %.6e kg, %zu parcels held, %ld children\n", kind.c_str(), o2 ? "+o2" : "", sprayDevelopmentMask,
+    std::printf("%s%s : %d x %d, %.1f s; evaporated %.6e kg, %zu parcels held, %ld children\n", kind.c_str(), o2 ? "+o2" : "",
                 d.nz, d.nr, seconds(start), l.exchangedMass, spray.parcels().size(), l.children);
     return 0;
   }
@@ -136,7 +134,7 @@ int main(int argc, char** argv) {
     }
   }
   const auto& l = spray.ledger();
-  std::printf("%s%s mask %d: %llu base steps, %llu regrids, %.1f s; evaporated %.6e kg, %zu parcels held, %ld children; moves %ld finer, %ld coarser\n",
-              kind.c_str(), o2 ? "+o2" : "", sprayDevelopmentMask, static_cast<unsigned long long>(amr.steps()), static_cast<unsigned long long>(amr.regrids()),
+  std::printf("%s%s : %llu base steps, %llu regrids, %.1f s; evaporated %.6e kg, %zu parcels held, %ld children; moves %ld finer, %ld coarser\n",
+              kind.c_str(), o2 ? "+o2" : "", static_cast<unsigned long long>(amr.steps()), static_cast<unsigned long long>(amr.regrids()),
               seconds(start), l.exchangedMass, spray.parcels().size(), l.children, l.finerMoves, l.coarserMoves);
 }

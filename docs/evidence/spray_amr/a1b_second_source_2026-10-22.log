@@ -1,0 +1,8 @@
+# A1(b)'s second rounding source (SPRAY.md), 22 October about 23:51 to 23:53 CDT: a1b_sst_probe modes 1 and 3 (gas alone).
+### a1b_sst_probe 1
+  first difference: step 3, dt differs (9.3832011949488481e-08 vs 9.3832011949488494e-08)
+mode 1: 2165 steps; first difference at step 3; end gas difference 1.378e-13; parcels 0 vs 0, identical 1
+### a1b_sst_probe 3
+  first difference: step 6, dt differs (9.3149039791765945e-08 vs 9.3149039791765932e-08), Flow::step's own stableDt() smaller than the first call's
+  steps where Flow::step's own stableDt() was smaller than the first call's: 68
+mode 3: 2165 steps; first difference at step 6; end gas difference 1.111e-13; parcels 0 vs 0, identical 1

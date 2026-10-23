@@ -36,3 +36,7 @@ All of these were run on the Mac, on the change's tree. Every value is measured.
 - `fix1_pulse_2026-10-22.log`: that failure's diagnosis, made under working-tree toggles (`CRUCIBLE_DEV_SIG`, `CRUCIBLE_DEV_MODE`, `CRUCIBLE_DEV_STATS`, not committed).
   - It gives the component that set the limiter, and ρu_z's and ρu_r's ranges over ρ√(RT) by decade.
   - It runs 3(a) under the revision's scales.
+- `fix2_2026-10-22.log`: the revision (a component joins the common limiter only if it varies against its physical scale).
+  - The log holds A5, A4, A0 (dump md5 and `crucible_spray_tests`), `crucible_spray_amr_tests` (A1 to A3) and AMR's ctest.
+  - A2 is not met as written on its finer-move count, 98 against 100. Everything else is met or as before.
+- `a1b_sst_probe.cpp` mode 3 and `a1b_second_source_2026-10-22.log`: A1(b)'s second rounding source. Under SST, `Amr::step` steps with its first `stableDt()` call's dt, while `Flow::step` steps with its own call's, which comes after a second refresh of T.
