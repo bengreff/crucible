@@ -192,7 +192,7 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
     - They are written as NaN while their column's net forward flux, or the outlet flow, is not positive. Those samples are counted and printed.
     - R3(b) holds for every other quantity at every sample, and for p0 and c* wherever they are defined.
   - **`Spray::setParcelRate` takes the rate per second,** not a factor. The driver passes twice its rate at 60 ms.
-- **R3's cost probe stopped at the first step; the cause and its fix, registered before the fix's code (23 October 2026, about 00:27 CDT).**
+- **R3's cost probe stopped at the first step; the cause and its fix, registered before the fix's code (23 October 2026, about 00:21 CDT).**
   - **The symptom:** with 3 levels the first step threw `Invalid wall-function layer` at a level-3 side-wall cell, with p = 0 and zero mass fractions (NaN wall density, cp −0). With 1 or 2 levels the same probe runs.
   - **The cause, in AMR's wall functions (inquiry2's lane, step D):**
     - Under B2 a level computes its primitives and properties only within distance 2 of its active cells (`Flow::transportProperties(2)`). `Flow`'s wall-solve loop (`core/transport.cpp:388-393`) still visits every wall face of the level.
