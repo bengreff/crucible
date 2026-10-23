@@ -276,6 +276,14 @@ Against it: each parcel needs its own clock within the base step, and a redone b
   - The tolerance is zero because the precondition holds. Measured at about 22:45, before this record: the gas alone, with no spray, is bit-identical between a single-level `Amr` and a `Flow` on the same mesh. The probe was S3's chamber over 1,083 steps to 0.1 ms, every step's dt equal.
   - If the precondition stops holding, A1 fails. The bar is not loosened.
   - Printed beside, not judged: the largest relative difference of the conserved state from the same run on the directly built mesh.
+  - **A1(b) amended (the Director, 22 October 2026, 23:30 CDT; recorded about 23:30, before A1(b) is run again).** With SST on, the tolerance is a relative difference of at most 1e-12, not zero.
+    - The reason: with no spray, the single-level `Amr` step already differs from `Flow::step` by 1.562e-13 under SST (`a1b_sst_probe.cpp`, *Spray on AMR: results*). The spray adds nothing measurable: 1.180e-13 with it against 1.378e-13 without, on the matched driver.
+    - **Applied as follows:**
+      - **dt and end time.** Every step's dt lies within 1e-12 of the reference's, relative, and the end times are equal.
+      - **The gas.** The final gas state, the partial densities and the turbulence are within 1e-12, each as the largest difference over that component's largest magnitude.
+      - **The parcels.** The lists hold the same parcels in the same order, with equal random state, cell and injector. Each floating field is within 1e-12, as the largest difference over that field's largest magnitude in the list.
+      - **The ledger.** The injected, exchanged (mass, energy, axial momentum) and outflow mass, and the wall impulse, are each within 1e-12 of the reference's, relative to the larger magnitude.
+    - A1(a) keeps the zero tolerance.
 - **A2. Conservation across regrids.**
   - **The run.** S3's chamber on a 16 × 6 base plus 2 levels (64 × 24 at the finest). A custom tag holds the injector corner (z < 2 mm, r < 3 mm). A second custom tag marks a band, 3 mm half-width on the base and 1.5 mm on level 1, that sweeps down the chamber and back within 0.5 ms. The pattern is regridded every 2 base steps; the run goes to 0.5 ms on 1 thread.
   - **(a) The composite gas budget** (`Amr::budget`, with the exchange) must close within 1e-11:
