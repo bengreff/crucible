@@ -20,8 +20,11 @@
 // and judges check 2 over every regrid (so including the first after light-off): the largest fill content error below
 // 1e-14, over the parent's content as stated and over the children's gross content (AMR.md, Step C: results).
 // Step D's checks (AMR.md, Step D: setup): wall turns on the wall functions (law) and the property corrections
-// (hp) on every run, and prints the largest D2 residual over every base step (Flow::prescriptionResidual, each
-// level's owned wall-function cells, and the single level's beside); inert drops the reaction step on every run.
+// (hp) on every run; inert drops the reaction step on every run. D2 as amended (AMR.md, step D, the Director's
+// amendments) counts, after every base step, the owned wall-function cells not bitwise as their last prescription
+// left them (Flow::prescriptionMismatches, every level, and the single level's beside), and judges 0 on the inert
+// fixed pattern. Every AMR run prints D1's cause test 1: each level's igniter power times its step, summed per base
+// step in long double.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -178,8 +181,16 @@ int main(int argc, char** argv) {
                                                               thermo::Chemistry::LocalEquilibrium));
     reacting.back()->useEquilibriumTable(table, 0);
   }
-  if (!inert) amr.setAfterStep([&](int l, double dt) { reacting[static_cast<std::size_t>(l)]->react(dt); });
-  double prescriptionWorst = 0, singlePrescriptionWorst = 0;
+  // D1's cause, test 1: a base step's last attempt starts with level 0's step, so its sums are the ones kept.
+  std::vector<long double> attemptHeat(static_cast<std::size_t>(amr.levels()), 0), levelHeat(attemptHeat);
+  amr.setAfterStep([&](int l, double dt) {
+    if (l == 0) std::fill(attemptHeat.begin(), attemptHeat.end(), 0.0L);
+    attemptHeat[static_cast<std::size_t>(l)] += static_cast<long double>(amr.level(l).igniterPower()) * dt;
+    if (!inert) reacting[static_cast<std::size_t>(l)]->react(dt);
+  });
+  std::uint64_t heatSteps = 0, heatDiffers = 0;
+  long double heatNet = 0;
+  std::uint64_t mismatches = 0, singleMismatches = 0;
   const Mesh& base = amr.level(0).mesh();
   const Mesh& fine = amr.level(1).mesh();
   std::vector<unsigned char> active(fine.cells.size(), 0);
@@ -237,7 +248,14 @@ int main(int argc, char** argv) {
   while (amr.time() < end) {
     amr.step(end - amr.time());
     if (wall)
-      for (int l = 0; l < amr.levels(); ++l) prescriptionWorst = std::max(prescriptionWorst, amr.level(l).prescriptionResidual());
+      for (int l = 0; l < amr.levels(); ++l) mismatches += amr.level(l).prescriptionMismatches();
+    if (attemptHeat[0] > 0 || attemptHeat[1] > 0) {
+      ++heatSteps;
+      for (std::size_t l = 0; l < levelHeat.size(); ++l) levelHeat[l] += attemptHeat[l];
+      const long double gap = attemptHeat[1] - attemptHeat[0];
+      if (std::abs(gap) > 1e-17L) ++heatDiffers;
+      heatNet += gap;
+    }
     if (amr.regrids() != regrids) {
       regrids = amr.regrids();
       fillWorst = std::max(fillWorst, amr.fillError());
@@ -282,7 +300,7 @@ int main(int argc, char** argv) {
     if (tagged)
       std::printf("AMR only, not judged: %llu regrids, fill error largest %.3e, over the gross content %.3e\n",
                   static_cast<unsigned long long>(regrids), fillWorst, fillGrossWorst);
-    if (wall) std::printf("AMR only, not judged: D2's largest residual %.3e\n", prescriptionWorst);
+    if (wall) std::printf("AMR only, not judged: D2's mismatches %llu\n", static_cast<unsigned long long>(mismatches));
     return 0;
   }
 
@@ -297,7 +315,7 @@ int main(int argc, char** argv) {
   while (single.time() < end) {
     if (inert) single.step(end - single.time());
     else singleReacting.step(end - single.time());
-    if (wall) singlePrescriptionWorst = std::max(singlePrescriptionWorst, single.prescriptionResidual());
+    if (wall) singleMismatches += single.prescriptionMismatches();
     const auto m = single.measurements();
     alone.content(m.mass, m.energy);
     // Judged on the compensated sums, as the AMR's budget now reads them; the plain ones printed (AMR.md, the tagged run's mass error).
@@ -332,12 +350,20 @@ int main(int argc, char** argv) {
   // Criterion 2 says "exact to 1e-14 relative"; the first run judged 1e-14 J, twice as loose (AMR.md, criterion 2 results).
   const double igniterError = std::abs(final.igniterEnergy - kIgniter) / kIgniter;
   check(igniterError <= 1e-14, "composite igniter energy, |E / 0.5 J - 1|", igniterError, 1e-14);
-  // D2 is judged on the inert fixed pattern only (AMR.md, step D, the amendment); elsewhere it is printed.
-  if (wall && inert && !tagged)
-    check(prescriptionWorst <= 1e-12, "step D, D2: owned wall-function cells' rho k, rho omega against the law's, largest", prescriptionWorst, 1e-12);
-  else if (wall)
-    std::printf("      printed, not judged: step D's D2 residual, largest %.3e\n", prescriptionWorst);
-  if (wall) std::printf("      printed, not judged: the single level's largest %.3e\n", singlePrescriptionWorst);
+  // D2 is judged on the inert fixed pattern only (AMR.md, step D, the amendments); elsewhere it is printed.
+  if (wall && inert && !tagged) {
+    check(mismatches == 0, "step D, D2: owned wall-function cells not as their last prescription left them, over the base steps",
+          static_cast<double>(mismatches), 0);
+    check(singleMismatches == 0, "  the same on the single level (the control)", static_cast<double>(singleMismatches), 0);
+  } else if (wall)
+    std::printf("      printed, not judged: step D's D2 mismatches %llu on AMR, %llu on the single level\n",
+                static_cast<unsigned long long>(mismatches), static_cast<unsigned long long>(singleMismatches));
+  std::printf("      printed, not judged: D1's cause, test 1: over %llu base steps with the igniter on, |sum of power x step / 0.5 J - 1|",
+              static_cast<unsigned long long>(heatSteps));
+  for (std::size_t l = 0; l < levelHeat.size(); ++l)
+    std::printf(" level %zu %.3Le%s", l, std::abs(levelHeat[l] / kIgniter - 1), l + 1 < levelHeat.size() ? "," : "");
+  std::printf("; level 1's base-step sum differs from level 0's by over 1e-17 J in %llu, net %+.3Le J\n",
+              static_cast<unsigned long long>(heatDiffers), heatNet);
   if (tagged) {
     check(fillWorst <= 1e-14, "step C check 2: the largest fill content error over the regrids", fillWorst, 1e-14);
     check(fillGrossWorst <= 1e-14, "  the same over the children's gross content", fillGrossWorst, 1e-14);

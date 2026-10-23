@@ -366,9 +366,12 @@ public:
     // A Chamber's injector-face convective flux per unit area, per ring, at the current state and time
     // (verification; docs/evidence/FACE_INLET.md, F4).
     [[nodiscard]] std::vector<Conserved> injectorFluxes();
-    // The largest relative difference, over the owned wall-function cells, between rho k and rho omega
-    // and the law's at the current state (verification; AMR.md, step D, D2); 0 without wall functions.
-    [[nodiscard]] double prescriptionResidual();
+    // The number of owned wall-function cells whose conserved state, mass fractions, rho k and rho omega
+    // are not bitwise what their last prescription left (verification; AMR.md, step D, D2 as amended);
+    // 0 without wall functions.
+    [[nodiscard]] std::size_t prescriptionMismatches() const;
+    // The igniter's mean power over the last step, before this level's share of it (AMR.md, D1's cause).
+    [[nodiscard]] double igniterPower() const { return igniterPower_; }
     // Each supply's area on the injector face (its rings' areas, or under openAreaSupplies its shares').
     [[nodiscard]] const std::vector<double>& supplyAreas() const { return supplyArea_; }
     // Next schedule discontinuity (valve opens or finishes opening, igniter on or off) after `time`,
@@ -651,6 +654,9 @@ private:
     std::vector<int> plateWallFace_;
     std::vector<char> prescribedCell_;
     std::vector<double> prescribedChange_;
+    // What each wall-function cell's last prescription left, per wallCells_ entry: its state, mass
+    // fractions and turbulence (D2).
+    std::vector<double> prescribedValues_;
     // The law at one wall face for the cell state (w, t1, mass fractions y, molecular viscosity mu1).
     WallSolution wallSolve(const WallFace& face, const Primitive& w, double t1, const double* y, double mu1,
                            TransportScratch& scratch) const;

@@ -156,7 +156,7 @@ void Flow::prepareTransport() {
             if(chamber) for(int j=0;j<mesh_.nr;++j) if(faceSupply_[j]<0 && j!=mesh_.nr-1) wallCells_.push_back(mesh_.index(0,j));
         }
         wallFaces_.clear();wallCellFace_.clear();plateWallFace_.assign(mesh_.nr,-1);prescribedCell_.assign(count,0);
-        prescribedChange_.assign(count,0);
+        prescribedChange_.assign(count,0);prescribedValues_.assign(wallCells_.size()*(4+ns_+nt_),0);
         if(definition_.turbulence.wallFunctions) {
             auto face=[&](int i,int j,int side,bool plate) {
                 const auto n=neighbours(mesh_,chamber,faceSupply_,i,j)[side];

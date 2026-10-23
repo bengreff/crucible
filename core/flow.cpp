@@ -2,6 +2,7 @@
 #include "core/walls.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <numbers>
 #include <stdexcept>
 
@@ -1422,20 +1423,24 @@ bool Flow::prescribeCell(std::size_t n,const std::vector<Conserved>& state,const
     const double rhoK=law.omega*law.eddy;
     prescribedChange_[q]=(rhoK-turbulence[q*nt_])*mesh_.cells[q].volume;
     turbulence[q*nt_]=rhoK;turbulence[q*nt_+1]=u[0]*law.omega;
+    double* kept=prescribedValues_.data()+n*(4+ns_+nt_);
+    std::copy(u.begin(),u.end(),kept);
+    std::copy_n(species.data()+q*ns_,ns_,kept+4);
+    std::copy_n(turbulence.data()+q*nt_,nt_,kept+4+ns_);
     return admissible(u,species.data()+q*ns_,turbulence.data()+q*nt_);
 }
-double Flow::prescriptionResidual() {
+std::size_t Flow::prescriptionMismatches() const {
     if(!(nt_ && definition_.turbulence.wallFunctions)) return 0;
-    std::vector<double> law=turbulence_;
-    const auto change=prescribedChange_;
-    (void)prescribeWallTurbulence(state_,species_,law);
-    prescribedChange_=change;
-    double worst=0;
-    for(std::size_t q:wallCells_) if(isOwned(q)) for(std::size_t k=0;k<nt_;++k) {
-        const double a=turbulence_[q*nt_+k],b=law[q*nt_+k];
-        worst=std::max(worst,std::abs(a-b)/std::max(std::abs(b),std::numeric_limits<double>::min()));
+    std::size_t count=0;
+    for(std::size_t n=0;n<wallCells_.size();++n) {
+        const std::size_t q=wallCells_[n];
+        if(!isOwned(q)) continue;
+        const double* kept=prescribedValues_.data()+n*(4+ns_+nt_);
+        if(std::memcmp(kept,state_[q].data(),4*sizeof(double))!=0
+           || std::memcmp(kept+4,species_.data()+q*ns_,ns_*sizeof(double))!=0
+           || std::memcmp(kept+4+ns_,turbulence_.data()+q*nt_,nt_*sizeof(double))!=0) ++count;
     }
-    return worst;
+    return count;
 }
 bool Flow::represcribe(const std::vector<char>& touched) {
     bool admitted=true;
