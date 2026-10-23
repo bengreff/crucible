@@ -1,0 +1,54 @@
+F2: open-area supplies on ring nodes against the ring-centre code, 200 steps
+  laminar: t 5.139146e-05 s (200 steps); bit-identical no; budgets (open) mass -3.583e-16 energy 3.343e-16
+  laminar: state, partial densities, rho k, rho omega: largest relative difference 5.071e-14 (limit 1e-10)  PASS
+  laminar: inlet mass flow                                                       0.000e+00 (limit 1e-12)  PASS
+  laminar: inlet momentum flux                                                   3.297e-16 (limit 1e-12)  PASS
+  laminar: wall axial force                                                      1.373e-15 (limit 1e-12)  PASS
+  SST, wall functions: t 5.068663e-05 s (200 steps); bit-identical no; budgets (open) mass 5.700e-16 energy -2.717e-16
+  SST, wall functions: state, partial densities, rho k, rho omega: largest relative difference 4.527e-14 (limit 1e-10)  PASS
+  SST, wall functions: inlet mass flow                                           0.000e+00 (limit 1e-12)  PASS
+  SST, wall functions: inlet momentum flux                                       3.294e-16 (limit 1e-12)  PASS
+  SST, wall functions: wall axial force                                          1.247e-16 (limit 1e-12)  PASS
+F4: AMR, each coarse face ring's flux against its children's
+  uniform initial state (t 0.000000e+00 s): largest relative difference mass 2.931e-16, axial momentum 1.730e-16, energy 3.046e-16
+  uniform initial state: mass                                                    2.931e-16 (limit 1e-12)  PASS
+  uniform initial state: axial momentum                                          1.730e-16 (limit 1e-12)  PASS
+  uniform initial state: energy                                                  3.046e-16 (limit 1e-12)  PASS
+  after 100 base steps (t 2.497149e-05 s): largest relative difference mass 2.931e-16, axial momentum 3.063e-02, energy 3.046e-16
+  after 100 base steps: mass                                                     2.931e-16 (limit 1e-12)  PASS
+  after 100 base steps: energy                                                   3.046e-16 (limit 1e-12)  PASS
+F5(a): plateTemperature empty against equal to wallTemperature, 200 steps
+  wall functions: state, species, rho k, rho omega, budgets differ (1 = yes)     0.000e+00 (limit 0e+00)  PASS
+  resolved SST: state, species, rho k, rho omega, budgets differ (1 = yes)       0.000e+00 (limit 0e+00)  PASS
+F5(b): an adiabatic plate under the wall functions, 200 steps
+  ring-centre: 2 plate faces; largest |q_w| plate 3.884e-13 W/m^2, side wall 1.810e+04 W/m^2; (T_w - T_1) / (u_1^2 / 2 c_p) in [0.892235, 0.892324]; budgets mass 3.312e-16 energy -6.334e-17
+  ring-centre: plate |q_w| over the side wall's largest                          2.146e-17 (limit 1e-09)  PASS
+  ring-centre: T_1 - T_w at its largest (K)                                      0.000e+00 (limit 1e-09)  PASS
+  ring-centre: T_w - (T_1 + u_1^2 / (2 c_p)) at its largest (K)                  0.000e+00 (limit 1e-09)  PASS
+  open-area: 3 plate faces; largest |q_w| plate 1.414e-12 W/m^2, side wall 1.833e+04 W/m^2; (T_w - T_1) / (u_1^2 / 2 c_p) in [0.891998, 0.892329]; budgets mass 2.117e-16 energy -3.913e-16
+  open-area: plate |q_w| over the side wall's largest                            7.711e-17 (limit 1e-09)  PASS
+  open-area: T_1 - T_w at its largest (K)                                        0.000e+00 (limit 1e-09)  PASS
+  open-area: T_w - (T_1 + u_1^2 / (2 c_p)) at its largest (K)                    0.000e+00 (limit 1e-09)  PASS
+F6: the budgets with a supply ring that has a wall share, one step and 200 steps
+  open-area, SST, wall functions and corrections, plate 400 K; supply rings with a wall share: j 2 (w 0.470)
+    one step: mass -4.291e-16 energy -1.187e-16 momentum -9.471e-18, plate heat 9.9386e-02 W (booked, into the gas); 200 steps (t 5.0723e-05 s): mass 1.357e-16 energy -7.452e-16 momentum -6.153e-17
+  open-area, SST, wall functions and corrections, plate 400 K: largest |budget|  7.452e-16 (limit 1e-13)  PASS
+  open-area, SST, wall functions, plate 400 K; supply rings with a wall share: j 2 (w 0.470)
+    one step: mass -4.292e-16 energy -6.571e-17 momentum -4.735e-17, plate heat 9.9386e-02 W (booked, into the gas); 200 steps (t 5.0723e-05 s): mass 1.629e-16 energy -3.647e-16 momentum -7.383e-17
+  open-area, SST, wall functions, plate 400 K: largest |budget|                  4.292e-16 (limit 1e-13)  PASS
+  open-area, SST, wall functions, adiabatic plate; supply rings with a wall share: j 2 (w 0.470)
+    one step: mass -4.292e-16 energy -7.489e-17 momentum -1.042e-16, plate heat 2.8447e-18 W (booked, into the gas); 200 steps (t 5.0723e-05 s): mass -1.900e-16 energy -3.044e-16 momentum -9.844e-17
+  open-area, SST, wall functions, adiabatic plate: largest |budget|              4.292e-16 (limit 1e-13)  PASS
+  open-area, resolved SST, plate 400 K; supply rings with a wall share: j 2 (w 0.470)
+    one step: mass -2.611e-16 energy -9.968e-17 momentum 9.471e-17, plate heat 8.0588e-02 W (booked, into the gas); 200 steps (t 5.0724e-05 s): mass 7.709e-16 energy -2.196e-17 momentum -6.153e-17
+  open-area, resolved SST, plate 400 K: largest |budget|                         7.709e-16 (limit 1e-13)  PASS
+  open-area, laminar, plate 400 K; supply rings with a wall share: j 2 (w 0.470)
+    one step: mass 4.265e-16 energy 2.259e-16 momentum -1.213e-16, plate heat 8.0587e-02 W (booked, into the gas); 200 steps (t 5.1474e-05 s): mass 3.529e-16 energy -2.651e-16 momentum 1.213e-17
+  open-area, laminar, plate 400 K: largest |budget|                              4.265e-16 (limit 1e-13)  PASS
+  open-area, inviscid; supply rings with a wall share: j 2 (w 0.470)
+    one step: mass -8.482e-18 energy 5.170e-17 momentum -1.864e-16, plate heat 0.0000e+00 W (booked, into the gas); 200 steps (t 5.1558e-05 s): mass 1.629e-16 energy -5.580e-17 momentum -8.477e-17
+  open-area, inviscid: largest |budget|                                          1.864e-16 (limit 1e-13)  PASS
+  ring-centre on ring nodes, SST, wall functions and corrections, plate 400 K; supply rings with a wall share: none
+    one step: mass -4.189e-16 energy -7.718e-18 momentum -1.121e-16, plate heat 1.9108e-01 W (booked, into the gas); 200 steps (t 5.0723e-05 s): mass -2.660e-16 energy 2.021e-16 momentum 7.975e-18
+  ring-centre on ring nodes, SST, wall functions and corrections, plate 400 K: largest |budget| 4.189e-16 (limit 1e-13)  PASS
+0 failures

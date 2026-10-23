@@ -1,0 +1,14 @@
+F5(a): plateTemperature empty against equal to wallTemperature, 200 steps
+  wall functions: state, species, rho k, rho omega, budgets differ (1 = yes)     0.000e+00 (limit 0e+00)  PASS
+  resolved SST: state, species, rho k, rho omega, budgets differ (1 = yes)       0.000e+00 (limit 0e+00)  PASS
+F5(b): an adiabatic plate under the wall functions, 200 steps
+  ring-centre: 2 plate faces; largest |q_w| plate 3.884e-13 W/m^2, side wall 1.810e+04 W/m^2; (T_w - T_1) / (u_1^2 / 2 c_p) in [0.892235, 0.892324]; budgets mass 3.312e-16 energy -6.334e-17
+  ring-centre: plate |q_w| over the side wall's largest                          2.146e-17 (limit 1e-09)  PASS
+  ring-centre: T_1 - T_w at its largest (K)                                      0.000e+00 (limit 1e-09)  PASS
+  ring-centre: T_w - (T_1 + u_1^2 / (2 c_p)) at its largest (K)                  0.000e+00 (limit 1e-09)  PASS
+  open-area: 3 plate faces; largest |q_w| plate 1.579e-12 W/m^2, side wall 1.833e+04 W/m^2; (T_w - T_1) / (u_1^2 / 2 c_p) in [0.891998, 0.892329]; budgets mass 6.677e-16 energy -5.343e-16
+  open-area: plate |q_w| over the side wall's largest                            8.611e-17 (limit 1e-09)  PASS
+  open-area: T_1 - T_w at its largest (K)                                        0.000e+00 (limit 1e-09)  PASS
+  open-area: T_w - (T_1 + u_1^2 / (2 c_p)) at its largest (K)                    0.000e+00 (limit 1e-09)  PASS
+0 failures
+exit 0

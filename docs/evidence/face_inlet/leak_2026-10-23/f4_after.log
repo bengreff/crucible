@@ -1,0 +1,10 @@
+F4: AMR, each coarse face ring's flux against its children's
+  uniform initial state (t 0.000000e+00 s): largest relative difference mass 2.931e-16, axial momentum 1.730e-16, energy 3.046e-16
+  uniform initial state: mass                                                    2.931e-16 (limit 1e-12)  PASS
+  uniform initial state: axial momentum                                          1.730e-16 (limit 1e-12)  PASS
+  uniform initial state: energy                                                  3.046e-16 (limit 1e-12)  PASS
+  after 100 base steps (t 2.497149e-05 s): largest relative difference mass 2.931e-16, axial momentum 3.063e-02, energy 3.046e-16
+  after 100 base steps: mass                                                     2.931e-16 (limit 1e-12)  PASS
+  after 100 base steps: energy                                                   3.046e-16 (limit 1e-12)  PASS
+0 failures
+exit 0

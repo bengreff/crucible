@@ -105,3 +105,19 @@ Under the wall functions the law's traction on the plate has no axial part, so t
 **Predictions** (inferred, before the code):
 - L1 to L3 come out at rounding, 1e-16 to 1e-15, as F6's passing variants already do.
 - L4 passes. The probe's leak per base step, 2.45e-7 / 31 = 7.9e-9, is the size of the one-step leak, so nothing else is needed to explain it. Still, AMR adds plate faces at coarse-fine boundaries that one level does not test.
+
+**Results** (measured on the Mac, 23 October, about 00:49 to 00:54 CDT; logs in `face_inlet/leak_2026-10-23/`). The fix is the one line registered. L1 to L3 pass. L4 could not be judged as registered: the fixed probe stops at 14 µs, in the spray, before 0.02 ms.
+- **L1, pass.** F6: all 7 variants have their largest |budget| between 1.9e-16 and 7.7e-16 (limit 1e-13). Each energy budget after 200 steps is 7.5e-16 or less, against 4.3e-6 before (`f6_after.log`).
+- **L2, pass.**
+  - F2's output is identical to before. In F5's output only the two open-area lines of F5(b) differ, as expected (budgets mass 2.1e-16, energy −3.9e-16).
+  - F4 and F5 pass. The whole `crucible_face_inlet_tests` passes with 0 failures (`all_after.log`).
+- **L3, pass.** F3's one-step energy budgets:
+  - the dry run: −6.3e-16 at 76 × 8, 5.4e-16 at 149 × 16 and −1.2e-15 at 1192 × 128;
+  - the run's Definition: 5.0e-16 (before: −1.011e-08).
+- **L4, not judged.** The fixed probe stops in the first base step past 14.0 µs with `Flow::exchange left a cell non-admissible`.
+  - Temporary prints, reverted and not committed, located it. The gas there is finite: finest level, cell (0, 21), ρ 0.0241 kg/m³, T 227.0 K. The spray's deposit is NaN.
+  - It comes from one LOX drop: T 65.085 K against T_sat 65.137 K at the cell's 2404 Pa, not boiling, d 0.49 mm. Its Heun stage gave m1, h1 and T1 NaN.
+  - This is the drop just below saturation at the start-up's low pressure. The mass-transfer number's 1 − Y_s goes to zero there (inferred, not traced to the line). It is a defect in the spray's start-up path, not in the gas budget. The fix only changed the face cells' states, which moved this drop onto it. The 0.02 ms run on the unfixed build did not meet it.
+- **In place of L4** (added after the registration, so not a registered check): the same probe to 0.01 ms, before the drop, on both builds.
+  - The gas budget (a) is 2.01e-07 before the fix and 8.50e-16 after it. The whole system (c) is 2.01e-07 and 8.51e-16 (limit 1e-11; `before/probe2_10us.log`, `after/probe2_10us.log`).
+  - So on 2-level AMR the gas budget closes to rounding once the fix is in. To 0.01 ms there is no second leak (measured).

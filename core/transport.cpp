@@ -655,7 +655,9 @@ void Flow::transportFluxes(std::vector<Conserved>& derivative,std::vector<double
       };
       auto endFace=[&](int face,std::size_t f) {
           const auto kind=endKind(face,j);
-          if(kind==Neighbour::Supply) return;
+          // As the boundary rates book it: under open-area supplies a supply ring's wall share passes its
+          // momentum and heat (FACE_INLET.md, sections 1 and 5).
+          if(face==0 && open?!(plateShare_[j]>0):kind==Neighbour::Supply) return;
           const double sign=face==0?1:-1,area=axialArea_[f];const auto& flux=axialViscous_[f];
           for(int k=1;k<4;++k) derivative[q][k]+=sign*area*flux[k];
           if(kind==Neighbour::Wall) for(std::size_t k=0;k<nt_;++k) turbulenceDerivative[q*nt_+k]+=sign*area*axialViscousTransported_[f*nv+ns_+k];

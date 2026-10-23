@@ -1,0 +1,13 @@
+F2: open-area supplies on ring nodes against the ring-centre code, 200 steps
+  laminar: t 5.139146e-05 s (200 steps); bit-identical no; budgets (open) mass -3.583e-16 energy 3.343e-16
+  laminar: state, partial densities, rho k, rho omega: largest relative difference 5.071e-14 (limit 1e-10)  PASS
+  laminar: inlet mass flow                                                       0.000e+00 (limit 1e-12)  PASS
+  laminar: inlet momentum flux                                                   3.297e-16 (limit 1e-12)  PASS
+  laminar: wall axial force                                                      1.373e-15 (limit 1e-12)  PASS
+  SST, wall functions: t 5.068663e-05 s (200 steps); bit-identical no; budgets (open) mass 5.700e-16 energy -2.717e-16
+  SST, wall functions: state, partial densities, rho k, rho omega: largest relative difference 4.527e-14 (limit 1e-10)  PASS
+  SST, wall functions: inlet mass flow                                           0.000e+00 (limit 1e-12)  PASS
+  SST, wall functions: inlet momentum flux                                       3.294e-16 (limit 1e-12)  PASS
+  SST, wall functions: wall axial force                                          1.247e-16 (limit 1e-12)  PASS
+0 failures
+exit 0
