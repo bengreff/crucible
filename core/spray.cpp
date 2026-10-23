@@ -681,7 +681,7 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
   Slot& slot = slots_[index];
   slot.deposits.clear();
   slot.children.clear();
-  slot.wallImpulse = slot.wallLoss = slot.swirl = slot.outMass = slot.outEnergy = slot.outMomentum = 0;
+  slot.wallImpulse = slot.wallLoss = slot.swirl = slot.flashed = slot.outMass = slot.outEnergy = slot.outMomentum = 0;
   slot.alive = true;
   slot.substeps = slot.wallHits = slot.flashes = slot.vaporised = slot.clamped = slot.finer = slot.coarser = 0;
   Parcel& p = parcels_[index];
@@ -740,6 +740,7 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
       const double hSat = liquid_.enthalpy(tSat);
       const double f = (h - hSat) / liquid_.at(tSat).latent;
       ++slot.flashes;
+      slot.flashed += p.count * std::min(f, 1.0) * (m + p.shed);
       if (f >= 1) { vaporise(); return; }
       m *= 1 - f;
       p.shed *= 1 - f;
@@ -1065,6 +1066,7 @@ void Spray::move(double dt, int phase) {
     ledger_.substeps += s.substeps;
     ledger_.wallHits += s.wallHits;
     ledger_.flashes += s.flashes;
+    ledger_.flashedMass += s.flashed;
     ledger_.vaporised += s.vaporised;
     ledger_.clampedCondensation += s.clamped;
     ledger_.finerMoves += s.finer;

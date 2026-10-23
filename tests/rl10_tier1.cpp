@@ -494,7 +494,8 @@ int runCase(const Setup& s) {
   };
 
   std::array<Settle, 8> first{};
-  long k = 0, shortened = 0;
+  long k = 0, shortened = 0, flashesAt = 0;
+  bool flashReported = false;
   double smallestBound = std::numeric_limits<double>::infinity();
   print(sample());
   while (amr.time() < s.end - 1e-13) {
@@ -517,9 +518,22 @@ int runCase(const Setup& s) {
     if (k % 50 == 0 || amr.time() >= s.end - 1e-13) {
       std::fflush(csv);
       print(x);
-      std::printf("  exchange bound: smallest %.3g s since the last line; %ld base steps shortened by it so far; %ld flashes so far\n",
-                  smallestBound, shortened, spray.ledger().flashes);
+      std::printf("  exchange bound: smallest %.3g s since the last line; %ld base steps shortened by it so far; %ld flashes so far, "
+                  "%.4g kg flashed\n", smallestBound, shortened, spray.ledger().flashes, spray.ledger().flashedMass);
       smallestBound = std::numeric_limits<double>::infinity();
+    }
+    // The flash check (the Director's flash decision): no flash after t_L + 1 ms.
+    if (k == leadK + 100) flashesAt = spray.ledger().flashes;
+    if (k > leadK + 100 && spray.ledger().flashes > flashesAt && !flashReported) {
+      flashReported = true;
+      std::printf("\nA parcel flashed after t_L + 1 ms (by %.5g ms: %ld flashes since, %.4g kg flashed over the run) [%s]: %s\n",
+                  x.t * 1e3, spray.ledger().flashes - flashesAt, spray.ledger().flashedMass, label.c_str(),
+                  development ? "development goes on" : "run central stops");
+      if (!development) {
+        std::fclose(csv);
+        dump("flash");
+        return 5;
+      }
     }
     if (k == leadK && leadK >= 200) {  // the lead's gate: the means over [t_L - 2, t_L - 1] and [t_L - 1, t_L] ms
       std::printf("\nThe lead's gate at t_L = %.4g ms [%s]\n", s.lead * 1e3, label.c_str());
@@ -574,8 +588,8 @@ int runCase(const Setup& s) {
   if (k < leadK + 6000) dump("end");
   std::printf("\nend [%s]: %ld samples, the grid to %.3g s; face area to %.3g at worst; %ld non-finite values; %ld samples with p0 or c* "
               "undefined (no forward flux); worst budgets (a) %.2e, (b) %.2e, (c) %.2e; %ld base steps shortened by the exchange "
-              "bound\n", label.c_str(), k, worstGrid, worstArea, nonfinite, undefined, worstBudget[0], worstBudget[1], worstBudget[2],
-              shortened);
+              "bound; %ld flashes, %.4g kg flashed\n", label.c_str(), k, worstGrid, worstArea, nonfinite, undefined, worstBudget[0], worstBudget[1],
+              worstBudget[2], shortened, spray.ledger().flashes, spray.ledger().flashedMass);
   return 0;
 }
 

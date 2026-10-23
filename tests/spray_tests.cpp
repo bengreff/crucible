@@ -650,6 +650,36 @@ void budgets(thermo::ReactionSource& source) {
 }
 
 // ---------------------------------------------------------------------------------------------------
+// F2 (tier1_run_definition.md, the flash check): a LOX parcel at 95 K in O2 at 1 atm flashes on its first step.
+
+void flash(thermo::ReactionSource& source) {
+  std::printf("F2. The flashed mass\n");
+  Flow flow(chamber(source, 4, 2, 0.004, 0.002, "O2:1", 101325, 85));
+  const auto liquid = liquidFor(flow.medium());
+  Spray::Settings settings;
+  settings.twoWay = false;
+  settings.breakup.on = false;
+  Parcel p;
+  p.z = 0.0015;
+  p.r = 0.0005;
+  p.d = 50e-6;
+  p.count = 10;
+  p.t = 95;
+  Spray spray(flow, liquid, settings);
+  spray.add(p);
+  const double before = spray.liquidMass();
+  const double pGas = flow.cellPrimitive(static_cast<std::size_t>(spray.parcels()[0].cell)).p;
+  const double tSat = liquid.saturationTemperature(pGas);
+  const double f = (liquid.enthalpy(95) - liquid.enthalpy(tSat)) / liquid.at(tSat).latent;
+  spray.advance(1e-6);
+  const auto& l = spray.ledger();
+  const double error = relative(l.flashedMass, before * f);
+  std::printf("  T_sat %.4f K at %.1f Pa, flashed share %.6f, flashed mass %.6e kg, %ld flash(es)\n", tSat, pGas, f, l.flashedMass,
+              l.flashes);
+  check(error < 1e-12 && l.flashes == 1, "(F2) flashed mass against the liquid mass times (h - h_sat) / L, one flash", error, 1e-12);
+}
+
+// ---------------------------------------------------------------------------------------------------
 // S8
 
 void dispersion(thermo::ReactionSource& source) {
@@ -827,6 +857,7 @@ int main(int argc, char** argv) {
     breakup(source);
     budgets(source);
     dispersion(source);
+    flash(source);
   } catch (const std::exception& e) {
     std::printf("error: %s\n", e.what());
     return 2;

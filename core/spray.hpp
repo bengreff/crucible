@@ -109,6 +109,7 @@ class Spray {
     double outflowMass{}, outflowEnergy{}, outflowMomentum{};
     double wallImpulse{}, wallLoss{};
     double droppedSwirl{};       // |azimuthal momentum| passed to the gas as heat (no swirl in the gas)
+    double flashedMass{};        // liquid flashed at once above saturation (with `flashes`; tier1_run_definition.md)
     long parcelsInjected{}, children{}, wallHits{}, flashes{}, vaporised{}, clampedCondensation{};
     long substeps{};
     // On AMR: parcels that moved to a finer owner level, and to a coarser one, within a step (not by regrids).
@@ -199,7 +200,7 @@ class Spray {
   struct Slot {  // per-parcel results of the parallel pass
     std::vector<Deposit> deposits;
     std::vector<Parcel> children;
-    double wallImpulse{}, wallLoss{}, swirl{};
+    double wallImpulse{}, wallLoss{}, swirl{}, flashed{};
     double outMass{}, outEnergy{}, outMomentum{};
     bool alive{true};
     long substeps{}, wallHits{}, flashes{}, vaporised{}, clamped{}, finer{}, coarser{};

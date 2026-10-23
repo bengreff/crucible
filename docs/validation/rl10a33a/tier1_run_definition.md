@@ -315,6 +315,14 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
     - (F2) In `crucible_spray_tests`: a parcel of LOX at 95 K in O2 at 1 atm (saturation 90.2 K) flashes on its first step. The ledger's flashed mass equals the liquid mass before the step times (h(95 K) − h(T_sat)) / L(T_sat), from the liquid's own tables, within 1e-12 relative. The flash count is 1.
     - (F3) The dry run is byte-identical.
 
+- **The flash check scored (23 October 2026, about 00:51 CDT; the Mac): F1 to F3 met.**
+  - (F1) A0's md5 is e95251ab17e43a961a392dcd4bd0912f, unchanged.
+  - (F2) T_sat is 90.1879 K at 101,325 Pa and the flashed share is 0.038699. The flashed mass is 2.829016e-11 kg, within 1.1e-16 relative of the expected value, from 1 flash.
+  - (F3) The dry run is byte-identical.
+  - `spray_verification` still fails only S0(b), at 1.245e3 J/kg, as on 22 October.
+  - B4 restarted at 00:51 CDT on this build (the first launch, at 00:47, ran the build before the flash check). It has not been read past its header.
+  - **Seen in the first launch's log, its last line before the stop:** a Cantera warning that `equilibrate` met 188.7 K, outside h2o2_highT's 200 to 6,000 K. Inferred: p0's equilibrium stagnation in the cold H2 (supplied at 199.67 K). The lead's gate uses p0, so if p0 is undefined or wrong there, the gate fails for that reason and not for an unsteady lead.
+
 - **R1(b): met (23 October 2026, about 00:24 CDT).** Every line of `tier1_dry_run_length_2026-10-21.log`'s header and of its 149 × 16 section appears unchanged in the run mode's output. The run mode only adds its F3 lines, G7, the gates line and the run's own lines.
 
 ## What it waits on
