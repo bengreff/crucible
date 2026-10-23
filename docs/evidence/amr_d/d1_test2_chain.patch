@@ -1,0 +1,78 @@
+diff --git a/core/amr.cpp b/core/amr.cpp
+index fb0666e..919961e 100644
+--- a/core/amr.cpp
++++ b/core/amr.cpp
+@@ -512,12 +512,12 @@ bool Amr::reflux(int l) {
+ // level l + 1's two substeps, the average down onto level l and the reflux. With turbulence the SST
+ // source coefficients are taken at the step's start, filled cells included (and again after a redone
+ // base step), by stableDt as Flow::step takes them.
+-bool Amr::advance(int l,double t,double dt,int half) {
++bool Amr::advance(int l,double t,double dt,int half,double end) {
+     Level& v=levels_[static_cast<std::size_t>(l)];
+     Flow& f=*v.flow;
+     if(l>0) fill(l,f.state_,f.species_,f.turbulence_,0.5*half);
+     v.oldState=f.state_;v.oldSpecies=f.species_;v.oldTurbulence=f.turbulence_;
+-    f.time_=t;
++    f.time_=t;f.stepEnd_=end;
+     if(f.nt_) f.stableDt();
+     f.beginStep();
+     Flow::Attempt attempt;
+@@ -538,7 +538,8 @@ bool Amr::advance(int l,double t,double dt,int half) {
+         auto& sum=u.fineSum;
+         if(!restricted_) std::fill(sum.begin(),sum.end(),0.0);
+         else for(std::size_t e:u.flow->faces_) std::fill_n(sum.begin()+static_cast<std::ptrdiff_t>(e*stride),stride,0.0);
+-        if(!advance(l+1,t,0.5*dt,0) || !advance(l+1,t+0.5*dt,0.5*dt,1)) return false;
++        const double middle=t+0.5*dt;
++        if(!advance(l+1,t,0.5*dt,0,middle) || !advance(l+1,middle,0.5*dt,1,end)) return false;
+         averageDown(l);
+         if(!reflux(l)) return false;
+     }
+@@ -604,7 +605,7 @@ double Amr::step(double maxDt) {
+     if(event-time_<=dt) { dt=event-time_;landing=true; }
+     save();
+     for(int attempt=0;attempt<14;++attempt) {
+-        if(advance(0,time_,dt,0)) {
++        if(advance(0,time_,dt,0,landing?event:time_+dt)) {
+             time_=landing?event:time_+dt;++steps_;
+             for(auto& v:levels_) v.flow->time_=time_;
+             if(tagged_ && steps_%static_cast<std::uint64_t>(tags_.interval)==0) regrid(false);
+diff --git a/core/amr.hpp b/core/amr.hpp
+index 63cf9ac..25643f0 100644
+--- a/core/amr.hpp
++++ b/core/amr.hpp
+@@ -119,7 +119,7 @@ private:
+     double time_{};
+     std::uint64_t steps_{}, rejected_{};
+     void check();
+-    bool advance(int l, double t, double dt, int half);
++    bool advance(int l, double t, double dt, int half, double end);
+     // Fill the children of level l's parents (B2) or every cell that is not active (B1) from level l - 1
+     // at the fraction theta of l - 1's current step: linear in time between its old and new states,
+     // conservative linear in space; each filled cell's temperature guess becomes its parent's.
+diff --git a/core/flow.cpp b/core/flow.cpp
+index cfce284..54f9314 100644
+--- a/core/flow.cpp
++++ b/core/flow.cpp
+@@ -1491,7 +1491,8 @@ bool Flow::firstStage(double dt,Attempt& attempt) {
+     const auto& ig=definition_.igniter;
+     igniterPower_=0;
+     if(ig.energy>0) {
+-        double overlap=std::min(time_+dt,ig.start+ig.duration)-std::max(time_,ig.start);
++        const double end=std::isnan(stepEnd_)?time_+dt:stepEnd_;
++        double overlap=std::min(end,ig.start+ig.duration)-std::max(time_,ig.start);
+         if(overlap>0) igniterPower_=ig.energy/ig.duration*overlap/dt;
+     }
+     if(recordFaces_) {
+diff --git a/core/flow.hpp b/core/flow.hpp
+index ad5a3d1..e0f600a 100644
+--- a/core/flow.hpp
++++ b/core/flow.hpp
+@@ -471,6 +471,8 @@ private:
+     std::vector<char> igniterCell_;
+     std::vector<double> igniterCellVolume_, clippedCell_;
+     double time_{}, dt_{}, totalPressure_{}, initialMass_{}, initialEnergy_{};
++    // Under Amr, the end of the step being taken (its parent's end for a last substep); NaN on one level.
++    double stepEnd_{std::numeric_limits<double>::quiet_NaN()};
+     double integratedMassFlux_{}, integratedEnergyFlux_{}, initialMomentum_{};
+     double integratedMomentumSource_{}, integratedMomentumGross_{}, integratedHeat_{}, clippedTurbulentEnergy_{};
+     double prescribedTurbulentEnergy_{};
