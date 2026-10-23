@@ -52,29 +52,41 @@ inline Definition c1eqtt(thermo::ReactionSource& source, int nz, int nr) {
   return d;
 }
 
-// Equilibrium isentropic stagnation pressure of a cell, as tests/chamber_study.cpp.
-inline double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const double* y, double kinetic) {
+// Equilibrium isentropic stagnation pressure of a cell, as tests/chamber_study.cpp: Newton on ln p0 along the
+// isentrope. It stops at the accuracy equilibrate's relative tolerance (1e-9, its default) allows the step,
+// 10 x 1e-9 x (1 + |s|/R) (AMR.md, *Amendment: the stagnation loop exits at the equilibrium solver's accuracy*);
+// `oldExit` keeps the exit before it, 1e-13, for that amendment's check. `iterations` gets the SP solves made.
+inline double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const double* y, double kinetic,
+                                 bool oldExit = false, int* iterations = nullptr) {
+  constexpr double rtol = 1e-9;
   gas.setState_TPY(t, p, y);
   gas.equilibrate("TP");
   const double s = gas.entropy_mass(), h0 = gas.enthalpy_mass() + kinetic;
   double p0 = p;
+  int solves = 0;
   for (int n = 0; n < 50; ++n) {
     gas.setState_SP(s, p0);
     gas.equilibrate("SP");
+    ++solves;
     double step = (h0 - gas.enthalpy_mass()) / (p0 / gas.density());
     p0 *= std::exp(step);
-    if (std::abs(step) < 1e-13) break;
+    const double exit =
+        oldExit ? 1e-13 : 10 * rtol * (1 + std::abs(s) * gas.meanMolecularWeight() / Cantera::GasConstant);
+    if (std::abs(step) < exit) break;
   }
+  if (iterations) *iterations = solves;
   return p0;
 }
 // One cell's mass flux through its downstream axial face, and that times its stagnation pressure.
-inline void addStagnation(const Flow& flow, Cantera::ThermoPhase& gas, int i, int j, double& p0, double& flux) {
+inline void addStagnation(const Flow& flow, Cantera::ThermoPhase& gas, int i, int j, double& p0, double& flux,
+                          bool oldExit = false, int* iterations = nullptr) {
   const auto& mesh = flow.mesh();
   auto q = mesh.index(i, j);
   auto w = flow.cellPrimitive(q);
   auto y = flow.massFractions(q);
   double g = w.rho * w.uz * mesh.axialArea(i + 1, j);
-  p0 += g * stagnationPressure(gas, flow.temperature(q), w.p, y.data(), 0.5 * (w.uz * w.uz + w.ur * w.ur));
+  p0 += g * stagnationPressure(gas, flow.temperature(q), w.p, y.data(), 0.5 * (w.uz * w.uz + w.ur * w.ur), oldExit,
+                               iterations);
   flux += g;
 }
 // Mass-flux-averaged equilibrium stagnation pressure of a column (chamber_study's chamber pressure).

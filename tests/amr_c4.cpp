@@ -4,7 +4,8 @@
 // Usage: crucible_amr_c4 amr scale=S [end time s, default 8e-3] [threads, default 4]: 32 x 6 plus one level, set
 //          up as crucible_amr_budget's tagged case, with the four dynamic thresholds times S;
 //        crucible_amr_c4 uniform [end] [threads]: the uniform 64 x 12 run.
-// CRUCIBLE_EQ_TABLE names Table A. Each run prints one line starting "c4 " that tests/amr_c4_judge.sh reads:
+// CRUCIBLE_EQ_TABLE names Table A; CRUCIBLE_C4_EXIT_CHECK=<t s> runs the stagnation loop's exit check from t and
+// ends the run there. Each run prints one line starting "c4 " that tests/amr_c4_judge.sh reads:
 //   - settled c*, vacuum Isp and vacuum thrust: the means of 21 samples over the last millisecond, each at the
 //     first step ending at or after 7.00, 7.05, ..., 8.00 ms;
 //   - c*: the mass-flux-weighted equilibrium stagnation pressure on the fine chamber-end column (on AMR, level
@@ -161,19 +162,25 @@ int main(int argc, char** argv) {
     return out;
   };
   // The chamber-end column's flux-weighted stagnation pressure and its mass flux (columnStagnation's loop).
-  auto column = [&](double& p0, double& flux) {
+  // `oldExit` and `counts` (each cell's SP solves) are for the exit check below.
+  auto column = [&](double& p0, double& flux, bool oldExit = false, std::vector<int>* counts = nullptr) {
     p0 = flux = 0;
+    int n = 0;
+    auto add = [&](const Flow& f, int i, int j) {
+      addStagnation(f, gas, i, j, p0, flux, oldExit, &n);
+      if (counts) counts->push_back(n);
+    };
     if (uniform)
-      for (int j = 0; j < finest.nr; ++j) addStagnation(*single, gas, fe, j, p0, flux);
+      for (int j = 0; j < finest.nr; ++j) add(*single, fe, j);
     else {
       const Flow& base = amr->level(0);
       const Flow& fineFlow = amr->level(1);
       for (int J = 0; J < base.mesh().nr; ++J)
         if (amr->active(1)[fineFlow.mesh().index(fe, 2 * J)]) {
-          addStagnation(fineFlow, gas, fe, 2 * J, p0, flux);
-          addStagnation(fineFlow, gas, fe, 2 * J + 1, p0, flux);
+          add(fineFlow, fe, 2 * J);
+          add(fineFlow, fe, 2 * J + 1);
         } else
-          addStagnation(base, gas, fe >> 1, J, p0, flux);
+          add(base, fe >> 1, J);
     }
   };
   auto sample = [&]() {
@@ -190,12 +197,43 @@ int main(int argc, char** argv) {
   // The history's chamber pressure: none (NaN) where the column carries no net outflow.
   std::vector<std::pair<double, double>> history;
   double historyWall = 0;
+  // The amendment's check (AMR.md, *Amendment: the stagnation loop exits at the equilibrium solver's accuracy*):
+  // from the first record at or after CRUCIBLE_C4_EXIT_CHECK seconds, the column's p0 with the new exit and the
+  // old; the run ends at the first such record where some cell runs the old exit to 50 solves.
+  const char* checkEnv = std::getenv("CRUCIBLE_C4_EXIT_CHECK");
+  const double checkFrom = checkEnv ? std::atof(checkEnv) : -1;
+  auto exitCheck = [&](double t) {
+    double pNew, pOld, flux;
+    std::vector<int> nNew, nOld;
+    column(pNew, flux, false, &nNew);
+    column(pOld, flux, true, &nOld);
+    if (!(flux > 0)) return;
+    pNew /= flux;
+    pOld /= flux;
+    std::printf("exit check at t %.6f ms, SP solves per cell (new / old):", t * 1e3);
+    bool exercised = false;
+    for (std::size_t k = 0; k < nNew.size(); ++k) {
+      std::printf(" %d/%d", nNew[k], nOld[k]);
+      exercised = exercised || nOld[k] == 50;
+    }
+    std::printf("\n");
+    if (!exercised) return;
+    const double half = 0.5 * std::pow(10.0, std::floor(std::log10(std::abs(pOld))) - 5);
+    const double cstar = sample().cstar;
+    const bool pass = std::abs(pNew - pOld) < half;
+    std::printf("exit check: column p0 new %.12e Pa, old %.12e Pa, |difference| %.3e Pa (%.3e relative); half a unit in "
+                "the 6th digit %.3e Pa: %s. Not judged: c* %.4f m/s, its printed half unit %.3e relative\n",
+                pNew, pOld, std::abs(pNew - pOld), std::abs(pNew - pOld) / pOld, half, pass ? "PASS" : "FAIL", cstar,
+                5e-5 / cstar);
+    std::exit(pass ? 0 : 1);
+  };
   auto record = [&](double t) {
     const auto start = std::chrono::steady_clock::now();
     double p0, flux;
     column(p0, flux);
     history.emplace_back(t, flux > 0 ? p0 / flux : std::nan(""));
     historyWall += seconds(start);
+    if (checkFrom >= 0 && t >= checkFrom) exitCheck(t);
   };
   auto largestY = [&]() {
     if (uniform) return largestWater(*single, water, nullptr);
