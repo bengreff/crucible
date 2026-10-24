@@ -2,12 +2,13 @@
 # B4 and the 2-level lead, relaunched fresh on main with the spray NaN fix and the chemistry skip (the old runs'
 # binaries had neither; B4r would have stopped at t_L + 0.35 ms, and the skip halves the lead's CPU time). The same
 # bodies as restart_2026-10-23/bh_run.sh's b4 and lead2 cases. Started and resumed by /home/greff/resume's runner
-# (b4s.job, lead2s.job; nice 10). Waits while the 1-minute load is above 24.
+# (b4s.job, lead2s.job; nice 10). The lead waits while the 1-minute load is above 24; B4 does not (the Director,
+# 01:40 24 October: S7 first, B4 second, the fly jobs after).
 # usage: bh_run.sh b4 | lead2
 R=/home/greff/crucible_b4s
 B=$R/build
 cd $R/runs/$1 || exit 1
-while awk '{exit !($1 > 24)}' /proc/loadavg; do sleep 60; done
+[ "$1" = b4 ] || while awk '{exit !($1 > 24)}' /proc/loadavg; do sleep 60; done
 echo "launch $(date '+%F %T %Z'), load $(cut -d' ' -f1 /proc/loadavg)" >> $1.log
 case "$1" in
   b4)

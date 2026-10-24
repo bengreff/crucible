@@ -4,7 +4,7 @@ Asked by the Director at 23:50 CDT on 23 October, after the cost estimate of 7 t
 
 **Added for the Director's 00:50 note** (principle 1 kept as written: no steady solve, no pseudo-time that alters the transient):
 1. The implicit time-accurate step: the physical step the dynamics need, against today's explicit step, and the cost per implicit step. Section 5a, lever I.
-2. Backhouse contention, measured with our jobs paused, pinned and unpinned, and a proposed slot policy. Section 3.
+2. Backhouse contention, measured with our jobs paused, pinned and unpinned, and a slot policy, revised for the Director's 01:40 decisions (the priority order; every job on backhouse is ours). Section 3.
 3. The chemistry skip: built, tested and measured. Section 5b, lever A.
 4. The finest level stays a numerics question for evidence: 2 against 3 levels on two members. Lever D.
 5. The spray NaN: fixed at its cause, with a test. Section 6.
@@ -118,7 +118,7 @@ Measured: **the finest level binds in the lead** (94 to 98% of base steps), at t
 
 ## 3. Thread scaling
 
-Measured on one segment: tier 1 development in B4's configuration (3 levels, the 20 ms H2 lead), restarted from a 0.15 ms checkpoint and run to 0.17 ms, with level 3 at about 17,000 cells. The measurement tree has no chemistry skip, so 69% of each step is CVODES. On the Mac my other run was paused during each timed run, but the other projects' slot jobs kept the load at 3 to 7 on 10 cores (6 performance and 4 efficiency, Apple M2 Pro). On backhouse my S7 legs were paused (SIGSTOP), while inquiry2's rfx and B4r runs and the other projects' 5 python jobs at nice 0 kept the load at 28 to 38 on 28 virtual CPUs. Our run was at nice 10. Files: `mac_scaling.log`, `bh_scaling.log`, `bh_scaling_time_v.txt`.
+Measured on one segment: tier 1 development in B4's configuration (3 levels, the 20 ms H2 lead), restarted from a 0.15 ms checkpoint and run to 0.17 ms, with level 3 at about 17,000 cells. The measurement tree has no chemistry skip, so 69% of each step is CVODES. On the Mac my other run was paused during each timed run, but the other projects' slot jobs kept the load at 3 to 7 on 10 cores (6 performance and 4 efficiency, Apple M2 Pro). On backhouse my S7 legs were paused (SIGSTOP), while inquiry2's rfx and B4r runs and the fly project's 5 `smoke_live.py` jobs at nice 0 kept the load at 28 to 38 on 28 virtual CPUs. Our run was at nice 10. Files: `mac_scaling.log`, `bh_scaling.log`, `bh_scaling_time_v.txt`.
 
 | Threads | Mac wall (s) | Mac speed-up | backhouse wall (s) | backhouse speed-up | backhouse CPU share | backhouse user time (s) | voluntary context switches |
 |---|---|---|---|---|---|---|---|
@@ -132,11 +132,11 @@ Measured on one segment: tier 1 development in B4's configuration (3 levels, the
 - **On the Mac,** threads pay up to 6 (the performance cores) and little beyond, at 3.1 times for 4 and 4.4 times for 8.
 - **On backhouse under tonight's load, scaling stops at 4 threads.** From 4 to 16 threads, CPU share rises only from 256% to 329% while the user time grows by 22%. The pool's workers wait at each barrier for a worker the scheduler has not run (voluntary switches 94,000 to 717,000). More threads than the CPUs the other jobs leave free only add waiting.
 - **Backhouse against the Mac at 4 threads: 2.5 times the wall.** That splits into two factors:
-  - **1.56 from the CPU share.** At nice 10 against the other projects' nice-0 jobs, the run got 256% of 400%.
+  - **1.56 from the CPU share.** At nice 10 against the fly jobs at nice 0, the run got 256% of 400%.
   - **1.65 from CPU time per step.** At 1 thread the user time was 309 s against the Mac's 187 s. A fixed arithmetic probe (`probe.c`, one thread, no memory traffic) takes 0.70 to 0.78 s of CPU on every backhouse virtual CPU and 0.55 s on the Mac, so 1.3 to 1.4 of the 1.65 is the core itself. The rest is probably the shared cache and memory bandwidth under the other jobs (*inferred*).
 - **No E-core signal is visible from inside WSL.** The probe ran pinned (taskset) to each of the 28 virtual CPUs in turn, twice (`bh_probe.log`). Every CPU gave 0.70 to 0.78 s, with no slow subset and no CPU slow in both passes. WSL2 exposes 14 cores with 2 threads each, all at the same nominal clock, and no `cpu_core`/`cpu_atom` split. Hyper-V schedules virtual CPUs onto whichever physical cores it chooses (*inferred* from the uniform probe). Pinning inside the guest therefore cannot select P-cores. That would need a Windows-side setting (processor affinity for the WSL VM), which applies to every WSL user on the machine. That is Ben's call, not a slot-policy item.
 
-**Contention, with every job of ours paused** (the Director's 00:50 item 2; `bh_contention.sh`, `bh_contention.log`). The same segment at 4 threads, with all six of our processes on backhouse stopped (SIGSTOP from 00:56:48 to 01:02:01 CDT, inquiry2 agreeing for rfx and B4r). The other projects' 5 python jobs at nice 0 kept running. "Machine busy" is the share of all 28 virtual CPUs busy over the run, from `/proc/stat`, our run included.
+**Contention, with every job of ours paused** (the Director's 00:50 item 2; `bh_contention.sh`, `bh_contention.log`). The same segment at 4 threads, with all six of our processes on backhouse stopped (SIGSTOP from 00:56:48 to 01:02:01 CDT, inquiry2 agreeing for rfx and B4r). The fly project's 5 `smoke_live.py` jobs at nice 0 kept running. "Machine busy" is the share of all 28 virtual CPUs busy over the run, from `/proc/stat`, our run included.
 
 | Run (4 threads) | Wall (s) | User time (s) | CPU share | Machine busy |
 |---|---|---|---|---|
@@ -146,18 +146,21 @@ Measured on one segment: tier 1 development in B4's configuration (3 levels, the
 | Unpinned, nice 0, ours paused | 94.0 | 305 | 325% | 67.2% |
 
 - **Our own jobs were most of the 2.5.** With them paused, the segment took 91 s against 150 s: 1.64 times faster. Backhouse against the Mac at 4 threads is then 91.2 / 59.7 = **1.53**, nearly all of it the slower core (1.3 to 1.4 from the probe).
-- **Pinning hurts.** Pinned to four virtual CPUs, the run was 19% slower: the four were shared with the other projects' threads, and the run could not move off them.
-- **Nice barely matters once ours are paused.** Nice 0 against nice 10 was 94.0 against 91.2 s, within run-to-run spread. Our jobs at nice 10 do not lose to the other projects when there are free CPUs; they lose to each other.
+- **Pinning hurts.** Pinned to four virtual CPUs, the run was 19% slower: the four were shared with the fly jobs' threads, and the run could not move off them.
+- **Nice barely matters once ours are paused.** Nice 0 against nice 10 was 94.0 against 91.2 s, within run-to-run spread. Our jobs at nice 10 do not lose to the fly jobs when there are free CPUs; they lose to each other.
 - **Oversubscription costs user time, not just wall.** With ours running, the same work took 382 s of user time against 288 s: about 33% spent in barrier waits and cache contention.
-- About 15 virtual CPUs were busy with the other projects' work (64% busy less our 11%), so about **13** were free for us tonight. Our six processes held 30 or more threads between them.
+- About 15 virtual CPUs were busy with the fly jobs (64% busy less our 11%), so about **13** were free for inquiry's jobs tonight. Our six processes held 30 or more threads between them.
+- **Correction (the Director, 01:40).** The 5 python jobs are not another project's. They are the fly project's `smoke_live.py` runs, also under the Director, each holding 89 to 98 threads (BLAS and numba pools) for about 150% of a CPU. The whole load of about 33 was ours: the fly smokes, S7 low and high at 4 threads (getting about 158% each), and inquiry2's rfx (13 threads, 256%). The fly workers are capping their BLAS and numba threads. Where this section says "ours", it means inquiry's and inquiry2's jobs.
 
-**Proposed slot policy for backhouse** (for inquiry2's resume runner, which already sets nice):
+**Slot policy for backhouse** (proposed at 01:00, revised for the Director's 01:40 decisions; for inquiry2's resume runner, which already sets nice). Every job on backhouse is ours (inquiry, inquiry2 and the fly workers), so it covers them all:
 1. **No pinning** inside WSL. Leave placement to the scheduler.
-2. **At most 4 threads per job.** Scaling stopped at 4 under load (section 3), and the probe shows no P-core subset to aim more threads at.
-3. **Our threads in total no more than the virtual CPUs the other projects leave free.** Free means 28 less the other projects' load, measured at launch and rechecked between jobs; tonight that was about 13, so three 4-thread jobs. A job that does not fit waits in the queue (the load gate), rather than slowing every running job.
-4. **The critical-path job first.** The queue runs in priority order: the RL10 central run, then B4 and the S7 legs, then the H2-only leads and the measurements. A lower job yields its slot when a higher one is waiting, at its next checkpoint.
-5. **Nice 10 stays.** It costs us nothing measurable and keeps the other projects whole.
+2. **At most 4 threads per job, counting every pool.** Scaling stopped at 4 under load (section 3), and the probe shows no P-core subset to aim more threads at. For Python jobs that means capping BLAS and numba too (`OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS`, `NUMBA_NUM_THREADS`); an uncapped fly smoke held 89 to 98 threads.
+3. **Threads in total no more than the 28 virtual CPUs.** A job launches only while the 1-minute load plus its own threads stays within 28 (the load gate: 24 for a 4-thread job). One that does not fit waits in the queue rather than slowing every running job.
+4. **Priority order (the Director, 01:40): S7 low and high first, B4 second, the fly jobs after;** then the H2-only leads (the 2-level lead) and the measurements. A job above every running job in the order launches without the gate. A lower job yields to a higher one that is waiting: at its next checkpoint, or stopped (SIGSTOP) and continued when there is room. The RL10 central run's place is the Director's when it launches.
+5. **Nice 10 stays** for long runs. It costs nothing measurable (section 3); the order is kept by the queue, not by nice.
 6. **Windows-side processor affinity for the WSL VM** (to keep it on the P-cores) is the only way to choose physical cores. It applies to every WSL user on the machine, so it is Ben's call, not part of the runner.
+
+**Applied on 24 October** (`relaunch_2026-10-24/`): B4 (job `b4s`) launched at 01:35 CDT without the gate, at 4 threads. The 2-level lead (`lead2s`) passed its gate at 01:33 when the load dipped to 23.9; it was stopped at 01:36 and continues when no `smoke_live.py` runs (`bh_lead2_after_fly.sh`, logged in `runs/lead2/hold.log`).
 
 ## 4. Is 60 ms of flow physically required?
 
@@ -199,7 +202,7 @@ Speed-ups are on wall time per simulated ms unless stated. The basis is the ense
 | **B. CFL 0.4 → 0.8** (S7 already runs at 0.8 on the same RK2 and face-sum rate) | **2** if the 1 ms test holds | derived | hours: an environment hook (tier 1 hardcodes 0.4) and a 1 ms test as S7's | tier 1's run definition: the Director |
 | **C. Less simulated time** (a 12 ms lead and a settle-triggered end, section 4) | **1.7 to 2.6** on the run | inferred | none | registered schedule: the Director |
 | **D. Two finer levels, not three** | **7 to 9** per ms in the lead (level 3 is 86% of the cell updates; the step would rise about 1.3 times) | derived, lead only | none | a numerics question for evidence (the Director, 00:50): run at 2 levels, and check the deviation against 3 levels on two members |
-| **E. Where the runs execute** | backhouse took **2.5 times** the Mac's wall on the same segment at 4 threads (section 3: 1.6 from the CPU share at nice 10 under the other projects' nice-0 load, 1.6 from slower CPU time per step). The 6.6 first quoted was the seed's first 10 μs window, during level 3's growth; the seed overall was 5.3. | measured | none | machine priority: the Director |
+| **E. Where the runs execute** | backhouse took **2.5 times** the Mac's wall on the same segment at 4 threads (section 3: 1.6 from the CPU share at nice 10 under the fly jobs' nice-0 load, 1.6 from slower CPU time per step). The 6.6 first quoted was the seed's first 10 μs window, during level 3's growth; the seed overall was 5.3. | measured | none | machine priority: the Director |
 | **F. Threads** | 4 threads: **3.1** on the Mac, **2.2** on backhouse; 8 threads: 4.4 on the Mac, 2.2 on backhouse (section 3) | measured | none | engineering (the slot policy, section 3) |
 | **G. The flow's per-update cost** (about 8 μs of thread time per cell update; boundaries and wall functions 21%, transport 13%, gradients 10%) | 1.3 to 2 | guessed (typical of profiling and tuning, nothing identified yet) | 1 to 2 weeks | engineering |
 | **H. Low-Mach preconditioning or an IMEX acoustic step, time-accurate** | ceiling **1.4 to 2.2** (the step with the acoustic term removed, measured). Real: less, for the implicit solve's cost per step. On rings stretched to the wall, ceiling 3.7. | measured ceiling | 3 to 6 weeks | engineering, within principle 1 |
@@ -347,5 +350,5 @@ B_T itself is legitimately huge here: up to 2.6e52 with the rest H2 at zero slip
 - **The work / LTS ratios bound what local time stepping could save per unit of physical time.** They do not count the iterations a local-step march would need to converge.
 - **Speed-ups for levers G, I and J are guessed,** with the arithmetic shown. Only the step ceilings (no acoustics, no diffusion, flow only) and the phase shares are measured.
 - **The thread scaling and the contention runs used the lead without the skip,** where 69% of each step is CVODES and parallel. With the skip, the flow's share and its barriers dominate. Scaling with the skip on is not measured.
-- **Contention was measured once per configuration,** on one evening, under the other projects' 5 jobs. The 1.6 that our own jobs cost is for tonight's mix of six processes.
+- **Contention was measured once per configuration,** on one evening, under the fly project's 5 jobs. The 1.6 that our own jobs cost is for tonight's mix of six processes.
 - **The skip's timing is one segment** (0 to 0.1 ms of the lead, on the Mac), with on and off alternated twice under the other projects' load (section 5b).
