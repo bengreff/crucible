@@ -252,3 +252,36 @@ All six tests met, 0 failures (measured; `low_t/low_temperature_tests_2026-10-24
 - By the rule as registered, the supply's form is not fixed until a conversion rate is sourced.
 - The derived point above narrows which rate that is: the rate between the tank and the face (gas self-conversion over the line's residence time, and the jacket wall). Inside the chamber, the conversion's place moves c\* and Isp by under 8.1e-6.
 - If the line rate confirms the frozen supply, option (ii) at x_p 0.998 gets the energy right. The cost is the cold inlet's 6.3% density offset at 200 K.
+
+## (e) The supply's form, decided (the Director, 24 October 2026, 04:20; recorded about 04:16 CDT by the Mac clock, before any tier-1 run)
+
+**The decision.**
+- **The central case: the para fraction frozen from the tank.** The physical ground is that uncatalysed gas-phase conversion is far slower than the line's residence time.
+- **An ensemble deviation member: equilibrium H2 at the face.** The unknown wall catalysis on the way to the face is carried in the range, not hidden.
+- **Milenko et al. 1997 goes on Ben's paper list.** If its rate turns out fast, the central value moves, and that is said.
+
+**Which para fraction: 99.8% (x_p 0.998).**
+- The delivered range is 95.0% (the floor in MIL-PRF-27201, Type II, read directly, (b)) to 99.8% (equilibrium at the tank's normal boiling point, 20.27 K: 99.800%, derived, (d)).
+- 99.8% is the tank state the Director's decision of 04:05 states. Stored liquid can only move toward it, since its own conversion runs toward equilibrium at the tank's temperature (inferred; no rate read).
+- With the central case at 99.8% and the deviation member at equilibrium, the band covers the spec's 95.0% as well. All three effects are linear in Δh (d), and Δh at 95.0% lies between the other two. With the central case at 95.0%, the 99.8% end would sit outside the band.
+- The choice is within the bar either way. At 200 K, 95.0% against 99.8% moves c\* by at most 6.5e-5 and Isp by at most 8.0e-5 (derived, (d)), so neither end needs its own member.
+
+**What the central case puts at the face (option (ii) of (b), at the plate's 199.67 K; derived, `low_t/face_inlet_2026-10-24.py` and `.txt`, on (d)'s functions).**
+- The H2 supply enters with h_eq(199.67 K) − Δh, where Δh(199.67 K, x_p 0.998) = 162.29 kJ/kg (151.73 at 95.0%). The thermo stays equilibrium above 200 K, and Table B is not rebuilt.
+- This applies to all the supply's H2 at the face: the slots and the transpired 10% (member 14) are the same gas.
+- On the engine's thermo, that enthalpy sits at 187.59 K (the normal-H2 continuation below 200 K, (b) and make_low_t.py). That is 12.08 K colder than the physical gas, and 6.44% denser at the same pressure. On the equilibrium continuation it would sit at 187.69 K, so the form below 200 K moves it by 0.1 K.
+- **So the tier-1 driver must opt in to the thermo below 200 K** (`tests/rl10_tier1.cpp:897`). Without it, the inlet is evaluated on TM-4513's polynomial outside its range.
+- The plate stays at 199.67 K (decision 8). That is the physical gas's temperature, and the wall is not part of the energy offset. The 12 K gap between the plate and the cold stream's represented temperature drives a heat flow at the face that the physical gas would not have. *Proposed (engineering):* its size against the face's heat flow is read in the central run's first ms, beside the T_max check. It is inferred to be small, since the hot gas's difference to the plate is of order 3,000 K (S7's flame), but it is not measured.
+
+**The deviation member: equilibrium H2 at the face.**
+- The face inlet takes h_eq(199.67 K): the driver's present supply, unchanged. In this member, every bit of the supply has converted on the way to the face, whether by wall catalysis in the jacket and lines or by a fast gas rate.
+- It starts warm from the central case, and changes one inlet value and no geometry.
+- By (d)'s bookkeeping at 200 K, it moves c\* by +4.6e-4 to +1.0e-3 and Isp by +5.8e-4 to +1.22e-3 against the central case, over O/F 4 to 6, p_c 2 to 4 MPa and both O2 states (derived). Its tier-1 deviation also carries the inlet's 6.4% density change at a fixed mass flow, which is a mixing input.
+- Its number and row are in `docs/validation/rl10a33a/tier1_ensemble_plan.md` (member 20).
+
+**What is not done.**
+- **The driver change is not built:** the supply enthalpy at the face, the low-T opt-in, and the member's switch. It belongs to the owner of `tests/rl10_tier1.cpp`, inquiry's file. The frozen file's SHA-256 changes with it, by a dated note.
+- **No conversion model is built.** By (d), the rate the band rests on is the line's, between the tank and the face.
+- **Milenko et al.'s gas-phase rate is not read** (J. Low Temp. Phys. 107, 77–92, 1997, DOI 10.1007/BF02396837, paywalled). Neither is a wall rate for the jacket's metal ((b)).
+  - If Milenko's rate converts a large share of the ortho excess within the line's residence time, the central x_p moves toward equilibrium, and that is stated.
+  - The line's residence time itself is not computed here.

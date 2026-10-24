@@ -33,8 +33,9 @@ The predicted quantities are the protocol's §3 list: F_vac, Isp_vac (on the cha
 | 17 | Grid | the reported AMR grid | its finest level halved (1); the Richardson estimate is the member | protocol §4 |
 | 18 | Supply turbulence length scale at the slots | 0.07 D_h (inferred; one pitch on the porous face, unchanged) | 0.035, 0.14 D_h (2; guessed, ×/÷ 2; decided 21 Oct, about 02:35) | the Director's decision 7, below |
 | 19 | The injector face's wall | isothermal at the transpired H2's inlet temperature, 199.67 K (inferred) | adiabatic (1; decided 21 Oct, about 02:35) | the Director's decision 8, below |
+| 20 | The H2 supply's para fraction at the face | frozen from the tank at 99.8% para (x_p 0.998); MIL-PRF-27201's 95.0% floor lies inside the band (decided 24 Oct, 04:20) | equilibrium H2 at the face (1) | the Director's decision 9, below; `docs/evidence/LOW_T_THERMO.md` (e) |
 
-Count (derived): the central cold start and 27 deviations, one of them the grid run (with member 6 carried from tier 0), plus one cold-start check (below). Member 11b was added on 21 October with the Director's decision 5; it was 26 before. *Dated note, 21 October 2026, about 02:35 CDT:* members 11 and 11b are not run (decision 5 applied, about 02:08), and members 18 and 19 add three runs (decisions 7 and 8), so the count is again 27 deviations: 26 warm and the grid run. The wall functions' measured errors join the heat-flow band without a run (protocol §4). The skeleton's three modelling choices (annular rings, no swirl, a distributed transpiration) stay declared limits with stated directions, not members, since tier 1 cannot run their alternatives.
+Count (derived): the central cold start and 27 deviations, one of them the grid run (with member 6 carried from tier 0), plus one cold-start check (below). Member 11b was added on 21 October with the Director's decision 5; it was 26 before. *Dated note, 21 October 2026, about 02:35 CDT:* members 11 and 11b are not run (decision 5 applied, about 02:08), and members 18 and 19 add three runs (decisions 7 and 8), so the count is again 27 deviations: 26 warm and the grid run. *Dated note, 24 October 2026, about 04:16 CDT:* member 20 adds one warm run (decision 9), so the count is 28 deviations: 27 warm and the grid run. It changes one inlet value and no geometry, so it costs like one of member 18's runs, 0.35 to 4.4 h (derived from the budget's rows); the budget is restated before the deviations start, as below. The wall functions' measured errors join the heat-flow band without a run (protocol §4). The skeleton's three modelling choices (annular rings, no swirl, a distributed transpiration) stay declared limits with stated directions, not members, since tier 1 cannot run their alternatives.
 
 ## How a member runs (engineering, proposed)
 
@@ -183,6 +184,18 @@ Recorded before any tier-1 run and before any measured performance is read. They
      - `Definition` has one `wallTemperature`;
      - the wall functions refuse an adiabatic wall (`core/flow.cpp:107`: the adiabatic law is not implemented).
    - Until then the dry run's Definition carries 567 K on every wall.
+
+## Decided (24 October 2026, 04:20, the Director; recorded about 04:16 CDT by the Mac clock)
+
+Recorded before any tier-1 run and before any measured performance is read. The bound and the reasoning are in `docs/evidence/LOW_T_THERMO.md` (d) and (e).
+
+9. **The H2 supply's form: para frozen from the tank in the central case, and equilibrium at the face as member 20.**
+   - **Central: x_p 0.998** (99.8%, equilibrium at the tank's 20.27 K, derived; the Director's stated tank state). MIL-PRF-27201's delivered floor of 95.0% lies between the central case and member 20, so the band covers it. The two ends of the spec differ by at most 6.5e-5 in c\* and 8.0e-5 in Isp (derived), under the Director's 2e-4 bar (a tenth of Table B's 0.2%).
+   - **The ground:** uncatalysed gas-phase conversion is far slower than the line's residence time. Conversion inside the chamber cannot move c\* or Isp by more than 8.1e-6 (derived, (d)), so only the tank-to-face conversion matters.
+   - **Member 20, equilibrium H2 at the face,** carries the unknown wall catalysis in the jacket and lines in the range, not hidden. By (d)'s bookkeeping at 200 K it moves c\* by +4.6e-4 to +1.0e-3 and Isp by +5.8e-4 to +1.22e-3 against the central case (derived). It is one warm run.
+   - **How the central case enters:** option (ii) of LOW_T_THERMO.md (b). The face's H2 (the slots and the transpired share) gets h_eq(199.67 K) − 162.29 kJ/kg. That sits at 187.59 K on the engine's thermo below 200 K, 12.08 K colder and 6.44% denser than the physical gas (derived). The driver must opt in to the thermo below 200 K. The plate stays at 199.67 K (decision 8).
+   - **Not built:** the driver's supply enthalpy, the opt-in and the member's switch (`tests/rl10_tier1.cpp`, inquiry's file).
+   - **Milenko et al. 1997 is on Ben's paper list** (J. Low Temp. Phys. 107, 77–92, DOI 10.1007/BF02396837). If its gas-phase rate turns out fast against the line's residence time, the central value moves, and that is said in a dated note.
 
 ## Open, for the Director (as asked on 20 October; answered above on 21 October)
 

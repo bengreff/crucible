@@ -12,6 +12,10 @@ Status: drafted 21 October 2026, about 02:40 CDT, before any tier-1 run. It hold
 - **Flows:** oxidizer 13.9525 kg/s; fuel 2.76014 kg/s, 10% transpired at a uniform mass flux over the porous face, and the rest through the 16 H2 slots in equal shares.
 - **The face inlet:** (a), every supply at its true annulus (decision 6). Each LOX slot is a closed port (zero gas flow), since the liquid enters there as parcels (the handoff's spec).
 - **Temperatures:** fuel 199.67 K, oxidizer 101.17 K, chamber wall 567 K, and the face's wall (the post tips) at 199.67 K (decision 8).
+- **The H2 supply's form** (the plan's decision 9, the Director, 24 October 2026, 04:20; recorded about 04:16 CDT, before any tier-1 run): para frozen from the tank at x_p 0.998 in the central case, and equilibrium H2 at the face as member 20.
+  - The face's H2, the slots and the transpired share alike, enters with h_eq(199.67 K) − 162.29 kJ/kg (option (ii), `docs/evidence/LOW_T_THERMO.md` (b) and (e); derived).
+  - On the engine's thermo that is 187.59 K, below 200 K, so the driver opts in to the thermo below 200 K. The plate stays at 199.67 K.
+  - Not built yet: see *Frozen inputs*, the dated note of 24 October.
 - **Supply turbulence:** intensity 5%; length scale 0.07 D_h at the slots and a pitch on the porous face (decision 7). Each supply's viscosity ratio is converted at the nominal face state (G4).
   - The ratio does not depend on that nominal state's pressure. It is ρk / (ωμ) = √(3/2) I C_μ^¼ L ρu / μ, and ρu is the supply's fixed mass flux (*derived*). The dry run gives the same ratios at 2 and 4 MPa (*measured*), so the nominal 2.8 MPa sets no tier-1 input. `Flow` rebuilds ω from the ratio at the face's own state, so L holds there.
 - **Turbulence and wall:** SST-2003 with the Hasan-Pecnik corrections and the wall functions (`Definition::turbulence`, as the dry run sets it).
@@ -117,6 +121,11 @@ The files that carry these inputs, pinned by SHA-256:
 | Table B's data after its header | `14f7af124e4509f22eade1a6a03904080d3fbedd3a42d9406960b2f824a1a404` (checked 21 October, about 02:43) |
 
 The run mode is still to be added to `tests/rl10_tier1.cpp`. It may change the driver file, but not one input value: the dry run's printed Definition and G2 to G4 and G8 lines must stay identical (`diff` against `tier1_dry_run_length_2026-10-21.log`), apart from the switch to face inlet (a), the LOX ports and the plate's temperature, which are decisions 6 and 8. From here, a change to any frozen input is dated and reruns every member already run (the plan's *Pre-registration*).
+
+*Dated note, 24 October 2026, about 04:16 CDT: a change to a frozen input, the H2 supply's enthalpy at the face* (the plan's decision 9; *Fixed by the dry run*, above).
+- The central case's face H2 enters with the para-rich supply's enthalpy, h_eq(199.67 K) − 162.29 kJ/kg at x_p 0.998, in place of h_eq(199.67 K). Member 20 keeps h_eq(199.67 K).
+- No tier-1 member has run, so nothing reruns.
+- The driver change is not built: the supply enthalpy, the opt-in to the thermo below 200 K (`tests/rl10_tier1.cpp:897`) and member 20's switch. It is inquiry's file. When it lands, the pinned SHA-256 of `tests/rl10_tier1.cpp` is replaced by a dated note, and the dry run's diff above may also differ in the face H2's printed enthalpy and temperature.
 
 **Not frozen: the numerical settings, which wait on the Director.**
 - **The mesh (item 4):** the y+ target (300 or 956), which waits on step D's verdicts (D1's igniter, D2's measure; `docs/evidence/AMR.md`). *The tag thresholds are frozen for tier 1 at s\* = 1/4 of step C's values* (f_H 0.005, T 0.0125, pressure 0.025, vorticity 0.0125; criterion 4, da3555f; the Director's note of 23 October, 05:00). The driver's compiled `kNumericsFrozen` still covers the y+ target, so `run central` stays refused until that is set.
