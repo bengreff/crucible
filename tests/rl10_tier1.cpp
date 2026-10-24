@@ -451,6 +451,11 @@ int runCase(const Setup& s) {
       std::printf("%slevel %d: chamber %ld / %ld, convergent %ld / %ld, divergent %ld / %ld", l ? "; " : "", l, table[0], all[0],
                   table[1], all[1], table[2], all[2]);
     }
+    std::printf("\n  chemistry skipped / integrated (ReactingFlow::setChemistrySkip): ");
+    for (int l = 0; l < amr.levels(); ++l) {
+      const auto& st = reacting[static_cast<std::size_t>(l)]->stats();
+      std::printf("%slevel %d: %ld / %ld", l ? "; " : "", l, st.skippedCells, st.integratedCells);
+    }
     std::printf("\n");
     std::fflush(stdout);
   };

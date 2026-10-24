@@ -54,6 +54,8 @@ class ReactingFlow {
     // 1e-6, to 1e-2, and above; and by that corner's table node (sized to the table's nodes).
     std::array<long, 5> manifoldFrozenWeight{};
     std::vector<long> manifoldFrozenNode;
+    // FiniteRate cell updates the chemistry skip left unchanged (setChemistrySkip), and those CVODES integrated.
+    long skippedCells = 0, integratedCells = 0;
   };
   // Sets the flow's thread count (Flow::setThreads), whose pool then runs the reaction loops too;
   // it must not change while this object lives.
@@ -86,6 +88,15 @@ class ReactingFlow {
   // this object.
   void useManifoldTable(const ManifoldTable& table);
   void react(double dt);  // one reaction substep over every cell (equilibrium: dt is unused)
+  // The chemistry skip (docs/evidence/SPEED.md, "The chemistry skip"), on unless set off: with FiniteRate, a
+  // cell whose species include no reactive one (one some reaction changes) is left unchanged, since every rate
+  // is zero there; so is a cell at or below kSkipTemperature whose one reactive species is H2, or O2 (no
+  // oxidizer, or no fuel). The one reaction such a cell can start is the molecule's dissociation into its atoms
+  // (checked on the mechanism at construction; if it fails, that molecule is not skipped), whose equilibrium
+  // bounds the change at any step length (tests/chemistry_skip_tests.cpp). A fraction that is not exactly zero,
+  // negative included, counts as present.
+  static constexpr double kSkipTemperature = 500;
+  void setChemistrySkip(bool on) { skip_ = on; }
   // A liquid spray (core/spray.hpp) inside the shared step: it moves after the flow step with the
   // same dt, before the second reaction half (docs/evidence/SPRAY.md, Coupling). Null: none.
   void setSpray(crucible::Spray* spray) { spray_ = spray; }
@@ -112,6 +123,11 @@ class ReactingFlow {
   const EquilibriumTable* table_ = nullptr;
   std::unique_ptr<ManifoldRuntime> manifold_;
   long audit_ = 0, tableCalls_ = 0;
+  // The chemistry skip's species classes, bits of a cell's mask: 0 a species no reaction has, then H2 and O2
+  // where the mechanism's check passed, then every other reactive species.
+  enum : unsigned char { kFuel = 1, kOxidizer = 2, kReactive = 4 };
+  std::vector<unsigned char> skipClass_;
+  bool skip_ = true;
   void reactTable();
   template <class Self, class Io> static void checkpoint(Self& self, Io& io);
 };

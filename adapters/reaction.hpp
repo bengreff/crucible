@@ -38,6 +38,15 @@ class ReactionSource {
   // Element mass fractions of y (no normalisation applied).
   std::vector<double> elementMassFractions(const double* y);
 
+  // Each reaction's species with a nonzero reactant, product and net coefficient (a third-body collider is
+  // among the first two only if the equation names it, as in H + O2 + N2 <=> HO2 + N2), and whether it runs in
+  // reverse too.
+  struct ReactionSpecies {
+    std::vector<std::size_t> reactants, products, changed;
+    bool reversible = false;
+  };
+  std::vector<ReactionSpecies> reactionSpecies() const;
+
   // dz/dt at fixed density: dY_k/dt = w_k W_k / rho, dT/dt = -sum(u_k w_k) / (rho cv).
   void rates(double rho, const double* z, double* dzdt);
   // The exact Jacobian of rates() at fixed density, column-major: jac[j * n + i] = d(dz_i/dt)/dz_j with

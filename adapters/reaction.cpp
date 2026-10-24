@@ -49,6 +49,21 @@ std::size_t ReactionSource::nElements() const { return impl_->gas->nElements(); 
 std::string ReactionSource::elementName(std::size_t m) const { return impl_->gas->elementName(m); }
 std::string ReactionSource::speciesName(std::size_t k) const { return impl_->gas->speciesName(k); }
 
+std::vector<ReactionSource::ReactionSpecies> ReactionSource::reactionSpecies() const {
+  auto& kinetics = *impl_->kinetics;
+  std::vector<ReactionSpecies> out(kinetics.nReactions());
+  for (std::size_t i = 0; i < out.size(); ++i) {
+    for (std::size_t k = 0; k < nSpecies(); ++k) {
+      const double nuR = kinetics.reactantStoichCoeff(k, i), nuP = kinetics.productStoichCoeff(k, i);
+      if (nuR != 0) out[i].reactants.push_back(k);
+      if (nuP != 0) out[i].products.push_back(k);
+      if (nuP != nuR) out[i].changed.push_back(k);
+    }
+    out[i].reversible = kinetics.reaction(i)->reversible;
+  }
+  return out;
+}
+
 Medium ReactionSource::medium() const {
   auto& gas = *impl_->gas;
   std::vector<Species> species;

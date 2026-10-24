@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <stdexcept>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -29,6 +30,8 @@ struct ReactingFlow::Worker {
   std::array<long, static_cast<std::size_t>(ManifoldRuntime::Cause::Count)> causes{};
   double snap = 0;
   long partial = 0;
+  // The chemistry skip's tallies of one reaction call.
+  long skipped = 0, integrated = 0;
   std::array<long, 5> frozenWeight{};
   std::vector<long> frozenNode;
   ManifoldRuntime::Work manifold;
@@ -52,6 +55,32 @@ ReactingFlow::ReactingFlow(Flow& flow, const std::string& mechanism, int threads
     if (mine[k].name != theirs[k].name || mine[k].low != theirs[k].low || mine[k].high != theirs[k].high ||
         mine[k].tHigh != theirs[k].tHigh)
       throw std::invalid_argument("Flow medium species " + mine[k].name + " differs from the mechanism.");
+  // The chemistry skip's classes. A species is reactive if some reaction changes it (a nonzero net coefficient).
+  // Any reaction that changes something consumes some reactive species (mass is conserved), so in a cell with no
+  // reactive species every rate is zero. H2 (O2) is skipped alone only if every reaction direction that needs no
+  // reactive species but H2 (O2) changes no reactive species but H2 and H (O2 and O): its dissociation.
+  const auto reactions = workers_[0]->source.reactionSpecies();
+  skipClass_.assign(mine.size(), 0);
+  for (const auto& r : reactions)
+    for (auto k : r.changed) skipClass_[k] = kReactive;
+  auto find = [&](const char* name) {
+    std::size_t k = 0;
+    while (k < mine.size() && mine[k].name != name) ++k;
+    return k;
+  };
+  for (const auto& [molecule, atom, bit] : {std::tuple{"H2", "H", kFuel}, std::tuple{"O2", "O", kOxidizer}}) {
+    const std::size_t m = find(molecule), a = find(atom);
+    if (m == mine.size() || !skipClass_[m]) continue;
+    auto within = [&](const std::vector<std::size_t>& set, std::size_t x, std::size_t y) {
+      return std::all_of(set.begin(), set.end(), [&](std::size_t k) { return k == x || k == y || !skipClass_[k]; });
+    };
+    bool dissociation = true;
+    for (const auto& r : reactions) {
+      if (within(r.reactants, m, m) && !within(r.products, m, a)) dissociation = false;
+      if (r.reversible && within(r.products, m, m) && !within(r.reactants, m, a)) dissociation = false;
+    }
+    if (dissociation) skipClass_[m] = bit;
+  }
 }
 
 ReactingFlow::~ReactingFlow() = default;
@@ -212,7 +241,7 @@ void ReactingFlow::react(double dt) {
   // takes it (the integrator is reinitialised per cell).
   for (const auto& w : workers_) {
     w->mismatch = w->clipped = w->snap = 0;
-    w->partial = 0;
+    w->partial = w->skipped = w->integrated = 0;
     w->causes.fill(0);
     w->frozenWeight.fill(0);
     std::fill(w->frozenNode.begin(), w->frozenNode.end(), 0);
@@ -250,6 +279,18 @@ void ReactingFlow::react(double dt) {
           continue;
         }
       }
+      if (skip_ && !equilibrium) {
+        // The chemistry skip (setChemistrySkip): a negative fraction counts as present, so the integrator's path
+        // still clips it.
+        unsigned mask = 0;
+        for (std::size_t k = 0; k < ns; ++k)
+          if (y[k] != 0) mask |= skipClass_[k];
+        if (mask == 0 || ((mask == kFuel || mask == kOxidizer) && flow_.temperature(q) <= kSkipTemperature)) {
+          ++worker.skipped;
+          continue;
+        }
+      }
+      if (!equilibrium) ++worker.integrated;
       worker.z[0] = flow_.temperature(q);
       std::copy(y.begin(), y.end(), worker.z.begin() + 1);
       if (equilibrium) worker.source.equilibrateUV(rho, worker.z.data());
@@ -274,6 +315,8 @@ void ReactingFlow::react(double dt) {
     stats_.manifoldPartial += w->partial;
     for (std::size_t c = 0; c < w->frozenWeight.size(); ++c) stats_.manifoldFrozenWeight[c] += w->frozenWeight[c];
     for (std::size_t n = 0; n < w->frozenNode.size(); ++n) stats_.manifoldFrozenNode[n] += w->frozenNode[n];
+    stats_.skippedCells += w->skipped;
+    stats_.integratedCells += w->integrated;
   }
 }
 
@@ -325,6 +368,7 @@ template <class Self, class Io> void ReactingFlow::checkpoint(Self& self, Io& io
   io.field(st.auditedCells), io.field(st.auditTemperature), io.field(st.auditMassFraction);
   io.field(st.manifoldCauses), io.field(st.manifoldMaxSnap), io.field(st.manifoldPartial), io.field(st.manifoldCellCauses);
   io.field(st.manifoldFrozenWeight), io.field(st.manifoldFrozenNode);
+  io.field(st.skippedCells), io.field(st.integratedCells);
   io.field(self.tableCalls_);
 }
 void ReactingFlow::writeCheckpoint(CheckpointWriter& out) const { checkpoint(*this, out); }
