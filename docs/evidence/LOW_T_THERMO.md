@@ -146,3 +146,45 @@ All six tests met, 0 failures (measured; `low_t/low_temperature_tests_2026-10-24
    - H2's 0.9% near 200 K is the join to TM-4513's equilibrium cp. That is the 0.9% between the forms in (b), as registered.
 - **The fast ctest** (`ctest -LE slow -j4`, full rebuild, 0 warnings) gives the same 4 known failures, and every FAIL line is identical to `ctest_2026-10-24_skip_nan.txt`'s as sorted sets (14 lines, values included). This held both before the rebase (0026427, `ctest_2026-10-24_low_t.txt`) and after it, onto main 96635e8 (622f5c7, `ctest_2026-10-24_low_t_rebased.txt`). `low_temperature_verification` passes in both. A second rebase, onto main 695df32 (docs only), renamed 622f5c7 to aa5abf4 and the code commit 72c5c38 to a83459c.
 - **Seen, not judged:** spray_verification's known failure "(b) |h_medium − h_NIST| on the engine's zero" (1.245e3 J/kg against 1e3) evaluates Medium below 200 K for oxygen, on the extrapolated range. That test does not opt in, so it is unchanged. Whether the lowest ranges move it was not run.
+
+## (d) The supply's hydrogen: the Director's decision, and the bound before any conversion model
+
+**Registered 24 October 2026, about 04:04 CDT by the Mac clock, before the computation or any run.**
+
+**The Director's decision (24 October, 04:05).** The supply is para-rich hydrogen.
+- Liquid hydrogen in the tank is about 99.8% para at 20 K.
+- Uncatalysed ortho-para conversion takes hours, far longer than the jacket's residence time. So the H2 leaves the jacket at about 200 K with the tank's para fraction frozen.
+- In the hot zone, H-atom exchange converts it quickly.
+- Before any conversion model is built, the effect is quantified, as below.
+  - If it is below 0.02% (a tenth of Table B's 0.2% bar), the supply is declared para, with instantaneous equilibration above a stated temperature, and the bound is recorded.
+  - If it is larger, the form needs a sourced conversion rate.
+- The LH2 para fraction and the conversion time are to be cited.
+
+**What is computed** (`tools/mechanisms/para_supply_bound.py`, CEA-style bookkeeping; light, seconds on one thread).
+- **The supply's enthalpy difference.** Δh(T_s, x_p) = h_eq(T_s) − h_s(T_s, x_p), per kg of H2.
+  - h_s is a frozen mixture with para fraction x_p. h_eq is ortho and para in equilibrium at T_s.
+  - Both come from the rotational partition functions on make_low_t.py's levels (Huber and Herzberg), with a common zero at para's J = 0. Translation and vibration are the same in both forms and cancel.
+  - Consistency check: x_p = 1 at 199.67 K must give section (b)'s 163 kJ/kg.
+- **The supply states.**
+  - H2 gas at T_s = 150, 200, 250 and 300 K. Its equilibrium enthalpy is the mechanism's H2 (TM-4513, equilibrium) at and above 200 K. At 150 K it is the mechanism's value at 200 K plus the equilibrium partition function's change from 200 to 150 K.
+  - x_p = 0.95 (MIL-PRF-27201's minimum) and 0.998 (equilibrium at 20 K).
+  - O2 in two states, to show its weight on the result:
+    - liquid at 90.17 K, h = −12.979 kJ/mol (CEA's O2(L), McBride, Zehe and Gordon, NASA TP-2002-211556's data);
+    - gas at 298.15 K, h = 0.
+- **The heat release.** q = h_0 − h_298, per kg of propellant.
+  - h_0 = Y_H2 h_eq(T_s) + Y_O2 h_O2.
+  - h_298 is the enthalpy at 298.15 K of the complete-combustion products (H2O gas plus the excess H2), on the mechanism's thermo.
+  - The fraction is f = Y_H2 Δh / q.
+- **c\* and Isp,** with the base supply (h_0) and the para supply (h_0 − Y_H2 Δh), on h2o2_highT.yaml's ten species:
+  - The chamber is an HP equilibrium at p_c (an infinite-area combustor).
+  - The expansion is shifting-equilibrium and isentropic, at s_c, one-dimensional: u = sqrt(2(h_c − h(s_c, p))) and G = ρu.
+  - The throat is the maximum of G over p, found by golden section to 1e-10 in p. Then c\* = p_c / G_t.
+  - Vacuum Isp at area ratios 20, 60 and 100, on the supersonic branch: u_e + p_e / (ρ_e u_e).
+  - Only the relative changes Δc\*/c\* and ΔIsp/Isp are reported.
+- **The grid.** O/F 4, 5 and 6; p_c 2, 3 and 4 MPa; the four T_s; the two x_p; the two O2 states. That is 144 cases.
+
+**How it is judged, by the Director's rule.**
+- The judgement is made at the Director's stated supply, T_s = 200 K, over the rest of the grid (36 cases).
+- If the largest of f, |Δc\*/c\*| and |ΔIsp/Isp| there is below 2e-4: para at the supply, with instantaneous equilibration above a stated temperature, and the bound recorded.
+- Otherwise: a sourced conversion rate is needed before the form is fixed.
+- T_s = 150, 250 and 300 K are reported beside it to show how the bound moves with the supply temperature. They are not judged.
