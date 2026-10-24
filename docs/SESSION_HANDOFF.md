@@ -1103,6 +1103,9 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
          - Chain A is tier 1 at the frozen tags to 0.5 ms (`out/fs.log`, exit in `out/t1_exit`).
          - Chain B runs D0's short cases new against fcb20f1 (`out/d0.txt`), then the trace to 0.1 ms (`out/trace/clips.txt`, exit in `trace_exit`), then D3 to 1 ms (`out/d3.txt`).
          - Then D1 to 8 ms, new and parent together (`out/d1.txt`, about 2.4 h).
+         - At 23:49 CDT (measured): tier 1 had run 15 min with no failure (before the fix it failed after about 30 s of wall time). d0n was done; d0p was queued on load 42.
+       - **Rebased onto main 1166721** (23:48 CDT). 59e8325 adds the two clip counts to `Amr::checkpoint`, as inquiry asked, and fixes the resume README's tier-1 central template (done-file `rl10_t1_central_done`). It builds on the Mac with no warnings. Job rfx tests f8e0f65, the clip before the rebase.
+       - **Main is not fast-forwarded.** The guard refuses it from this worktree, and main is checked out in inquiry's tree. Inquiry (inquiry-project-6b) was told at 23:50 CDT that the branch is ready for `git merge --ff-only worktree-inquiry2`, and that the clip's checks are not scored yet. B4 relaunches on main once the fix lands there.
   - **Next for inquiry2, in order:**
     1. **Score job `rfx`** against the amendment's checks 1 to 3, then the cost (item 2) from `out/fs.log`. Copy the logs (not `rl10_s.bin`) to `amr_d/rfx_2026-10-23/`.
     2. **The WSL-stop test** (`tools/resume/README.md`), when Ubuntu holds no other worker's process, with a re-armed dummy. Then a tier-1 job file to match inquiry's checkpoint commit when it lands.
