@@ -922,6 +922,13 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
   - It is set by 0.5 ms and does not change after. Step C found the parent-relative measure ill-conditioned where a parent's energy is near zero. The gross measure is at rounding, so that is the likely cause (inferred, not examined). The Director decides which measure judges check 2 if D1's rerun fails on it.
   - Budgets: mass -1.2e-15 and energy -1.5e-15 at the end; igniter |E - 0.5 J| 1.2e-15 J; 212 regrids.
 
+## Amendment: check 2's fill content is judged over the children's gross content (the Director, 23 October 2026, 05:00 CDT; recorded 23:00 CDT, before D1's rerun is judged)
+
+- **The amendment.** Step C's check 2 (the largest fill content error over every regrid, limit 1e-14) is judged over the children's gross content (`fillGross()`, the sum of their |content|). The error over the parent's own content (`fillError()`) is printed, not judged.
+- **Why (the Director).** The parent-relative measure is ill-posed where the parent's content is near zero. That is the same logic as D2's amendment, where the law's ρk goes to 0. Energy carries formation enthalpies and changes sign, so a parent near the throat can hold almost no energy. Step C named this as the reason both measures are printed (*Step C: results*, check 2).
+- **What was known when it was set.** Criterion 4's budget run (2 threads, step C's thresholds) gave 5.676e-12 over the parent and 4.605e-16 over the gross content (*Criterion 4: results*, 04:50 CDT). D1's 4-thread rerun printed the same 5.676e-12 in its progress lines by 6.5 ms (seen 04:48). D1's judged lines had not been read.
+- **What it governs.** D1's rerun (`/home/greff/crucible_sd3/out/d1.txt`) and every later run of `crucible_amr_budget tags`. The driver now judges only the gross measure, and prints the parent-relative one beside it. The tolerance is unchanged.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.

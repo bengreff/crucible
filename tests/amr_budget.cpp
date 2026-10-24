@@ -19,7 +19,8 @@
 // criterion 4 fixed them at a quarter of those; AMR.md, Criterion 4: results), with the f_H
 // weights from each species' H content. It prints the regrids that changed the pattern and level 1's active cells,
 // and judges check 2 over every regrid (so including the first after light-off): the largest fill content error below
-// 1e-14, over the parent's content as stated and over the children's gross content (AMR.md, Step C: results).
+// 1e-14 over the children's gross content, with the error over the parent's content printed (AMR.md, Step C: results,
+// and Amendment: check 2's fill content).
 // Step D's checks (AMR.md, Step D: setup): wall turns on the wall functions (law) and the property corrections
 // (hp) on every run; inert drops the reaction step on every run. D2 as amended (AMR.md, step D, the Director's
 // amendments) counts, after every base step, the owned wall-function cells not bitwise as their last prescription
@@ -301,8 +302,11 @@ int main(int argc, char** argv) {
   std::printf("; level 1's base-step sum differs from level 0's by over 1e-17 J in %llu, net %+.3Le J\n",
               static_cast<unsigned long long>(heatDiffers), heatNet);
   if (tagged) {
-    check(fillWorst <= 1e-14, "step C check 2: the largest fill content error over the regrids", fillWorst, 1e-14);
-    check(fillGrossWorst <= 1e-14, "  the same over the children's gross content", fillGrossWorst, 1e-14);
+    // Judged over the gross content only (AMR.md, Amendment: check 2's fill content): over a parent whose content is
+    // near zero the parent-relative measure is ill-posed.
+    check(fillGrossWorst <= 1e-14, "step C check 2: the largest fill content error over the regrids, over the children's gross content",
+          fillGrossWorst, 1e-14);
+    std::printf("      printed, not judged: the same over the parent's content %.3e\n", fillWorst);
     std::printf("      printed, not judged: %llu regrids changed the pattern; level 1 ends with %zu of %zu active\n",
                 static_cast<unsigned long long>(regrids), activeCells(1), amr.active(1).size());
   }
