@@ -39,3 +39,5 @@ crucible_low_temperature_tests: worktree-inquiry2 at 66d45f4 plus the code commi
 exit 0
 
 The rebase onto main 96635e8 (about 03:45 CDT) made 66d45f4 into 5f2ae46 and 0026427 into 72c5c38, with the same trees apart from main's files.
+
+A second rebase, onto main 695df32 (about 03:57 CDT, inquiry's admdiag logs, no code), made 5f2ae46 into 623ae0f, 72c5c38 into a83459c and 622f5c7 into aa5abf4. No code changed, so the results stand.
