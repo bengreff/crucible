@@ -531,7 +531,7 @@ Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<doub
       bool settled = rt == 0;
       double bPrev = b, rPrev = rt;
       if (!settled) b += rt;
-      for (int it = 0; it < 30 && !settled; ++it) {
+      for (int it = 0; it < 30 && !settled && std::isfinite(b); ++it) {
         rt = residual(b);
         if (rt == 0) {
           settled = true;
@@ -541,11 +541,14 @@ Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<doub
         if (!(next > 0) || !std::isfinite(next)) next = b + rt;
         bPrev = b;
         rPrev = rt;
-        settled = std::abs(next - b) <= 1e-11 * next;  // the step after it lands at rounding (superlinear)
+        // The step after it lands at rounding (superlinear). Near saturation (B_M about 1e8) the residual of an
+        // iterate below the root can pass the double range, so the step is infinite, or be so large that the next
+        // secant step is tiny far from the root; neither settles (SPEED.md, section 6: the spray NaN).
+        settled = std::isfinite(next) && std::abs(next - b) <= 1e-11 * next && std::abs(rt) <= 1e-6 * next;
         b = next;
       }
       if (!settled) {
-        double lo = 0, hi = std::max(1.0, 2 * b);
+        double lo = 0, hi = std::max(1.0, 2 * (std::isfinite(b) ? b : bPrev));
         while (residual(hi) > 0) hi *= 2;
         for (int it = 0; it < 2000; ++it) {
           const double mid = 0.5 * (lo + hi);
