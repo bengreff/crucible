@@ -21,6 +21,9 @@ Backhouse was restarted from the Start menu at 17:08 on 23 October 2026, and eve
   - `RESUME`, the command run in `DIR`. It must restart from the latest checkpoint, or start fresh if there is none. The first launch and every resume are the same command.
   - `DONE`, the done-file. If it exists, the job is finished and is not relaunched.
   - optionally `NICE` (default 10).
+- **Threads and priority:** the runner sets only `nice` and pins nothing. On backhouse, inquiry measured two things on 24 October (`docs/evidence/SPEED.md` section 3):
+  - WSL2 shows 28 uniform virtual CPUs, so `taskset` cannot pick out the P-cores.
+  - Under the other projects' nice-0 jobs, a 4-thread nice-10 run got 2.56 CPUs, and its wall time stopped improving beyond 4 threads.
 - **To hold a job,** touch `DIR/.resume_hold`; to release it, remove the file. To retire a job, move its job file out of `jobs/`.
   - Killing a registered job without holding it means the next boot relaunches it.
 
