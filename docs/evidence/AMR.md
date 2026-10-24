@@ -922,14 +922,14 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
   - It is set by 0.5 ms and does not change after. Step C found the parent-relative measure ill-conditioned where a parent's energy is near zero. The gross measure is at rounding, so that is the likely cause (inferred, not examined). The Director decides which measure judges check 2 if D1's rerun fails on it.
   - Budgets: mass -1.2e-15 and energy -1.5e-15 at the end; igniter |E - 0.5 J| 1.2e-15 J; 212 regrids.
 
-## Amendment: check 2's fill content is judged over the children's gross content (the Director, 23 October 2026, 05:00 CDT; recorded 23:00 CDT, before D1's rerun is judged)
+## Amendment: check 2's fill content is judged over the children's gross content (the Director, 23 October 2026, 05:00 CDT; recorded about 22:55 CDT, before D1's rerun is judged)
 
 - **The amendment.** Step C's check 2 (the largest fill content error over every regrid, limit 1e-14) is judged over the children's gross content (`fillGross()`, the sum of their |content|). The error over the parent's own content (`fillError()`) is printed, not judged.
 - **Why (the Director).** The parent-relative measure is ill-posed where the parent's content is near zero. That is the same logic as D2's amendment, where the law's ρk goes to 0. Energy carries formation enthalpies and changes sign, so a parent near the throat can hold almost no energy. Step C named this as the reason both measures are printed (*Step C: results*, check 2).
 - **What was known when it was set.** Criterion 4's budget run (2 threads, step C's thresholds) gave 5.676e-12 over the parent and 4.605e-16 over the gross content (*Criterion 4: results*, 04:50 CDT). D1's 4-thread rerun printed the same 5.676e-12 in its progress lines by 6.5 ms (seen 04:48). D1's judged lines had not been read.
 - **What it governs.** D1's rerun (`/home/greff/crucible_sd3/out/d1.txt`) and every later run of `crucible_amr_budget tags`. The driver now judges only the gross measure, and prints the parent-relative one beside it. The tolerance is unchanged.
 
-## Step D's checks rerun on the new spread: results (scored 23 October 2026, about 23:05 CDT)
+## Step D's checks rerun on the new spread: results (scored 23 October 2026, about 22:55 CDT)
 
 **Step D holds on the new spread: 5 of 5 met, under the Director's amendments** (D1's igniter bound of 1e-13, D2's prescription check, and check 2's gross denominator above). The runs went on backhouse from 01:06 to 06:43 CDT (`finished`), before the machine's restart at 17:08. Outputs are in `amr_d/sd3_2026-10-23/`. All values are measured.
 
@@ -947,6 +947,52 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
 - **D2: met** (`d2.txt`, the inert fixed pattern to 8 ms). 0 mismatches on AMR and 0 on the single level (the control). Every budget line passes: `PASSED (0 failures)`.
 - **D3: met.** D1's 1-thread dump and its 4-thread dump are `cmp`-identical (`d3.txt`).
 - **D4: met,** on the rebased tree before these runs (*Step D's checks rerun on the new spread*).
+
+## AMR's cost on the RL10 tier-1 mesh, against uniform at the finest resolution (the Director's question; estimated 23 October 2026, about 23:05 CDT)
+
+**The answer.** In the H2 lead, as measured to 1 ms at the provisional tags, AMR pays: **it does 0.36 of uniform's cell updates** (derived from B4's counts). For the frozen tags and the hot running, it is not measured. At worst AMR does 1.14 times uniform's updates (derived). My estimate is 0.5 to 0.75 of uniform (inferred, resting on a guessed share). Wall time per update is not profiled, so none of this is yet a wall-time saving.
+
+- **The source** is B4's development run (`/home/greff/crucible_t1b4/run/b4.log` on backhouse).
+  - At ab3aa03, before the energy fix, so its gas budget was 6.34e-5 at 1 ms (`tier1_ensemble_plan.md`, 23 October).
+  - Step C's thresholds (f_H 0.02, T 0.05, p 0.10, vorticity 0.05), four times the frozen ones.
+  - Base 149 × 16 plus 3 levels, so 1192 × 128 at the finest. The levels hold 2,384, 9,536, 38,144 and 152,576 cells.
+  - The H2 lead only: the LOX opens at 20 ms. The run stopped at 1.09 ms, so the last count is at 1 ms.
+- **What is counted.** The log's line "Table B, table / all updates" counts every cell update on each level, cumulative, per region.
+  - Level 0's 12,606,592 updates by 1 ms are 2,384 × 5,288: the 5,287 base steps plus the one redone.
+  - The regions, from level 0's share per base step: chamber 8 columns (128 cells), convergent 25 (400), divergent 116 (1,856).
+- **Uniform's count.** A uniform 1192 × 128 mesh at the finest level's step takes 8 steps per base step (subcycling ratio 2, 3 levels), so 8 × 152,576 = 1,220,608 updates per base step.
+  - This is generous to uniform. Uniform's step is limited over every cell at the finest size, including the cells AMR leaves coarse, so it can only be shorter.
+- **Measured counts and the derived ratio** (AMR's updates over uniform's for the same base steps):
+
+  | Interval | Base steps | AMR updates (levels 0 to 3) | Uniform | AMR / uniform |
+  |---|---|---|---|---|
+  | 0 to 0.5 ms | 1,988 | 604,092,908 | 2,426,568,704 | 0.249 |
+  | 0.5 to 1 ms | 3,300 | 1,738,040,142 | 4,028,006,400 | 0.431 |
+  | 0 to 1 ms | 5,288 | 2,342,133,050 | 6,454,575,104 | **0.363** |
+
+  - By level, to 1 ms: 12,606,592; 48,573,488; 340,493,650; and 1,940,459,320. Level 3 does 83% of the work.
+  - **The snapshot at 1 ms** (active cells 7,036, 23,480 and 62,976 on levels 1 to 3) costs 0.503 of uniform per base step, against 0.366 at 0.5 ms. The share rises as the H2 fills the chamber and the nozzle.
+  - **Level 3's mean occupancy to 1 ms, by region:** chamber 95%, convergent 66%, divergent 18%. **The saving is in the divergent nozzle,** which holds 78% of the cells.
+- **The ceiling and the break-even (derived).**
+  - With every cell active on every level, AMR does (2,384 + 2 × 9,536 + 4 × 38,144 + 8 × 152,576) / 1,220,608 = **1.143 of uniform**, 14% more work.
+  - With levels 1 and 2 full, it saves work while level 3 covers less than 1 - 1/8 - 1/64 - 1/512 = **86% of the domain**.
+- **Not measured:**
+  1. **The frozen tags.** They are four times tighter. On C1 that step (s = 1 to 1/4) raised level 1's mean coverage from 83% to 94% (*Criterion 4: results*). On this mesh, the chamber's and convergent's coverage has little room to rise. The divergent's is the open question.
+  2. **The hot running,** which is 85 ms of the central case's 105 ms. Its chamber has the spray and flame, and its nozzle the expanding hot flow.
+  3. **Wall time per update.**
+     - AMR does work a uniform mesh does not: a regrid every 2 base steps (2,646 by 1 ms), fills, average-down and reflux.
+     - The ensemble plan finds that cells and steps explain only 200 to 500 times of B4's 5,000-fold cost over the base mesh alone. So the per-update cost is not yet understood, and update counts may not carry over to wall time.
+- **The estimate for the hot running at the frozen tags** (inferred; the divergent's share is guessed).
+  - The chamber and convergent (22% of the domain) go to level 3.
+  - In the divergent, the pressure tag fires where neighbouring cells differ by more than 2.5%.
+    - Area ratio 61 and γ about 1.2 (hot products, inferred) give a pressure fall of about 460 times from throat to exit (quasi-1-D isentropic, derived).
+    - Over the 464 level-2 columns that is 1.3% a column on average, half the threshold. The fall is concentrated near the throat.
+    - So the tag likely covers the early divergent but not most of its length (inferred).
+  - Taking level 3 over the chamber, the convergent and a quarter to a half of the divergent (*guessed*), with levels 1 and 2 mostly full, AMR does **about 0.5 to 0.75 of uniform's updates**.
+- **What settles it.**
+  - Active cells per level in the first millisecond after the LOX opens, at the frozen tags.
+  - A profile of one base step, which splits AMR's own overhead from the updates.
+  - Both are among the ensemble plan's first measurements from a checkpoint, once the restart reader exists. A uniform 1192 × 128 run is not needed: the counts and the profile answer it.
 
 ## Deviations from the plan's text
 
