@@ -10,7 +10,7 @@
 //
 // Usage: crucible_rl10_tier1 [NZxNR ...]   (default 76x8 149x16 1192x128)
 //        crucible_rl10_tier1 run development|central   (tier1_run_definition.md, *The run mode*)
-//        crucible_rl10_tier1 selftest                  (the settle judge, R4)
+//        crucible_rl10_tier1 selftest                  (the settle judge and the run length's moving window, R4)
 // The run takes CRUCIBLE_MANIFOLD_TABLE (Table B), and in development CRUCIBLE_T1_BASE (149x16), _LEVELS (3),
 // _LEAD [s] (t_L, 20e-3), _END [s] (the simulated time, t_L + 1e-3), _THREADS (4), _OUT (the files' prefix, rl10_t1) and
 // _RATE_FACTOR (1), _CFL (Definition::cfl, 0.4), _SEED (the spray's, 1). Restart (tests/checkpoint_file.hpp, docs/evidence/RESTART.md): CRUCIBLE_CHECKPOINT=<stem> writes
@@ -175,7 +175,33 @@ Settle settle(const std::vector<double>& x, double dt, double span) {
   return s;
 }
 
-// R4 (tier1_run_definition.md, *The run mode*): the judge on synthetic 10 us series over 40 to 60 ms.
+// The run length (tier1_run_definition.md, *Settled*: the Director's decision C of 24 October 2026, 01:40 CDT). In
+// samples of 10 us (kSample), counted from t_L: from 30 ms on, every 1 ms, the trailing 20 ms window of the face
+// pressure and of c* is judged; the first check at which both settle is t_s, and 60 ms is the ceiling (judged there,
+// reported flagged if unsettled). The continuation at twice the parcel rate runs to t_s + 25 ms, judged over its last
+// 20 ms.
+constexpr long kWindow = 2000, kFirstCheck = 3000, kCheckEvery = 100, kCeiling = 6000, kContinuation = 2500;
+enum class SettleCheck { None, NotSettled, Settled, Ceiling };
+struct RunCheck {
+  SettleCheck check{SettleCheck::None};
+  Settle face, cstar;
+};
+// At sample k (at k kSample; t_L at leadK; face[n - 1] and cstar[n - 1] are sample n): None if k is not a check,
+// otherwise the window of samples (k - kWindow, k] judged.
+RunCheck runCheck(long k, long leadK, const std::vector<double>& face, const std::vector<double>& cstar) {
+  RunCheck r;
+  const long since = k - leadK;
+  if (since < kFirstCheck || since > kCeiling || since % kCheckEvery != 0) return r;
+  auto judge = [&](const std::vector<double>& x) {
+    return settle(std::vector<double>(x.begin() + (k - kWindow), x.begin() + k), 1e-5, 20e-3);
+  };
+  r.face = judge(face), r.cstar = judge(cstar);
+  r.check = r.face.settled && r.cstar.settled ? SettleCheck::Settled : since == kCeiling ? SettleCheck::Ceiling : SettleCheck::NotSettled;
+  return r;
+}
+
+// R4 (tier1_run_definition.md, *The run mode*): the judge on synthetic 10 us series over 40 to 60 ms, (a) to (c), and
+// the run length's moving window (decision C), (d) to (g).
 int selftest() {
   constexpr double dt = 1e-5, span = 20e-3, period = 2e-3;
   std::vector<double> constant, step, sine;
@@ -194,6 +220,41 @@ int selftest() {
   check("R4", std::abs(w.tau / tau - 1) <= 0.02 && w.batch == 4e-3 && w.settled,
         strf("(c) sine of period 2 ms: tau %.5f ms against P / 2 pi %.5f ms (%+.3f%%), batch %.0f ms", w.tau * 1e3, tau * 1e3,
             100 * (w.tau / tau - 1), w.batch * 1e3) + strf(", settled %.0f (SE %.3g, halves %.3g)", w.settled, w.se, w.halves));
+  // The run length (decision C) on series of a 20 ms lead to t_L + 60 ms: the first check that settles, or the ceiling.
+  constexpr long leadK = 2000;
+  auto series = [&](double base, double from, double to, double slope) {  // +10% over (t_L + from, t_L + to] ms; a drift per ms
+    std::vector<double> x;
+    for (long n = 1; n <= leadK + kCeiling; ++n) {
+      const long m = n - leadK;
+      const bool in = m > std::lround(from * 100) && m <= std::lround(to * 100);
+      x.push_back(base * (1 + (in ? 0.1 : 0) + slope * static_cast<double>(m) * 1e-2));
+    }
+    return x;
+  };
+  auto first = [&](const std::vector<double>& face, const std::vector<double>& cstar, long& at) {
+    for (long k = 1; k <= leadK + kCeiling; ++k) {
+      const RunCheck r = runCheck(k, leadK, face, cstar);
+      if (r.check == SettleCheck::Settled || r.check == SettleCheck::Ceiling) {
+        at = k - leadK;
+        return r.check;
+      }
+    }
+    return SettleCheck::None;
+  };
+  const auto flat = series(2.8e6, 0, 0, 0), cFlat = series(1700, 0, 0, 0);
+  const auto cBlock = series(1700, 15, 17, 0), faceBlock = series(2.8e6, 20, 22, 0), cDrift = series(1700, 0, 0, 1e-3);
+  long d = 0, e = 0, f = 0, g = 0;
+  const SettleCheck dc = first(flat, cFlat, d), ec = first(flat, cBlock, e), fc = first(faceBlock, cBlock, f), gc = first(flat, cDrift, g);
+  check("R4", dc == SettleCheck::Settled && d == 3000, strf("(d) constant: t_s at t_L + %.2f ms (expected 30, the first check)", d * 1e-2));
+  check("R4", ec == SettleCheck::Settled && e == 3700,
+        strf("(e) c* +10%% over t_L + 15 to 17 ms: t_s at t_L + %.2f ms (expected 37, the first window clear of it)", e * 1e-2));
+  check("R4", fc == SettleCheck::Settled && f == 4200,
+        strf("(f) and the face pressure +10%% over t_L + 20 to 22 ms: t_s at t_L + %.2f ms (expected 42: both must settle)", f * 1e-2));
+  const RunCheck between = runCheck(leadK + 3050, leadK, flat, cFlat), beyond = runCheck(leadK + 6100, leadK, flat, cFlat);
+  check("R4", gc == SettleCheck::Ceiling && g == kCeiling && between.check == SettleCheck::None && beyond.check == SettleCheck::None,
+        strf("(g) c* drifting 0.1%% per ms: the ceiling at t_L + %.2f ms, unsettled %.0f (expected 60, 1); no check between "
+             "checks or after the ceiling %.0f", g * 1e-2, gc == SettleCheck::Ceiling,
+             between.check == SettleCheck::None && beyond.check == SettleCheck::None));
   std::printf("%d check(s) failed\n", failures);
   return failures ? 1 : 0;
 }
@@ -505,7 +566,7 @@ int runCase(const Setup& s) {
   };
 
   std::array<Settle, 8> first{};
-  long k = 0, shortened = 0, flashesAt = 0;
+  long k = 0, shortened = 0, flashesAt = 0, settledK = 0;  // settledK: t_s in samples (decision C), 0 before
   bool flashReported = false;
   double smallestBound = std::numeric_limits<double>::infinity();
   // Restart (tests/checkpoint_file.hpp, docs/evidence/RESTART.md): the engine's objects and this loop's state; the
@@ -524,7 +585,7 @@ int runCase(const Setup& s) {
     for (auto& f : first)
       io.field(f.mean), io.field(f.se), io.field(f.halves), io.field(f.tau), io.field(f.batch), io.field(f.shortBatches),
           io.field(f.settled);
-    io.field(k), io.field(shortened), io.field(flashesAt), io.field(flashReported), io.field(smallestBound);
+    io.field(k), io.field(shortened), io.field(flashesAt), io.field(flashReported), io.field(smallestBound), io.field(settledK);
     io.field(csvSize);
   };
   if (checkpoint.read([&](CheckpointReader& in) { fields(in); })) {
@@ -549,9 +610,11 @@ int runCase(const Setup& s) {
       out.object(spray);
     });
   };
-  while (amr.time() < s.end - 1e-13) {
+  // The run ends at s.end, or at t_s + 25 ms once t_s is known (decision C; the central case's s.end is the ceiling's).
+  auto runEnd = [&] { return settledK ? std::min(s.end, static_cast<double>(settledK + kContinuation) * kSample) : s.end; };
+  while (amr.time() < runEnd() - 1e-13) {
     const double t = amr.time(), next = static_cast<double>(k + 1) * kSample;
-    const double other = std::min({s.end - t, spray.nextEvent(t) - t, next - t}), bound = spray.exchangeDt();
+    const double other = std::min({runEnd() - t, spray.nextEvent(t) - t, next - t}), bound = spray.exchangeDt();
     const double dt = amr.step(std::min(other, bound));
     smallestBound = std::min(smallestBound, bound);
     shortened += bound < other && dt >= bound * (1 - 1e-12);
@@ -566,7 +629,7 @@ int runCase(const Setup& s) {
     std::fprintf(csv, "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.0f\n", x.t, x.mdot, x.fvac, x.ispChamber,
                  x.ispInlet, x.p0, x.pFace, x.cstar, x.qWall, x.qFace, x.liquid, x.parcels);
     series.push_back(x);
-    if (k % 50 == 0 || amr.time() >= s.end - 1e-13) {
+    if (k % 50 == 0 || amr.time() >= runEnd() - 1e-13) {
       std::fflush(csv);
       print(x);
       std::printf("  exchange bound: smallest %.3g s since the last line; %ld base steps shortened by it so far; %ld flashes so far, "
@@ -609,18 +672,28 @@ int runCase(const Setup& s) {
         return 4;
       }
     }
-    if (k == leadK + 6000) {
-      first = window(k, "the frozen parcel rate");
-      dump("60ms");
-      if (s.end > s.lead + 60e-3 + 1e-13) {
-        spray.setParcelRate(2 * kParcelRate * s.rateFactor);
-        std::printf("  from t_L + 60 ms: the parcel rate doubled to %.3g per s per injector (item 5's check)\n",
-                    2 * kParcelRate * s.rateFactor);
+    if (settledK == 0 && k - leadK >= kFirstCheck && k - leadK <= kCeiling && (k - leadK) % kCheckEvery == 0) {
+      std::vector<double> face, cstar;
+      for (const Sample& v : series) face.push_back(v.pFace), cstar.push_back(v.cstar);
+      const RunCheck c = runCheck(k, leadK, face, cstar);
+      std::printf("the settle check at t_L + %.0f ms (window from t_L + %.0f): face pressure SE %.3f%%, halves %.3f%%; c* SE %.3f%%, "
+                  "halves %.3f%%: %s\n", static_cast<double>(k - leadK) * kSample * 1e3, static_cast<double>(k - leadK - kWindow) * kSample * 1e3,
+                  100 * c.face.se, 100 * c.face.halves, 100 * c.cstar.se, 100 * c.cstar.halves,
+                  c.check == SettleCheck::Settled ? "settled, t_s" : c.check == SettleCheck::Ceiling ? "NOT settled at the ceiling, t_s" : "not settled");
+      if (c.check == SettleCheck::Settled || c.check == SettleCheck::Ceiling) {
+        settledK = k;
+        first = window(k, c.check == SettleCheck::Settled ? "the frozen parcel rate, t_s" : "the frozen parcel rate, the ceiling");
+        dump("settled");
+        if (s.end > static_cast<double>(k) * kSample + 1e-13) {
+          spray.setParcelRate(2 * kParcelRate * s.rateFactor);
+          std::printf("  from t_s = t_L + %.0f ms: the parcel rate doubled to %.3g per s per injector to t_s + 25 ms (item 5's check)\n",
+                      static_cast<double>(k - leadK) * kSample * 1e3, 2 * kParcelRate * s.rateFactor);
+        }
       }
     }
-    if (k == leadK + 8500) {
+    if (settledK && k == settledK + kContinuation) {
       const auto second = window(k, "twice the parcel rate");
-      dump("85ms");
+      dump("continuation");
       bool doubles = false;
       const char* names[] = {"face pressure", "c*", "F_vac", "outlet flow", "p0", "Isp_vac (chamber)", "hot-gas wall heat", "face heat"};
       for (std::size_t q = 0; q < first.size(); ++q) {
@@ -635,12 +708,12 @@ int runCase(const Setup& s) {
       std::printf("  item 5: the parcel rate %s\n", doubles ? "DOUBLES for every run" : "holds");
     }
     checkpoint.killPoint(k);
-    if (checkpoint.due(k) && amr.time() < s.end - 1e-13) save();
+    if (checkpoint.due(k) && amr.time() < runEnd() - 1e-13) save();
   }
   if (checkpoint.enabled()) save();
   stateOut();
   std::fclose(csv);
-  if (k < leadK + 6000) dump("end");
+  if (settledK == 0) dump("end");
   std::printf("\nend [%s]: %ld samples, the grid to %.3g s; face area to %.3g at worst; %ld non-finite values; %ld samples with p0 or c* "
               "undefined (no forward flux); worst budgets (a) %.2e, (b) %.2e, (c) %.2e; %ld base steps shortened by the exchange "
               "bound; %ld flashes, %.4g kg flashed\n", label.c_str(), k, worstGrid, worstArea, nonfinite, undefined, worstBudget[0], worstBudget[1],

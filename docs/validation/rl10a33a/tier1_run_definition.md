@@ -56,7 +56,16 @@ Status: drafted 21 October 2026, about 02:40 CDT, before any tier-1 run. It hold
     - **Flow time (*derived*):**
       - The central case runs t_L + 55 to t_L + 85 ms, 75 to 105 ms with the lead, against 105 before.
       - A warm member runs 30 ms against 60, half the cost.
-    - **The driver** (`tests/rl10_tier1.cpp`) still runs the fixed schedule. Before the central launch it needs the moving-window judge every 1 ms from t_L + 30 ms, the end and the state dumps at t_s, the continuation from t_s, and R4's selftest extended to the moving window. These are built and tested before the launch. *Not built on 24 October.*
+    - **The driver** (`tests/rl10_tier1.cpp`) had the fixed schedule when this was registered. Before the central launch it needs the moving-window judge every 1 ms from t_L + 30 ms, the end and the state dumps at t_s, the continuation from t_s, and R4's selftest extended to the moving window.
+      - **Built on 24 October, about 02:00 CDT.** The functions are `runCheck`, with the constants `kFirstCheck`, `kCheckEvery`, `kCeiling`, `kWindow` and `kContinuation`.
+      - In the loop: a check line at each 1 ms check, and the full judge at t_s. The state is dumped at t_s (`_settled_`) and at t_s + 25 ms (`_continuation_`), and the parcel rate doubles at t_s. The run ends at t_s + 25 ms or at `s.end`, whichever is first. t_s is kept in the checkpoint.
+      - **R4's (d) to (g) pass** (`crucible_rl10_tier1 selftest`, 0 failures). They cover:
+        - (d) a constant series, settled at the first check, t_L + 30 ms;
+        - (e) c* +10% over t_L + 15 to 17 ms, settled at 37 ms;
+        - (f) the face pressure +10% over 20 to 22 ms as well, settled at 42 ms, because both quantities must settle;
+        - (g) c* drifting 0.1% per ms, which reaches the ceiling unsettled at 60 ms, with no check between checks or after the ceiling.
+      - A 0.05 ms development run (1 level, 1 thread) ends with exit 0.
+      - **Still before the launch:** one development run past t_L + 30 ms, to exercise the loop end to end (t_s, the doubled rate, the end and the dumps). It runs on 1 level with a 1 ms lead, and its cost is known once lever B's H4 has run.
 
 ## Proposed (engineering, stated before the code)
 
