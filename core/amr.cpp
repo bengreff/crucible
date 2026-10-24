@@ -587,7 +587,7 @@ void Amr::save() {
         s.correction=f.integratedCorrection_;s.momentum=f.integratedMomentumSource_;s.gross=f.integratedMomentumGross_;
         s.clipped=f.clippedTurbulentEnergy_;s.prescribed=f.prescribedTurbulentEnergy_;s.steps=f.steps_;
         s.massCompensation=f.massCompensation_;s.energyCompensation=f.energyCompensation_;s.correctionCompensation=f.correctionCompensation_;s.momentumCompensation=f.momentumCompensation_;
-        s.exchangedMass=f.exchangedMass_;s.exchangedEnergy=f.exchangedEnergy_;s.exchangedMomentum=f.exchangedMomentum_;
+        s.exchangedMass=f.exchangedMass_;s.exchangedEnergy=f.exchangedEnergy_;s.exchangedMomentum=f.exchangedMomentum_;s.rates=f.integratedRates_;
     }
     savedRefluxClips_=refluxClips_;savedRefluxClipped_=refluxClipped_;
 }
@@ -599,7 +599,7 @@ void Amr::restore() {
         f.integratedCorrection_=s.correction;f.integratedMomentumSource_=s.momentum;f.integratedMomentumGross_=s.gross;
         f.clippedTurbulentEnergy_=s.clipped;f.prescribedTurbulentEnergy_=s.prescribed;f.steps_=s.steps;
         f.massCompensation_=s.massCompensation;f.energyCompensation_=s.energyCompensation;f.correctionCompensation_=s.correctionCompensation;f.momentumCompensation_=s.momentumCompensation;
-        f.exchangedMass_=s.exchangedMass;f.exchangedEnergy_=s.exchangedEnergy;f.exchangedMomentum_=s.exchangedMomentum;
+        f.exchangedMass_=s.exchangedMass;f.exchangedEnergy_=s.exchangedEnergy;f.exchangedMomentum_=s.exchangedMomentum;f.integratedRates_=s.rates;
     }
     refluxClips_=savedRefluxClips_;refluxClipped_=savedRefluxClipped_;
 }

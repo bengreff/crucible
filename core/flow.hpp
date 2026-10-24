@@ -257,7 +257,18 @@ struct Measurements {
     // and the momentum balance error's denominator [kg m/s].
     double exchangedMass{}, exchangedEnergy{}, exchangedMomentum{}, momentumBalanceScale{};
     std::uint64_t steps{}, rejectedSteps{};
+    // The booked boundary rates above are the last step's. These are their time integrals since t = 0 [kg, N s, J]:
+    // a history that samples every few steps reports their change over its period (periodMean), not the last step's.
+    struct Integrals {
+        double inletMass{}, outletMass{}, inletMomentum{}, outletMomentum{}, wallAxial{}, bodyAxial{}, wallHeat{}, plateHeat{};
+    } integrals;
 };
+// The boundary rates (mass flows, momentum fluxes, axial forces, heat flows) and the thrusts derived from them,
+// averaged over (previous.time, now.time]; the rest of now as it is. The last step of a period is shortened to land
+// on the sample, and with a split after the flow stages (Table A's projection) its rates differ from the period's:
+// on C1 at CFL 0.4 by up to 0.4% of the vacuum thrust (docs/evidence/IMPLICIT_PROTOTYPE.md, criterion 5's cause).
+// With now.time <= previous.time, now unchanged.
+Measurements periodMean(const Measurements& now, const Measurements& previous);
 struct FieldSnapshot {
     Definition definition;
     std::vector<Primitive> cells;
@@ -473,6 +484,7 @@ private:
         [[nodiscard]] double netMomentum() const { return inletMomentum-outletMomentum+wallAxial+bodyAxial; }
         [[nodiscard]] double grossMomentum() const;
         static BoundaryRates average(const BoundaryRates& a, const BoundaryRates& b);
+        void accumulate(const BoundaryRates& rates, double dt);  // this += dt rates, field by field
     };
     Definition definition_;
     Mesh mesh_;
@@ -522,6 +534,7 @@ private:
     double integratedMassFlux_{}, integratedEnergyFlux_{}, initialMomentum_{};
     double integratedMomentumSource_{}, integratedMomentumGross_{}, integratedHeat_{}, clippedTurbulentEnergy_{};
     double prescribedTurbulentEnergy_{};
+    BoundaryRates integratedRates_{};  // the booked rates' time integrals since t = 0 (Measurements::integrals)
     // The delivered igniter energy is integratedHeat_ plus heatCompensation_, a Neumaier compensated sum
     // (docs/evidence/AMR.md, Before step C).
     double heatCompensation_{};

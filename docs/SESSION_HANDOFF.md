@@ -2,6 +2,47 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (24 October, about 04:42 CDT; inquiry, the Director's 04:20 decisions)
+
+**The Director (04:20):** "1. Re-judge criterion 5 against the period-mean (outlet-flux) reference. The bar doesn't move... Re-measure criterion 4 against the same reference. 2. Fix the explicit history so it reports period-mean thrust, with a test. Then audit... List only tonight; fixes next session. 3. Tier 1 opts into inquiry2's low-temperature thermo... record the frozen-inputs amendment, dated, before any RL10 output. 4. L4: stop it, keep its checkpoint, and note it for diagnosis next session... Let L8/H4/H8/H4s run. If 1 passes on re-judging, the implicit path is the speed lever: next session's first item is porting it into tier 1 under development mode. Park by 05:30 at a clean commit."
+
+**1. Criteria 4 and 5 re-judged** (`IMPLICIT_PROTOTYPE.md`, *The Director's decisions*; the FAILs as first judged stay on record):
+- **Criterion 5 still FAILS as registered, on m25 alone.** It passes at every step on 64x12 (+0.0045%) and at τ_C1/63 and τ_C1/150 on 128x24 (+0.0022%). m25 (128x24, τ_C1/25) is −0.662%: its known fixed point of the step, not of the flow (it was −1.03% against e128). Whether this meets the condition for the port ("if 1 passes on re-judging") is the Director's decision.
+- **Criterion 4:** the bars are met at τ_C1/63 and τ_C1/150 on 64x12, and at τ_C1/150 only on 128x24 (at τ/63, p_inj's largest is 2.07% and F_vac's 2.42%, against 2%). **The order still fails as registered**, on two floors in the reference, not in the implicit:
+  - p_inj: the explicit's own split error at the injector face, 0.097% (unchanged by the fix; a state value);
+  - the outlet flow: the period mean's lag. A mean over each 2 μs period describes its midpoint, so it lags 1 μs during the fill. Restamped at the midpoints (a diagnosis), the outlet's orders are 2.21 and 1.08, as against e64.
+  - F_vac's first pair on 64x12 (τ/25 to τ/63) is 0.55 (0.65 restamped). Its cause is not identified. On 128x24 the outlet's first pair (0.58) is m25's wrong state.
+- **The port is next session's first item if the Director takes this as a pass.** If it is ported, its step should be at most τ_C1/63 until m25's cause is found. That is *inferred*: m25's fixed point appears only at τ_C1/25, and only on 128x24.
+
+**2. The history's rates as period means** (`docs/evidence/PERIOD_MEAN.md`):
+- **Built** in `Flow` (integrals of the booked rates; `Measurements::integrals`; `periodMean`) and `crucible_chamber_study`, **with a test** in `core_verification`: 6.6e-17 N s against 5.5e-4 N s for the old reporting.
+- **The march is unchanged:** p64 against e64, 17 files `cmp`-identical and the same 136,227 steps.
+- **The checkpoint's format changed** (`integratedRates_`). A checkpoint written by an older binary does not load in a build from this commit: the reader stops at the next mark (*inferred* from `checkpoint.hpp`, not tried). Any resume must use the binary that wrote the checkpoint, as RESTART.md already requires.
+- **The audit** (13 records): F_vac and Isp could matter at the bar in Table A's criterion 3, CHAMBER_C1's Isp, WALL_FUNCTIONS 3, AMR's criterion 4 (possibly already on record as its "0.18% to 0.41%"), lever B and tier 1. c* in none (*inferred*: the outlet flow's stages differ by 1.2e-6 in momentum). Table B's own criteria were not surveyed.
+- **Not fixed:** AMR's composite (tier 1's series in `rl10_tier1.cpp`, `amr_c4.cpp`) still sums each level's last-step rates.
+
+**3. Tier 1's low-temperature thermo:** the amendment is recorded in `tier1_run_definition.md` (24 October, before any RL10 output). The opt-in (`thermo::withLowTemperatureRanges` in `rl10_tier1.cpp`) is **not built**. It waits for the Director's merge of `worktree-inquiry2`, then the SHA goes into the amendment.
+
+**4. L4 stopped** at 04:13 by the Mac's clock (`SPEED.md` 5c, *L4: stopped*; files in `cfl_2026-10-24/L4/`).
+- **There was no checkpoint to keep:** `mac_cfl.sh` sets no `CRUCIBLE_CHECKPOINT`, and a running job cannot be made to write one. A stack sample was kept instead.
+- Its series stopped at 0.70 ms at 03:10. The process was still computing (transport, Cantera rates), with 607 warnings of temperatures below 200 K.
+
+**Done-files (Mac):**
+- Lever B: L8 started at 04:13, then H4, H8 and H4s. `/tmp/cfl/<name>/done` for each, `/tmp/cfl/done` for all. These runs are on 4f2d81e, so their F_vac series are last-step rates (`PERIOD_MEAN.md`, item 6).
+- p64, p128 and the fast ctest are done and recorded (`PERIOD_MEAN.md`, *Records*).
+
+**Next:**
+1. **The Director's decision on criterion 5 (m25), then the port of the implicit path into tier 1 under development mode** if it counts as a pass. m25's cause (the projection after the step, possibly not idempotent; untested) bears on the port's largest step.
+2. **The audit's fixes, Table B first:**
+   - survey Table B's own criteria (`docs/evidence/table_b/`);
+   - port `periodMean` to AMR's composite and tier 1's series (`rl10_tier1.cpp` near line 429; `amr_c4.cpp` near lines 190 and 302);
+   - re-judge the audit's "could matter" items: Table A 3, CHAMBER_C1 3 and 4, WALL_FUNCTIONS 3, AMR 4.
+3. **Tier 1's low-temperature opt-in** after the merge, then the amendment's SHA.
+4. **L4's diagnosis:** rerun from t = 0 with a checkpoint and a step print near 0.70 ms, with and without the low-temperature thermo.
+5. **Lever B against (a) and (b)** when L8, H4, H8 and H4s end (`cfl_compare.py`). Judge p0, a state value, at once; judge F_vac and the outlet flow only after the port of item 2, or say they carry the landing-step bias.
+6. The rho omega print for D1's 1.78 ms fault (`admdiag_2026-10-24/README.md`).
+7. The driver's moving-window settle judge (C) before the central launch; the RL10 central run when S7 low and high pass.
+
 ## Stopped at (24 October, about 04:15 CDT; inquiry, D1 and D2 judged, criterion 5's cause found)
 
 **The Director (03:20):** "judge D1 (exit 1, so find out why) and D2. Then the thrust offset... Report the cause before any decision on the implicit path. Stop at a clean commit by 05:30." The Director also confirmed that declining inquiry2's fast-forward request was correct, and will handle that merge at park.

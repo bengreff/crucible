@@ -420,7 +420,7 @@ The explicit baseline e128: 275,738 steps to 8 ms in 1,755 s, 6.365e-3 s per ste
 - **It is set by LU-SGS's convergence, not by the step.** The inner iterations per unit of physical time are about the same from τ_C1/25 to τ_C1/150: about one inner iteration per 4 to 5 explicit steps, at 0.63 to 0.79 explicit steps each. The bound this gives is about 1/(0.23 × 0.66), or 6.6, whatever the step.
 - **Two failures stand before trusting the numbers** (the plan's rule: 1, 2, 3 and 5 must pass): criterion 1 (pre-asymptotic order on P) and criterion 5 (a settled thrust 0.08% low on 64x12 and 0.37% on 128x24, growing with the mesh, cause not identified). The m25 fixed point is a third problem.
   - **Added about 04:20 CDT:** criterion 5's cause is found (*Criterion 5: the cause*, above). It is the explicit reference's reported thrust, not the implicit. Against the reference's period-mean thrust the implicit is +0.0046% on 64x12 and +0.0021% on 128x24, within the 0.05% bar. Re-judging criterion 5 on that reference is the Director's decision.
-  - Criterion 4's order was judged against the same reference, whose floor was this offset. It should be re-measured against the period-mean reference before it is taken as failed for the implicit's sake. Not done.
+  - Criterion 4's order was judged against the same reference, whose floor was this offset. It should be re-measured against the period-mean reference before it is taken as failed for the implicit's sake. **Done at 04:15 to 04:42 by the Director's decision:** criterion 5 re-judged (PASS except m25, at τ_C1/25 on 128x24), and criterion 4 re-measured (*The Director's decisions*, below).
 - **M4 (the projection to the lead) and M5 (finite-rate chemistry at the implicit step) are not done.** The proposed rule (build at 5 or more, not below 2) needs M4. On these measurements, a projection that keeps LU-SGS would start from about 5 to 6 before threads, AMR and turbulence, which the prototype does not measure.
 
 ### The gate and the fast ctest
@@ -428,3 +428,73 @@ The explicit baseline e128: 275,738 steps to 8 ms in 1,755 s, 6.365e-3 s per ste
 - **The explicit march is unchanged by every build** (C1 64x12 to 1 ms, one thread: state dump, history and 10 field files `cmp`-identical to 4f2d81e's). First build 02:11 (`gate/result.txt`), second 02:38 (`result2.txt`), third 03:10 (`result3.txt`, all targets rebuilt).
 - **The fast ctest on the first build's binaries (02:13, e8816dc's code):** only the 4 known failures (amr, amr_subcycling, transport and spray verification); 11 of 15 pass. Ran 02:57 to 03:07 (`ctest_2026-10-24_e8816dc.txt`).
 - **The fast ctest on the third build (96635e8's code):** only the same 4 known failures; 11 of 15 pass. Ran 03:23 to 03:33 (`ctest_2026-10-24_final.txt`).
+
+## The Director's decisions (24 October 2026, 04:20 by the message)
+
+1. Re-judge criterion 5 against the period-mean (outlet-flux) reference. The bar does not move: the measuring instrument was biased, and the cause was shown with a prediction made before the run. Re-measure criterion 4 against the same reference.
+2. Fix the explicit history so it reports the period-mean thrust, with a test, and audit the past results that used history thrust (`PERIOD_MEAN.md`).
+3. Tier 1 opts into inquiry2's low-temperature thermo (`tier1_run_definition.md`, amendment of 24 October).
+4. Lever B's L4 is stopped and kept for diagnosis next session (`SPEED.md`).
+
+If criterion 5 passes on re-judging, the next session's first item is porting the implicit path into tier 1 under development mode.
+
+The FAILs of criteria 4 and 5 judged at about 02:50 to 03:10 CDT stay on record above. The re-judgements below are additional records.
+
+### Criteria 4 and 5 re-judged against the period-mean reference *(measured, 24 October, about 04:15 to 04:42 CDT, Mac, one thread)*
+
+**The reference.** p64 and p128 are the explicit runs e64 and e128 repeated with the fixed history (`PERIOD_MEAN.md`). Each history row's boundary rates are their means over the sample period (2 μs), from the integrals of the rates the march booked.
+- **The march is unchanged:** p64 takes e64's 136,227 steps, and its 16 field files are `cmp`-identical to e64's. The history's state columns (p_inj, the chamber-end pressure, T_max, the budgets, the steps, the wall heat flow) are identical. Only the rate columns differ: inlet, outlet, F_vac, vacuum Isp and the wall's axial force.
+- **The implicit runs are not repeated.** They sample after every step, so their period mean is their step's rates (the test in `core_tests.cpp` checks one-step periods to 1e-9).
+- `c_compare.py acc` against p64 and p128 in place of e64 and e128; output in `c/rejudge/`.
+
+**Criterion 5 on 64x12: PASS at every step.** Over [6, 8] ms, F_vac is 1679.91 N against p64's 1679.83 N, and vacuum Isp is 428.257 s against 428.238 s: +0.0045% at τ_C1/25, /63 and /150 (bar 0.05%). c* was not affected by the defect (`PERIOD_MEAN.md`); it stays at +0.012%.
+
+**Criterion 4 on 64x12, against p64,** over [0.5, 8] ms, each observable normalised by p64's [6, 8] ms mean:
+
+| Step | p_inj RMS (largest) | Outlet flow RMS (largest) | F_vac RMS (largest) |
+|---|---|---|---|
+| τ_C1/25 (c25) | 0.459% (3.63%) | 0.131% (0.736%) | 0.185% (1.51%) |
+| τ_C1/63 (c63) | 0.0993% (0.330%) | 0.0269% (0.307%) | 0.112% (1.31%) |
+| τ_C1/150 (c150) | 0.0970% (0.159%) | 0.0245% (0.183%) | 0.0403% (0.412%) |
+
+- **The bars are met at τ_C1/63 and τ_C1/150** (RMS at most 0.5%, largest at most 2%). At τ_C1/25, p_inj's largest (3.63%) does not meet them, as before.
+- **The order FAILS as registered** (at least 1 between each pair; *derived* from the RMS, step ratios 2.52 and 2.38):
+  - p_inj: 1.66, then 0.03 (unchanged; a state value);
+  - outlet flow: 1.71, then 0.11 (it was 2.2 and 1.10 against e64);
+  - F_vac: 0.55, then 1.17 (it was 0.46 and 0.31).
+- **F_vac's floor is gone:** its RMS at τ_C1/150 falls from 0.129% to 0.040%, and its order between τ_C1/63 and τ_C1/150 is now above 1.
+
+**Why the order still fails: two floors in the reference, not in the implicit** *(measured)*.
+- **p_inj's floor, 0.097%, is the explicit's own step error at the injector face.** It is the gap between e64's settled p_inj (3.277835 MPa) and the first-order limit from e64 and x64h (3.274669 MPa), on which the implicit sits at all three steps (3.274683 MPa; *Criterion 5: FAIL*, above). The period mean does not change a state value.
+- **The outlet flow's new floor is the period mean's lag.** A mean over (t − 2 μs, t] describes the period's midpoint, 1 μs before its time stamp. Between 0.5 and 1 ms the outlet flow rises by about 0.09% of its settled value per μs (the logs' printed flows), so the end-stamped mean lags by about that much there.
+  - Restamped at the periods' midpoints (`c/lag/midpoint.py`, a diagnosis, not the criterion's instrument), the outlet's RMS is 0.128%, 0.0166% and 0.0065%: orders 2.21 and 1.08, the same as against e64, whose last-step outlet flow carried no lag and almost no bias.
+  - F_vac restamped: 0.199%, 0.109% and 0.038%: orders 0.65 and 1.21. Its first pair stays below 1.
+- **So, on 64x12, against the period-mean reference:** the bars are met at τ_C1/63; the order fails for p_inj at the second pair on the explicit's split error, and for F_vac at the first pair (τ_C1/25 to τ_C1/63), whose cause is not identified. The outlet flow's failure at the second pair is the reference's lag (measured above).
+
+**Criterion 5 on 128x24, against p128** (F_vac 1680.49 N, Isp 428.405 s over [6, 8] ms):
+- **τ_C1/63 and τ_C1/150 (m63, m150b): PASS**, +0.0022% (1680.52 N, 428.415 s).
+- **τ_C1/25 (m25): FAIL**, −0.662% (1669.36 N). This is m25's fixed point of the step, not of the flow (*Case C on 128x24*, above). The reference was not its cause: against e128 it was −1.03%.
+- **So criterion 5, as registered ("within 0.05% of the explicit values at every Δt"), still FAILS, on m25 alone.** It passes at every step on 64x12 and at τ_C1/63 and τ_C1/150 on 128x24. Whether that meets the Director's condition for the port is the Director's decision.
+
+**Criterion 4 on 128x24, against p128:**
+
+| Step | p_inj RMS (largest) | Outlet flow RMS (largest) | F_vac RMS (largest) |
+|---|---|---|---|
+| τ_C1/25 (m25) | 5.60% (7.52%) | 0.165% (0.709%) | 0.764% (2.39%) |
+| τ_C1/63 (m63) | 0.206% (2.07%) | 0.0967% (0.599%) | 0.178% (2.42%) |
+| τ_C1/150 (m150b) | 0.104% (0.226%) | 0.0225% (0.193%) | 0.0625% (0.684%) |
+
+- **The bars are not met at τ_C1/63** (largest differences p_inj 2.07% and F_vac 2.42%, against 2%; F_vac's was 2.72% against e128), **and are met at τ_C1/150.** F_vac's RMS at τ_C1/150 falls from 0.353% to 0.063%.
+- **The order fails as registered** (*derived*): p_inj 3.57, then 0.79; outlet flow 0.58, then 1.68; F_vac 1.57, then 1.21.
+  - p_inj's second pair stops on the explicit's split error at the face (p_inj 0.10% above m63's and m150b's, as on 64x12).
+  - The outlet's first pair is m25's wrong state. Restamped at the periods' midpoints (`c/lag/p128_midpoint.txt`), the outlet is 0.87, then 2.35, and F_vac 1.56, then 1.22.
+
+**Summary of the re-judgement** *(the table's sources are above)*:
+
+| | 64x12: τ/25, τ/63, τ/150 | 128x24: τ/25, τ/63, τ/150 |
+|---|---|---|
+| Criterion 5 (bar 0.05%) | +0.0045%, +0.0045%, +0.0045%: PASS | −0.662% FAIL, +0.0022%, +0.0022% |
+| Criterion 4's bars (judged at τ/63) | not met, met, met | not met, not met, met |
+| Criterion 4's order (at least 1) | p_inj 1.66, 0.03; outlet 1.71, 0.11; F_vac 0.55, 1.17: FAIL | p_inj 3.57, 0.79; outlet 0.58, 1.68; F_vac 1.57, 1.21: FAIL |
+
+The remaining failures are (a) m25's fixed point at the largest step on the finer mesh, an implicit defect whose cause is not identified; (b) floors in the reference (the explicit's split error in p_inj, and the period mean's lag in the outlet flow); and (c) F_vac's order of 0.55 from τ_C1/25 to τ_C1/63 on 64x12, not explained.

@@ -1,0 +1,11 @@
+p64 (bin7, period-mean history) against e64 (bin: e8816dc's build; the explicit march is cmp-identical across bin to bin6, gate/result3.txt), 24 Oct 04:24 CDT
+17 files cmp-identical
+e64/e64.log:end 8.000 ms after 136227 steps (0 replans), wall 256 s
+p64/p64.log:end 8.000 ms after 136227 steps (0 replans), wall 196 s
+rows 4000 4000
+identical columns: t supply p_injector p_chamber_end exit_mach_min T_max igniter_energy mass_budget energy_budget steps wall_heat_flow cstar
+differing columns: inlet outlet F_vac isp_vac_supply wall_axial_force
+
+p128 (bin7) against e128 (bin), 24 Oct 04:41 CDT
+17 files cmp-identical (16 field files and the mesh)
+end 8.000 ms after 275738 steps on both

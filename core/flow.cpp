@@ -606,6 +606,26 @@ Flow::BoundaryRates Flow::BoundaryRates::average(const BoundaryRates& a,const Bo
         mean(a.wallAxial,b.wallAxial),mean(a.bodyAxial,b.bodyAxial),mean(a.heat,b.heat),mean(a.wallHeat,b.wallHeat),
         mean(a.correction,b.correction),mean(a.plateHeat,b.plateHeat)};
 }
+void Flow::BoundaryRates::accumulate(const BoundaryRates& r,double dt) {
+    mass+=dt*r.mass;energy+=dt*r.energy;inlet+=dt*r.inlet;outlet+=dt*r.outlet;inletMomentum+=dt*r.inletMomentum;
+    outletMomentum+=dt*r.outletMomentum;wallAxial+=dt*r.wallAxial;bodyAxial+=dt*r.bodyAxial;heat+=dt*r.heat;
+    wallHeat+=dt*r.wallHeat;correction+=dt*r.correction;plateHeat+=dt*r.plateHeat;
+}
+Measurements periodMean(const Measurements& now,const Measurements& previous) {
+    Measurements result=now;
+    const double span=now.time-previous.time;
+    if(!(span>0)) return result;
+    const auto& a=now.integrals;const auto& b=previous.integrals;
+    result.inletMassFlow=(a.inletMass-b.inletMass)/span;result.outletMassFlow=(a.outletMass-b.outletMass)/span;
+    result.inletMomentumFlux=(a.inletMomentum-b.inletMomentum)/span;result.outletMomentumFlux=(a.outletMomentum-b.outletMomentum)/span;
+    result.wallAxialForce=(a.wallAxial-b.wallAxial)/span;result.bodyAxialForce=(a.bodyAxial-b.bodyAxial)/span;
+    result.wallHeatFlow=(a.wallHeat-b.wallHeat)/span;result.plateHeatFlow=(a.plateHeat-b.plateHeat)/span;
+    if(now.steps>0) {
+        result.exitPlaneThrust=result.outletMomentumFlux-result.ambientAxialForce;
+        result.deviceThrust=result.inletMomentumFlux+result.wallAxialForce+result.bodyAxialForce-result.ambientAxialForce;
+    }
+    return result;
+}
 void Flow::resetAccounting() {
     initialMass_=initialEnergy_=initialMomentum_=0;
     for(std::size_t q=0;q<state_.size();++q) {
@@ -616,7 +636,7 @@ void Flow::resetAccounting() {
     integratedMassFlux_=integratedEnergyFlux_=integratedMomentumSource_=integratedMomentumGross_=integratedHeat_=heatCompensation_=clippedTurbulentEnergy_=prescribedTurbulentEnergy_=integratedCorrection_=0;
     massCompensation_=energyCompensation_=correctionCompensation_=momentumCompensation_=0;
     exchangedMass_=exchangedEnergy_=exchangedMomentum_=0;
-    lastRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
+    lastRates_=integratedRates_={};time_=dt_=0;steps_=rejectedSteps_=0;
 }
 void Flow::setUniform(Primitive w) {
     setInitialState(std::vector<Primitive>(state_.size(),w));
@@ -1579,6 +1599,7 @@ void Flow::accept(double dt,double newTime,const Attempt& attempt) {
     add(integratedCorrection_,correctionCompensation_,dt*lastRates_.correction);
     add(integratedMomentumSource_,momentumCompensation_,dt*lastRates_.netMomentum());
     integratedMomentumGross_+=dt*lastRates_.grossMomentum();
+    integratedRates_.accumulate(lastRates_,dt);
 }
 // The convective face fluxes, and with transport the viscous ones (stored alone by transportFluxes in
 // the same orientation; they carry no mass, and their transported entries are per unit area). At a
@@ -1634,6 +1655,8 @@ Measurements Flow::measurements() const {
     result.inletMassFlow=lastRates_.inlet;result.outletMassFlow=lastRates_.outlet;
     result.inletMomentumFlux=lastRates_.inletMomentum;result.outletMomentumFlux=lastRates_.outletMomentum;
     result.wallAxialForce=lastRates_.wallAxial;result.bodyAxialForce=lastRates_.bodyAxial;result.wallHeatFlow=lastRates_.wallHeat;result.plateHeatFlow=lastRates_.plateHeat;
+    {const auto& r=integratedRates_;
+     result.integrals={r.inlet,r.outlet,r.inletMomentum,r.outletMomentum,r.wallAxial,r.bodyAxial,r.wallHeat,r.plateHeat};}
     result.minPressure=std::numeric_limits<double>::infinity();
     double exitArea=0;
     for(int i=0;i<mesh_.nz;++i) for(int j=0;j<mesh_.nr;++j) {
@@ -1701,6 +1724,7 @@ template<class Self,class Io> void Flow::checkpoint(Self& self,Io& io) {
     io.field(self.massCompensation_);io.field(self.energyCompensation_);io.field(self.correctionCompensation_);io.field(self.momentumCompensation_);
     io.field(self.integratedCorrection_);io.field(self.exchangedMass_);io.field(self.exchangedEnergy_);io.field(self.exchangedMomentum_);
     io.field(self.igniterPower_);io.field(self.steps_);io.field(self.rejectedSteps_);io.field(self.lastRates_);
+    io.field(self.integratedRates_);
     io.field(self.eddy_);io.field(self.wallOmega_);io.field(self.sources_);
     io.field(self.wallSolutions_);io.field(self.prescribedValues_);io.field(self.plateMomentum_);
     io.field(self.boundedExcess_);io.field(self.probe_.cells);io.field(self.probe_.weights);io.field(self.probe_.sums);

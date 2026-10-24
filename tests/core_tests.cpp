@@ -371,6 +371,34 @@ void chamberChecks() {
      std::cout<<"Supplied chamber at 6 ms: injector-face pressure "<<m.injectorPressure<<" Pa, outflow "<<m.outletMassFlow
               <<" kg/s, mass budget "<<m.massBalanceError<<", energy budget "<<m.energyBalanceError<<", steps "<<m.steps<<'\n';
      require(std::abs(m.massBalanceError)<1e-12 && std::abs(m.energyBalanceError)<1e-12,"Supplied chamber budgets");}
+    // A history's boundary rates (periodMean, 24 October 2026; docs/evidence/IMPLICIT_PROTOTYPE.md, criterion 5's
+    // cause). Over a sample period of several steps, the last one shortened to land on the sample, the period's net
+    // axial momentum rate times its length is the change of the gas's P_z (the budget, to round-off); the last step's
+    // rates, which histories reported before, are not. A period of one step gives that step's rates.
+    {Definition d=chamber();d.supplies[0].opens=0;d.supplies[0].ramp=1e-4;Flow f(d);
+     f.advanceTo(2e-4);
+     auto net=[](const Measurements& x){return x.inletMomentumFlux-x.outletMomentumFlux+x.wallAxialForce+x.bodyAxialForce;};
+     auto previous=f.measurements();double worstMean=0,worstLast=0,scale=0;
+     for(int k=1;k<=20;++k) {
+        f.advanceTo(2e-4+k*1.3e-5);
+        const auto now=f.measurements(),mean=periodMean(now,previous);
+        const double span=now.time-previous.time,change=now.axialMomentum-previous.axialMomentum;
+        worstMean=std::max(worstMean,std::abs(net(mean)*span-change));
+        worstLast=std::max(worstLast,std::abs(net(now)*span-change));
+        scale=std::max(scale,std::abs(mean.inletMomentumFlux)*span);
+        near(mean.deviceThrust,mean.inletMomentumFlux+mean.wallAxialForce+mean.bodyAxialForce-mean.ambientAxialForce,
+             1e-12*std::abs(mean.inletMomentumFlux),"Period-mean device thrust");
+        previous=now;
+     }
+     const auto before=f.measurements();f.step();const auto after=f.measurements(),one=periodMean(after,before);
+     std::cout<<"Period means: 20 periods of 13 us, steps of about "<<after.dt<<" s; |net rate x period - change of P_z| at most "
+              <<worstMean<<" N s with the period's rates, "<<worstLast<<" N s with the last step's (scale "<<scale<<" N s)\n";
+     require(worstMean<1e-10*scale,"The period-mean rates must close the momentum budget over each period");
+     require(worstLast>1e3*worstMean,"The last step's rates should not close it (else this check tests nothing)");
+     near(one.inletMomentumFlux,after.inletMomentumFlux,1e-9*std::abs(after.inletMomentumFlux),"A one-step period's inlet flux");
+     near(one.outletMomentumFlux,after.outletMomentumFlux,1e-9*std::abs(after.inletMomentumFlux),"A one-step period's outlet flux");
+     near(one.wallAxialForce,after.wallAxialForce,1e-9*std::abs(after.inletMomentumFlux),"A one-step period's wall force");
+     near(one.outletMassFlow,after.outletMassFlow,1e-9*std::abs(after.inletMassFlow),"A one-step period's outlet flow");}
     // Threads (Flow::setThreads): the state after 200 steps is the same bit for bit on 1 and 4
     // threads, with supply and plate rings on the injector face, the igniter and a body force.
     {auto run=[](int threads) {

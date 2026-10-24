@@ -330,6 +330,13 @@ Built on `main` (4a7628f; extended and corrected in fc0c9b2), in `ReactingFlow::
 - **What follows.** If (a) and (b) hold, B holds for these two regimes: about 2 times fewer steps, with the wall time as measured. Whether tier 1's registered CFL changes stays the Director's decision. If either fails, the record says which and by how much.
 - RK2's error is second order, so the step's own error at CFL 0.8 is about 4/3 of the 0.8 to 0.4 difference, and at 0.4 about 1/3 (*derived*, where the difference is not noise).
 
+**L4: stopped for diagnosis next session** *(the Director's decision, 24 October, 04:20 by the message; done at 04:13 CDT by the Mac's clock)*. Files in `cfl_2026-10-24/L4/`.
+- **Its series stopped advancing at 0.70 ms**, at 03:10, after 71 rows from 01:46. The 0.71 ms row is only partly written (the stream's buffer at the stop).
+- **After that the process was computing, not hung.** It ran at about 390% CPU until it was stopped. A stack sample at 04:13 (`L4_sample.txt.gz`) shows `Medium::properties`, `Medium::transport`, `transportFluxes` and Cantera's `updateROP` on top, beside the threads' waits.
+- **Its log has 607 Cantera warnings of temperatures below 200 K** from `ChemEquil::equilibrate` (the last at 186.8 and 190.6 K). The supply is at 187.59 K, below the thermo's 200 K floor. The tier-1 amendment of 24 October (inquiry2's low-temperature ranges) may clear this (*inferred, not tested*).
+- **Not known:** whether the step collapsed, and where. `mac_cfl.sh` sets no `CRUCIBLE_CHECKPOINT`, so there is no checkpoint to restart from: the diagnosis reruns L4 from t = 0 with a checkpoint and a step print near 0.70 ms.
+- Its done-file says "exit 241" (it was stopped with a TERM signal), after a real time of 8,787 s. L8, H4, H8 and H4s run after it, unchanged.
+
 ## 6. Found on the way: the spray NaN after LOX opens (fixed)
 
 The 1-level run (`/tmp/prof_l1`: the lead shortened to 1 ms, LOX opening at 1 ms on its 0.5 ms ramp, the igniter at 1.2 ms) stopped at about 1.35 ms with "Spray: the film's transport is not positive at nan K". 27b135f's guard caught the NaN film temperature, but not what made it. The same would have stopped B4 at about t_L + 0.35 ms, and the central run with it (inferred: the same code path once LOX flows).

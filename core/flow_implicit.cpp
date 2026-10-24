@@ -205,6 +205,7 @@ double Flow::implicitStep(double dt,const ImplicitControl& control) {
                 state_.swap(next_);species_.swap(speciesNext_);
                 time_+=dt;dt_=dt;++steps_;
                 lastRates_=rates;
+                integratedRates_.accumulate(rates,dt);
                 // The budgets follow the state's recurrence: I(n+1) - I(n) = c (I(n) - I(n-1)) + a h rate, so
                 // mass - I stays where it was (the projection after the step keeps rho, E and the elements).
                 const std::array<double,6> r={rates.heat,rates.mass,rates.energy,rates.correction,rates.netMomentum(),rates.grossMomentum()};

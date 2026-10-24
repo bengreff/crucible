@@ -113,6 +113,7 @@ private:
         double time{}, dt{}, heat{}, heatCompensation{}, mass{}, energy{}, correction{}, momentum{}, gross{}, clipped{}, prescribed{};
         double massCompensation{}, energyCompensation{}, correctionCompensation{}, momentumCompensation{};
         double exchangedMass{}, exchangedEnergy{}, exchangedMomentum{};
+        Flow::BoundaryRates rates;
         std::uint64_t steps{};
     };
     struct Level {

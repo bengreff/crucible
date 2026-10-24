@@ -1,0 +1,19 @@
+sample periods (s): min 2.000e-06 max 2.000e-06
+== /Users/ben/inquiry-project/docs/evidence/implicit_prototype/c/m25/m25_history.csv.gz
+  p_injector stamped at end      RMS 5.60104%  largest 7.52205%  (426 times)
+  outlet     stamped at end      RMS 0.16507%  largest 0.70923%  (426 times)
+  outlet     stamped at midpoint RMS 0.18762%  largest 0.81362%  (426 times)
+  F_vac      stamped at end      RMS 0.76372%  largest 2.39014%  (426 times)
+  F_vac      stamped at midpoint RMS 0.77510%  largest 2.39014%  (426 times)
+== /Users/ben/inquiry-project/docs/evidence/implicit_prototype/c/m63/m63_history.csv.gz
+  p_injector stamped at end      RMS 0.20633%  largest 2.07282%  (1072 times)
+  outlet     stamped at end      RMS 0.09669%  largest 0.59909%  (1072 times)
+  outlet     stamped at midpoint RMS 0.08423%  largest 0.59216%  (1072 times)
+  F_vac      stamped at end      RMS 0.17840%  largest 2.42478%  (1072 times)
+  F_vac      stamped at midpoint RMS 0.18354%  largest 2.52784%  (1072 times)
+== /Users/ben/inquiry-project/docs/evidence/implicit_prototype/c/m150b/m150b_history.csv.gz
+  p_injector stamped at end      RMS 0.10406%  largest 0.22622%  (2551 times)
+  outlet     stamped at end      RMS 0.02251%  largest 0.19269%  (2551 times)
+  outlet     stamped at midpoint RMS 0.01101%  largest 0.13050%  (2551 times)
+  F_vac      stamped at end      RMS 0.06254%  largest 0.68419%  (2551 times)
+  F_vac      stamped at midpoint RMS 0.06387%  largest 0.70274%  (2551 times)

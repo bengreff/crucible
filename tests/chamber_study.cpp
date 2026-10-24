@@ -690,8 +690,16 @@ int main(int argc, char** argv) {
                   flow.definition().cfl / (l.convective + l.diffusive), i, j, l.convective, l.diffusive);
     return std::string(text);
   };
+  // The history's boundary rates and thrusts are averaged over each sample period (periodMean), not taken from the
+  // step that lands on the sample (24 October 2026; docs/evidence/IMPLICIT_PROTOTYPE.md, criterion 5's cause).
+  std::optional<Measurements> previousSample;
+  Measurements lastSample{};
+  lastSample.time = -1;
   auto sample = [&]() {
-    auto m = flow.measurements();
+    const auto raw = flow.measurements();
+    auto m = previousSample ? periodMean(raw, *previousSample) : raw;
+    previousSample = raw;
+    lastSample = m;
     worstMassKg = std::max(worstMassKg, std::abs(m.massBalanceError * initialMass));
     worstEnergyJ = std::max(worstEnergyJ, std::abs(m.energyBalanceError * initialEnergy));
     suppliedMass += 0.5 * (lastSupply + m.supplyMassFlow) * (m.time - lastSupplyTime);
@@ -876,7 +884,7 @@ int main(int argc, char** argv) {
     return (hi - lo) / std::abs(last);
   };
   auto settled = [&]() {
-    const auto m = flow.measurements();
+    const auto m = lastSample.time == flow.time() ? lastSample : flow.measurements();
     return std::max({drift([](const Row& r) { return r.outlet; }), drift([](const Row& r) { return r.pInj; }),
                      drift([](const Row& r) { return r.fVac; })}) < 1e-3 &&
            std::abs(m.outletMassFlow / m.supplyMassFlow - 1) < 1e-3;
@@ -938,7 +946,7 @@ int main(int argc, char** argv) {
   }
   const double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - clock0).count();
 
-  const auto m = flow.measurements();
+  const auto m = lastSample.time == flow.time() ? lastSample : flow.measurements();
   std::printf("\nend %.3f ms after %ld steps (%ld replans), wall %.0f s\n", m.time * 1e3, reacting.stats().steps,
               reacting.stats().replans, wall);
   std::printf("budgets: mass %.2e  energy %.2e\n", m.massBalanceError, m.energyBalanceError);

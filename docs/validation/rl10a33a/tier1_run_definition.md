@@ -365,6 +365,17 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
     - No member has been run. B4 was development and never reached t_L, so nothing reruns.
   - **The spray now refuses** a non-positive film conductivity or diffusivity, and a NaN B_T residual. It stops loudly in place of carrying a NaN.
 
+- **The thermo below 200 K: an amendment to the frozen inputs, by the Director's decision (24 October 2026, 04:20 by the message; recorded about 04:18 CDT by the clock), before any RL10 output.**
+  - **The change.** Tier 1's medium opts into the lowest NASA-7 ranges, 20 to 200 K, for H2 (normal), O2 and H2O (`thermo::withLowTemperatureRanges`; `docs/evidence/LOW_T_THERMO.md`, inquiry2's a83459c). At and above 200 K nothing changes, bit for bit (LOW_T_THERMO.md's tests, ctest `low_temperature_verification`).
+  - **Why.**
+    - The H2 supply is below 200 K on the engine's thermo: 187.59 K with the para-rich enthalpy (the H2 supply's form, inquiry2's dated note of 24 October under *Frozen inputs*).
+    - The gas also goes below 200 K inside the run. Tier 1's log has 329 Cantera warnings near 199 K (AMR.md, job rfx). Lever B's L4 (development, 4f2d81e) logged 607, the coldest at 175.0 K, before it stalled at 0.71 ms (`docs/evidence/cfl_2026-10-24/`, measured). The spray's films reach 61 to 67 K.
+    - Below 200 K the TM-4513 fits were extrapolated without a warning from Medium. Their error there is a few percent in cp for O2 and H2O (LOW_T_THERMO.md, derived), and normal H2's is the hydrogen-form question.
+  - **What kind of change.** It is a physical input (the species' thermo), so it is dated and reruns every member already run. No tier-1 member has run, so nothing reruns.
+  - **What it leaves.** Cantera's own equilibrate calls in the driver's chemistry still use the mechanism's 200 K lower limit and still warn (LOW_T_THERMO.md's caveat). Whether they need the same data is open, and not decided here.
+  - **Lever B's L8, H4, H8 and H4s** keep running on the 4f2d81e binary with the old thermo. They are development runs that compare CFL 0.8 with 0.4 on the same inputs, not tier-1 output, as B4 was.
+  - **Not built.** The opt-in goes where the driver builds its medium (`tests/rl10_tier1.cpp`, at about line 897 on worktree-inquiry2), with the supply's enthalpy and member 20's switch (inquiry2's dated note), after the Director merges worktree-inquiry2 into `main`. When it lands, the pinned SHA-256 of `tests/rl10_tier1.cpp` is replaced by a dated note.
+
 ## What it waits on
 
 - **Budget (the Director's decision, 22 October 2026, 22:40 CDT):** go for tonight's work, within Ben's raised cap. The spray-on-AMR coupling is now tier 1's critical path, and tonight's main item (below and `docs/evidence/SPRAY.md`, *Spray on AMR*). The driver's run mode follows it.

@@ -8,6 +8,7 @@ The scripts: `base.sh` (explicit baselines through `slot.py`), `e.sh` (explicit 
 - `bin4` (02:38): the second amendment (the new known part, the throughput print, `CRUCIBLE_CFL`).
 - `bin5` (02:51): plus `CRUCIBLE_IMPLICIT_WINDOW`.
 - `bin6` (02:56): plus the projection's failures as rejected attempts (third amendment).
+- `bin7` (04:16): 063294f plus the period-mean history (`PERIOD_MEAN.md`); `p.sh` runs it.
 - `momdiag/` (03:30 and 03:39): print-only builds of 96635e8 with `../momdiag.py` applied, in `/tmp/momdiag`; `run.sh` and `run2.sh` there launched them. Only the `MOMDIAG` lines and the logs are kept.
 
 | Run | Mesh | Kind | Step | Tolerance | Build | What it is for |
@@ -32,5 +33,7 @@ The scripts: `base.sh` (explicit baselines through `slot.py`), `e.sh` (explicit 
 | momdiag/c63, e64, x64h | 64x12 | as c63, e64 and x64h | | | momdiag bin | criterion 5's cause: the booked momentum rates at each sample from 7.98 ms |
 | momdiag/e64s | 64x12 | as e64 | | | momdiag bin2 | criterion 5's cause: each explicit step's two stages from 7.996 ms |
 | momdiag/e128s, m63 | 128x24 | as e128 and m63 | | | momdiag bin2 | criterion 5's cause on 128x24 (e128s's prediction written first, `momdiag/e128s_prediction.txt`) |
+| p64 | 64x12 | explicit CFL 0.4, as e64 | | | bin7 | the period-mean reference: criteria 4 and 5 re-judged (`rejudge/`); its march `cmp`-identical to e64's (`rejudge/march_cmp.txt`) |
+| p128 | 128x24 | explicit CFL 0.4, as e128 | | | bin7 | the period-mean reference on 128x24: criteria 4 and 5 re-judged (`rejudge/`); its march `cmp`-identical to e128's |
 
 τ_C1 = 441.243 μs: τ/25 = 1.764973e-5 s, τ/63 = 7.003860e-6 s, τ/126 = 3.501930e-6 s, τ/150 = 2.941621e-6 s. Every implicit run here uses pseudo CFL 3 and the extrapolated first iterate, with at most 400 inner iterations.

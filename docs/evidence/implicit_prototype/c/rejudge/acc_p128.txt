@@ -1,0 +1,45 @@
+== /Users/ben/inquiry-project/docs/evidence/implicit_prototype/c/m25/m25_history.csv.gz
+  the history's budgets (of the initial fill's mass and energy), largest: mass 4.72e-13, energy 9.74e-12
+criterion 2 (bar 1e-11 of the throughput): mass 4.28e-16 of the mass supplied, energy 1.29e-13 of the supplied total enthalpy and the igniter's energy (5.81e-15 of |E| at the end)  PASS
+  the first 0.5 ms against the explicit run (reported, not judged):
+  p_inj        RMS 3.48000%  largest 6.42097%  (28 times)
+  outlet flow  RMS 2.68758%  largest 10.46601%  (28 times)
+  F_vac        RMS 1.57251%  largest 3.22108%  (28 times)
+  criterion 4 over [0.5, 8] ms against the explicit run:
+  p_inj        RMS 5.60104%  largest 7.52205%  (426 times)
+  outlet flow  RMS 0.16507%  largest 0.70923%  (426 times)
+  F_vac        RMS 0.76372%  largest 2.39014%  (426 times)
+  criterion 4's bars (RMS 0.5%, largest 2%; judged at tau/63): not met
+  criterion 5: vacuum Isp over [6, 8] ms 425.568 against 428.405: -0.6624%
+  criterion 5: F_vac over [6, 8] ms 1669.36 against 1680.49: -0.6624%
+  criterion 5 (bar 0.05%): FAIL
+== /Users/ben/inquiry-project/docs/evidence/implicit_prototype/c/m63/m63_history.csv.gz
+  the history's budgets (of the initial fill's mass and energy), largest: mass 4.72e-13, energy 1.14e-11
+criterion 2 (bar 1e-11 of the throughput): mass 4.28e-16 of the mass supplied, energy 1.50e-13 of the supplied total enthalpy and the igniter's energy (6.71e-15 of |E| at the end)  PASS
+  the first 0.5 ms against the explicit run (reported, not judged):
+  p_inj        RMS 1.54589%  largest 2.59435%  (73 times)
+  outlet flow  RMS 1.65535%  largest 9.11961%  (73 times)
+  F_vac        RMS 1.29628%  largest 3.63092%  (73 times)
+  criterion 4 over [0.5, 8] ms against the explicit run:
+  p_inj        RMS 0.20633%  largest 2.07282%  (1072 times)
+  outlet flow  RMS 0.09669%  largest 0.59909%  (1072 times)
+  F_vac        RMS 0.17840%  largest 2.42478%  (1072 times)
+  criterion 4's bars (RMS 0.5%, largest 2%; judged at tau/63): not met
+  criterion 5: vacuum Isp over [6, 8] ms 428.415 against 428.405: +0.0022%
+  criterion 5: F_vac over [6, 8] ms 1680.52 against 1680.49: +0.0022%
+  criterion 5 (bar 0.05%): PASS
+== /Users/ben/inquiry-project/docs/evidence/implicit_prototype/c/m150b/m150b_history.csv.gz
+  the history's budgets (of the initial fill's mass and energy), largest: mass 6.65e-13, energy 1.69e-11
+criterion 2 (bar 1e-11 of the throughput): mass 6.03e-16 of the mass supplied, energy 2.24e-13 of the supplied total enthalpy and the igniter's energy (1.00e-14 of |E| at the end)  PASS
+  the first 0.5 ms against the explicit run (reported, not judged):
+  p_inj        RMS 0.20044%  largest 1.27867%  (170 times)
+  outlet flow  RMS 1.20562%  largest 10.20671%  (170 times)
+  F_vac        RMS 0.57582%  largest 3.13323%  (170 times)
+  criterion 4 over [0.5, 8] ms against the explicit run:
+  p_inj        RMS 0.10406%  largest 0.22622%  (2551 times)
+  outlet flow  RMS 0.02251%  largest 0.19269%  (2551 times)
+  F_vac        RMS 0.06254%  largest 0.68419%  (2551 times)
+  criterion 4's bars (RMS 0.5%, largest 2%; judged at tau/63): met
+  criterion 5: vacuum Isp over [6, 8] ms 428.415 against 428.405: +0.0022%
+  criterion 5: F_vac over [6, 8] ms 1680.52 against 1680.49: +0.0022%
+  criterion 5 (bar 0.05%): PASS
