@@ -13,7 +13,7 @@
 //        crucible_rl10_tier1 selftest                  (the settle judge, R4)
 // The run takes CRUCIBLE_MANIFOLD_TABLE (Table B), and in development CRUCIBLE_T1_BASE (149x16), _LEVELS (3),
 // _LEAD [s] (t_L, 20e-3), _END [s] (the simulated time, t_L + 1e-3), _THREADS (4), _OUT (the files' prefix, rl10_t1) and
-// _RATE_FACTOR (1). Restart (tests/checkpoint_file.hpp, docs/evidence/RESTART.md): CRUCIBLE_CHECKPOINT=<stem> writes
+// _RATE_FACTOR (1), _CFL (Definition::cfl, 0.4), _SEED (the spray's, 1). Restart (tests/checkpoint_file.hpp, docs/evidence/RESTART.md): CRUCIBLE_CHECKPOINT=<stem> writes
 // checkpoints and CRUCIBLE_RESTART=auto continues from the latest, bit for bit the uninterrupted run; _THREADS may
 // change and _END be extended across a restart. On any exit the run writes <out>_done ("exit N"), <out> being
 // rl10_t1_central or <_OUT>_DEVELOPMENT; a killed process writes none.
@@ -299,10 +299,10 @@ int runCase(const Setup& s) {
   const double at = kPi * mesh0.radius[throat] * mesh0.radius[throat], zThroat = throat * mesh0.dz;
   double faceArea = 0;
   for (int j = 0; j < mesh0.nr; ++j) faceArea += mesh0.axialArea(0, j);
-  std::printf("%s: base %d x %d plus %d levels (%d x %d finest), %d threads, to %.4g ms; parcels %.3g per s per injector; "
+  std::printf("%s: base %d x %d plus %d levels (%d x %d finest), %d threads, to %.4g ms, CFL %.3g; parcels %.3g per s per injector; "
               "throat station %d (A_t %.6e m2), p0 column %d at z %.4f mm, face area %.6e m2\n",
               s.mode.c_str(), mesh0.nz, mesh0.nr, s.levels, mesh0.nz << s.levels, mesh0.nr << s.levels, s.threads, s.end * 1e3,
-              kParcelRate * s.rateFactor, throat, at, endColumn, mesh0.cells[mesh0.index(endColumn, 0)].z * 1e3, faceArea);
+              s.definition.cfl, kParcelRate * s.rateFactor, throat, at, endColumn, mesh0.cells[mesh0.index(endColumn, 0)].z * 1e3, faceArea);
   std::printf("tags (thresholds frozen at s* = 1/4, the y+ target %s): interval %d, buffer %d, throat %.2f r_t to level %d, "
               "wall y+ %.0f, f_H %.3g, T %.3g, p %.3g, vorticity %.3g; the face column to the top within %.3f mm\n",
               kNumericsFrozen ? "frozen" : "provisional (step D)",
@@ -917,6 +917,9 @@ int main(int argc, char** argv) {
       d.backPressure = kAmbientP;
       d.ambientTemperature = kAmbientT;
       d.radialStretching = stretching;
+      // Lever B's test (docs/evidence/SPEED.md): CRUCIBLE_T1_CFL sets Definition::cfl in development only; the central
+      // case keeps its registered 0.4.
+      if (mode == "development") d.cfl = env("CRUCIBLE_T1_CFL", d.cfl);
       d.transport = fits;
       d.wallTemperature = kWallT;  // the face's own 199.67 K (the plan, 21 October) waits on a per-segment wall temperature
       d.turbulence.enabled = true;
@@ -1216,6 +1219,8 @@ int main(int argc, char** argv) {
       setup.spray.injectors.push_back(j);
     }
     setup.spray.restitution = 0.5;
+    // Lever B's noise floor: CRUCIBLE_T1_SEED sets the spray's seed (Spray::Settings::seed, 1) in development only.
+    if (setup.mode == "development") setup.spray.seed = static_cast<std::uint64_t>(env("CRUCIBLE_T1_SEED", 1));
     setup.argc = argc, setup.argv = argv;
     doneFile = setup.out + "_done";
     const int status = runCase(setup);

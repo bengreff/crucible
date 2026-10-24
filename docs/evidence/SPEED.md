@@ -8,6 +8,7 @@ Asked by the Director at 23:50 CDT on 23 October, after the cost estimate of 7 t
 3. The chemistry skip: built, tested and measured. Section 5b, lever A.
 4. The finest level stays a numerics question for evidence: 2 against 3 levels on two members. Lever D.
 5. The spray NaN: fixed at its cause, with a test. Section 6.
+6. Lever B's test, CFL 0.8 against 0.4 (the Director, 01:40), registered before its runs. Section 5c.
 
 Sections 1 to 5a measure and estimate without changing the engine. Sections 5b and 6 record the two engine changes on `main`.
 
@@ -309,6 +310,23 @@ Built on `main` (4a7628f; extended and corrected in fc0c9b2), in `ReactingFlow::
   - **The first build**, before the trace extension, skipped 10% of the updates (7% at level 3). It saved 2.6% of the wall: 130.9 s against 134.4 s.
   - **Results:** the two skip-on runs are bit-identical. On against off, the 12 series rows differ by at most 3.3e-8 relative at 0.1 ms. The skip changes a cell by at most 1e-14 per step, and the flow's own sensitivity grows that (*inferred*).
   - The derived 2.5 to 3.3 assumed every lead cell skipped. The 9% still integrated carry more than a trace of H or are above 500 K.
+
+### 5c. Lever B's test: CFL 0.8 against 0.4 (the Director, 01:40: "run the 1 ms test at the larger step and report accuracy against the current step")
+
+**Registered before any run (24 October, about 01:55 CDT).** The hooks: `CRUCIBLE_T1_CFL` sets `Definition::cfl` and `CRUCIBLE_T1_SEED` the spray's seed, both in development only (the central case keeps CFL 0.4 and seed 1). Every run is tier 1 development on `main` at the commit that adds them, on the Mac at 4 threads through the slot harness, with `scripts` and logs in `cfl_2026-10-24/`.
+- **L4 and L8:** 3 levels, the 20 ms H2 lead, 0 to 1 ms, at CFL 0.4 and 0.8. The finest level binds here (the H2 jet, then the throat's axis; section 2).
+- **H4 and H8:** 1 level, the lead shortened to 1 ms (LOX at 1 ms on its 0.5 ms ramp, the igniter at 1.2 ms), 0 to 2 ms, at CFL 0.4 and 0.8. This is the hot transient after LOX opens, where B alone acts (A does nothing there).
+- **H4s:** H4 with the spray's seed 2. The parcels' random draws depend on the step, so H8 against H4 holds sampling noise as well as the step's error. H4s against H4 measures that noise (the floor). Before LOX opens, H4s must equal H4 bit for bit.
+
+**Measured:** the wall time, the base steps and the redone steps; and the series (every 10 μs) of the outlet mass flow, F_vac, p0, the face pressure and the hot-gas wall heat. For each quantity, the difference at each common row is divided by the CFL 0.4 run's mean |Q| over the window. The windows are [0.1, 1.0] ms for L and [1.0, 2.0] ms for H. Its largest value and its RMS are reported, with the difference at the window's end.
+
+**Criteria, stated now:**
+- **(a) Stable.** L8 and H8 end with exit 0, budgets within 1e-11 and no non-finite value. Their redone steps are reported beside L4's and H4's.
+- **(b) Accurate.** For F_vac, the outlet flow and p0:
+  - In L, the RMS difference is at most 0.2%. That is the run definition's SE target for the window means; a step error below it does not move a reported mean beyond its own noise.
+  - In H, the RMS difference of H8 against H4 is at most the larger of 0.2% and the floor (H4s against H4).
+- **What follows.** If (a) and (b) hold, B holds for these two regimes: about 2 times fewer steps, with the wall time as measured. Whether tier 1's registered CFL changes stays the Director's decision. If either fails, the record says which and by how much.
+- RK2's error is second order, so the step's own error at CFL 0.8 is about 4/3 of the 0.8 to 0.4 difference, and at 0.4 about 1/3 (*derived*, where the difference is not noise).
 
 ## 6. Found on the way: the spray NaN after LOX opens (fixed)
 
