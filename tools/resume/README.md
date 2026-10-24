@@ -24,16 +24,18 @@ Backhouse was restarted from the Start menu at 17:08 on 23 October 2026, and eve
 - **To hold a job,** touch `DIR/.resume_hold`; to release it, remove the file. To retire a job, move its job file out of `jobs/`.
   - Killing a registered job without holding it means the next boot relaunches it.
 
-## The engine's side (inquiry's interface, agreed 23 October 2026, about 23:10 CDT; not on main yet)
+## The engine's side (inquiry's interface, agreed 23 October 2026, about 23:10 CDT; on main at 27b135f, `docs/evidence/RESTART.md`)
 
 - **`CRUCIBLE_CHECKPOINT=<stem>`** turns checkpointing on.
   - The driver writes `<stem>.ckpt` at a step boundary every `CRUCIBLE_CHECKPOINT_EVERY` wall seconds (default 1800).
   - The order is: write `.ckpt.tmp`, fsync, hard-link the old `.ckpt` to `.ckpt.prev`, rename, then fsync the directory. A kill at any point leaves a readable `.ckpt` or `.ckpt.prev`.
 - **`CRUCIBLE_RESTART=auto`** reads `<stem>.ckpt`, or `.ckpt.prev` if the latest fails its read or check.
   - With neither, it starts fresh and prints `restart: no checkpoint, fresh start`.
-  - A checkpoint records the run's argv and its `CRUCIBLE_*` environment. The run refuses (exit 1) if they differ.
+  - A checkpoint records the run's argv, including `argv[0]` (the binary), and its `CRUCIBLE_*` environment, less `CRUCIBLE_CHECKPOINT*`, `_RESTART`, `_KILL_AT_STEP` and `_STATE_OUT`. The run refuses (exit 1) if they differ.
+  - Allowed to change across a restart: `CRUCIBLE_T1_THREADS`, mascotte's 6th argument (threads), and `CRUCIBLE_T1_END`, extended only.
+  - A rebuilt binary at another path, or a changed environment, refuses the restart loudly; the job then needs a fresh start, by hand.
 - **The done-file is the driver's own:**
-  - `crucible_rl10_tier1` writes `<CRUCIBLE_T1_OUT>_<DEVELOPMENT|CENTRAL>_done`;
+  - `crucible_rl10_tier1` writes `<CRUCIBLE_T1_OUT>_DEVELOPMENT_done` (default `rl10_t1`) for `run development`, and `rl10_t1_central_done`, a fixed name in the working directory, for `run central`;
   - `crucible_mascotte_a10` writes `<prefix>_done`.
   - A killed process writes none. A run that fails deterministically writes it, so it is not relaunched.
   - A wrapper must not touch a done-file of its own after the run (as `bh_b4.sh`'s `touch done_b4` does), or a killed run would count as done.
@@ -42,8 +44,8 @@ Backhouse was restarted from the Start menu at 17:08 on 23 October 2026, and eve
   ```sh
   NAME=t1_central
   DIR=/home/greff/crucible_t1c/run
-  RESUME='CRUCIBLE_MANIFOLD_TABLE=/home/greff/crucible_t1c/run/rl10_s.bin CRUCIBLE_T1_OUT=central CRUCIBLE_T1_THREADS=4 CRUCIBLE_CHECKPOINT=central CRUCIBLE_RESTART=auto ../build/crucible_rl10_tier1 run central >> central.log 2>&1'
-  DONE=/home/greff/crucible_t1c/run/central_CENTRAL_done
+  RESUME='CRUCIBLE_MANIFOLD_TABLE=/home/greff/crucible_t1c/run/rl10_s.bin CRUCIBLE_T1_THREADS=4 CRUCIBLE_CHECKPOINT=central CRUCIBLE_RESTART=auto /home/greff/crucible_t1c/build/crucible_rl10_tier1 run central >> central.log 2>&1'
+  DONE=/home/greff/crucible_t1c/run/rl10_t1_central_done
   NICE=10
   ```
 

@@ -671,9 +671,10 @@ template<class Self,class Io> void Amr::checkpoint(Self& self,Io& io) {
     io.same(t.temperature,"the T tag");io.same(t.pressure,"the pressure tag");io.same(t.vorticity,"the vorticity tag");
     io.same(t.hydrogen,"the f_H weights");
     for(const auto& v:self.levels_) io.object(*v.flow);
-    io.field(self.time_);io.field(self.steps_);io.field(self.rejected_);io.field(self.regrids_);
+    io.field(self.time_);io.field(self.steps_);io.field(self.rejected_);io.field(self.regrids_);io.field(self.refluxClips_);
     io.field(self.started_);io.field(self.regridded_);io.field(self.initial_);
     io.field(self.fillError_);io.field(self.fillGross_);io.field(self.fillMassChange_);io.field(self.fillMassCompensation_);
+    io.field(self.refluxClipped_);
 }
 void Amr::writeCheckpoint(CheckpointWriter& out) const { checkpoint(*this,out); }
 void Amr::readCheckpoint(CheckpointReader& in) {

@@ -1019,7 +1019,8 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
 
 - In `Amr::reflux`, after the corrections and before the wall-function cells are represcribed, each touched cell's rho k becomes max(rho k, 0). E is not touched, since k is part of it, so the energy budget stays exact.
 - The rho k V added goes into the level's `clippedTurbulentEnergy` for owned cells, as the stages' clips do. It is saved and restored with a redone base step, as theirs is.
-- Amr counts the reflux clips, and an accessor reports the count and the rho k V added. No driver output changes.
+- Amr counts the reflux clips, and an accessor reports the count and the rho k V added. `crucible_amr_budget` prints them; no dump or series changes.
+- Added on rebasing onto main's restart checkpoint (27b135f, RESTART.md): the two counts are in `Amr::checkpoint`, so a checkpoint written before the clip does not read into the new binary (its signature's `argv[0]` differs as well). Job rfx runs f8e0f65, the clip before this rebase; the rebased tree was built on the Mac at 23:48 CDT with no warnings, and its checkpoint round trip was not rerun (write and read share one template, inferred to agree).
 
 **Checks, registered before the code.**
 
