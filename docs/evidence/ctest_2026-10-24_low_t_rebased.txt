@@ -1,0 +1,68 @@
+started Sat Oct 24 03:43:59 CDT 2026
+worktree-inquiry2 622f5c7 (the lowest ranges below 200 K, rebased onto main 96635e8, the implicit prototype), full rebuild (0 warnings); ctest -LE slow -j4
+build exit 0
+Test project /Users/ben/inquiry-project/.claude/worktrees/inquiry2/build
+      Start  4: amr_verification
+      Start  5: amr_subcycling_verification
+      Start  8: transport_verification
+      Start 15: spray_verification
+ 1/16 Test  #4: amr_verification .................***Failed    0.71 sec
+      Start 17: spray_amr_verification
+ 2/16 Test #15: spray_verification ...............***Failed  100.39 sec
+      Start  9: turbulence_verification
+ 3/16 Test  #9: turbulence_verification ..........   Passed   63.35 sec
+      Start  6: thermo_cea_verification
+ 4/16 Test  #5: amr_subcycling_verification ......***Failed  183.77 sec
+      Start  1: core_verification
+ 5/16 Test  #6: thermo_cea_verification ..........   Passed   61.82 sec
+      Start 12: face_inlet
+ 6/16 Test #12: face_inlet .......................   Passed    3.92 sec
+      Start 19: low_temperature_verification
+ 7/16 Test #19: low_temperature_verification .....   Passed    2.34 sec
+      Start 18: mixture_verification
+ 8/16 Test  #1: core_verification ................   Passed   51.47 sec
+      Start  7: reaction_verification
+ 9/16 Test  #7: reaction_verification ............   Passed    1.11 sec
+      Start 13: chemistry_skip
+10/16 Test #13: chemistry_skip ...................   Passed    0.27 sec
+      Start 16: spray_transfer
+11/16 Test #16: spray_transfer ...................   Passed    0.19 sec
+      Start 11: wall_function_threads
+12/16 Test #11: wall_function_threads ............   Passed    0.34 sec
+      Start  2: wall_function_verification
+13/16 Test  #2: wall_function_verification .......   Passed    0.22 sec
+14/16 Test #18: mixture_verification .............   Passed    6.02 sec
+15/16 Test  #8: transport_verification ...........***Failed  318.20 sec
+16/16 Test #17: spray_amr_verification ...........   Passed  458.75 sec
+
+75% tests passed, 4 tests failed out of 16
+
+Total Test time (real) = 459.46 sec
+
+The following tests FAILED:
+	  4 - amr_verification (Failed)
+	  5 - amr_subcycling_verification (Failed)
+	  8 - transport_verification (Failed)
+	 15 - spray_verification (Failed)
+Errors while running CTest
+Output from these tests are in: /Users/ben/inquiry-project/.claude/worktrees/inquiry2/build/Testing/Temporary/LastTest.log
+Use "--rerun-failed --output-on-failure" to re-run the failed cases verbosely.
+ctest exit 8
+finished Sat Oct 24 03:52:03 CDT 2026
+
+FAIL lines of the failing tests (LastTest.log):
+  level 3 (1200 x 128) closure, relative to the faces                        8.132e-14 (limit 1e-14)  FAIL
+  level 2 (600 x 64) closure, relative to the faces                          3.938e-14 (limit 1e-14)  FAIL
+  level 1 (300 x 32) closure, relative to the faces                          1.912e-14 (limit 1e-14)  FAIL
+FAILED (3 failures)
+  (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+FAIL: 1 failure(s)
+  64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.503e-03 (limit 0.001)  FAIL
+  128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.856e-03 (limit 0.001)  FAIL
+  256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.440e-03 (limit 0.001)  FAIL
+  observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+FAILED (5 failures)
+  radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL
+  4b. radial momentum: observed order (two finest grids)     1.444e+00 (limit 1.8e+00)  FAIL
+FAIL lines against ctest_2026-10-24_skip_nan.txt (its own summary lines excluded), as sorted sets: identical (14 lines). The same 4 tests fail (amr, amr_subcycling, transport, spray verification); low_temperature_verification passes.

@@ -66,3 +66,5 @@ FAILED (5 failures)
   radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL
   4b. radial momentum: observed order (two finest grids)     1.444e+00 (limit 1.8e+00)  FAIL
 FAIL lines against ctest_2026-10-24_skip_nan.txt (its own summary lines excluded), as sorted sets: identical (14 lines). The same 4 tests fail (amr, amr_subcycling, transport, spray verification); low_temperature_verification passes.
+
+The rebase onto main 96635e8 (about 03:45 CDT) made 66d45f4 into 5f2ae46 and 0026427 into 72c5c38, with the same trees apart from main's files.

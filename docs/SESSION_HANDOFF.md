@@ -1169,7 +1169,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT; the face inlet 22 October about 02:45 CDT; AMR step D judged about 04:40 CDT; step D met 5 of 5 and criterion 4 coded 22 October about 23:50 CDT, its runs launched 23:55; the gas energy leak fixed 23 October about 01:00 CDT; step D scored, the AMR cost estimate and the resume path 23 October about 23:20 CDT; the reflux clip about 23:35 CDT; the frozen-tag cost 24 October about 02:15 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT; the face inlet 22 October about 02:45 CDT; AMR step D judged about 04:40 CDT; step D met 5 of 5 and criterion 4 coded 22 October about 23:50 CDT, its runs launched 23:55; the gas energy leak fixed 23 October about 01:00 CDT; step D scored, the AMR cost estimate and the resume path 23 October about 23:20 CDT; the reflux clip about 23:35 CDT; the frozen-tag cost 24 October about 02:15 CDT; the thermo below 200 K about 03:55 CDT)
 
 - **Synced with `main`:** on 22 October at about 02:20 CDT, inquiry2 rebased onto `main` 9294aa6, and at about 04:38 onto `main` 880d362 (the Director's merge of b84ae3a, with the engine DB's round 3). Both rebases were clean. Earlier, the Director merged step C at 02:47 on 21 October (af91015). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`. This session's worktree guard refuses git commands on the main checkout, so inquiry2 cannot fast-forward `main` itself.
 - **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
@@ -1314,6 +1314,22 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
          - Backhouse's D0 (f8e0f65 against fcb20f1, gcc): all four cmp-identical, 0 clips (measured, about 01:00 CDT).
          - Inquiry paused rfx from 00:56:48 to 01:02:01 CDT for the contention measurement. The run's wall times include that pause.
          - **The slot policy** (SPEED.md section 3, main f154ba9): a job launches only while the 1-minute load plus its own threads is within 28. rfx's D1 pair starts two 4-thread runs behind one load-24 gate. So `amr_d/bh_rfx_d1gate.sh`, detached on backhouse since 01:44 CDT, stops the parent run when it appears and continues it once the load is under 24. Its log is `out/d1gate.log`, and it exits on its own.
+       - **At 03:21 CDT** (measured) chain B was in its load-gate sleep (backhouse load 29), with D3 not yet started. t1_exit was 0 and trace_exit present.
+    6. **The thermo below 200 K: built and checked, ready for tier 1 to opt in** (the Director's 02:20 item; LOW_T_THERMO.md, registered in 5f2ae46 before the build; code 72c5c38; ctest records 622f5c7).
+       - **What exists:**
+         - Lowest NASA-7 ranges, 20 to 200 K, for H2 (as normal hydrogen), O2 and H2O, fitted to statistical mechanics with cited constants (`tools/mechanisms/make_low_t.py`) and joined to TM-4513 at 200 K with cp, h and s continuous.
+         - Opt-in only, through `thermo::withLowTemperatureRanges(species)`. Tier 1 would opt in at `tests/rl10_tier1.cpp:897`. That is B4's file, so the change is left to inquiry.
+         - Cantera (the kinetics, and the equilibrate that prints the 329 warnings) keeps the mechanism's own thermo, so the warnings stay.
+       - **Measured:** ctest `low_temperature_verification` met all six tests:
+         - 128,448 property pairs and 220,416 inversions bit for bit at and above 200 K;
+         - the joins continuous to 3e-16;
+         - a shock tube above 200 K bit for bit, with its 120 K control different;
+         - cp within 0.9% of NIST's normal H2 and 0.1% of JANAF's O2 and H2O.
+       - **The fast ctest on 0026427 (before the rebase): the same 4 known failures**, with every FAIL line identical to `ctest_2026-10-24_skip_nan.txt`'s.
+       - **For the Director (a decision, not built):** the RL10's supply is frozen para-rich hydrogen, at least 95% para. The engine's H2 at and above 200 K is equilibrium hydrogen. At a 200 K supply that is 18% in cp and 163 kJ/kg of H2 enthalpy, falling to 0.5% and about 0.5 kJ/kg by 400 to 500 K. The options are in LOW_T_THERMO.md (b). My recommendation is (ii): correct only the supply's enthalpy at the face inlet.
+       - **Not done:**
+         - Burcat's database was not checked for segments below 200 K.
+         - No cited ortho-para conversion rate exists for the jacket's walls.
   - **Next for inquiry2, in order:**
     1. **WAITING ON `/home/greff/crucible_rfx/out/d3_done` and `/home/greff/crucible_rfx/out/all_done`.** At 02:15 CDT chain B was at the trace run, behind the load gate; D3 follows, then D1's pair (about 2.4 h, with the watcher). **Finish scoring job `rfx`:** check 2 (D3, `out/d3.txt`), check 1's D1 to 8 ms (`out/d1.txt`), and the backhouse trace (`out/trace/clips.txt`, against the Mac's in `amr_d/rfx_2026-10-23/mac/`). Copy them to `amr_d/rfx_2026-10-23/backhouse/`. Checks 1's D0, 3's trace and 3's tier 1, and the cost, are done.
     2. **The WSL-stop test** (`tools/resume/README.md`), when Ubuntu holds no other worker's process, with a re-armed dummy. Then a tier-1 job file to match inquiry's checkpoint commit when it lands.
