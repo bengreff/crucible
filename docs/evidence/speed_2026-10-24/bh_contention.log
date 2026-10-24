@@ -1,0 +1,10 @@
+probe launch 2026-10-24 00:53:01 CDT, load 32.53 32.41 32.78 29/1074 18805
+probe done 2026-10-24 00:53:46 CDT, load 33.03 32.48 32.78 41/1073 19020
+paused ours: 12103 12106 12371 12388 13210 17412  (2026-10-24 00:56:48 CDT)
+unpinned_n10 launch 2026-10-24 00:57:08 CDT, load 29.77 32.34 32.73 11/1074 19233
+unpinned_n10 exit 0 wall 91.156384974 s, machine busy 64.1%,  User time (seconds): 287.96; Percent of CPU this job got: 317%;
+pinned0246_n10 launch 2026-10-24 00:58:39 CDT, load 26.30 30.33 31.97 11/1072 19337
+pinned0246_n10 exit 0 wall 108.292922435 s, machine busy 68.6%,  User time (seconds): 303.72; Percent of CPU this job got: 281%;
+unpinned_n0 launch 2026-10-24 01:00:27 CDT, load 23.11 27.55 30.75 17/1090 19595
+unpinned_n0 exit 0 wall 94.002232620 s, machine busy 67.2%,  User time (seconds): 305.04; Percent of CPU this job got: 325%;
+resumed ours (2026-10-24 01:02:01 CDT), load 21.59 25.89 29.85 30/1088 19808

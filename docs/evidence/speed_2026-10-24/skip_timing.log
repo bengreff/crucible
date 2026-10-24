@@ -1,0 +1,12 @@
+pass 1 skip 1 launch 01:13:07, load { 8.48 10.20 8.97 }
+pass 1 skip 1 exit 0 real 80.23 user 239.17  end 01:14:27, load { 11.02 10.51 9.19 }
+pass 1 skip 0 launch 01:14:27, load { 11.02 10.51 9.19 }
+pass 1 skip 0 exit 0 real 176.50 user 565.19  end 01:17:24, load { 11.41 11.24 9.76 }
+pass 2 skip 1 launch 01:17:24, load { 11.41 11.24 9.76 }
+pass 2 skip 1 exit 0 real 78.69 user 248.95  end 01:18:42, load { 12.40 11.58 10.02 }
+pass 2 skip 0 launch 01:18:42, load { 12.40 11.58 10.02 }
+pass 2 skip 0 exit 0 real 121.96 user 456.77  end 01:20:44, load { 8.11 10.34 9.74 }
+r1skip1:   chemistry skipped / integrated (ReactingFlow::setChemistrySkip): level 0: 494938 / 20006; level 1: 674690 / 71674; level 2: 3764769 / 343767; level 3: 12383954 / 1288078
+r1skip0:   chemistry skipped / integrated (ReactingFlow::setChemistrySkip): level 0: 0 / 514944; level 1: 0 / 746364; level 2: 0 / 4108536; level 3: 0 / 13672032
+r2skip1:   chemistry skipped / integrated (ReactingFlow::setChemistrySkip): level 0: 494938 / 20006; level 1: 674690 / 71674; level 2: 3764769 / 343767; level 3: 12383954 / 1288078
+r2skip0:   chemistry skipped / integrated (ReactingFlow::setChemistrySkip): level 0: 0 / 514944; level 1: 0 / 746364; level 2: 0 / 4108536; level 3: 0 / 13672032

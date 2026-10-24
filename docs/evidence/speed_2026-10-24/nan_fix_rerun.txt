@@ -1,0 +1,19 @@
+# The NaN case (1 level, the lead 1 ms, LOX at 1 ms, igniter 1.2 ms, 4 threads) on main 4a7628f with the B_T fix; launched 01:05 CDT 24 October 2026, exit 0 at t = 1.5 ms. Series and the log's step lines:
+#!/bin/bash
+# Criterion (d) of tests/spray_transfer_tests.cpp: the case that stopped at about 1.35 ms (1 level, the H2 lead
+# shortened to 1 ms, LOX at 1 ms on its 0.5 ms ramp, the igniter at 1.2 ms) on main with the B_T fix, to 1.5 ms.
+cd /Users/ben/inquiry-project/build && make crucible_rl10_tier1 > /tmp/nanfix/t1/build.log 2>&1 || { echo "build failed" > /tmp/nanfix/t1/done; exit 1; }
+cp crucible_rl10_tier1 /tmp/nanfix/t1/
+cd /tmp/nanfix/t1
+export CRUCIBLE_MANIFOLD_TABLE=/tmp/lead_tables/rl10_s.bin CRUCIBLE_T1_LEVELS=1 CRUCIBLE_T1_LEAD=1e-3 CRUCIBLE_T1_END=1.5e-3 \
+  CRUCIBLE_T1_OUT=fix CRUCIBLE_T1_THREADS=4
+echo "launch $(date)" >> fix.log
+./crucible_rl10_tier1 run development >> fix.log 2>&1
+echo "exit $?" > /tmp/nanfix/t1/done
+== done-file: exit 0
+G2   pass  slot areas: largest relative error 3.65e-14 against A_L and A_H / 2
+Table B /tmp/lead_tables/rl10_s.bin: Table B built 2026-10-21 02:43 CDT by crucible_build_manifold_table from /Users/ben/inquiry-project/tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes {0.133333,0.142857,0.153846,0.166667,0.181818} as given, Z_N {0.000000,0.300000}, eta 11 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 990 nodes in 16 s on 3 threads; node element error 5.78e-10 raw, 3.64e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE
+--- t 0.000 ms  [DEVELOPMENT (protocol §6): not the reported case]
+--- t 0.500 ms  [DEVELOPMENT (protocol §6): not the reported case]
+--- t 1.000 ms  [DEVELOPMENT (protocol §6): not the reported case]
+--- t 1.500 ms  [DEVELOPMENT (protocol §6): not the reported case]

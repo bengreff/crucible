@@ -1,0 +1,10 @@
+threads 1 launch 2026-10-24 00:39:06 CDT, load { 5.61 7.25 7.81 }, paused hot: 22784 
+threads 1 exit 0 wall 186.9 s, load after { 3.14 5.25 6.85 }
+threads 2 launch 2026-10-24 00:42:23 CDT, load { 3.26 5.21 6.81 }, paused hot: 22784 
+threads 2 exit 0 wall 102.7 s, load after { 3.65 4.84 6.49 }
+threads 4 launch 2026-10-24 00:44:16 CDT, load { 3.40 4.74 6.44 }, paused hot: 22784 
+threads 4 exit 0 wall 59.7 s, load after { 4.94 4.93 6.39 }
+threads 6 launch 2026-10-24 00:45:26 CDT, load { 4.34 4.80 6.33 }, paused hot: 22784 
+threads 6 exit 0 wall 46.5 s, load after { 5.34 5.02 6.32 }
+threads 8 launch 2026-10-24 00:46:22 CDT, load { 4.76 4.91 6.26 }, paused hot: 22784 
+threads 8 exit 0 wall 42.1 s, load after { 6.97 5.48 6.41 }

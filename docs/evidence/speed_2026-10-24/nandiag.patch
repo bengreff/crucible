@@ -1,0 +1,40 @@
+--- a/core/spray.cpp
++++ b/core/spray.cpp
+@@ -1,3 +1,4 @@
++#include <atomic>
+ #include "core/spray.hpp"
+ #include "core/amr.hpp"
+ #include "core/checkpoint.hpp"
+@@ -413,6 +414,18 @@
+       const double f = pure ? s : shape[first + i];
+       const double t = std::abs(aT) > 1e-12 ? ts + (gas.t - ts) * std::expm1(aT * (1 - f)) / std::expm1(aT)
+                                             : ts + (gas.t - ts) * (1 - f);
++      if (!std::isfinite(t) || !(t > 0)) {  // PROFILE DIAGNOSTIC (measurement tree only): the spray NaN's inputs
++        static std::atomic<int> told{0};
++        if (told++ < 3) {
++          std::fprintf(stderr, "NANDIAG film t %g at node %zu (piece from %g to %g): ts %.17g gas.t %.17g gas.p %.17g aM %.17g aT %.17g "
++                       "f %.17g pure %d yInf %.17g cpf %.17g gas.rho %.17g\nNANDIAG shape:", t, first + i, x0, x1, ts, gas.t, gas.p, aM,
++                       aT, f, pure ? 1 : 0, yInf, cpf, gas.rho);
++          if (shape) for (std::size_t q = 0; q < 2 * n; ++q) std::fprintf(stderr, " %.6g", shape[q]);
++          std::fprintf(stderr, "\nNANDIAG phi so far:");
++          for (std::size_t q = 0; q < first + i; ++q) std::fprintf(stderr, " %.6g", phi[q]);
++          std::fprintf(stderr, " sumPhi %.6g sumRhoD %.6g\n", sumPhi, sumRhoD);
++        }
++      }
+       const auto film = filmTransport(t, gas.p, y);
+       const double rhoD = gas.p / (film.r * t) * film.diffusion * (wOther > 0 ? Medium::universalGasConstant / (film.r * wOther) : 1);
+       phi[first + i] = cpf * rhoD / film.conductivity;
+@@ -571,6 +584,13 @@
+         shape[n + i] = split + (1 - split) * gaussNode_[i];
+       }
+       for (int pass = 0; pass < filmPasses; ++pass) {
++        if (!std::isfinite(bt) || !(bt > -1) || !std::isfinite(ts) || !std::isfinite(gas.t)) {  // PROFILE DIAGNOSTIC
++          static std::atomic<int> told{0};
++          if (told++ < 3)
++            std::fprintf(stderr, "NANDIAG rates pass %d: bt %.17g bm %.17g ts %.17g gas.t %.17g aM %.17g yInf %.17g ySurface %.17g "
++                         "cpf %.17g lambda %.17g rhoD %.17g d %.17g\n", pass, bt, bm, ts, gas.t, aM, yInf, ySurface, cpf, lambda,
++                         rhoD, parcel.d);
++        }
+         const auto c = filmConductances(gas, ts, aM, std::log1p(bt), cpf, yr, shape.data());
+         lambda = c[0];
+         rhoD = c[1];

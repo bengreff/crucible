@@ -1,0 +1,55 @@
+h2o2.yaml
+  inert species: AR N2 
+  1. reactive species are all but N2, AR, HE (1 = differs)                   0.000e+00 (limit 0.0e+00)  ok
+  H2 alone starts reaction 11 in reverse
+  H2 alone starts reaction 12 in reverse
+  H2 alone starts reaction 13 in reverse
+  1. H2 alone: directions started (at least 1), all to H2 and H only         3.000e+00 (limit 1.0e+00)  ok
+  O2 alone starts reaction 0 in reverse
+  1. O2 alone: directions started (at least 1), all to O2 and O only         1.000e+00 (limit 1.0e+00)  ok
+  2. equilibrium x_H in pure H2 at 500 K and 1 Pa (Kp 4.84e-41)              2.200e-18 (limit 1.0e-16)  ok
+  2. equilibrium x_O in pure O2 at 500 K and 1 Pa (Kp 1.34e-46)              3.666e-21 (limit 1.0e-16)  ok
+  3. ReactionStep over 1e-3 s: largest |dY_k|                                6.135e-36 (limit 1.0e-16)  ok
+  3. ReactionStep over 1e-3 s: largest |dT| / T                              0.000e+00 (limit 1.0e-14)  ok
+  5(a) within H2 and H: directions (at least 1), all to H2 and H only        6.000e+00 (limit 1.0e+00)  ok
+  5(a) within O2 and O: directions (at least 1), all to O2 and O only        2.000e+00 (limit 1.0e+00)  ok
+h2o2.yaml, the duct
+  skip on: skipped 48, integrated 16; off: skipped 0, integrated 64
+  4(a) the counts (1 = differ)                                               0.000e+00 (limit 0.0e+00)  ok
+  4(b) skipped cells unchanged bit for bit (1 = changed)                     0.000e+00 (limit 0.0e+00)  ok
+  4(c) on against off: largest partial density gap / rho                     1.871e-16 (limit 1.0e-15)  ok
+  4(c) columns 12-15 on against off bit for bit (1 = differ)                 0.000e+00 (limit 0.0e+00)  ok
+h2o2.yaml, the duct with trace atoms
+  skip on: skipped 32, integrated 32; off: skipped 0, integrated 64
+  5(b) the counts (1 = differ)                                               0.000e+00 (limit 0.0e+00)  ok
+  5(c) skipped cells unchanged bit for bit (1 = changed)                     0.000e+00 (limit 0.0e+00)  ok
+  5(c) on against off: largest partial density gap / rho                     1.871e-16 (limit 1.0e-14)  ok
+  5(c) columns 4-7 and 12-15 on against off bit for bit (1 = differ)         0.000e+00 (limit 0.0e+00)  ok
+/Users/ben/inquiry-project/tools/mechanisms/h2o2_highT.yaml
+  inert species: AR N2 
+  1. reactive species are all but N2, AR, HE (1 = differs)                   0.000e+00 (limit 0.0e+00)  ok
+  H2 alone starts reaction 11 in reverse
+  H2 alone starts reaction 12 in reverse
+  H2 alone starts reaction 13 in reverse
+  1. H2 alone: directions started (at least 1), all to H2 and H only         3.000e+00 (limit 1.0e+00)  ok
+  O2 alone starts reaction 0 in reverse
+  1. O2 alone: directions started (at least 1), all to O2 and O only         1.000e+00 (limit 1.0e+00)  ok
+  2. equilibrium x_H in pure H2 at 500 K and 1 Pa (Kp 4.84e-41)              2.200e-18 (limit 1.0e-16)  ok
+  2. equilibrium x_O in pure O2 at 500 K and 1 Pa (Kp 1.34e-46)              3.666e-21 (limit 1.0e-16)  ok
+  3. ReactionStep over 1e-3 s: largest |dY_k|                                6.055e-36 (limit 1.0e-16)  ok
+  3. ReactionStep over 1e-3 s: largest |dT| / T                              0.000e+00 (limit 1.0e-14)  ok
+  5(a) within H2 and H: directions (at least 1), all to H2 and H only        6.000e+00 (limit 1.0e+00)  ok
+  5(a) within O2 and O: directions (at least 1), all to O2 and O only        2.000e+00 (limit 1.0e+00)  ok
+/Users/ben/inquiry-project/tools/mechanisms/h2o2_highT.yaml, the duct
+  skip on: skipped 48, integrated 16; off: skipped 0, integrated 64
+  4(a) the counts (1 = differ)                                               0.000e+00 (limit 0.0e+00)  ok
+  4(b) skipped cells unchanged bit for bit (1 = changed)                     0.000e+00 (limit 0.0e+00)  ok
+  4(c) on against off: largest partial density gap / rho                     1.871e-16 (limit 1.0e-15)  ok
+  4(c) columns 12-15 on against off bit for bit (1 = differ)                 0.000e+00 (limit 0.0e+00)  ok
+/Users/ben/inquiry-project/tools/mechanisms/h2o2_highT.yaml, the duct with trace atoms
+  skip on: skipped 32, integrated 32; off: skipped 0, integrated 64
+  5(b) the counts (1 = differ)                                               0.000e+00 (limit 0.0e+00)  ok
+  5(c) skipped cells unchanged bit for bit (1 = changed)                     0.000e+00 (limit 0.0e+00)  ok
+  5(c) on against off: largest partial density gap / rho                     1.871e-16 (limit 1.0e-14)  ok
+  5(c) columns 4-7 and 12-15 on against off bit for bit (1 = differ)         0.000e+00 (limit 0.0e+00)  ok
+0 failures

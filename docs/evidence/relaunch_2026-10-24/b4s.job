@@ -1,0 +1,6 @@
+# crucible (inquiry): B4 relaunched fresh with the spray NaN fix and the chemistry skip (docs/evidence/SPEED.md).
+NAME=b4s
+DIR=/home/greff/crucible_b4s/runs/b4
+RESUME='bash /home/greff/crucible_b4s/docs/evidence/relaunch_2026-10-24/bh_run.sh b4'
+DONE=/home/greff/crucible_b4s/runs/b4/b4_DEVELOPMENT_done
+NICE=10

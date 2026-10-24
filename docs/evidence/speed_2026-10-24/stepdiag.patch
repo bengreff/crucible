@@ -1,0 +1,340 @@
+diff --color -ru main_1166721/core/amr.cpp prof_tree/core/amr.cpp
+--- main_1166721/core/amr.cpp	2026-10-23 23:39:59
++++ prof_tree/core/amr.cpp	2026-10-23 23:47:49
+@@ -523,6 +523,15 @@
+         const std::size_t f0=naF+static_cast<std::size_t>(2*I)*(fm.nr+1)+2*J,f1=f0+(fm.nr+1);
+         if(low) correct(cm.index(I,J),1,fc,f0,f1); else correct(cm.index(I,J-1),-1,fc,f0,f1);
+     }
++    // At the turbulent front the fine faces can draw k from a cell that has none, a deficit no shorter
++    // step removes: rho k is set to max(rho k, 0) as the stages do (Flow::clipTurbulence), E untouched,
++    // the rho k V added booked for owned cells (AMR.md, Amendment: the reflux clips rho k at zero).
++    if(nt) for(auto u:touched) if(c.turbulence_[u*nt]<0) {
++        const double added=-c.turbulence_[u*nt]*cm.cells[u].volume;
++        c.turbulence_[u*nt]=0;
++        if(c.isOwned(u)) { c.clippedTurbulentEnergy_+=added;refluxClipped_+=added; }
++        ++refluxClips_;
++    }
+     // A wall-function cell has no k or omega equation: the law sets them again at its refluxed state
+     // (AMR.md, step D).
+     if(nt && c.definition_.turbulence.wallFunctions) {
+@@ -580,6 +589,7 @@
+         s.massCompensation=f.massCompensation_;s.energyCompensation=f.energyCompensation_;s.correctionCompensation=f.correctionCompensation_;s.momentumCompensation=f.momentumCompensation_;
+         s.exchangedMass=f.exchangedMass_;s.exchangedEnergy=f.exchangedEnergy_;s.exchangedMomentum=f.exchangedMomentum_;
+     }
++    savedRefluxClips_=refluxClips_;savedRefluxClipped_=refluxClipped_;
+ }
+ void Amr::restore() {
+     for(auto& v:levels_) {
+@@ -591,6 +601,7 @@
+         f.massCompensation_=s.massCompensation;f.energyCompensation_=s.energyCompensation;f.correctionCompensation_=s.correctionCompensation;f.momentumCompensation_=s.momentumCompensation;
+         f.exchangedMass_=s.exchangedMass;f.exchangedEnergy_=s.exchangedEnergy;f.exchangedMomentum_=s.exchangedMomentum;
+     }
++    refluxClips_=savedRefluxClips_;refluxClipped_=savedRefluxClipped_;
+ }
+ Amr::Budget Amr::content() const {
+     const Flow& b=level(0);const Mesh& m=b.mesh_;
+@@ -626,10 +637,15 @@
+     for(auto& v:levels_)
+         if(!v.flow->bodyForce_.empty() || !v.flow->heating_.empty()) throw std::invalid_argument("AMR step B1 takes no body force or heating.");
+     double dt=maxDt;
+-    for(int l=0;l<=top_;++l) dt=std::min(dt,std::ldexp(level(l).stableDt(),l));
++    if(Flow::diagOn()) stepDiags_.assign(static_cast<std::size_t>(top_+1),Flow::StepDiag{});
++    for(int l=0;l<=top_;++l) {
++        dt=std::min(dt,std::ldexp(level(l).stableDt(),l));
++        if(Flow::diagOn()) stepDiags_[static_cast<std::size_t>(l)]=level(l).stepDiag();
++    }
+     const double event=level(0).nextEvent(time_);
+     bool landing=false;
+     if(event-time_<=dt) { dt=event-time_;landing=true; }
++    landed_=landing;
+     save();
+     for(int attempt=0;attempt<14;++attempt) {
+         if(advance(0,time_,dt,0)) {
+@@ -663,6 +679,7 @@
+     io.field(self.time_);io.field(self.steps_);io.field(self.rejected_);io.field(self.regrids_);
+     io.field(self.started_);io.field(self.regridded_);io.field(self.initial_);
+     io.field(self.fillError_);io.field(self.fillGross_);io.field(self.fillMassChange_);io.field(self.fillMassCompensation_);
++    io.field(self.refluxClips_);io.field(self.refluxClipped_);
+ }
+ void Amr::writeCheckpoint(CheckpointWriter& out) const { checkpoint(*this,out); }
+ void Amr::readCheckpoint(CheckpointReader& in) {
+diff --color -ru main_1166721/core/amr.hpp prof_tree/core/amr.hpp
+--- main_1166721/core/amr.hpp	2026-10-23 23:39:59
++++ prof_tree/core/amr.hpp	2026-10-23 23:47:49
+@@ -51,6 +51,14 @@
+     [[nodiscard]] double time() const { return time_; }
+     [[nodiscard]] std::uint64_t steps() const { return steps_; }
+     [[nodiscard]] std::uint64_t rejectedSteps() const { return rejected_; }
++    // The reflux's clips of rho k at zero (AMR.md, Amendment: the reflux clips rho k at zero): the cells
++    // clipped, and the rho k V the owned ones gained (also in their level's clippedTurbulentEnergy), over
++    // the accepted base steps.
++    [[nodiscard]] std::uint64_t refluxClips() const { return refluxClips_; }
++    // PROFILE DIAGNOSTIC: each level's StepDiag at the last step()'s choice (2^l not applied), whether it landed on an event.
++    [[nodiscard]] const std::vector<Flow::StepDiag>& stepDiags() const { return stepDiags_; }
++    [[nodiscard]] bool landed() const { return landed_; }
++    [[nodiscard]] double refluxClipped() const { return refluxClipped_; }
+     // Called after each step of a level (its index and dt), before the levels above it step: e.g. a
+     // reaction step, which must keep each cell's mass and energy.
+     void setAfterStep(std::function<void(int, double)> afterStep) { afterStep_=std::move(afterStep); }
+@@ -132,6 +140,10 @@
+     std::function<void()> redo_;
+     double time_{};
+     std::uint64_t steps_{}, rejected_{};
++    std::uint64_t refluxClips_{}, savedRefluxClips_{};
++    std::vector<Flow::StepDiag> stepDiags_;
++    bool landed_{false};
++    double refluxClipped_{}, savedRefluxClipped_{};
+     void check();
+     bool advance(int l, double t, double dt, int half);
+     // Fill the children of level l's parents (B2) or every cell that is not active (B1) from level l - 1
+diff --color -ru main_1166721/core/flow.cpp prof_tree/core/flow.cpp
+--- main_1166721/core/flow.cpp	2026-10-23 23:39:59
++++ prof_tree/core/flow.cpp	2026-10-23 23:48:09
+@@ -1,3 +1,4 @@
++#include <cstdlib>
+ #include "core/flow.hpp"
+ #include "core/walls.hpp"
+ #include "core/checkpoint.hpp"
+@@ -968,6 +969,7 @@
+ // parts are added (mu + mu_t, lambda + cp mu_t / Pr_t, D_km + mu_t / (rho Sc_t); the k and omega
+ // diffusivities mu + sigma mu_t lie below 4/3 (mu + mu_t)), and the source coefficients of the
+ // first half of the split are frozen here.
++bool Flow::diagOn() { static const bool on=std::getenv("CRUCIBLE_STEPDIAG")!=nullptr; return on; }
+ double Flow::stableDt() {
+     // AMR step B2: with turbulence the source coefficients over N_(g-1), which read the gradients'
+     // neighbours in N_g; the step over the active cells.
+@@ -978,6 +980,8 @@
+     if(nt_) { transportGradients(g-1);eddyViscosity(true,g-1); }
+     // Each worker's smallest step, then the smallest of those (a minimum does not depend on the order).
+     std::fill(workerDt_.begin(),workerDt_.end(),std::numeric_limits<double>::infinity());
++    const bool diag=diagOn();
++    if(diag) { workerDiag_.assign(workerDt_.size(),StepDiag{}); }
+     const auto* active=region(0);
+     pool_->blocks(active?active->size():mesh_.cells.size(),kCells,[&](std::size_t begin,std::size_t end,int worker) {
+       double dt=std::numeric_limits<double>::infinity();
+@@ -989,12 +993,15 @@
+         double a=sound_[q],volume=mesh_.cells[q].volume;
+         double sumArea2=sq(mesh_.axialArea(i,j))+sq(mesh_.axialArea(i+1,j));
+         double rate=(mesh_.axialArea(i,j)+mesh_.axialArea(i+1,j))*(std::abs(w.uz)+a);
++        double flowPart=(mesh_.axialArea(i,j)+mesh_.axialArea(i+1,j))*std::abs(w.uz);
+         for(int f:{j,j+1}) {
+             auto ar=mesh_.radialAreaVector(i,f);
+             rate+=std::abs(w.uz*ar[0]+w.ur*ar[1])+a*std::hypot(ar[0],ar[1]);
++            flowPart+=std::abs(w.uz*ar[0]+w.ur*ar[1]);
+             sumArea2+=sq(ar[0])+sq(ar[1]);
+         }
+         const double convective=rate;
++        int nuKind=-1;
+         if(transport) {
+             const double* y=fractions_.data()+q*nw_;
+             double nu=std::max(4.0/3*viscosity_[q],conductivity_[q]/medium_.cv(temperature_[q],y))/w.rho;
+@@ -1004,9 +1011,30 @@
+                 nu=std::max({nu,4.0/3*(viscosity_[q]+eddy_[q])/w.rho,(conductivity_[q]+eddyConductivity_[q])/(medium_.cv(temperature_[q],y)*w.rho)});
+                 for(std::size_t k=0;k<ns_;++k) nu=std::max(nu,diffusion_[q*ns_+k]+eddy_[q]/(w.rho*tu.schmidt));
+             }
++            if(diag) {
++                const double cv=medium_.cv(temperature_[q],y);
++                double best=-1;
++                auto pick=[&](double v,int kind) { if(v>best) { best=v;nuKind=kind; } };
++                pick(4.0/3*viscosity_[q]/w.rho,0);pick(conductivity_[q]/(cv*w.rho),1);
++                for(std::size_t k=0;k<ns_;++k) pick(diffusion_[q*ns_+k],2);
++                if(nt_) {
++                    const auto& tu=definition_.turbulence;
++                    pick(4.0/3*(viscosity_[q]+eddy_[q])/w.rho,3);pick((conductivity_[q]+eddyConductivity_[q])/(cv*w.rho),4);
++                    for(std::size_t k=0;k<ns_;++k) pick(diffusion_[q*ns_+k]+eddy_[q]/(w.rho*tu.schmidt),5);
++                }
++            }
+             rate+=2*nu*sumArea2/volume;
+         }
+         const double cell=definition_.cfl*volume/rate;
++        if(diag && isActive(q)) {
++            auto& d=workerDiag_[static_cast<std::size_t>(worker)];
++            const double diff=rate-convective,ac=convective-flowPart,c=definition_.cfl*volume;
++            const double noAc=c/(flowPart+diff),noDiff=c/convective,flowOnly=c/std::max(flowPart,1e-300);
++            d.active+=1;
++            if(cell<d.full) { d.full=cell;d.rFlow=flowPart/volume;d.rAcoustic=ac/volume;d.rDiffusive=diff/volume;d.nuKind=nuKind; }
++            d.noAcoustic=std::min(d.noAcoustic,noAc);d.noDiffusion=std::min(d.noDiffusion,noDiff);d.flowOnly=std::min(d.flowOnly,flowOnly);
++            if(isOwned(q)) { d.owned+=1;d.invFull+=1/cell;d.invNoAcoustic+=1/noAc;d.invNoDiffusion+=1/noDiff;d.invFlowOnly+=1/flowOnly; }
++        }
+         if(cell<dt && isActive(q)) { dt=cell;limit={q,convective/volume,(rate-convective)/volume}; }
+       }
+       if(dt<workerDt_[worker] || (dt==workerDt_[worker] && limit.cell<workerLimit_[worker].cell)) {
+@@ -1017,6 +1045,15 @@
+     for(std::size_t w=1;w<workerDt_.size();++w)
+         if(workerDt_[w]<workerDt_[best] || (workerDt_[w]==workerDt_[best] && workerLimit_[w].cell<workerLimit_[best].cell)) best=w;
+     stepLimit_=workerLimit_[best];
++    if(diag) {
++        StepDiag d;
++        for(const auto& w:workerDiag_) {
++            if(w.full<d.full) { d.full=w.full;d.rFlow=w.rFlow;d.rAcoustic=w.rAcoustic;d.rDiffusive=w.rDiffusive;d.nuKind=w.nuKind; }
++            d.noAcoustic=std::min(d.noAcoustic,w.noAcoustic);d.noDiffusion=std::min(d.noDiffusion,w.noDiffusion);d.flowOnly=std::min(d.flowOnly,w.flowOnly);
++            d.active+=w.active;d.owned+=w.owned;d.invFull+=w.invFull;d.invNoAcoustic+=w.invNoAcoustic;d.invNoDiffusion+=w.invNoDiffusion;d.invFlowOnly+=w.invFlowOnly;
++        }
++        d.cell=stepLimit_.cell;stepDiag_=d;
++    }
+     return workerDt_[best];
+ }
+ // Radial reconstruction. Cell averages are r-weighted, so they are point values at the volume
+diff --color -ru main_1166721/core/flow.hpp prof_tree/core/flow.hpp
+--- main_1166721/core/flow.hpp	2026-10-23 23:39:59
++++ prof_tree/core/flow.hpp	2026-10-23 23:48:09
+@@ -359,6 +359,18 @@
+     // thread count) and its convective and diffusive rates per unit volume: the step is cfl / (sum).
+     struct StepLimit { std::size_t cell = 0; double convective = 0, diffusive = 0; };
+     [[nodiscard]] const StepLimit& stepLimit() const { return stepLimit_; }
++    // PROFILE DIAGNOSTIC (measurement tree only): the last stableDt()'s smallest step with the full rate, without the
++    // acoustic part (sum a A), without the diffusive part, and with the flow part (sum |u.n| A) alone; at the binding cell
++    // the three rates per volume and which diffusivity was largest (0 4/3 mu/rho, 1 lambda/(rho cv), 2 a species D,
++    // 3 4/3 (mu+mu_t)/rho, 4 (lambda+lambda_t)/(rho cv), 5 D + mu_t/(rho Sc)); over the owned cells (active, not covered)
++    // their count and the sums of 1/dt_cell for the full rate, without acoustics, and without diffusion.
++    struct StepDiag {
++        double full = 1e300, noAcoustic = 1e300, noDiffusion = 1e300, flowOnly = 1e300;
++        double rFlow = 0, rAcoustic = 0, rDiffusive = 0; int nuKind = -1; std::size_t cell = 0;
++        double active = 0, owned = 0, invFull = 0, invNoAcoustic = 0, invNoDiffusion = 0, invFlowOnly = 0;
++    };
++    [[nodiscard]] const StepDiag& stepDiag() const { return stepDiag_; }
++    static bool diagOn();
+     // The molecular-transport part of the right-hand side alone for the current state, per unit
+     // volume (verification of the operator).
+     void transportDerivative(std::vector<Conserved>& derivative, std::vector<double>& speciesDerivative);
+@@ -477,6 +489,8 @@
+     std::vector<double> workerDt_;
+     std::vector<StepLimit> workerLimit_;
+     StepLimit stepLimit_;
++    std::vector<StepDiag> workerDiag_;
++    StepDiag stepDiag_;
+     // Per cell: inside the igniter, and its volume inside it (its own volume on a single level); rho k V
+     // added by the last stage's clip (Flow::step).
+     std::vector<char> igniterCell_;
+--- main_1166721/tests/rl10_tier1.cpp	2026-10-23 23:39:59
++++ prof_tree/tests/rl10_tier1.cpp	2026-10-23 23:48:31
+@@ -545,7 +545,72 @@
+   while (amr.time() < s.end - 1e-13) {
+     const double t = amr.time(), next = static_cast<double>(k + 1) * kSample;
+     const double other = std::min({s.end - t, spray.nextEvent(t) - t, next - t}), bound = spray.exchangeDt();
++    const auto wallStep0 = std::chrono::steady_clock::now();
+     const double dt = amr.step(std::min(other, bound));
++    if (Flow::diagOn()) {  // PROFILE DIAGNOSTIC (measurement tree only)
++      static struct D {
++        double n = 0, simT = 0, wall = 0, causes[8] = {}, share[3] = {}, dominant[3] = {}, nuKind[7] = {};
++        double cfNoAc = 0, cfNoDiff = 0, cfFlow = 0, wCur = 0, wLts = 0, wLtsNoAc = 0, wLtsNoDiff = 0, wLtsFlow = 0;
++        double acOverFlow = 0;
++        long lastK = -1;
++      } d;
++      const auto& ds = amr.stepDiags();
++      const double inf = std::numeric_limits<double>::infinity(), cap = std::min(other, bound);
++      double mFull = inf, mNoAc = inf, mNoDiff = inf, mFlow = inf, invF = 0, invA = 0, invD = 0, invU = 0, work = 0;
++      int L = -1;
++      for (std::size_t l = 0; l < ds.size(); ++l) {
++        const double f = std::ldexp(ds[l].full, static_cast<int>(l));
++        if (f < mFull) mFull = f, L = static_cast<int>(l);
++        mNoAc = std::min(mNoAc, std::ldexp(ds[l].noAcoustic, static_cast<int>(l)));
++        mNoDiff = std::min(mNoDiff, std::ldexp(ds[l].noDiffusion, static_cast<int>(l)));
++        mFlow = std::min(mFlow, std::ldexp(ds[l].flowOnly, static_cast<int>(l)));
++        invF += ds[l].invFull, invA += ds[l].invNoAcoustic, invD += ds[l].invNoDiffusion, invU += ds[l].invFlowOnly;
++        work += ds[l].active * std::ldexp(1.0, static_cast<int>(l));
++      }
++      // causes: 0..3 the level whose stable step bound it, 4 an event, 5 the spray's exchange bound, 6 the sample/end/spray event
++      int cause = amr.landed() ? 4 : dt < mFull * (1 - 1e-9) ? (bound < other ? 5 : 6) : std::min(L, 3);
++      d.causes[cause] += 1;
++      if (cause <= 3) {
++        const auto& b = ds[static_cast<std::size_t>(L)];
++        const double sum = b.rFlow + b.rAcoustic + b.rDiffusive;
++        d.share[0] += b.rFlow / sum, d.share[1] += b.rAcoustic / sum, d.share[2] += b.rDiffusive / sum;
++        d.dominant[b.rAcoustic >= b.rFlow && b.rAcoustic >= b.rDiffusive ? 1 : b.rDiffusive >= b.rFlow ? 2 : 0] += 1;
++        d.nuKind[b.nuKind + 1] += 1;
++        d.acOverFlow += b.rAcoustic / std::max(b.rFlow, 1e-300);
++      }
++      d.n += 1, d.simT += dt;
++      d.wall += std::chrono::duration<double>(std::chrono::steady_clock::now() - wallStep0).count();
++      d.cfNoAc += dt / std::min(cap, mNoAc), d.cfNoDiff += dt / std::min(cap, mNoDiff), d.cfFlow += dt / std::min(cap, mFlow);
++      d.wCur += work, d.wLts += dt * invF, d.wLtsNoAc += dt * invA, d.wLtsNoDiff += dt * invD, d.wLtsFlow += dt * invU;
++      const long kk = std::lround(amr.time() / kSample);
++      if (kk != d.lastK && kk % 5 == 0) {
++        d.lastK = kk;
++        const double lv = d.causes[0] + d.causes[1] + d.causes[2] + d.causes[3];
++        std::printf("STEPDIAG t %.4f ms: %.0f base steps, mean dt %.4g s, %.3f s wall per step | bound by level 0..3 %.0f %.0f %.0f %.0f, "
++                    "event %.0f, spray bound %.0f, sample/end %.0f | at the binding cell, rate shares flow %.3f acoustic %.3f "
++                    "diffusive %.3f (dominant: flow %.0f, acoustic %.0f, diffusive %.0f), acoustic/flow %.3g; largest nu kind "
++                    "[none, mu, lambda, D, mu+mut, lambda+lambdat, D+Dt] %.0f %.0f %.0f %.0f %.0f %.0f %.0f | speed-up of the "
++                    "global step: no acoustics %.3g, no diffusion %.3g, flow only %.3g | work now / LTS: full %.3g, no acoustics "
++                    "%.3g, no diffusion %.3g, flow only %.3g\n",
++                    amr.time() * 1e3, d.n, d.simT / d.n, d.wall / d.n, d.causes[0], d.causes[1], d.causes[2], d.causes[3],
++                    d.causes[4], d.causes[5], d.causes[6], d.share[0] / lv, d.share[1] / lv, d.share[2] / lv, d.dominant[0],
++                    d.dominant[1], d.dominant[2], d.acOverFlow / lv, d.nuKind[0], d.nuKind[1], d.nuKind[2], d.nuKind[3], d.nuKind[4],
++                    d.nuKind[5], d.nuKind[6], d.n / d.cfNoAc, d.n / d.cfNoDiff, d.n / d.cfFlow, d.wCur / d.wLts,
++                    d.wCur / d.wLtsNoAc, d.wCur / d.wLtsNoDiff, d.wCur / d.wLtsFlow);
++        for (std::size_t l = 0; l < ds.size(); ++l) {
++          const auto& b = ds[l];
++          const std::size_t nr = amr.level(static_cast<int>(l)).mesh().nr;
++          std::printf("STEPDIAG   level %zu: %.0f active, %.0f owned; 2^l dt full %.4g, no acoustics %.4g, no diffusion %.4g, flow only "
++                      "%.4g s; binding cell (%zu, %zu) rates/V flow %.4g acoustic %.4g diffusive %.4g 1/s, nu kind %d\n",
++                      l, b.active, b.owned, std::ldexp(b.full, static_cast<int>(l)), std::ldexp(b.noAcoustic, static_cast<int>(l)),
++                      std::ldexp(b.noDiffusion, static_cast<int>(l)), std::ldexp(b.flowOnly, static_cast<int>(l)), b.cell / nr,
++                      b.cell % nr, b.rFlow, b.rAcoustic, b.rDiffusive, b.nuKind);
++        }
++        std::fflush(stdout);
++        d = D{};
++        d.lastK = kk;
++      }
++    }
+     smallestBound = std::min(smallestBound, bound);
+     shortened += bound < other && dt >= bound * (1 - 1e-12);
+     if (amr.time() < next - 1e-13) continue;
+--- a/tests/chamber_study.cpp
++++ b/tests/chamber_study.cpp
+@@ -648,6 +648,27 @@
+   long limitSamples = 0, limitWall = 0, limitAxis = 0, limitChamber = 0, limitThroat = 0, limitNozzle = 0,
+        limitDiffusive = 0;
+   double limitDtSum = 0;
++  // CRUCIBLE_STEPDIAG (speed_2026-10-24, print-only): per sample after 1 ms, Flow::stepDiag's step without each term
++  // over the full step, the rate shares at the binding cell, and the cell updates over local time stepping's.
++  struct DiagSum { long n = 0; double noAc = 0, noDiff = 0, flowOnly = 0, sFlow = 0, sAc = 0, sDiff = 0, lts = 0, ltsNoAc = 0, dt = 0; long kind[6] = {}; };
++  DiagSum diagAll, diagWindow;
++  auto diagAdd = [&](DiagSum& s, const Flow::StepDiag& g) {
++    const double r = g.rFlow + g.rAcoustic + g.rDiffusive;
++    ++s.n; s.noAc += g.noAcoustic / g.full; s.noDiff += g.noDiffusion / g.full; s.flowOnly += g.flowOnly / g.full;
++    s.sFlow += g.rFlow / r; s.sAc += g.rAcoustic / r; s.sDiff += g.rDiffusive / r; s.dt += g.full;
++    s.lts += g.active / (g.full * g.invFull); s.ltsNoAc += g.active / (g.noAcoustic * g.invNoAcoustic);
++    if (g.nuKind >= 0 && g.nuKind < 6) ++s.kind[g.nuKind];
++  };
++  auto diagText = [&](const DiagSum& s) {
++    const double n = static_cast<double>(s.n);
++    char text[400];
++    std::snprintf(text, sizeof text, "%ld samples, mean dt %.3e s; shares flow %.3f acoustic %.3f diffusive %.3f; "
++                  "speed-up no acoustics %.3f, no diffusion %.3f, flow only %.3f; work/LTS %.2f, without acoustics %.2f; "
++                  "nu kind 0..5 %ld %ld %ld %ld %ld %ld", s.n, s.dt / n, s.sFlow / n, s.sAc / n, s.sDiff / n, s.noAc / n,
++                  s.noDiff / n, s.flowOnly / n, s.lts / n, s.ltsNoAc / n, s.kind[0], s.kind[1], s.kind[2], s.kind[3],
++                  s.kind[4], s.kind[5]);
++    return std::string(text);
++  };
+   auto limitText = [&]() {
+     const auto& l = flow.stepLimit();
+     const int i = static_cast<int>(l.cell / nr), j = static_cast<int>(l.cell % nr);
+@@ -669,6 +690,7 @@
+       limitNozzle += i > throatStation;
+       limitDiffusive += l.diffusive > l.convective;
+       limitDtSum += flow.definition().cfl / (l.convective + l.diffusive);
++      if (Flow::diagOn()) { diagAdd(diagAll, flow.stepDiag()); diagAdd(diagWindow, flow.stepDiag()); }
+     }
+     if (turbulent) {
+       worstMass = std::max(worstMass, std::abs(m.massBalanceError));
+@@ -784,6 +806,10 @@
+         std::printf("t %.3f ms  p_inj %.4f MPa  outlet %.4f kg/s  F_vac %.1f N  steps %ld  wall %.0f s  %s\n",
+                     flow.time() * 1e3, rows.back().pInj / 1e6, rows.back().outlet, rows.back().fVac,
+                     reacting.stats().steps, wall, limitText().c_str());
++        if (Flow::diagOn() && diagWindow.n > 0) {
++          std::printf("STEPDIAG t %.3f ms: %s\n", flow.time() * 1e3, diagText(diagWindow).c_str());
++          diagWindow = DiagSum{};
++        }
+         if (manifoldPath) {
+           std::array<long, kCauses> since{};
+           for (std::size_t c = 0; c < kCauses; ++c) since[c] = reacting.stats().manifoldCauses[c] - causesAtPrint[c];
+@@ -891,6 +917,7 @@
+                 100 * limitChamber / n, 100 * limitThroat / n, 100 * limitNozzle / n, 100 * limitDiffusive / n,
+                 limitText().c_str());
+   }
++  if (Flow::diagOn() && diagAll.n > 0) std::printf("STEPDIAG after 1 ms: %s\n", diagText(diagAll).c_str());
+   if (d.turbulence.propertyCorrections)
+     std::printf("SST property corrections: integral of Phi_k booked %.6e J; S_n floored (F1-weighted) %.3e\n", m.correctionEnergy, m.correctionFloored);
+   {

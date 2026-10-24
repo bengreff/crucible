@@ -1,0 +1,12 @@
+seed launch 2026-10-24 00:04:21 CDT, load 32.11 35.99 33.78 54/1187 16215
+seed exit 0 2026-10-24 00:23:27 CDT
+threads 1 launch 2026-10-24 00:23:47 CDT, load 38.19 40.16 38.75 31/1118 17140, paused S7: 12371 12388 
+threads 1 exit 0 wall 333.717158171 s, machine busy 80.7% of 28 threads over the run, load after 28.23 30.64 34.83 31/1069 17535
+threads 2 launch 2026-10-24 00:29:41 CDT, load 28.79 30.57 34.72 24/1068 17544, paused S7: 12371 12388 
+threads 2 exit 0 wall 222.210642138 s, machine busy 91.2% of 28 threads over the run, load after 32.88 31.28 34.04 35/1069 17712
+threads 4 launch 2026-10-24 00:33:43 CDT, load 30.19 30.76 33.81 35/1069 17739, paused S7: 12371 12388 
+threads 4 exit 0 wall 149.892515613 s, machine busy 92.9% of 28 threads over the run, load after 28.74 29.90 33.02 38/1076 17906
+threads 8 launch 2026-10-24 00:36:33 CDT, load 31.78 30.48 33.14 27/1068 17913, paused S7: 12371 12388 
+threads 8 exit 0 wall 149.822735053 s, machine busy 92.6% of 28 threads over the run, load after 33.07 31.43 33.09 36/1076 18076
+threads 16 launch 2026-10-24 00:39:23 CDT, load 32.67 31.50 33.08 28/1068 18089, paused S7: 12371 12388 
+threads 16 exit 0 wall 144.456289104 s, machine busy 92.5% of 28 threads over the run, load after 33.34 32.42 33.21 29/1079 18318

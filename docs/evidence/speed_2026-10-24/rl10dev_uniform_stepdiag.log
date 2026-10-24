@@ -1,0 +1,69 @@
+mechanism: h2o2.yaml
+chamber: RL10A-3-3A development (pre-vaporized H2/O2 at 300 K; development only, never the reported case): r_t 0.062738 m, chamber radius 0.130302 m, injector face at -12.9744 in (throat station 33 of 150), exit at 46.00 in, PCHIP R/r_t 0.1366, exit wall angle 10.054 deg, cone 20.086 deg, O/F 5.0550
+wall functions: law (kappa 0.3697, B 3.752)
+SST property corrections: Hasan, Elias, Menter and Pecnik (2025), full form
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 150x16: dz 9.986 mm, throat station 33 at z 0.3295 m (design 0.3295), r_t 0.06274 m, eps 61.0000, chamber-end column 7 at z 0.0749 m
+chemistry eqtt; igniter 0.5 J over 0.2 ms from 0.2 ms; viscous, SST
+light-off at 0.0200 ms (largest Y_H2O 0.520); chamber volume with s > 0.01: 0.1216
+t 0.500 ms  p_inj 0.9295 MPa  outlet 0.0016 kg/s  F_vac 25578.5 N  steps 2257  wall 12 s  step 1.838e-07 s set by cell (33, 13), convective 2.170e+06 and diffusive 6.522e+03 per s
+t 1.000 ms  p_inj 1.8467 MPa  outlet 16.4088 kg/s  F_vac 38497.5 N  steps 5027  wall 28 s  step 1.866e-07 s set by cell (33, 13), convective 2.139e+06 and diffusive 3.843e+03 per s
+STEPDIAG t 1.000 ms: 1 samples, mean dt 1.866e-07 s; shares flow 0.406 acoustic 0.592 diffusive 0.002; speed-up no acoustics 1.951, no diffusion 1.002, flow only 2.092; work/LTS 1.81, without acoustics 1.70; nu kind 0..5 0 0 0 0 0 1
+t 1.500 ms  p_inj 2.5450 MPa  outlet 9.6318 kg/s  F_vac 54909.0 N  steps 7777  wall 44 s  step 1.903e-07 s set by cell (33, 13), convective 2.099e+06 and diffusive 3.391e+03 per s
+STEPDIAG t 1.500 ms: 250 samples, mean dt 1.872e-07 s; shares flow 0.407 acoustic 0.591 diffusive 0.002; speed-up no acoustics 2.033, no diffusion 1.002, flow only 2.106; work/LTS 1.74, without acoustics 1.51; nu kind 0..5 0 0 0 0 0 250
+t 2.000 ms  p_inj 2.9113 MPa  outlet 12.2014 kg/s  F_vac 61928.2 N  steps 10527  wall 59 s  step 1.919e-07 s set by cell (33, 13), convective 2.081e+06 and diffusive 3.190e+03 per s
+STEPDIAG t 2.000 ms: 250 samples, mean dt 1.909e-07 s; shares flow 0.407 acoustic 0.591 diffusive 0.002; speed-up no acoustics 2.132, no diffusion 1.002, flow only 2.143; work/LTS 1.75, without acoustics 1.42; nu kind 0..5 0 0 0 0 0 250
+t 2.500 ms  p_inj 3.1486 MPa  outlet 13.8824 kg/s  F_vac 67432.6 N  steps 13277  wall 77 s  step 1.933e-07 s set by cell (33, 13), convective 2.066e+06 and diffusive 3.096e+03 per s
+STEPDIAG t 2.500 ms: 250 samples, mean dt 1.927e-07 s; shares flow 0.407 acoustic 0.591 diffusive 0.002; speed-up no acoustics 2.157, no diffusion 1.002, flow only 2.166; work/LTS 1.76, without acoustics 1.42; nu kind 0..5 0 0 0 0 0 250
+t 3.000 ms  p_inj 3.2922 MPa  outlet 14.9571 kg/s  F_vac 70543.9 N  steps 16027  wall 93 s  step 1.941e-07 s set by cell (33, 13), convective 2.057e+06 and diffusive 3.047e+03 per s
+STEPDIAG t 3.000 ms: 250 samples, mean dt 1.938e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.167, no diffusion 1.001, flow only 2.176; work/LTS 1.76, without acoustics 1.42; nu kind 0..5 0 0 0 0 0 250
+t 3.500 ms  p_inj 3.3800 MPa  outlet 15.6279 kg/s  F_vac 72468.8 N  steps 18777  wall 108 s  step 1.947e-07 s set by cell (33, 13), convective 2.052e+06 and diffusive 3.016e+03 per s
+STEPDIAG t 3.500 ms: 250 samples, mean dt 1.944e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.173, no diffusion 1.001, flow only 2.181; work/LTS 1.77, without acoustics 1.42; nu kind 0..5 0 0 0 0 0 250
+t 4.000 ms  p_inj 3.4342 MPa  outlet 16.0431 kg/s  F_vac 73661.7 N  steps 21527  wall 122 s  step 1.950e-07 s set by cell (33, 13), convective 2.048e+06 and diffusive 2.998e+03 per s
+STEPDIAG t 4.000 ms: 250 samples, mean dt 1.948e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.177, no diffusion 1.001, flow only 2.184; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 4.500 ms  p_inj 3.4674 MPa  outlet 16.2998 kg/s  F_vac 74387.7 N  steps 24277  wall 135 s  step 1.952e-07 s set by cell (33, 13), convective 2.046e+06 and diffusive 2.987e+03 per s
+STEPDIAG t 4.500 ms: 250 samples, mean dt 1.951e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.179, no diffusion 1.001, flow only 2.186; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 5.000 ms  p_inj 3.4879 MPa  outlet 16.4583 kg/s  F_vac 74837.1 N  steps 27027  wall 147 s  step 1.953e-07 s set by cell (33, 13), convective 2.045e+06 and diffusive 2.981e+03 per s
+STEPDIAG t 5.000 ms: 250 samples, mean dt 1.953e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.180, no diffusion 1.001, flow only 2.187; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 5.500 ms  p_inj 3.5005 MPa  outlet 16.5560 kg/s  F_vac 75113.2 N  steps 29777  wall 158 s  step 1.954e-07 s set by cell (33, 13), convective 2.044e+06 and diffusive 2.977e+03 per s
+STEPDIAG t 5.500 ms: 250 samples, mean dt 1.954e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.181, no diffusion 1.001, flow only 2.188; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 6.000 ms  p_inj 3.5082 MPa  outlet 16.6162 kg/s  F_vac 75282.4 N  steps 32527  wall 168 s  step 1.954e-07 s set by cell (33, 13), convective 2.044e+06 and diffusive 2.974e+03 per s
+STEPDIAG t 6.000 ms: 250 samples, mean dt 1.954e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.181, no diffusion 1.001, flow only 2.189; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 6.500 ms  p_inj 3.5130 MPa  outlet 16.6532 kg/s  F_vac 75387.1 N  steps 35277  wall 178 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.973e+03 per s
+STEPDIAG t 6.500 ms: 250 samples, mean dt 1.955e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.182, no diffusion 1.001, flow only 2.189; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 7.000 ms  p_inj 3.5160 MPa  outlet 16.6761 kg/s  F_vac 75451.4 N  steps 38027  wall 188 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.972e+03 per s
+STEPDIAG t 7.000 ms: 250 samples, mean dt 1.955e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.182, no diffusion 1.001, flow only 2.189; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 7.500 ms  p_inj 3.5178 MPa  outlet 16.6901 kg/s  F_vac 75490.9 N  steps 40777  wall 199 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.971e+03 per s
+STEPDIAG t 7.500 ms: 250 samples, mean dt 1.955e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.182, no diffusion 1.001, flow only 2.189; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 8.000 ms  p_inj 3.5189 MPa  outlet 16.6987 kg/s  F_vac 75515.3 N  steps 43527  wall 211 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.971e+03 per s
+STEPDIAG t 8.000 ms: 250 samples, mean dt 1.955e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.182, no diffusion 1.001, flow only 2.189; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 8.500 ms  p_inj 3.5196 MPa  outlet 16.7041 kg/s  F_vac 75530.2 N  steps 46277  wall 222 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.971e+03 per s
+STEPDIAG t 8.500 ms: 250 samples, mean dt 1.955e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.182, no diffusion 1.001, flow only 2.189; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 9.000 ms  p_inj 3.5200 MPa  outlet 16.7074 kg/s  F_vac 75539.5 N  steps 49027  wall 233 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.971e+03 per s
+STEPDIAG t 9.000 ms: 250 samples, mean dt 1.955e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.182, no diffusion 1.001, flow only 2.189; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 9.500 ms  p_inj 3.5202 MPa  outlet 16.7094 kg/s  F_vac 75545.2 N  steps 51777  wall 245 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.971e+03 per s
+STEPDIAG t 9.500 ms: 250 samples, mean dt 1.955e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.182, no diffusion 1.001, flow only 2.189; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+t 10.000 ms  p_inj 3.5204 MPa  outlet 16.7106 kg/s  F_vac 75548.6 N  steps 54527  wall 256 s  step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+STEPDIAG t 10.000 ms: 250 samples, mean dt 1.955e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.182, no diffusion 1.001, flow only 2.189; work/LTS 1.77, without acoustics 1.41; nu kind 0..5 0 0 0 0 0 250
+
+end 10.000 ms after 54527 steps (0 replans), wall 256 s
+budgets: mass 1.93e-14  energy -5.76e-14
+cost: 1.957 us of wall time per cell update on 4 threads, 25.6 s per simulated ms over the run
+step limit after 1 ms (4501 samples): mean step 1.944e-07 s; set in the wall row 0.0%, the axis row 0.0%, upstream of the throat 0.0%, at it (its two columns) 100.0%, downstream 0.0%; diffusive rate above convective 0.0%; last: step 1.955e-07 s set by cell (33, 13), convective 2.043e+06 and diffusive 2.970e+03 per s
+STEPDIAG after 1 ms: 4501 samples, mean dt 1.944e-07 s; shares flow 0.408 acoustic 0.591 diffusive 0.001; speed-up no acoustics 2.168, no diffusion 1.001, flow only 2.179; work/LTS 1.77, without acoustics 1.42; nu kind 0..5 0 0 0 0 0 4501
+SST property corrections: integral of Phi_k booked 9.086466e+01 J; S_n floored (F1-weighted) 0.000e+00
+reaction wall 10.3 s (4.0% of the run), 0.079 us per cell update
+table: 130864785 cell updates from it (3997779 clamped at an axis end), 15 outside it took the direct call (1.146e-07)
+drift over last 1 ms: outlet mass flow 1.95e-04, injector pressure 1.19e-04, vacuum thrust 1.21e-04
+RL10A-3-3A development: every quantity below is a development quantity (pre-vaporized propellants at 300 K), never the reported case
+chamber end: static 3.23076 MPa, equilibrium stagnation p0 3.27032 MPa; injector face 3.52039 MPa
+simulated: mdot out 16.710613 kg/s (supply 16.712600), c* 2419.96 m/s, vacuum thrust 75548.64 N, vacuum Isp 461.01 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3365.8 K, c* 2425.42 m/s, Isp_vac shifting 478.93 s, frozen 455.11 s, gamma 1.2068
+NASA CEA at p0: unavailable (no interpreter at /tmp/prof_tree/.venv-cea/bin/python)
+corrections: Cd 0.97884 (R = 0.5000), lambda 0.98095
+predicted 2-D: c* 2477.84 m/s, Isp_vac shifting 470.14 s, frozen 446.71 s, F_vac 77044.80 N
+simulated/predicted - 1: c* -2.3360%, Isp_vac (shifting) -1.9419%
+reported: first-cell y+ at the wall row (laminar estimate): median 109.6, largest 172.3, largest upstream of the throat 172.3
+reported: first-cell y+ at the wall row (wall functions): median 2449.4, largest 13946.1, largest upstream of the throat 13946.1
+reported: wall heat flow into the gas -9.365496e+06 W, wall axial force on the gas -1.010592e+05 N

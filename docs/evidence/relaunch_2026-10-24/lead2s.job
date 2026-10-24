@@ -1,0 +1,6 @@
+# crucible (inquiry): the 2-level H2 lead relaunched fresh with the chemistry skip (docs/evidence/SPEED.md).
+NAME=lead2s
+DIR=/home/greff/crucible_b4s/runs/lead2
+RESUME='bash /home/greff/crucible_b4s/docs/evidence/relaunch_2026-10-24/bh_run.sh lead2'
+DONE=/home/greff/crucible_b4s/runs/lead2/lead2_DEVELOPMENT_done
+NICE=10

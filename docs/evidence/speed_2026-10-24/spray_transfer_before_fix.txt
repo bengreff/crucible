@@ -1,0 +1,20 @@
+Spray: B_T near saturation (T_sat 97.427680448 K at 203444 Pa)
+  rest H2, slip 0 m/s: 122 calls, 122 evaporating, largest B_T 2.6108e+52
+  rest H2, slip 0 m/s: (a) calls that threw or gave a non-finite rate        0.000e+00 (limit 0e+00)  PASS
+  rest H2, slip 0 m/s: (b) |c_pF mdot - conductance B_T| / c_pF mdot         3.869e-16 (limit 1e-09)  PASS
+  rest H2, slip 3 m/s: 122 calls, 64 evaporating, largest B_T 2.4024e+80; first throw: Spray: the film's transport is not positive at nan K: the transport fits do not reach the film's temperature (thermo::transportFits' minTemperature)
+  rest H2, slip 3 m/s: (a) calls that threw or gave a non-finite rate        5.800e+01 (limit 0e+00)  FAIL
+  rest H2, slip 3 m/s: (b) |c_pF mdot - conductance B_T| / c_pF mdot         1.718e+21 (limit 1e-09)  FAIL
+  rest H2, slip 30 m/s: 122 calls, 61 evaporating, largest B_T 5.7821e+75; first throw: Spray: the film's transport is not positive at nan K: the transport fits do not reach the film's temperature (thermo::transportFits' minTemperature)
+  rest H2, slip 30 m/s: (a) calls that threw or gave a non-finite rate       6.100e+01 (limit 0e+00)  FAIL
+  rest H2, slip 30 m/s: (b) |c_pF mdot - conductance B_T| / c_pF mdot        9.163e+19 (limit 1e-09)  FAIL
+  rest N2, slip 0 m/s: 122 calls, 122 evaporating, largest B_T 7.0716e+12
+  rest N2, slip 0 m/s: (a) calls that threw or gave a non-finite rate        0.000e+00 (limit 0e+00)  PASS
+  rest N2, slip 0 m/s: (b) |c_pF mdot - conductance B_T| / c_pF mdot         3.563e-16 (limit 1e-09)  PASS
+  rest N2, slip 3 m/s: 122 calls, 122 evaporating, largest B_T 1.1713e+13
+  rest N2, slip 3 m/s: (a) calls that threw or gave a non-finite rate        0.000e+00 (limit 0e+00)  PASS
+  rest N2, slip 3 m/s: (b) |c_pF mdot - conductance B_T| / c_pF mdot         1.579e-01 (limit 1e-09)  FAIL
+  rest N2, slip 30 m/s: 122 calls, 122 evaporating, largest B_T 1.1706e+13
+  rest N2, slip 30 m/s: (a) calls that threw or gave a non-finite rate       0.000e+00 (limit 0e+00)  PASS
+  rest N2, slip 30 m/s: (b) |c_pF mdot - conductance B_T| / c_pF mdot        1.580e-01 (limit 1e-09)  FAIL
+FAIL: 6 failure(s)

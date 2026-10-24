@@ -1,0 +1,143 @@
+/tmp/prof_mac/sample1.txt: Thread_56212153, 22211 samples
+   68.4%  chemistry (ReactingFlow::react: CVODES, Cantera kinetics, table)   (of which waiting in Pool::run for other workers 0.1%)
+   22.8%  flow stages (Flow::firstStage/secondStage)   (of which waiting in Pool::run for other workers 0.4%)
+    4.1%  stable step (Flow::stableDt incl. its transport, gradients, eddy viscosity)   (of which waiting in Pool::run for other workers 0.1%)
+    2.5%  driver sample (c* by Cantera equilibrate, budgets, output)   (of which waiting in Pool::run for other workers 0.0%)
+    1.4%  other   (of which waiting in Pool::run for other workers 0.0%)
+    0.4%  AMR fill   (of which waiting in Pool::run for other workers 0.1%)
+    0.1%  AMR regrid/tags   (of which waiting in Pool::run for other workers 0.0%)
+    0.1%  AMR save/restore   (of which waiting in Pool::run for other workers 0.0%)
+    0.1%  AMR average down   (of which waiting in Pool::run for other workers 0.0%)
+    0.1%  flow step start (Flow::beginStep)   (of which waiting in Pool::run for other workers 0.0%)
+    0.1%  AMR reflux   (of which waiting in Pool::run for other workers 0.0%)
+    0.0%  spray   (of which waiting in Pool::run for other workers 0.0%)
+  inside the stable step and the stages:
+      6.1%  flow stages / prescribe/boundaries
+      6.1%  flow stages / other
+      3.5%  flow stages / transport properties
+      3.2%  flow stages / gradients/eddy viscosity
+      2.0%  flow stages / refresh/primitives
+      1.3%  stable step / gradients/eddy viscosity
+      1.3%  stable step / transport properties
+      1.1%  flow stages / turbulence sources
+      0.9%  stable step / refresh/primitives
+      0.6%  stable step / other
+      0.4%  flow stages / admissibility
+      0.4%  flow stages / fluxes/reconstruction
+  waiting in Pool::run in total 0.6%
+chemistry 15182 of 22211 samples (68.4%)
+   77.8% of chemistry  Cantera rates (kinetics/thermo update)
+   18.3% of chemistry  CVODES internals/linear algebra
+    3.2% of chemistry  react own
+    0.5% of chemistry  table lookup
+    0.2% of chemistry  ReactionStep setup/advance (own)
+top self frames in chemistry:
+    5.8%  Cantera::BulkKinetics::updateROP
+    4.8%  Eigen::internal::assign_sparse_to_sparse<Eigen::SparseMatrix<double, 0, int>, Eigen::Cwise
+    4.7%  denseGETRF
+    4.1%  Eigen::internal::conservative_sparse_sparse_product_impl<Eigen::SparseMatrix<double, 0, in
+    3.8%  <deduplicated_symbol>
+    3.8%  _nanov2_free
+    3.8%  Eigen::internal::assign_sparse_to_sparse<Eigen::SparseMatrix<double, 0, int>, Eigen::Produ
+    3.4%  Cantera::StoichManagerN::decrementSpecies
+    3.2%  Cantera::Phase::checkSpeciesIndex
+    2.9%  tiny_malloc_from_free_list
+    2.5%  exp
+    2.4%  _platform_memmove
+    2.3%  _platform_memset
+    2.2%  Cantera::StoichManagerN::multiply
+
+/tmp/prof_mac/sample2.txt: Thread_56218308, 22183 samples
+   69.5%  chemistry (ReactingFlow::react: CVODES, Cantera kinetics, table)   (of which waiting in Pool::run for other workers 0.1%)
+   24.2%  flow stages (Flow::firstStage/secondStage)   (of which waiting in Pool::run for other workers 0.2%)
+    4.4%  stable step (Flow::stableDt incl. its transport, gradients, eddy viscosity)   (of which waiting in Pool::run for other workers 0.1%)
+    0.7%  driver sample (c* by Cantera equilibrate, budgets, output)   (of which waiting in Pool::run for other workers 0.0%)
+    0.7%  other   (of which waiting in Pool::run for other workers 0.0%)
+    0.2%  AMR fill   (of which waiting in Pool::run for other workers 0.1%)
+    0.1%  AMR average down   (of which waiting in Pool::run for other workers 0.0%)
+    0.1%  AMR regrid/tags   (of which waiting in Pool::run for other workers 0.0%)
+    0.0%  AMR save/restore   (of which waiting in Pool::run for other workers 0.0%)
+    0.0%  AMR reflux   (of which waiting in Pool::run for other workers 0.0%)
+    0.0%  flow step start (Flow::beginStep)   (of which waiting in Pool::run for other workers 0.0%)
+  inside the stable step and the stages:
+      7.1%  flow stages / prescribe/boundaries
+      5.8%  flow stages / other
+      4.0%  flow stages / transport properties
+      3.3%  flow stages / gradients/eddy viscosity
+      2.1%  flow stages / refresh/primitives
+      1.5%  stable step / transport properties
+      1.4%  stable step / gradients/eddy viscosity
+      1.1%  flow stages / turbulence sources
+      0.9%  stable step / refresh/primitives
+      0.7%  stable step / other
+      0.5%  flow stages / admissibility
+      0.4%  flow stages / fluxes/reconstruction
+  waiting in Pool::run in total 0.5%
+chemistry 15415 of 22183 samples (69.5%)
+   78.4% of chemistry  Cantera rates (kinetics/thermo update)
+   17.5% of chemistry  CVODES internals/linear algebra
+    3.6% of chemistry  react own
+    0.4% of chemistry  table lookup
+    0.1% of chemistry  ReactionStep setup/advance (own)
+top self frames in chemistry:
+    5.4%  Cantera::BulkKinetics::updateROP
+    4.9%  Eigen::internal::assign_sparse_to_sparse<Eigen::SparseMatrix<double, 0, int>, Eigen::Cwise
+    4.3%  Eigen::internal::conservative_sparse_sparse_product_impl<Eigen::SparseMatrix<double, 0, in
+    4.2%  denseGETRF
+    4.0%  <deduplicated_symbol>
+    3.8%  _nanov2_free
+    3.5%  Eigen::internal::assign_sparse_to_sparse<Eigen::SparseMatrix<double, 0, int>, Eigen::Produ
+    3.5%  nanov2_malloc_type
+    3.1%  Cantera::StoichManagerN::decrementSpecies
+    3.1%  Cantera::Phase::checkSpeciesIndex
+    2.8%  tiny_malloc_from_free_list
+    2.5%  Cantera::StoichManagerN::multiply
+    2.5%  exp
+    2.1%  denseGETRS
+
+/tmp/prof_mac/sample3.txt: Thread_56218308, 6001 samples
+   71.1%  chemistry (ReactingFlow::react: CVODES, Cantera kinetics, table)   (of which waiting in Pool::run for other workers 0.1%)
+   23.4%  flow stages (Flow::firstStage/secondStage)   (of which waiting in Pool::run for other workers 0.5%)
+    4.4%  stable step (Flow::stableDt incl. its transport, gradients, eddy viscosity)   (of which waiting in Pool::run for other workers 0.1%)
+    0.7%  other   (of which waiting in Pool::run for other workers 0.0%)
+    0.1%  AMR fill   (of which waiting in Pool::run for other workers 0.0%)
+    0.0%  AMR save/restore   (of which waiting in Pool::run for other workers 0.0%)
+    0.0%  AMR reflux   (of which waiting in Pool::run for other workers 0.0%)
+    0.0%  AMR regrid/tags   (of which waiting in Pool::run for other workers 0.0%)
+    0.0%  flow step start (Flow::beginStep)   (of which waiting in Pool::run for other workers 0.0%)
+    0.0%  AMR average down   (of which waiting in Pool::run for other workers 0.0%)
+  inside the stable step and the stages:
+      6.7%  flow stages / prescribe/boundaries
+      5.7%  flow stages / other
+      3.9%  flow stages / transport properties
+      3.2%  flow stages / gradients/eddy viscosity
+      2.1%  flow stages / refresh/primitives
+      1.4%  stable step / gradients/eddy viscosity
+      1.3%  stable step / transport properties
+      1.0%  flow stages / turbulence sources
+      0.9%  stable step / refresh/primitives
+      0.8%  stable step / other
+      0.5%  flow stages / admissibility
+  waiting in Pool::run in total 0.7%
+chemistry 4267 of 6001 samples (71.1%)
+   77.9% of chemistry  Cantera rates (kinetics/thermo update)
+   17.5% of chemistry  CVODES internals/linear algebra
+    4.2% of chemistry  react own
+    0.4% of chemistry  table lookup
+    0.0% of chemistry  ReactionStep setup/advance (own)
+top self frames in chemistry:
+    5.2%  Cantera::BulkKinetics::updateROP
+    4.7%  Eigen::internal::conservative_sparse_sparse_product_impl<Eigen::SparseMatrix<double, 0, in
+    4.5%  Eigen::internal::assign_sparse_to_sparse<Eigen::SparseMatrix<double, 0, int>, Eigen::Cwise
+    4.4%  <deduplicated_symbol>
+    4.4%  denseGETRF
+    4.1%  Cantera::StoichManagerN::decrementSpecies
+    4.0%  nanov2_malloc_type
+    3.9%  _nanov2_free
+    3.2%  exp
+    3.0%  Eigen::internal::assign_sparse_to_sparse<Eigen::SparseMatrix<double, 0, int>, Eigen::Produ
+    2.6%  Cantera::StoichManagerN::multiply
+    2.6%  tiny_malloc_from_free_list
+    2.2%  Cantera::Phase::checkSpeciesIndex
+    2.1%  _platform_memmove
+
