@@ -1,0 +1,1 @@
+prediction written 03:50 CDT before e128s reached 8 ms: landing fraction ~0.12, sampled booked net ~0.88 x first-stage imbalance (~7 N) ~ 6.2 N

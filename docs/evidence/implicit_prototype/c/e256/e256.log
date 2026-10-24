@@ -1,0 +1,157 @@
+[slot] waiting for a heavy-job slot / RAM (free 4.0 GB, need 3.0); waited 0s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 60s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 120s
+[slot] waiting for a heavy-job slot / RAM (free 4.7 GB, need 3.0); waited 180s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 240s
+[slot] waiting for a heavy-job slot / RAM (free 4.7 GB, need 3.0); waited 300s
+[slot] waiting for a heavy-job slot / RAM (free 4.4 GB, need 3.0); waited 360s
+[slot] waiting for a heavy-job slot / RAM (free 4.6 GB, need 3.0); waited 420s
+[slot] waiting for a heavy-job slot / RAM (free 4.6 GB, need 3.0); waited 480s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 540s
+[slot] waiting for a heavy-job slot / RAM (free 4.6 GB, need 3.0); waited 600s
+[slot] waiting for a heavy-job slot / RAM (free 4.7 GB, need 3.0); waited 660s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 720s
+[slot] waiting for a heavy-job slot / RAM (free 4.6 GB, need 3.0); waited 780s
+[slot] waiting for a heavy-job slot / RAM (free 3.8 GB, need 3.0); waited 840s
+[slot] waiting for a heavy-job slot / RAM (free 3.9 GB, need 3.0); waited 900s
+[slot] waiting for a heavy-job slot / RAM (free 4.1 GB, need 3.0); waited 960s
+[slot] waiting for a heavy-job slot / RAM (free 4.6 GB, need 3.0); waited 1020s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 1080s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 1140s
+[slot] waiting for a heavy-job slot / RAM (free 2.9 GB, need 3.0); waited 1200s
+[slot] waiting for a heavy-job slot / RAM (free 3.7 GB, need 3.0); waited 1260s
+[slot] waiting for a heavy-job slot / RAM (free 3.5 GB, need 3.0); waited 1320s
+[slot] waiting for a heavy-job slot / RAM (free 3.8 GB, need 3.0); waited 1380s
+[slot] waiting for a heavy-job slot / RAM (free 4.1 GB, need 3.0); waited 1440s
+[slot] waiting for a heavy-job slot / RAM (free 4.2 GB, need 3.0); waited 1500s
+[slot] waiting for a heavy-job slot / RAM (free 4.1 GB, need 3.0); waited 1560s
+[slot] waiting for a heavy-job slot / RAM (free 4.0 GB, need 3.0); waited 1620s
+[slot] waiting for a heavy-job slot / RAM (free 4.1 GB, need 3.0); waited 1680s
+[slot] waiting for a heavy-job slot / RAM (free 4.2 GB, need 3.0); waited 1740s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 1800s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 1860s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 1920s
+[slot] waiting for a heavy-job slot / RAM (free 4.4 GB, need 3.0); waited 1980s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 2040s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 2100s
+[slot] waiting for a heavy-job slot / RAM (free 4.5 GB, need 3.0); waited 2160s
+[slot] waiting for a heavy-job slot / RAM (free 4.4 GB, need 3.0); waited 2220s
+[slot] waiting for a heavy-job slot / RAM (free 4.3 GB, need 3.0); waited 2280s
+[slot] waiting for a heavy-job slot / RAM (free 5.1 GB, need 3.0); waited 2340s
+[slot] waiting for a heavy-job slot / RAM (free 4.8 GB, need 3.0); waited 2400s
+[slot] waiting for a heavy-job slot / RAM (free 4.9 GB, need 3.0); waited 2460s
+[slot] waiting for a heavy-job slot / RAM (free 4.9 GB, need 3.0); waited 2520s
+[slot] waiting for a heavy-job slot / RAM (free 5.1 GB, need 3.0); waited 2580s
+[slot] waiting for a heavy-job slot / RAM (free 5.1 GB, need 3.0); waited 2640s
+[slot] waiting for a heavy-job slot / RAM (free 5.3 GB, need 3.0); waited 2700s
+[slot] waiting for a heavy-job slot / RAM (free 5.1 GB, need 3.0); waited 2760s
+[slot] waiting for a heavy-job slot / RAM (free 5.1 GB, need 3.0); waited 2820s
+[slot] waiting for a heavy-job slot / RAM (free 5.4 GB, need 3.0); waited 2880s
+[slot] waiting for a heavy-job slot / RAM (free 4.1 GB, need 3.0); waited 2940s
+CanteraWarning: ChemEquil::equilibrate: Temperature (3507.3144061805046 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3512.9862959214715 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3517.0130245718697 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3523.8642318703446 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3514.3173708725317 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3519.023306827788 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3506.518992011684 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3524.5679177924435 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.6604524068075 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3509.268491230958 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3504.3933028218726 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3511.0301571136665 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3513.9355871554485 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3508.051704471085 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3513.356496842584 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3516.3577748951097 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3503.1674215228277 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3523.3647428058803 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3503.2257440506414 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3516.6285877738924 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3502.8596333041387 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3502.9521817494415 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3517.7329830712147 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3502.706777615285 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3513.3834941986393 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3507.0087400682564 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3517.230874717631 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3513.8473527422566 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3504.601362735536 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.190620822214 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.866169093455 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3523.210269364156 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3515.4283923431935 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3515.8350594479325 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3504.186641489097 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3521.3570175265645 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3512.299881066901 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.9526041782547 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3523.4732203290177 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.337153630252 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3521.109871254831 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.0557537221516 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3515.3808798816276 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3507.7000116856566 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3511.97880868283 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3513.316804884842 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3515.5338481645686 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3512.0307649271444 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3508.4872388909016 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.4736499592477 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3520.756266254932 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.063388195562 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3514.1385538711716 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3521.46352470817 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.6289525071284 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.915544641605 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3517.5141591446154 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3504.8600440961054 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.501476265834 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3515.8143248214938 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3518.8694959702325 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3515.5204084081206 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3506.896423698275 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3502.7436177609784 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3511.5081253908243 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3519.138032289642 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3503.046376860195 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3516.554540611808 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3515.895645028878 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3510.2802203727097 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3511.082939510726 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3511.3578272601835 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3503.580676421151 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3504.45997420801 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3503.0654846518314 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3517.5730549429904 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.8125438747984 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3523.970212352863 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3515.0309011915324 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3506.110091595956 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3514.3678811738773 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.772059485776 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3503.0795077649595 K) outside valid range of 300 K to 3500 K
+mechanism: h2o2.yaml
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 256x48: dz 0.651 mm, throat station 128 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 71 at z 0.0465 m
+chemistry eqt; igniter 0.5 J over 0.2 ms from 0.2 ms
+t 0.500 ms  p_inj 1.5048 MPa  outlet 0.1526 kg/s  F_vac 777.3 N  steps 33296  wall 729 s  step 1.395e-08 s set by cell (135, 39), convective 2.868e+07 and diffusive 0.000e+00 per s
+t 1.000 ms  p_inj 2.7633 MPa  outlet 0.3254 kg/s  F_vac 1423.6 N  steps 68692  wall 1442 s  step 1.440e-08 s set by cell (135, 38), convective 2.777e+07 and diffusive 0.000e+00 per s
+
+end 1.000 ms after 68692 steps (0 replans), wall 1442 s
+budgets: mass 1.16e-13  energy 2.57e-11
+cost: 1.708 us of wall time per cell update on 1 threads, 1441.9 s per simulated ms over the run
+reaction wall 270.9 s (18.8% of the run), 0.321 us per cell update
+table: 844086604 cell updates from it (34603015 clamped at an axis end), 692 outside it took the direct call (8.198e-07)
+drift over last 1 ms: outlet mass flow 1.00e+00, injector pressure 9.98e-01, vacuum thrust 9.92e-01
+chamber end: static 2.58823 MPa, equilibrium stagnation p0 2.60391 MPa; injector face 2.76335 MPa
+simulated: mdot out 0.325387 kg/s (supply 0.400000), c* 2514.07 m/s, vacuum thrust 1423.61 N, vacuum Isp 446.14 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3332.0 K, c* 2425.81 m/s, Isp_vac shifting 435.65 s, frozen 418.39 s, gamma 1.2080
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2434.44 m/s, Isp_vac shifting 428.78 s, frozen 411.73 s, F_vac 1368.21 N
+simulated/predicted - 1: c* +3.2708%, Isp_vac (shifting) +4.0488%
+real 1442.16
+user 1374.33
+sys 3.37

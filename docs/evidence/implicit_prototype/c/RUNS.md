@@ -8,6 +8,7 @@ The scripts: `base.sh` (explicit baselines through `slot.py`), `e.sh` (explicit 
 - `bin4` (02:38): the second amendment (the new known part, the throughput print, `CRUCIBLE_CFL`).
 - `bin5` (02:51): plus `CRUCIBLE_IMPLICIT_WINDOW`.
 - `bin6` (02:56): plus the projection's failures as rejected attempts (third amendment).
+- `momdiag/` (03:30 and 03:39): print-only builds of 96635e8 with `../momdiag.py` applied, in `/tmp/momdiag`; `run.sh` and `run2.sh` there launched them. Only the `MOMDIAG` lines and the logs are kept.
 
 | Run | Mesh | Kind | Step | Tolerance | Build | What it is for |
 |---|---|---|---|---|---|---|
@@ -15,6 +16,7 @@ The scripts: `base.sh` (explicit baselines through `slot.py`), `e.sh` (explicit 
 | e64b | 64x12 | explicit CFL 0.4 | | | bin4 | M2 and M3's baseline (same batch as c25 to c150) |
 | x64h | 64x12 | explicit CFL 0.2 | | | bin4 | criterion 5's diagnosis: the explicit's own step error |
 | e128 | 128x24 | explicit CFL 0.4 | | | bin | the reference and baseline on 128x24 |
+| e256 | 256x48 | explicit CFL 0.4, to 1 ms | | | bin | criterion 6's measured step ratio (through `slot.py`, 03:08 to 03:32) |
 | t63, t126 | 64x12 | implicit, split | τ/63, τ/126 | 1e-6 | bin | the split is first order at the injector face |
 | i63, i126 | 64x12 | implicit, inside | τ/63, τ/126 | 1e-6 | bin3 | the old known part's budget drift |
 | k63, k126 | 64x12 | implicit, inside | τ/63, τ/126 | 8.975e-7 | bin4 | E_t (criterion 3), k63 the sweep's reference |
@@ -26,5 +28,9 @@ The scripts: `base.sh` (explicit baselines through `slot.py`), `e.sh` (explicit 
 | v63 | 256x48 | implicit, inside | τ/63, to 1 ms | 8.975e-5 | bin4 | criterion 6 |
 | w1 | 64x12 | implicit to 7.9 ms, then explicit | τ/63 | 8.975e-5 | bin5 | criterion 5's diagnosis |
 | w2 | 64x12 | explicit to 7.9 ms, then implicit | τ/63 | 8.975e-5 | bin5 | criterion 5's diagnosis |
+| c63t1, c63t2 | 64x12 | implicit, inside | τ/63 | 8.975e-6, 8.975e-7 | bin4 | criterion 5's cause: is the offset the inner tolerance's? (no) |
+| momdiag/c63, e64, x64h | 64x12 | as c63, e64 and x64h | | | momdiag bin | criterion 5's cause: the booked momentum rates at each sample from 7.98 ms |
+| momdiag/e64s | 64x12 | as e64 | | | momdiag bin2 | criterion 5's cause: each explicit step's two stages from 7.996 ms |
+| momdiag/e128s, m63 | 128x24 | as e128 and m63 | | | momdiag bin2 | criterion 5's cause on 128x24 (e128s's prediction written first, `momdiag/e128s_prediction.txt`) |
 
 τ_C1 = 441.243 μs: τ/25 = 1.764973e-5 s, τ/63 = 7.003860e-6 s, τ/126 = 3.501930e-6 s, τ/150 = 2.941621e-6 s. Every implicit run here uses pseudo CFL 3 and the extrapolated first iterate, with at most 400 inner iterations.

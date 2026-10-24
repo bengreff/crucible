@@ -265,21 +265,99 @@ Over [6, 8] ms against e64: F_vac and vacuum Isp are −0.0768% at τ_C1/25, /63
 - **The explicit's p_inj and wall force move with its step, and the implicit sits on their limit,** within 0.0004% and 0.007 N. That is the split at the injector face (first amendment), at the explicit's own 0.06 μs step.
 - **F_vac does not:** it barely moves with the explicit's step (+0.04 N), and the implicit is 1.37 N (0.081%) below its limit.
   - With the wall force agreeing, the 1.37 N is in the inlet's momentum flux (F_vac − wall force, about 6,153 N). That is a difference of 0.022% in the inlet's gross flux, which the net thrust (3.7 times smaller) shows as 0.08% *(derived)*.
-  - It is not the explicit's booking of its two stages: that term is proportional to the explicit step, and halving the step moved F_vac by 0.04 N, not by half of 1.37 N.
+  - ~~It is not the explicit's booking of its two stages: that term is proportional to the explicit step, and halving the step moved F_vac by 0.04 N, not by half of 1.37 N.~~ **Withdrawn, 24 October about 03:45 CDT:** it is the explicit's booking. The term is proportional to the step, but so is a second factor that changed between the two runs, the length of the step that lands on each history sample. See *Criterion 5: the cause* below.
 - **Each scheme takes the other's settled state to its own within about 10 μs** (`CRUCIBLE_IMPLICIT_WINDOW`, below):
   - w1 (implicit to 7.9 ms, then explicit): p_inj rises from 3.27468 to 3.27821 MPa and F_vac from 1679.91 to 1681.3 N within 10 μs. p at the chamber end does not change.
   - w2 (explicit to 7.9 ms, then implicit): p_inj falls from 3.27784 to 3.27421 MPa within the first two steps (7.4 μs), and F_vac is 1680.03 N at 8 ms, approaching 1679.9.
   - So the two discretisations hold different stationary states at the injector face. The difference is set within a few cells of it, and is not a failure of the implicit to settle.
 - **On 128x24 the offset is larger** (below). An offset that grows as the mesh is refined is not a truncation error of either scheme.
-- **Cause: not identified.** The candidates are how the inlet face's flux sees the projected composition in the two schemes, and the face's boundary state. Neither was tested tonight.
+- **Cause: not identified** *(as written at about 03:10)*. It is found below.
 
 `CRUCIBLE_IMPLICIT_WINDOW=from,until` (in seconds) runs the implicit step only over [from, until) and the explicit march outside it. It was added for this diagnosis (third amendment, above).
+
+### Criterion 5: the cause *(measured, 24 October, about 03:25 to 03:45 CDT, Mac, one thread; print-only build)*
+
+**The offset is in the explicit reference's reported thrust, not in the implicit.** An explicit run with equilibrium chemistry reports, at each history sample, the boundary rates of the one step that lands on the sample. That step is shorter than the others. Its two stages do not cancel a momentum imbalance that the full steps do cancel. On e64 this inflates the reported F_vac by 1.367 N. That is the whole gap.
+
+How it was found:
+- **The inner tolerance is ruled out.** c63 at 10 and 100 times the registered tolerance (8.975e-6 and 8.975e-7) settles to F_vac 1679.906 and 1679.907 N, against 1679.908 N. Logs: `c/c63t1/`, `c/c63t2/`.
+- **`implicit_prototype/momdiag.py`** is a print-only patch, applied to a copy of 96635e8 and not for `main`. It prints the booked axial momentum rates at each history sample from 7.98 ms. It prints each explicit step's two stages from 7.996 ms. For each implicit step it prints the booked rates beside the same rates evaluated at the accepted state.
+  - The explicit histories are `cmp`-identical to e64's and x64h's.
+  - The implicit's history differs only in the last digits of the two budget columns, from the first extra residual evaluation.
+- **Both marches call the same spatial operator** (`Flow::rhs`), with the same boundary code. What differs is where the projection sits:
+  - The explicit march takes both Heun stages, then projects to equilibrium (`ReactingFlow::step`: flow, then relax).
+  - The implicit projects each inner iterate before its residual.
+  - This is the Director's suspect, "the chemistry projection inside the step changing the splitting".
+
+**The explicit's stages on e64, at its settled state** (CFL 0.4, step 5.916e-8 s; the history samples every 2 μs):
+
+| Step | Length (s) | First stage, at U: inlet / wall / outlet (N) | Net | Second stage, at U* = U + dt R(U): inlet / wall / outlet (N) | Net | Booked net (mean) | Booked F_vac |
+|---|---|---|---|---|---|---|---|
+| Full (33 per sample) | 5.916035e-8 | 6158.12 / −4471.199 / 1679.832 | +7.09 to +7.13 | 6143.89 / −4471.263 / 1679.829 | −7.16 to −7.20 | −0.02 to −0.06 | 1679.81 |
+| Landing (1 per sample) | 4.770811e-8 | 6158.16 / −4471.199 / 1679.832 | +7.13 | 6146.69 / −4471.251 / 1679.830 | −4.39 | **+1.367** | **1681.198** (the history's) |
+
+The table shows four things:
+- **The settled explicit state is not a zero of the spatial operator.**
+  - R(U) carries +7.1 N of net axial momentum, and the second stage −7.2 N.
+  - The difference is at the injector face: the inlet's momentum flux falls by 14.2 N between the stages. The wall's moves by 0.06 N and the outlet's by 0.002 N.
+  - Why *(inferred from the first amendment's split result, not printed per cell)*: the step carries unburnt propellant from the face into column 0. At U* that gas is not yet projected, so at the same density and energy column 0's pressure is lower. The face's flux uses that pressure. The projection after the step restores equilibrium.
+  - The fixed point is the stage mean's, not R's, so R(U) is about proportional to the step.
+- **The full steps cancel, but the landing step does not.** Its second stage is evaluated a shorter step away (fraction f = 0.806 of a full step). Its booked net is about the first stage's imbalance times (1 − f): 7.13 × 0.194 = 1.38 N *(derived)*, against 1.367 measured.
+- **The state is periodic with the sample period, and the budget holds.** The momentum budget's error is 1.4e-17, and the gas's axial momentum is 6.62011280e-2 kg m/s at every sample.
+- **Over one sample period (34 steps), the booked F_vac's time mean is 1679.8306 N.** The outlet's momentum flux has the same mean, 1679.8306 N; the mean net is 7.6e-7 N.
+
+**Why halving the explicit step did not move the reported F_vac (x64h, CFL 0.2):**
+- x64h's landing step also books +1.367 N (+1.3668 N against e64's +1.3673 N).
+- Its landing fraction is 0.613 *(derived: 2 μs over half of e64's step is 67.61 steps)*. So its first-stage imbalance would be 1.3668 / 0.387 = 3.53 N, half of e64's 7.13 N *(derived; x64h's stages were not printed)*.
+- The imbalance halved with the step; the landing fraction's change cancelled it, by chance.
+
+**The two marches agree on the thrust** *(measured unless labelled)*:
+
+| | F_vac (N) | Outlet momentum flux (N) | Net booked (N) |
+|---|---|---|---|
+| e64, the history's (landing step) | 1681.198 | 1679.831 | +1.367 |
+| e64, mean over a sample period | 1679.831 | 1679.831 | 7.6e-7 |
+| x64h, the history's (landing step) | 1681.236 | 1679.869 | +1.367 |
+| Explicit, first-order limit *(derived from the outlet fluxes)* | 1679.907 | 1679.907 | |
+| Implicit c63, τ_C1/63 (booked at the last iterate) | 1679.908 | 1679.894 | +0.015 |
+| Implicit c63, rates at the accepted state | 1679.909 | 1679.899 | +0.010 |
+
+- **Against e64's period mean, the implicit's settled F_vac (1679.906 N over [6, 8] ms) is +0.0046% *(derived)*.** Criterion 5's bar is 0.05%.
+- **Against the explicit's step-zero limit, the gap is 0.001 N.**
+- The implicit's booked rates are its own: at the accepted state they differ from the last iterate's by at most 0.01 N, and p_inj by nothing in 10 digits.
+
+**What this does to criterion 5.**
+- As registered and judged above (against e64's history F_vac), it FAILS. That judgement stays on the record.
+- The failure is in the reference's measurement: the history's F_vac is not the thrust the explicit march's state produces.
+- With the reference's thrust measured over the sample period, the implicit is within the bar.
+- The bar is not moved. Whether criterion 5 is re-judged on the corrected reference is the Director's decision.
+
+**Wider consequence, not checked tonight.** Every explicit run with equilibrium chemistry (flow, then relax) reports its history's boundary rates from the step that lands on the sample.
+- That affects F_vac and vacuum Isp, and the inlet's flows and wall force less so.
+- On C1 64x12 at CFL 0.4 the error can be anything from 0 to the first-stage imbalance, about 7 N (0.4%), depending on where the sample falls in the step.
+- The logs' *simulated/predicted* lines use the same final F_vac.
+- Which earlier evidence used such numbers is not checked.
+- The fix belongs in the measurement: book the rates' time integral between samples, and report its mean. It is not built.
+
+**On 128x24 the same mechanism gives the whole 6.2 N gap** *(measured; m63 finished at 03:49 CDT, e128s at 04:07)*.
+- The prediction was written at 03:50, before e128s reached 8 ms (`c/momdiag/e128s_prediction.txt`): a landing fraction of about 0.12 (2 μs over the 2.936e-8 s step is 68.12 steps), so a sampled booked net of about 0.88 times a first-stage imbalance of about 7 N, or about 6.2 N.
+- e128s is e128 with the print; its history is `cmp`-identical to e128's.
+
+| e128 (CFL 0.4, step 2.936316e-8 s) | First-stage net (N) | Second-stage net (N) | Booked net (N) | Booked F_vac (N) |
+|---|---|---|---|---|
+| Full step (68 per sample) | +7.070 | −7.076 | −0.003 | 1680.486 |
+| Landing step (3.305e-9 s, f = 0.113) | +7.070 | +5.481 | **+6.276** | **1686.765** (the history's) |
+| Mean over a sample period (69 steps) | | | 7.1e-7 | 1680.488 (= the outlet's flux, 1680.488) |
+
+- **The first-stage imbalance is 7.07 N on 128x24 and 7.13 N on 64x12.** The imbalance does not shrink with refinement. Why *(inferred, consistent with x64h's halving at half the CFL)*: at a fixed CFL the step shrinks with the cells, so the share of column 0 that one step fills with unburnt propellant stays the same.
+- **What grew between the meshes was the landing fraction, not a difference between the schemes:** 0.806 on 64x12, giving 7.13 × 0.194 = 1.38 N, and 0.113 on 128x24, giving 7.07 × 0.887 = 6.27 N *(derived)*, against 1.367 and 6.276 N measured.
+- **The implicit on 128x24** (m63 with the print, `c/momdiag/m63/`): booked F_vac 1680.524 N, outlet flux 1680.524 N, net −1.0e-4 N. Against e128's period mean (1680.488 N) it is **+0.0021%** *(derived)*.
 
 ### Criterion 6: PASS *(measured, v63: 256x48 to 1 ms at τ_C1/63, tolerance 8.975e-5, 24 October, about 02:43 to 02:48 CDT)*
 
 - **The run completes:** 148 steps, 7 attempts rejected (418 inner iterations spent on them), each recovered at the halved step. One step ended at the limit of 400 iterations (unconverged).
 - **151.3 inner iterations per step** (most 400). At the same step, 64x12 takes 52.4 per step over the first 0.5 ms (c63), and 128x24 takes 68.4 per step over 8 ms (m63).
-- **The step ratio** is about 480 *(derived: the explicit step halves with each doubling of the mesh, 5.916e-8 s on 64x12 and 2.936e-8 s on 128x24, measured)*. The explicit 256x48 baseline (e256) was queued behind the other jobs and gives the measured step when it runs.
+- **The step ratio is 496 (measured).** e256, the explicit 256x48 run to 1 ms at CFL 0.4, takes a mean step of 1.4126e-8 s over [0.5, 1] ms (68,692 steps to 1 ms, 1,442 s through `slot.py`, 03:08 to 03:32). The estimate before it ran was about 480, from halving the step with each doubling of the mesh.
 - Budgets: 4.2e-15 of the mass supplied, 1.2e-12 of the energy supplied (criterion 2).
 
 ### M1 to M3 on 64x12 *(measured, one thread, tolerance 8.975e-5; machine load about 13 to 15 on 10 CPUs throughout)*
@@ -312,6 +390,7 @@ Against the explicit run at CFL 0.4 on the same mesh (e128, explicit step 2.936e
 - **Criterion 5 on 128x24: FAIL, and the offset is larger.** e128's settled F_vac is 1686.76 N. m63 and m150b settle to the same state to 6 digits (p_inj 3.264434 MPa, F_vac 1680.525 N), 0.370% below it.
   - p_inj is 0.10% below e128's (3.267774 MPa), as on 64x12: the explicit's own split error at the injector face.
   - The wall force differs by 0.34 N, so the inlet's momentum flux carries about 5.9 N of the 6.2 N. On 64x12 it was 1.37 N. The gap grows about four times when the mesh is refined twice *(derived)*.
+  - **Explained at about 04:10 (*Criterion 5: the cause*, above):** the 6.2 N is e128's landing step, which books +6.276 N. Against e128's period-mean thrust the implicit is +0.0021%.
 - **m150 stopped at 0.147 ms** on the Cantera exception in the projection (third amendment). m150b is the same run with the fix: the one attempt that failed was rejected and recovered at the halved step.
 - **m25 settles somewhere else, and that state is not a steady state of the equations.**
   - From 4 to 8 ms it holds p_inj 3.093075 MPa and F_vac 1669.612 N, constant to 7 digits. m63's are 3.264434 MPa and 1680.525 N. The histories part already in the fill: at 0.55 ms p_inj is 1.467 MPa in m25 and 1.652 MPa in m63.
@@ -340,10 +419,12 @@ The explicit baseline e128: 275,738 steps to 8 ms in 1,755 s, 6.365e-3 s per ste
 - **The measured speed-up is 5 to 6 on one thread, at the steps where the history is accurate** (64x12 at τ_C1/63: 5.8; 128x24 at τ_C1/150: 4.8).
 - **It is set by LU-SGS's convergence, not by the step.** The inner iterations per unit of physical time are about the same from τ_C1/25 to τ_C1/150: about one inner iteration per 4 to 5 explicit steps, at 0.63 to 0.79 explicit steps each. The bound this gives is about 1/(0.23 × 0.66), or 6.6, whatever the step.
 - **Two failures stand before trusting the numbers** (the plan's rule: 1, 2, 3 and 5 must pass): criterion 1 (pre-asymptotic order on P) and criterion 5 (a settled thrust 0.08% low on 64x12 and 0.37% on 128x24, growing with the mesh, cause not identified). The m25 fixed point is a third problem.
+  - **Added about 04:20 CDT:** criterion 5's cause is found (*Criterion 5: the cause*, above). It is the explicit reference's reported thrust, not the implicit. Against the reference's period-mean thrust the implicit is +0.0046% on 64x12 and +0.0021% on 128x24, within the 0.05% bar. Re-judging criterion 5 on that reference is the Director's decision.
+  - Criterion 4's order was judged against the same reference, whose floor was this offset. It should be re-measured against the period-mean reference before it is taken as failed for the implicit's sake. Not done.
 - **M4 (the projection to the lead) and M5 (finite-rate chemistry at the implicit step) are not done.** The proposed rule (build at 5 or more, not below 2) needs M4. On these measurements, a projection that keeps LU-SGS would start from about 5 to 6 before threads, AMR and turbulence, which the prototype does not measure.
 
 ### The gate and the fast ctest
 
 - **The explicit march is unchanged by every build** (C1 64x12 to 1 ms, one thread: state dump, history and 10 field files `cmp`-identical to 4f2d81e's). First build 02:11 (`gate/result.txt`), second 02:38 (`result2.txt`), third 03:10 (`result3.txt`, all targets rebuilt).
 - **The fast ctest on the first build's binaries (02:13, e8816dc's code):** only the 4 known failures (amr, amr_subcycling, transport and spray verification); 11 of 15 pass. Ran 02:57 to 03:07 (`ctest_2026-10-24_e8816dc.txt`).
-- **The fast ctest on the third build:** queued at 03:12 behind the other slot jobs. Output `/tmp/implicit/ctest_2026-10-24_final.txt`, done-file `/tmp/implicit/ctest3_done`.
+- **The fast ctest on the third build (96635e8's code):** only the same 4 known failures; 11 of 15 pass. Ran 03:23 to 03:33 (`ctest_2026-10-24_final.txt`).

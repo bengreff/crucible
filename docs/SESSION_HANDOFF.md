@@ -2,6 +2,45 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (24 October, about 04:15 CDT; inquiry, D1 and D2 judged, criterion 5's cause found)
+
+**The Director (03:20):** "judge D1 (exit 1, so find out why) and D2. Then the thrust offset... Report the cause before any decision on the implicit path. Stop at a clean commit by 05:30." The Director also confirmed that declining inquiry2's fast-forward request was correct, and will handle that merge at park.
+
+**D1 and D2** (`docs/evidence/admdiag_2026-10-24/README.md`, *The result*): **the hypothesis is wrong.**
+- D1 (27b135f) fails at 1.782 ms on the stage check rho omega > 0, not on the reflux's rho k. The cells are interior cells of the cold H2 expansion (z 1.03 to 1.04 m, r 0.13 to 0.15 m). The stage's rate on rho omega stays negative as the step halves to 3.3e-11 s. So (i) fails.
+- D2 (`main`) runs to 1.80 ms with no rejection and no reflux clip, so (ii)'s second half fails. That `main` carries the same fault latent is inferred, not shown.
+- **Next lead, not built:** a print-only patch giving that cell's rho omega rate per face and the SST source terms, with D1 rerun to 1.79 ms.
+
+**Criterion 5's cause** (`IMPLICIT_PROTOTYPE.md`, *Criterion 5: the cause*): **the offset is in the explicit reference's reported thrust, not in the implicit.**
+- An explicit run with equilibrium chemistry (flow, then relax) reports, at each history sample, the rates of the one step that lands on the sample. That step is shorter than a full step.
+- The explicit's settled state is a fixed point of its two-stage mean, not of R. At its settled state, R(U) carries +7.1 N of net axial momentum at the injector face (64x12, CFL 0.4).
+  - Why: the step carries unburnt propellant into column 0, and the projection is applied only after the step.
+  - A full step's second stage cancels it. The shortened landing step's does not, which books +1.367 N.
+- **The two marches agree on the thrust.**
+  - e64's thrust, averaged over a sample period, is 1679.831 N; the implicit's is 1679.906 N (+0.0046%; the bar is 0.05%).
+  - The explicit's step-zero limit is 1679.907 N.
+- Halving the explicit step did not move the history's F_vac because the landing fraction changed from 0.806 to 0.613 and cancelled it, by chance. That is why the earlier note ruled the booking out; that note is withdrawn.
+- **128x24, predicted at 03:50 and confirmed at 04:07:** the landing fraction is 0.113, so e128's landing step books +6.276 N. That is the whole 6.2 N gap. The first-stage imbalance is 7.07 N, the same as 64x12's. The offset "grew with the mesh" only because the landing fraction fell. Against e128's period mean the implicit is +0.0021%.
+- **Criterion 5 as registered stays FAIL on the record.** On the corrected reference, the implicit is within the bar. Whether to re-judge is the Director's decision; the bar is not moved.
+- **Wider consequence, not checked:** every explicit equilibrium-chemistry history's F_vac and Isp (and the logs' *simulated/predicted* lines) carries this landing-step error. It is between 0 and the first-stage imbalance (about 7 N, 0.4%, on C1 64x12). The fix is to report the rates' mean between samples. It is not built.
+- Tools: `implicit_prototype/momdiag.py` (print-only, not for `main`). Runs: `c/c63t1`, `c/c63t2` (the tolerance ruled out), and `c/momdiag/`.
+
+**Also measured:** criterion 6's step ratio is 496 (e256: mean explicit step 1.4126e-8 s over [0.5, 1] ms). The final build's fast ctest has only the 4 known failures (`implicit_prototype/ctest_2026-10-24_final.txt`).
+
+**Done-files (Mac):**
+- Lever B: `/tmp/cfl/<name>/done` for L4, L8, H4, H8 and H4s, and `/tmp/cfl/done` for all. None existed at 04:12. **L4 looks stalled:** its series (`/tmp/cfl/L4/L4_DEVELOPMENT_series.csv`, a row every 0.01 ms) took 71 rows from 01:46 to 03:10, then none after 0.71 ms. At 04:12 it still ran at about 390% CPU, and its log still gained Cantera below-200 K warnings (602 in all). Not diagnosed, not stopped; L8, H4, H8 and H4s wait behind it.
+- D1, D2, e128, e256 and the ctest are done and judged above.
+
+**Next:**
+1. The Director's decision on the implicit path, with criterion 5's cause in hand. The other failures stand:
+   - criterion 1 (pre-asymptotic order on P);
+   - criterion 4's order (its floor was criterion 5's offset, so it should be re-measured against the period-mean reference);
+   - m25's fixed point on 128x24.
+2. When woken: lever B against (a) and (b) (`cfl_compare.py`); its evidence directory and SPEED.md 5c.
+3. The history's rates as the mean between samples (a measurement fix in `Flow`/`chamber_study`), then a check of which earlier explicit F_vac and Isp numbers carry the landing-step error.
+4. The rho omega print (above) for the 1.78 ms fault.
+5. The driver's moving-window settle judge (C) before the central launch; the RL10 central run when S7 low and high pass.
+
 ## Stopped at (24 October, about 03:20 CDT; inquiry, the implicit prototype built and judged on case C)
 
 **Ben (about 02:00):** "build the implicit prototype against the criteria you registered (d87815d)... stop at a clean commit by 05:30." The runs from 01:55 are not waited on; Ben wakes the session when they end.
