@@ -2,6 +2,46 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (23 October, about 23:45 CDT; inquiry, Friday night, the Director's 23:00 brief)
+
+**Backhouse rebooted at 17:08; S7 low and high and B4 died with it.** The brief's items, in order:
+- **The step-back** is in `docs/validation/rl10a33a/tier1_ensemble_plan.md`, the dated note of 23 October (7e91a4f).
+  - At B4's measured pace: about 24,000 to 41,000 run-hours for the ensemble, 6 to 12 months on backhouse.
+  - With levers 1 to 4: about 7 to 11 weeks, set by the 3-level central case.
+- **(1) The restart: done and tested** (27b135f, `docs/evidence/RESTART.md`).
+  - `CRUCIBLE_CHECKPOINT=<stem> CRUCIBLE_RESTART=auto` in mascotte_a10 and rl10_tier1, with a checkpoint every 30 min of wall time.
+  - Four kill-and-resume tests on the Mac, each resumed on a different thread count. Every resumed run's engine state is `cmp`-identical to the uninterrupted run's, and so are its outputs.
+  - The fast ctest's 11 FAIL lines equal da3555f's (`docs/evidence/ctest_2026-10-23_restart.txt`).
+- **(2) The relaunch, on backhouse** in `/home/greff/crucible_rst` (27b135f, the `REVISION` file). It runs under inquiry2's resume runner (`/home/greff/resume`; the jobs `s7low`, `s7high` and `b4`; the scripts in `docs/evidence/restart_2026-10-23/`), so a reboot resumes the runs from their checkpoints.
+  - **S7 low and high:** fresh from t = 0 at 23:36 CDT, to 55 ms, nice 10, 4 threads each.
+    - Done-files: `/home/greff/crucible_rst/runs/s7low/low_done` and `s7high/high_done`. Each holds `exit N` and is written by the driver.
+    - A fresh run to 55 ms took about 27 h before (*inferred* from the dead runs' 37.6 ms in 18.6 h).
+    - The check that the new code gives S7's old numbers: the new history rows against the dead runs' (`/home/greff/crucible_s7z/runs2/{low,high}_history.csv`). Result below.
+  - **B4 failed on main at 30 to 40 µs of the lead:** "AMR: could not advance an admissible state after 14 base-step reductions" (exit 1). Its log and series are `restart_2026-10-23/b4_27b135f*`.
+    - This is inquiry2's reflux finding. At the frozen tags, level 3's reflux leaves ρk below zero in a coarse cell at the turbulent front, and no step reduction cures it.
+    - The fix is f8e0f65 on worktree-inquiry2, registered in 8cc4572. Its checks were running on backhouse (`crucible_rfx`).
+    - **B4 relaunches when f8e0f65 is on main.** Rebuild `/home/greff/crucible_rst` from that main, then register a new job (`b4r`, its own directory) with the same `bh_run.sh` body.
+    - inquiry2 was told to add `refluxClips_` and `refluxClipped_` to `Amr::checkpoint` (core/amr.cpp, about line 653) when rebasing.
+    - **The tier-1 central run fails the same way** until that fix is on main.
+- **(3) The spray NaN: fixed at its cause** (`face_inlet/leak_2026-10-23/spray_nan/README.md`, Resolved).
+  - The cause: tier 1 took its transport fits from the mechanism's 200 K limit, and H2's conductivity fit turns negative below about 97 K. The drops' films reach 61 to 67 K.
+  - The fix:
+    - tier 1 now fits from 60 K, as the spray's other cases do;
+    - `Spray::filmTransport` throws on a transport value that is not positive;
+    - the B_T residual throws on NaN.
+  - The repro (lead 0, 2 levels) now runs clean to 0.02 ms.
+  - Amendment in `tier1_run_definition.md`: G4's H2 viscosity moves 6.844e-6 to 6.833e-6, and F3's viscosity ratios move under 0.2%.
+- **(4) B4's old run (ab3aa03, before the energy-leak fix c7e6bd1)** died at 1.09 ms, before t_L = 20 ms.
+  - Its energy budget over the lead was 2.57e-5 at 0.5 ms and 6.34e-5 at 1 ms (limit 1e-11).
+  - The face pressure was 1.009 bar at 1 ms.
+  - No flash branch can be read from it. The fixed-code rerun is item (2).
+- **Held note (c):** rl10_tier1 states the tag thresholds as frozen at s* = 1/4. `kNumericsFrozen` stays false while step D's y+ target waits.
+
+**Next, in order:**
+1. Relaunch B4 once f8e0f65 is on main (above).
+2. Check S7's history rows against the dead runs'.
+3. The RL10 central run: blocked on the y+ target (step D), the reflux fix, B4's flash branch and S7 low and high's scores.
+
 ## Stopped at (23 October, about 01:15 CDT; inquiry, Friday night, the Director's 01:15 message; stopped for the night)
 
 **B4 now runs on backhouse; the Mac copy is killed.** The Director's reason: 17 hours on the Mac runs into Ben's day.

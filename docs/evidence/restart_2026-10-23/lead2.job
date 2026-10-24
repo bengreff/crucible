@@ -1,0 +1,6 @@
+# crucible (inquiry): lead2 the 2-level H2 lead to t_L, a development estimate (docs/evidence/RESTART.md).
+NAME=lead2
+DIR=/home/greff/crucible_rst/runs/lead2
+RESUME='bash /home/greff/crucible_rst/docs/evidence/restart_2026-10-23/bh_run.sh lead2'
+DONE=/home/greff/crucible_rst/runs/lead2/lead2_DEVELOPMENT_done
+NICE=10

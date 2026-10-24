@@ -3,7 +3,7 @@
 # from its job file (s7low.job, s7high.job, b4.job beside this script), which applies nice 10. It waits while the
 # 1-minute load is above 24, then starts, or resumes from its last checkpoint (CRUCIBLE_RESTART=auto, every 30 min
 # of wall time). The driver writes its own done-file on any exit; a killed run writes none, so the runner resumes it.
-# usage: bh_run.sh s7low | s7high | b4
+# usage: bh_run.sh s7low | s7high | b4 | lead2
 R=/home/greff/crucible_rst
 B=$R/build
 cd $R/runs/$1 || exit 1
@@ -22,5 +22,12 @@ case "$1" in
     export CRUCIBLE_MANIFOLD_TABLE=$R/runs/rl10_s.bin CRUCIBLE_T1_LEAD=20e-3 CRUCIBLE_T1_END=21e-3 CRUCIBLE_T1_OUT=b4 \
       CRUCIBLE_T1_THREADS=4 CRUCIBLE_CHECKPOINT=$PWD/b4 CRUCIBLE_RESTART=auto
     exec $B/crucible_rl10_tier1 run development >> b4.log 2>&1 ;;
+  lead2)
+    # The H2 lead alone at 2 levels to just past t_L: a development estimate of the face pressure at t_L against the
+    # flash branch's 3.1 bar, beside the 1-level lead (the Mac) and B4 (3 levels, the registered run).
+    echo "launch $(date '+%F %T %Z'), load $(cut -d' ' -f1 /proc/loadavg)" >> lead2.log
+    export CRUCIBLE_MANIFOLD_TABLE=$R/runs/rl10_s.bin CRUCIBLE_T1_LEVELS=2 CRUCIBLE_T1_LEAD=20e-3 CRUCIBLE_T1_END=20.01e-3 \
+      CRUCIBLE_T1_OUT=lead2 CRUCIBLE_T1_THREADS=4 CRUCIBLE_CHECKPOINT=$PWD/lead2 CRUCIBLE_RESTART=auto
+    exec $B/crucible_rl10_tier1 run development >> lead2.log 2>&1 ;;
   *) echo "bh_run.sh: unknown run $1" >&2; exit 2 ;;
 esac
