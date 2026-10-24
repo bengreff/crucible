@@ -188,3 +188,67 @@ All six tests met, 0 failures (measured; `low_t/low_temperature_tests_2026-10-24
 - If the largest of f, |Δc\*/c\*| and |ΔIsp/Isp| there is below 2e-4: para at the supply, with instantaneous equilibration above a stated temperature, and the bound recorded.
 - Otherwise: a sourced conversion rate is needed before the form is fixed.
 - T_s = 150, 250 and 300 K are reported beside it to show how the bound moves with the supply temperature. They are not judged.
+
+**Results (24 October 2026, about 04:07 CDT; derived by computation, one thread, 3 s; `low_t/para_supply_bound_2026-10-24.txt`).**
+
+- **The check passed:** x_p = 1 at 199.67 K gives 162.7 kJ/kg, against (b)'s 163.
+- **The supply's enthalpy difference** h_eq − h_frozen, at x_p 0.998 (at 0.95):
+
+  | T_s | Δh, kJ/kg of H2 |
+  |---|---|
+  | 150 K | 306.4 (285.8) |
+  | 200 K | 161.5 (151.0) |
+  | 250 K | 70.2 (65.7) |
+  | 300 K | 27.5 (25.8) |
+
+- **Judged at T_s = 200 K, 36 cases: NOT below 2e-4.**
+  - f is 1.7e-3 to 2.8e-3.
+  - Δc\*/c\* is −4.6e-4 to −1.0e-3.
+  - ΔIsp/Isp is −5.8e-4 to −1.22e-3.
+  - The largest of the three is 2.81e-3 (O/F 4, x_p 0.998, LOX). That is 14 times the bar on f, 5 times on c\* and 6 times on Isp.
+  - The changes are negative: the para-rich supply carries less energy than an equilibrium supply at the same temperature.
+  - All three are linear in Δh: the ratios between x_p 0.95 and 0.998 match Δh's ratio of 0.935.
+  - O/F moves the result most. On c\*, p_c from 2 to 4 MPa moves it by at most 4.8%, and the O2 state by at most 4.5%.
+- **Beside it, not judged:**
+  - 150 K: largest 5.40e-3.
+  - 250 K: 1.21e-3.
+  - 300 K: 4.68e-4. Even at 300 K, f is above the bar; Δc\*/c\* there is at most 1.64e-4, and ΔIsp/Isp at most 2.03e-4.
+- **So, by the Director's rule, the form needs a sourced conversion rate before it is fixed.** No conversion model is built.
+
+**What a conversion rate can still move (derived, not judged).**
+- **Para and equilibrium hydrogen have the same enthalpy once hot.** h_eq − h_frozen(x_p 0.998) is 27.5 kJ/kg at 300 K, 3.67 at 400 K, 0.458 at 500 K, 0.0079 at 700 K and 3.2e-5 at 1000 K.
+  - So conversion above 500 K moves at most Y_H2 Δh(500 K) / q = 8.1e-6 of the heat release, over the whole grid; above 1000 K, 5.7e-10.
+  - Book the supply's frozen enthalpy at the face. Then the chamber's conversion changes c\* and Isp in this bookkeeping by at most 8.1e-6, 25 times under the bar.
+    - That holds wherever the conversion happens, and even if it has not happened by the time the gas passes 500 K.
+    - Energy is conserved, and hot unconverted gas carries equilibrium's enthalpy.
+- **The c\* and Isp effect is set before the injector.** It depends on how much of the supply has converted by the time it reaches the face:
+  - none: frozen, the full effect above;
+  - all: equilibrium, no effect.
+  - So the rate the rule needs is the one in the tank, the jacket and the lines (self-conversion in the gas, and catalysis on the jacket's metal), not the hot zone's H-atom exchange.
+- **The x_p choice inside the spec's range sits under the bar.** At 200 K, x_p 0.95 against 0.998 moves c\* by at most 6.5e-5 and Isp by 8.0e-5.
+- **The cold stream's local state is what in-chamber conversion does move.**
+  - Option (ii) gives the face inlet h_frozen(T_s) on equilibrium thermo. That is equilibration at the inlet.
+  - The inlet gas then sits at 188.1 K instead of 200 K: 11.9 K colder, and 6.3% denser at the same pressure. (At 150 K: 23.3 K colder and 18.4% denser. At 250 K: 5.0 K and 2.0%.)
+  - At a fixed mass flow, the H2's injection velocity falls by 6.3%. That changes the momentum-flux ratio, which is a mixing input, not part of the energy budget.
+  - A para-rich H2 thermo below some T\* ≥ 500 K (option (i)) would keep the inlet at T_s, at the cost of Table B and the mechanism's thermo, as (b) says.
+
+**The citations (a Sonnet literature agent, 24 October, 04:04 to 04:07 CDT; what each source is, and what was read).**
+- **The LH2 para fraction.**
+  - Equilibrium at 20.27 K is 99.800% para, and at 20.00 K 99.822% (derived here from the partition functions).
+  - The standard compilation is Woolley, Scott and Brickwedde, J. Res. NBS 41, 379 (1948), RP1932. It was located, but its tables are scanned images and were not read. Secondary sources quote 99.79% at 20.4 K.
+  - The delivered minimum is 95.0% (MIL-PRF-27201, read directly, (b)).
+- **The conversion time.**
+  - Milenko, Sibileva and Strzhemechny, "Natural ortho-para conversion rate in liquid and gaseous hydrogen", J. Low Temp. Phys. 107, 77–92 (1997), DOI 10.1007/BF02396837. It measured the liquid at 17 to 32 K and the gas at 40 to 120 K, to 0.09 g/cm3, with an interpolation formula over the fluid range. The scope was read in the abstract; **the rate itself was not read** (paywalled).
+  - Larsen, Simon and Swenson, Rev. Sci. Instrum. 19, 266 (1948), on the liquid: located, but the number was not read.
+  - Farkas, "Orthohydrogen, Parahydrogen and Heavy Hydrogen" (Cambridge, 1935): not accessed.
+  - **So the "hours" in the decision is consistent with these sources' scope, but no conversion time has been read from a primary source.** The gap for the jacket's metal stands ((b)).
+- **The hot zone.**
+  - Schulz and Le Roy, J. Chem. Phys. 42, 3869 (1965), measured H + p-H2 conversion at 300 to 444 K. That range was read in Lique, Honvault and Faure, arXiv:1402.5292. No Arrhenius form was verified.
+  - Ridley, Schulz and Le Roy, J. Chem. Phys. 44, 3344 (1966): located, not read.
+  - Paramagnetic O2 catalyses conversion (Nielsen and Dahler, J. Chem. Phys. 46, 732, 1967, read). No rate constant was extracted.
+  - By the derived point above, the hot zone's rate does not reach the bar in any case.
+
+**For the Director.**
+- By the rule as registered, the supply's form is not fixed until a conversion rate is sourced.
+- The derived point above narrows which rate that is: the rate between the tank and the face (gas self-conversion over the line's residence time, and the jacket wall). Inside the chamber, the conversion's place moves c\* and Isp by under 8.1e-6.
+- If the line rate confirms the frozen supply, option (ii) at x_p 0.998 gets the energy right. The cost is the cold inlet's 6.3% density offset at 200 K.
