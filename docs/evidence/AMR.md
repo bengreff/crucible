@@ -1082,9 +1082,12 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
   - D1's case (C1 eqtt, tags at Tags' defaults, regridding) ran to 1 ms at 1 and at 4 threads. The two output dumps, `d3_t1.txt` and `d3_t4.txt`, are `cmp`-identical.
   - Both logs say "PASSED (0 failures)" and both took 8,404 base steps with 0 redone. They differ only in their thread-count line and their wall times.
   - The reflux clipped rho k in 0 cells in both runs, adding 0 J of rho k V.
-- **Still to come:** check 1's D1 to 8 ms (new and parent), on backhouse in job rfx, done-file `/home/greff/crucible_rfx/out/all_done`.
-  - The pair started about 03:43 CDT. The new tree's run was going at 03:53. The parent's run is held by the watcher until the load falls under 24.
-  - At about 7,300 s per run (D1's rerun, above), the pair ends after 05:30 (inferred).
+- **Check 1's fourth case, D1's tagged case with law and hp to 8 ms: met** (backhouse, f8e0f65 against fcb20f1, gcc; the done-file written at 04:11 CDT, scored about 04:20 CDT; files in `amr_d/rfx_2026-10-23/backhouse/d1*`).
+  - The two output dumps, `d1n.txt` (new) and `d1p.txt` (parent), are `cmp`-identical, on backhouse and again on the Mac after the copy.
+  - Both exits were 0, both logs say "PASSED (0 failures)", and both took 67,634 base steps with 0 redone.
+  - With wall times masked, the logs differ in one line only: the new tree's reflux line, 0 cells clipped and 0 J of rho k V added.
+  - Wall times were 811 s (new) and 1,592 s (parent, which includes the watcher's hold from 03:43 to 04:01; `d1gate.log`). The inference above of about 7,300 s per run was wrong by about 9 times; its cause is not established.
+- **So all three checks are met.** The clip does not fire in any of D0's four cases, so where it does not fire the code is bit-identical to its parent. It is thread-independent (D3), and where it fires (tier 1), every clip is under 6e-10 of the level's largest rho k.
 - **Seen, not judged:** tier 1's log holds 329 Cantera warnings, "ChemEquil::equilibrate: Temperature (about 199 K) outside valid range of 200 K to 6000 K". The Mac trace to 0.1 ms had none, so they start after 0.1 ms. They come from the tier-1 driver's chemistry, B4's lane. Reported to inquiry.
 
 ## Deviations from the plan's text
