@@ -1,0 +1,21 @@
+implicit prototype: BDF2 at dt 7.940000e-06 s, inner tolerance 1.000e-06, at most 300 inner iterations, pseudo CFL 3
+mechanism: h2o2.yaml
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 64x12: dz 2.604 mm, throat station 32 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 17 at z 0.0456 m
+chemistry eqt; igniter 0.5 J over 0.2 ms from 0.2 ms
+
+end 0.100 ms after 13 steps (0 replans), wall 1 s
+budgets: mass 2.41e-15  energy 2.55e-16
+implicit: 13 steps, 1952 inner iterations (150.154 per step, most 233), 0 unconverged, 0 rejected; wall 6.564e-04 s per inner iteration with the projection's share
+cost: 128.332 us of wall time per cell update on 1 threads, 12.8 s per simulated ms over the run
+reaction wall 0.0 s (0.3% of the run), 0.370 us per cell update
+table: 9984 cell updates from it (4985 clamped at an axis end), 0 outside it took the direct call (0.000e+00)
+drift over last 1 ms: outlet mass flow 1.00e+00, injector pressure 8.94e-01, vacuum thrust 9.07e-01
+chamber end: static 0.08125 MPa, equilibrium stagnation p0 0.08532 MPa; injector face 0.17280 MPa
+simulated: mdot out 0.000000 kg/s (supply 0.080000), c* 285612638.36 m/s, vacuum thrust 92.80 N, vacuum Isp 100840064.80 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 2956.2 K, c* 2345.19 m/s, Isp_vac shifting 427.34 s, frozen 396.97 s, gamma 1.2221
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.99643 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2353.58 m/s, Isp_vac shifting 420.66 s, frozen 390.63 s, F_vac 0.00 N
+simulated/predicted - 1: c* +12135130.7759%, Isp_vac (shifting) +23972007.1844%

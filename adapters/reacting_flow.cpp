@@ -373,6 +373,15 @@ double ReactingFlow::step(double maxDt) {
   return taken;
 }
 
+double ReactingFlow::implicitStep(double dt, const Flow::ImplicitControl& control) {
+  if (chemistry_ == Chemistry::FiniteRate || spray_)
+    throw std::runtime_error("The implicit prototype takes equilibrium or frozen chemistry and no spray.");
+  const double taken = flow_.implicitStep(dt, control);
+  react(taken);
+  ++stats_.steps;
+  return taken;
+}
+
 void ReactingFlow::advanceTo(double target) {
   if (!std::isfinite(target) || target < flow_.time()) throw std::invalid_argument("Invalid target time.");
   while (flow_.time() < target) step(target - flow_.time());

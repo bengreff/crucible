@@ -420,7 +420,38 @@ public:
     // continued run is the uninterrupted one bit for bit.
     void writeCheckpoint(CheckpointWriter& out) const;
     void readCheckpoint(CheckpointReader& in);
+    // The implicit prototype (docs/evidence/IMPLICIT_PROTOTYPE.md; one level, inviscid, no turbulence). One physical
+    // step of dt by BDF2, solved by dual time: LU-SGS sweeps on the Rusanov split of the convective Jacobian, the
+    // scalar diagonal plus V / (a dt), each cell's pseudo-time step pseudoCfl times its convective limit. The history
+    // is the state at the start of the last implicit step; the first step, or one after the state was stepped by
+    // anything else, is backward Euler, and a step of another size than the last takes the variable-step coefficients.
+    // The inner loop ends when the defect d = U - U_known - a dt R(U), as an RMS over the volume of each bulk component
+    // over its scale (rho, rho a, rho a, E of U^n), is at most tolerance; the step is then U_known + a dt R of the last
+    // iterate, so the budgets, booked with the same coefficients, close to rounding. An iterate's cell update is damped
+    // until the cell is admissible; a final state that is not admissible, or a failed evaluation, halves the step (at
+    // most 14 times). Returns the step taken.
+    // extrapolate: the first iterate U^n + w (U^n - U^(n-1)) in each cell where it is admissible (U^n elsewhere and
+    // without a history); trace: each inner iteration's defect to stdout.
+    struct ImplicitControl { double tolerance{1e-6}; int maxIterations{100}; double pseudoCfl{1e6}; bool extrapolate{false}, trace{false}; };
+    struct ImplicitStats {
+        std::uint64_t steps{}, iterations{}, rejected{}, unconverged{};
+        int lastIterations{}, mostIterations{};
+        double lastDefect{}, lastFirstDefect{};
+    };
+    double implicitStep(double dt, const ImplicitControl& control);
+    [[nodiscard]] const ImplicitStats& implicitStats() const { return implicitStats_; }
 private:
+    // The implicit prototype's history (the state at the start of the last implicit step and that step), its time and
+    // step count at the end of that step (a mismatch means something else stepped), the budgets' increments of that
+    // step, and the sweeps' scratch.
+    std::vector<Conserved> implicitPrevious_;
+    std::vector<double> implicitPreviousSpecies_;
+    double implicitPreviousDt_{}, implicitEndTime_{-1};
+    std::uint64_t implicitEndSteps_{};
+    std::array<double, 6> implicitIncrement_{};
+    std::vector<double> implicitKnown_, implicitDelta_, implicitDiagonal_, implicitAxialRate_, implicitRadialRate_;
+    ImplicitStats implicitStats_;
+    void implicitSweeps(double diagonalTime, double pseudoCfl);
     friend class Amr;
     template<class Self, class Io> static void checkpoint(Self& self, Io& io);
     // The budget probe: its sums, the current right-hand side's terms and the attempt's (dt/2 per stage).

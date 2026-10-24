@@ -1,0 +1,11 @@
+case P: simple-wave pulse (1e-3 p0), 384 x 2, to t = 3.456033e-03 s (2/3 L / a0); one thread; inner tolerance 1.0e-11, pseudo CFL 1e+06
+explicit CFL 0.10: 6496 steps, wall 2.64 s (4.068e-04 s per step); budgets mass -2.46e-14, energy -9.99e-15
+explicit CFL 0.05: 12992 steps; its difference from CFL 0.1, the reference's own error bound: 7.922e-06
+implicit acoustic CFL 8.000 (32 steps): error 1.4531e-01; inner iterations 150.28 per step (most 283), 0 unconverged, 0 rejected; wall 1.11 s, 2.315e-04 s per inner iteration = 0.57 explicit steps; budgets mass -1.17e-14, energy -1.58e-14
+implicit acoustic CFL 4.000 (64 steps): error 8.8115e-02; inner iterations 47.72 per step (most 83), 0 unconverged, 0 rejected; wall 0.72 s, 2.351e-04 s per inner iteration = 0.58 explicit steps; budgets mass -1.32e-14, energy -1.87e-14
+implicit acoustic CFL 2.000 (128 steps): error 3.5197e-02; inner iterations 22.02 per step (most 33), 0 unconverged, 0 rejected; wall 0.69 s, 2.449e-04 s per inner iteration = 0.60 explicit steps; budgets mass -1.81e-14, energy -2.33e-14
+implicit acoustic CFL 1.000 (256 steps): error 1.1354e-02; inner iterations 13.50 per step (most 21), 0 unconverged, 0 rejected; wall 0.86 s, 2.491e-04 s per inner iteration = 0.61 explicit steps; budgets mass -3.13e-14, energy -3.37e-14
+implicit acoustic CFL 0.500 (512 steps): error 3.2394e-03; inner iterations 7.15 per step (most 11), 0 unconverged, 0 rejected; wall 0.93 s, 2.536e-04 s per inner iteration = 0.62 explicit steps; budgets mass -5.27e-14, energy -5.14e-14
+criterion 1: observed order between acoustic CFL 4 and 2: 1.324 (bar [1.8, 2.2])  FAIL
+criterion 1: observed order between acoustic CFL 2 and 1: 1.632 (bar [1.8, 2.2])  FAIL
+printed, not judged: order between acoustic CFL 1 and 0.5: 1.809

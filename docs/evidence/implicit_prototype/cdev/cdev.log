@@ -1,0 +1,25 @@
+CanteraWarning: ChemEquil::equilibrate: Temperature (3502.29077765347 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3505.7195327991353 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3520.9065521509674 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3516.097397955052 K) outside valid range of 300 K to 3500 K
+implicit prototype: BDF2 at dt 7.940000e-06 s, inner tolerance 1.000e-06, at most 100 inner iterations, pseudo CFL 1e+06
+mechanism: h2o2.yaml
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 64x12: dz 2.604 mm, throat station 32 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 17 at z 0.0456 m
+chemistry eqt; igniter 0.5 J over 0.2 ms from 0.2 ms
+
+end 0.300 ms after 43 steps (0 replans), wall 4 s
+budgets: mass -6.02e-15  energy -5.80e-14
+implicit: 43 steps, 4135 inner iterations (96.163 per step, most 100), 35 unconverged, 10 rejected; wall 9.047e-04 s per inner iteration with the projection's share
+cost: 113.285 us of wall time per cell update on 1 threads, 12.5 s per simulated ms over the run
+reaction wall 0.4 s (10.1% of the run), 11.429 us per cell update
+table: 33015 cell updates from it (4973 clamped at an axis end), 9 outside it took the direct call (2.725e-04)
+drift over last 1 ms: outlet mass flow 1.73e+00, injector pressure 9.79e-01, vacuum thrust 1.05e+00
+chamber end: static 0.54380 MPa, equilibrium stagnation p0 0.55374 MPa; injector face 0.88705 MPa
+simulated: mdot out 0.057275 kg/s (supply 0.240000), c* 3037.31 m/s, vacuum thrust 367.47 N, vacuum Isp 654.24 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3164.8 K, c* 2392.65 m/s, Isp_vac shifting 432.53 s, frozen 409.17 s, gamma 1.2142
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.99644 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2401.19 m/s, Isp_vac shifting 425.73 s, frozen 402.65 s, F_vac 239.12 N
+simulated/predicted - 1: c* +26.4919%, Isp_vac (shifting) +53.6757%

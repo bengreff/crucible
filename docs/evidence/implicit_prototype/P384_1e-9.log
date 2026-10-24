@@ -1,0 +1,13 @@
+case P: simple-wave pulse (1e-3 p0), 384 x 2, to t = 3.456033e-03 s (2/3 L / a0); one thread; inner tolerance 1.0e-09, pseudo CFL 1e+06
+explicit CFL 0.10: 6496 steps, wall 2.61 s (4.024e-04 s per step); budgets mass -2.46e-14, energy -9.99e-15
+explicit CFL 0.05: 12992 steps; its difference from CFL 0.1, the reference's own error bound: 7.922e-06
+implicit acoustic CFL 8.000 (32 steps): error 1.4531e-01; inner iterations 39.97 per step (most 47), 0 unconverged, 0 rejected; wall 0.28 s, 2.171e-04 s per inner iteration = 0.54 explicit steps; budgets mass -8.88e-15, energy -1.44e-14
+implicit acoustic CFL 4.000 (64 steps): error 8.8115e-02; inner iterations 22.61 per step (most 33), 0 unconverged, 0 rejected; wall 0.32 s, 2.228e-04 s per inner iteration = 0.55 explicit steps; budgets mass -1.22e-14, energy -1.82e-14
+implicit acoustic CFL 2.000 (128 steps): error 3.5197e-02; inner iterations 9.91 per step (most 16), 0 unconverged, 0 rejected; wall 0.30 s, 2.359e-04 s per inner iteration = 0.59 explicit steps; budgets mass -1.73e-14, energy -2.41e-14
+implicit acoustic CFL 1.000 (256 steps): error 1.1354e-02; inner iterations 5.93 per step (most 10), 0 unconverged, 0 rejected; wall 0.41 s, 2.703e-04 s per inner iteration = 0.67 explicit steps; budgets mass -2.98e-14, energy -3.16e-14
+implicit acoustic CFL 0.500 (512 steps): error 3.2394e-03; inner iterations 4.00 per step (most 6), 0 unconverged, 0 rejected; wall 0.59 s, 2.857e-04 s per inner iteration = 0.71 explicit steps; budgets mass -5.38e-14, energy -5.35e-14
+implicit acoustic CFL 0.250 (1024 steps): error 8.4911e-04; inner iterations 3.00 per step (most 3), 0 unconverged, 0 rejected; wall 1.00 s, 3.252e-04 s per inner iteration = 0.81 explicit steps; budgets mass -8.61e-14, energy -8.07e-14
+criterion 1: observed order between acoustic CFL 4 and 2: 1.324 (bar [1.8, 2.2])  FAIL
+criterion 1: observed order between acoustic CFL 2 and 1: 1.632 (bar [1.8, 2.2])  FAIL
+printed, not judged: order between acoustic CFL 1 and 0.5: 1.809
+printed, not judged: order between acoustic CFL 0.5 and 0.25: 1.932

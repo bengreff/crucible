@@ -76,3 +76,79 @@ If 1, 2, 3 and 5 pass, the prototype's numbers are trusted. If 4 fails, the step
 4. Days 6 and 7: T if C passed; otherwise the report with T stated as unmeasured.
 
 The report goes in this file under *Results*, with the logs in `implicit_prototype/`.
+
+## Amendment, 24 October 2026, about 02:20 CDT (built; before any case C run is judged)
+
+What the build changed from the plan above. Below that are the definitions criteria 3 and 4 need, fixed before the C runs.
+
+- **No refactor of the residual was needed.** The implicit step calls the existing `Flow::rhs` (the explicit stages' operator) on its iterate, so the explicit march's code path is untouched.
+  - Gate *(measured, 02:11 to 02:12)*: C1 64x12 to 1 ms on one thread. The new build's `CRUCIBLE_STATE_DUMP`, history and field files are `cmp`-identical to those of the binary built at 4f2d81e (`/tmp/c1base`).
+  - The fast ctest result is below under *Results*.
+- **Table A is a split. Line 22's "There is no reaction split" was wrong.**
+  - `ReactingFlow::implicitStep` calls `Flow::implicitStep`, then Table A's projection over the step actually taken. The explicit march does the same after each of its steps. So both of BDF2's history levels are post-projection states.
+  - The projection keeps ρ, ρu, E and the elements, so the budgets are unaffected.
+  - Within a step, the composition is carried by the flow and does not relax with the temperature. So where the projection changes the state (the flame zones), the composite step can be first order in Δt *(derived)*.
+  - P has no chemistry and is unaffected. Criterion 4's order bar (at least 1) stands.
+- **BDF2 takes variable steps.** A rejection halves the step, so the coefficients follow the step ratio w = h/h_(n−1): U − (1+c) U^n + c U^(n−1) = a h R(U), with a = (1+w)/(1+2w) and c = w²/(1+2w). At w = 1 this is the plan's a = 2/3 and (4 U^n − U^(n−1))/3.
+  - Case C's march goes to the next multiple of Δt. So a halved step is followed by one that lands back on the grid, and the runs at Δt and Δt/2 share their sample times.
+- **The sweeps' Jacobian** is the Rusanov split with γ frozen at ρa²/p per cell. The bulk and the partial densities are swept together.
+  - The residual keeps HLLC, the limited reconstruction and the full thermodynamics. The approximate Jacobian changes the convergence, not the converged answer.
+  - Each cell's update is damped until the cell is admissible (density at most halved). No clipping.
+- **The inner defect.** d = U − U_known − a h R(U). Its norm is the largest, over ρ, ρu_z, ρu_r and E, of the volume RMS of d over that component's scale. The scales are the volume RMS of ρ, ρa, ρa and E at the step's first iterate.
+  - A step ends when the norm reaches the tolerance, or at the iteration limit. A step that ends at the limit is accepted and counted as *unconverged*, and every run reports that count.
+- **Criterion 3's numbers, fixed now:**
+  - **The observables** (criteria 3 and 4): p_inj, the outlet mass flow and F_vac, from the history file. Each is normalised by the explicit run's mean over [6, 8] ms on the same mesh.
+  - **Comparisons** are made at the coarser run's sample times in [0.5, 8] ms. The other run's history is linearly interpolated there. The explicit history is sampled every 2 μs; the implicit history, after every step.
+  - **The temporal error E_t:** the largest, over the three observables, of the RMS of the Δt run minus the Δt/2 run.
+    - Both runs use tolerance 1e-6, with at most 400 inner iterations. If E_t/1,000 comes out below 1e-6, the pair is repeated at E_t/1,000.
+  - **The sweep:** the inner tolerance (the defect norm above, a relative quantity like E_t) is set to E_t/10, E_t/100 and E_t/1,000 at Δt = τ_C1/63.
+    - Pass: at the loosest tolerance where each observable's RMS difference from the E_t/1,000 run is below 0.1 E_t.
+- **τ_C1 is measured as written above:** t_0.1% / ln 1000, from the explicit 64x12 run.
+  - t_0.1% is the first time after which F_vac stays within 0.1% of its [6, 8] ms mean.
+  - The three steps are τ_C1/25, τ_C1/63 and τ_C1/150 of the measured value.
+- **M2's explicit wall per step** is measured by the explicit baseline on the same mesh, in the same batch, on one thread.
+  - Both runs share the machine's load at the time. The load is stated with each number.
+
+## Results
+
+### Criterion 1 (P): FAIL as registered *(measured, 24 October, about 01:00 to 02:05 CDT, Mac, one thread)*
+
+The error is the volume RMS of p − p_ref over the pulse's amplitude, to t = 2/3 L/a0.
+
+| Acoustic CFL | 192 columns | 384 columns |
+|---|---|---|
+| 8 | 1.690e-1 | 1.453e-1 |
+| 4 | 1.289e-1 | 8.812e-2 |
+| 2 | 7.168e-2 | 3.519e-2 |
+| 1 | 2.540e-2 | 1.135e-2 |
+| 0.5 | 7.084e-3 | 3.239e-3 |
+| 0.25 | | 8.491e-4 |
+
+- **The judged orders, 4 to 2 and 2 to 1, are below the bar of [1.8, 2.2].** On 192 columns they are 0.85 and 1.50. On 384 they are 1.32 and 1.63.
+- **The printed orders at smaller steps reach the bar.** On 192, 1 to 0.5 gives 1.84. On 384, 1 to 0.5 gives 1.81 and 0.5 to 0.25 gives 1.93.
+- **The reference's own error is far below these errors.** CFL 0.1 against 0.05 differs by 1.2e-5 on 192 and 7.9e-6 on 384.
+- **The errors are the scheme's, not the inner solve's.** At acoustic CFL 1 and above, the errors agree to 4 digits at inner tolerances 1e-8, 1e-9 and 1e-11.
+
+**Reading.** BDF2 is second order here: the order rises toward 2 with each halving. But acoustic CFL 4 to 1 is before the asymptotic range for this pulse.
+- Its half-width is 8 cells on 192 columns and 16 on 384. So at CFL 4 there are 2 and 4 steps per half-width, and the error is 13% and 9% of the pulse.
+- The bar was set at steps too coarse for this pulse. It is not moved after the fact: criterion 1 fails as registered.
+
+What this tells the decision *(derived from the table)*: BDF2 needs about 16 steps per half-width of an acoustic feature for an error near 1% over 2/3 of a domain crossing, and about 4 steps per half-width gives about 10%.
+
+### Criterion 2 on P (printed; judged on C)
+
+- The mass and energy budgets are at most 8.6e-14 in every implicit run, against the bar of 1e-11.
+
+### M1 and M2 on P (one thread)
+
+- **Inner iterations per step** at tolerance 1e-9 on 384 columns: 40, 23, 10, 6, 4 and 3 at acoustic CFL 8, 4, 2, 1, 0.5 and 0.25.
+- **One inner iteration costs 0.54 to 0.81 explicit RK2 steps.** An inner iteration is one residual and two sweeps; an explicit step is two residuals.
+
+### Case C development runs (not criteria)
+
+These ran at Δt = 7.94 μs on 64x12, a step chosen before τ_C1 was measured. Logs: `implicit_prototype/cdev/`.
+- **Budgets:** mass 6e-15 and energy 6e-14 over 0.3 ms.
+- **The LU-SGS inner iteration contracts the defect by about 0.8 per iteration in the start-up** (`tr.log`, iterations 15 to 30). So a tolerance of 1e-6 needs about 50 to 100 iterations per step there.
+  - With tolerance 1e-6 and a limit of 100 iterations, 35 of the first 43 steps (0.3 ms) ended unconverged, and 10 attempts were rejected.
+  - With a pseudo CFL of 3 and a limit of 300, the first 0.1 ms took 150 iterations per step, with none unconverged.
+- **One inner iteration costs 6.6e-4 to 9.0e-4 s,** with Table A's projection's share included. The explicit 64x12 step in the gate run costs 1.7e-3 s (29 s for 17,008 steps). That puts M2 at about 0.4 to 0.5 *(measured walls, both under a load of about 10 to 12 on 10 CPUs; not the judged M2)*.

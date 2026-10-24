@@ -12,7 +12,7 @@ option(CRUCIBLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
 include(CTest)
 find_package(Threads REQUIRED)
 find_package(Eigen3 NO_MODULE)
-add_library(crucible_core core/amr.cpp core/contour.cpp core/equilibrium_table.cpp core/flow.cpp core/manifold_runtime.cpp core/manifold_table.cpp
+add_library(crucible_core core/amr.cpp core/contour.cpp core/equilibrium_table.cpp core/flow.cpp core/flow_implicit.cpp core/manifold_runtime.cpp core/manifold_table.cpp
   core/medium.cpp core/pool.cpp core/session.cpp core/spray.cpp core/transport.cpp core/walls.cpp)
 target_include_directories(crucible_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(crucible_core PUBLIC Threads::Threads)
@@ -39,6 +39,9 @@ if(BUILD_TESTING)
   target_link_libraries(crucible_amr_tests PRIVATE crucible_core)
   target_compile_definitions(crucible_amr_tests PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   add_test(NAME amr_verification COMMAND crucible_amr_tests)
+  # The implicit prototype's case P (docs/evidence/IMPLICIT_PROTOTYPE.md); not a ctest.
+  add_executable(crucible_implicit_prototype tests/implicit_prototype.cpp)
+  target_link_libraries(crucible_implicit_prototype PRIVATE crucible_core)
   add_executable(crucible_amr_subcycling_tests tests/amr_subcycling_tests.cpp)
   target_link_libraries(crucible_amr_subcycling_tests PRIVATE crucible_core)
   target_compile_definitions(crucible_amr_subcycling_tests PRIVATE CRUCIBLE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")

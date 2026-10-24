@@ -75,6 +75,10 @@ class ReactingFlow {
   const std::vector<double>& segregations() const { return segregation_; }
   double step(double maxDt = std::numeric_limits<double>::infinity());
   void advanceTo(double time);
+  // The implicit prototype (docs/evidence/IMPLICIT_PROTOTYPE.md): one Flow::implicitStep of dt, then the equilibrium
+  // projection (react) as after an explicit step, so the BDF2 history is the projected state. Equilibrium or frozen
+  // chemistry only, no spray. Returns the step taken.
+  double implicitStep(double dt, const Flow::ImplicitControl& control);
   // Table A (TECHNICAL_PLAN, *Lightweight engine*; docs/evidence/TABLE_A.md): with LocalEquilibrium,
   // each cell's equilibrium comes from the table, and cells outside it take the direct Cantera call.
   // Every audit-th reaction call (0: never) also makes the direct call in every cell and records the
