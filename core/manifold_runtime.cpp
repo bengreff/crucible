@@ -17,10 +17,10 @@ constexpr double kArgonMax = 1e-12;
 constexpr double kCornerDrop = 1e-12;
 constexpr std::size_t kNone = static_cast<std::size_t>(-1);
 
-// s°/R of one species (NASA-7), with the constant-cp continuation above tHigh.
+// s°/R of one species (NASA-7), with the constant-cp continuation above tHigh and the lowest range below tLow.
 double entropyOverR(const Species& s, double t) {
   const double c = std::min(t, s.tHigh);
-  const auto& a = c < s.tMid ? s.low : s.high;
+  const auto& a = c < s.tLow ? s.lowest : c < s.tMid ? s.low : s.high;
   double v = a[0] * std::log(c) + c * (a[1] + c * (a[2] / 2 + c * (a[3] / 3 + c * a[4] / 4))) + a[6];
   if (t > s.tHigh) v += (a[0] + c * (a[1] + c * (a[2] + c * (a[3] + c * a[4])))) * std::log(t / s.tHigh);
   return v;

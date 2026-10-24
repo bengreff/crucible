@@ -7,7 +7,10 @@
 
 namespace crucible {
 namespace {
-const std::array<double, 7>& range(const Species& s, double t) { return t<s.tMid?s.low:s.high; }
+// The range in use at t: the lowest below tLow (unless lowest is false), the low below tMid, else the high.
+const std::array<double, 7>& range(const Species& s, double t, bool lowest=true) {
+    return lowest && t<s.tLow?s.lowest:t<s.tMid?s.low:s.high;
+}
 double cpOverR(const std::array<double, 7>& a, double t) {
     return a[0]+t*(a[1]+t*(a[2]+t*(a[3]+t*a[4])));
 }
@@ -19,13 +22,15 @@ std::array<double, 6> enthalpyCoefficients(const std::array<double, 7>& a) {
     return {a[0],a[1]/2,a[2]/3,a[3]/4,a[4]/5,a[5]};
 }
 // One species' cp/R and h/R, with the constant-cp continuation above tHigh (Species).
-double speciesCpR(const Species& s,double t) {
+double speciesCpR(const Species& s,double t,bool lowest=true) {
     const double c=std::min(t,s.tHigh);
-    return cpOverR(range(s,c),c);
+    return cpOverR(range(s,c,lowest),c);
 }
-// h/R takes the species' divided low and high coefficients (Medium's lowEnthalpy_ and highEnthalpy_).
-double speciesHR(const Species& s,const std::array<double, 6>& low,const std::array<double, 6>& high,double t) {
-    if(!(t>s.tHigh)) return hOverR(t<s.tMid?low:high,t);
+// h/R takes the species' divided lowest, low and high coefficients (Medium's lowestEnthalpy_, lowEnthalpy_ and
+// highEnthalpy_).
+double speciesHR(const Species& s,const std::array<double, 6>& lowestH,const std::array<double, 6>& low,
+                 const std::array<double, 6>& high,double t,bool lowest=true) {
+    if(!(t>s.tHigh)) return hOverR(lowest && t<s.tLow?lowestH:t<s.tMid?low:high,t);
     const double c=s.tHigh;
     return hOverR(c<s.tMid?low:high,c)+cpOverR(range(s,c),c)*(t-c);
 }
@@ -36,6 +41,10 @@ Medium::Medium(std::vector<Species> species):species_(std::move(species)) {
     for(const auto& s:species_) {
         if(!(s.molarMass>0) || !(s.tMid>0)) throw std::invalid_argument("Species molar mass and mid temperature must be positive.");
         if(!(s.tHigh>s.tMid)) throw std::invalid_argument("Species top temperature must be above its mid temperature.");
+        if(!(s.tLow>=0) || (s.tLow>0 && !(s.tLow<s.tMid)))
+            throw std::invalid_argument("Species lowest-range top must be zero (none) or below its mid temperature.");
+        tLowTop_=std::max(tLowTop_,s.tLow);
+        lowestEnthalpy_.push_back(enthalpyCoefficients(s.lowest));
         specificR_.push_back(universalGasConstant/s.molarMass);
         inverseMass_.push_back(1/s.molarMass);
         lowEnthalpy_.push_back(enthalpyCoefficients(s.low));
@@ -47,11 +56,13 @@ Medium Medium::perfectGas(Gas gas) {
     s.low[0]=s.high[0]=gas.gamma/(gas.gamma-1);
     return Medium({s});
 }
-Medium::Properties Medium::properties(double t,const double* y) const {
+Medium::Properties Medium::properties(double t,const double* y) const { return properties(t,y,true); }
+Medium::Properties Medium::properties(double t,const double* y,bool lowest) const {
     Properties out;
     for(std::size_t k=0;k<size();++k) {
         const auto& s=species_[k];double w=y[k]*specificR_[k];
-        out.r+=w;out.e+=w*(speciesHR(s,lowEnthalpy_[k],highEnthalpy_[k],t)-t);out.cv+=w*(speciesCpR(s,t)-1);
+        out.r+=w;out.e+=w*(speciesHR(s,lowestEnthalpy_[k],lowEnthalpy_[k],highEnthalpy_[k],t,lowest)-t);
+        out.cv+=w*(speciesCpR(s,t,lowest)-1);
     }
     return out;
 }
@@ -62,11 +73,11 @@ double Medium::gasConstant(const double* y) const {
 }
 double Medium::enthalpy(double t,const double* y) const {
     double h=0;
-    for(std::size_t k=0;k<size();++k) h+=y[k]*specificR_[k]*speciesHR(species_[k],lowEnthalpy_[k],highEnthalpy_[k],t);
+    for(std::size_t k=0;k<size();++k) h+=y[k]*specificR_[k]*speciesHR(species_[k],lowestEnthalpy_[k],lowEnthalpy_[k],highEnthalpy_[k],t);
     return h;
 }
 void Medium::speciesEnthalpies(double t,double* h) const {
-    for(std::size_t k=0;k<size();++k) h[k]=specificR_[k]*speciesHR(species_[k],lowEnthalpy_[k],highEnthalpy_[k],t);
+    for(std::size_t k=0;k<size();++k) h[k]=specificR_[k]*speciesHR(species_[k],lowestEnthalpy_[k],lowEnthalpy_[k],highEnthalpy_[k],t);
 }
 double Medium::internalEnergy(double t,const double* y) const {
     return enthalpy(t,y)-gasConstant(y)*t;
@@ -82,12 +93,13 @@ double Medium::soundSpeed(double t,const double* y) const {
 }
 double Medium::energyFloor(const double* y) const {
     double e=0;
-    for(std::size_t k=0;k<size();++k) e+=y[k]*specificR_[k]*species_[k].low[5];
+    for(std::size_t k=0;k<size();++k) e+=y[k]*specificR_[k]*(species_[k].tLow>0?species_[k].lowest[5]:species_[k].low[5]);
     return e;
 }
 double Medium::energyFloorOfClipped(const double* w) const {
     double e=0;
-    for(std::size_t k=0;k<size();++k) e+=std::max(w[k],0.0)*specificR_[k]*species_[k].low[5];
+    for(std::size_t k=0;k<size();++k)
+        e+=std::max(w[k],0.0)*specificR_[k]*(species_[k].tLow>0?species_[k].lowest[5]:species_[k].low[5]);
     return e;
 }
 double Medium::temperature(double e,const double* y,double guess) const {
@@ -96,8 +108,17 @@ double Medium::temperature(double e,const double* y,double guess) const {
     // Newton step leaves it.
     double lo=0,hi=std::numeric_limits<double>::infinity();
     double t=guess>0 && std::isfinite(guess)?guess:300;
+    // An iterate below the lowest ranges, on the way to a state at or above them (e >= e(tLowTop_)), is taken on
+    // the low ranges continued, so that state takes the iterates it took without the lowest ranges. Which case
+    // holds is found once, at the first such iterate.
+    int above=-1;
     for(int n=0;n<100;++n) {
-        auto q=properties(t,y);
+        bool lowest=true;
+        if(t<tLowTop_) {
+            if(above<0) above=e>=internalEnergy(tLowTop_,y);
+            lowest=!above;
+        }
+        auto q=properties(t,y,lowest);
         double f=q.e-e;
         double next=t-f/q.cv;
         if(std::abs(next-t)<=1e-13*t) return next;

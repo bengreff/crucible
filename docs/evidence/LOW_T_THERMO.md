@@ -110,6 +110,38 @@ Registered 24 October 2026, about 02:45 CDT, before the build and before any tes
 - **The kinetics and Cantera's equilibrate keep the mechanism's own thermo.** So the 329 warnings remain, and Cantera's states below 200 K are still extrapolated. Moving them would need the mechanism's YAML to carry the ranges, and that changes Cantera's tables (Tables A and B).
 - **Other species are unchanged.** H and AR are monatomic: their cp/R is exactly 2.5 and extrapolates exactly. The radicals and N2 keep their extrapolated low ranges below 200 K.
 
-## Results
+## Results (24 October 2026, about 03:32 CDT; Release build on the Mac, 0 warnings)
 
-Not run yet.
+All six tests met, 0 failures (measured; `low_t/low_temperature_tests_2026-10-24.txt`). `make_low_t.py` rerun gives the 42 coefficients in `adapters/reaction.cpp` digit for digit (`low_t/make_low_t_output.txt`).
+
+1. **At and above 200 K, bit for bit:** 128,448 composition-temperature pairs (64 compositions, 2,007 temperatures), and none differs in any property.
+2. **The inversion, bit for bit:** 220,416 inversions of e at or above e(200 K), from the twelve guesses, and none differs.
+3. **The joins at 200 K:**
+
+   | Species | \|cv jump\| / cv | \|h jump\| [J/kg] | \|s jump\| / s |
+   |---|---|---|---|
+   | H2 | 0 | 2.3e-10 (tol 1.4e-6) | 2.9e-16 |
+   | O2 | 0 | 2.9e-11 (tol 9.1e-8) | 0 |
+   | H2O | 3.3e-16 | 0 (tol 1.4e-5) | 1.9e-16 |
+
+4. **Below 200 K:**
+   - the largest round-trip error is 4.0e-13 of T0;
+   - the least cv from 1 to 200 K over all 64 compositions is 312 J/(kg K);
+   - e(20 K) is at least 6,244 J/kg above the floor.
+5. **The shock tube:**
+   - At 300 K it took 919 steps both ways, with the state and partial densities bit for bit.
+   - The control at 120 K took 843 steps both ways, and the states differ.
+6. **Against the tables, |cp / table − 1|:**
+
+   | Species | Point | Table | Error | Tolerance |
+   |---|---|---|---|---|
+   | H2 | 100 K | NIST WebBook, normal H2 | 2.0e-3 | 1.5e-2 |
+   | H2 | 150 K | NIST WebBook, normal H2 | 2.6e-3 | 1.5e-2 |
+   | H2 | 199.9 K (against 200 K) | NIST WebBook, normal H2 | 9.0e-3 | 1.5e-2 |
+   | O2 | 100 K | JANAF O-029 | 9.7e-5 | 2e-3 |
+   | O2 | 150 K | NIST WebBook | 5.0e-4 | 2e-3 |
+   | H2O | 100 K | JANAF H-064 | 1.0e-3 | 5e-3 |
+
+   - H2 lies 19.7% from JANAF's equilibrium H-050 at 100 K, so the form is normal.
+   - H2's 0.9% near 200 K is the join to TM-4513's equilibrium cp. That is the 0.9% between the forms in (b), as registered.
+- **The fast ctest** (`ctest -LE slow -j4`, on the full rebuild): see below.

@@ -76,6 +76,13 @@ class ReactionSource {
 // are tabulated from T* = kT/epsilon = 0.1 (60 K for H2O).
 TransportFits transportFits(const std::string& mechanism, double minTemperature = 0);
 
+// The species with lowest ranges, 20 to 200 K (extrapolated below 20 K), for H2 (normal hydrogen), O2 and H2O
+// (docs/evidence/LOW_T_THERMO.md; tools/mechanisms/make_low_t.py), each joined at 200 K to TM-4513's low range
+// (h2o2_highT.yaml) with cp, h and s continuous. At and above 200 K nothing changes. Other species are returned
+// as they are (their low ranges continue below 200 K, as before). Throws if H2, O2 or H2O has another low range.
+// For the flow's medium only: the kinetics keep the mechanism's own thermo below 200 K.
+std::vector<Species> withLowTemperatureRanges(std::vector<Species> species);
+
 // The PaSR closure's inputs for one cell (TECHNICAL_PLAN step 7, "PaSR"), from the flow
 // (Flow::mixingInputs) and frozen over a reaction substep: the mixing time tau_mix [s] and the
 // segregation s in [0, 1]. s = 0 is the mean-state (laminar) rate.
