@@ -929,6 +929,25 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
 - **What was known when it was set.** Criterion 4's budget run (2 threads, step C's thresholds) gave 5.676e-12 over the parent and 4.605e-16 over the gross content (*Criterion 4: results*, 04:50 CDT). D1's 4-thread rerun printed the same 5.676e-12 in its progress lines by 6.5 ms (seen 04:48). D1's judged lines had not been read.
 - **What it governs.** D1's rerun (`/home/greff/crucible_sd3/out/d1.txt`) and every later run of `crucible_amr_budget tags`. The driver now judges only the gross measure, and prints the parent-relative one beside it. The tolerance is unchanged.
 
+## Step D's checks rerun on the new spread: results (scored 23 October 2026, about 23:05 CDT)
+
+**Step D holds on the new spread: 5 of 5 met, under the Director's amendments** (D1's igniter bound of 1e-13, D2's prescription check, and check 2's gross denominator above). The runs went on backhouse from 01:06 to 06:43 CDT (`finished`), before the machine's restart at 17:08. Outputs are in `amr_d/sd3_2026-10-23/`. All values are measured.
+
+- **D0: met.**
+  - New against the parent (step D reversed, both on the new spread): criterion 2's fixed-pattern dump, C1 `law` `hp`'s state and history, and check 3's dump are each `cmp`-identical (`d0.txt`).
+  - The fast ctest fails the same 5 tests on both: amr 0(d), amr_subcycling, transport, spray, and spray_amr. The 13 sorted FAIL lines in each `LastTest.log` are identical, values included (`ctest_fail_cmp.txt`).
+  - spray_amr timed out at 1,500 s on both builds at backhouse's load (it passes in 276 s on the Mac), so it is compared only as far as each run got. The other four are the standing failures.
+- **D1: met** (`d1.txt`, 4 threads, to 8 ms).
+  - Mass budget 1.220e-15 and energy 1.522e-15 of the largest (limit 1e-12, and within 10 times the single level's).
+  - Axial momentum 0 (limit 1e-12).
+  - Igniter |E / 0.5 J - 1| 2.442e-15, against the amended 1e-13.
+  - T2, the largest mass error over the run: 4.271e-15 (limit 2.07e-14).
+  - Check 2 over the gross content: 4.605e-16 (limit 1e-14). Over the parent it is 5.676e-12, which is printed, not judged. The driver of that build still judged it and printed `FAILED (1 failure)`, so that line is read under the amendment.
+  - Printed, not judged: test 1's level 1 igniter sum is 1.849e-15 off 0.5 J, with level 0 at 4.825e-17. There were 212 regrids, and level 1 ends with 636 of 768 active.
+- **D2: met** (`d2.txt`, the inert fixed pattern to 8 ms). 0 mismatches on AMR and 0 on the single level (the control). Every budget line passes: `PASSED (0 failures)`.
+- **D3: met.** D1's 1-thread dump and its 4-thread dump are `cmp`-identical (`d3.txt`).
+- **D4: met,** on the rebased tree before these runs (*Step D's checks rerun on the new spread*).
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.

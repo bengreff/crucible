@@ -1,0 +1,19 @@
+-rw-r--r-- 1 greff greff 65415 Oct 23 06:08 /home/greff/crucible_sd3/build/Testing/Temporary/LastTest.log
+13
+-rw-r--r-- 1 greff greff 65441 Oct 23 06:43 /home/greff/crucible_sd3p/build/Testing/Temporary/LastTest.log
+13
+FAIL lines identical, new against parent
+== new
+  (b) KH-RT: liquid mass through every child and RT event                        1.044e-12 (limit 1e-13)  FAIL
+  (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+  128 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 3.856e-03 (limit 0.001)  FAIL
+  256 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 1.440e-03 (limit 0.001)  FAIL
+  4b. radial momentum: observed order (two finest grids)     1.444e+00 (limit 1.8e+00)  FAIL
+  64 columns: |p - p_uniform coarse| / jump, interface to 5 cells behind the shock 5.503e-03 (limit 0.001)  FAIL
+  every step's dt within the limit and the end time equal (largest relative difference)  1.087e-12 (limit 1e-12)  FAIL
+  level 1 (300 x 32) closure, relative to the faces                          1.912e-14 (limit 1e-14)  FAIL
+  level 2 (600 x 64) closure, relative to the faces                          3.943e-14 (limit 1e-14)  FAIL
+  level 3 (1200 x 128) closure, relative to the faces                        8.024e-14 (limit 1e-14)  FAIL
+  observed order, 192 to 384 columns (at least)                              1.591e+00 (limit 1.8)  FAIL
+  observed order, 384 to 768 columns (at least)                              1.529e+00 (limit 1.8)  FAIL
+  radial momentum: observed order (two finest grids)         1.218e+00 (limit 1.8e+00)  FAIL

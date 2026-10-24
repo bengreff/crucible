@@ -1,0 +1,4 @@
+fixed pattern dump identical
+C1 law hp state identical
+C1 law hp history identical
+check 3 dump identical
