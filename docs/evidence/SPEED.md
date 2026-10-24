@@ -277,6 +277,8 @@ ESDIRK with Newton–Krylov takes 6 to 10 weeks. TECHNICAL_PLAN lists implicit t
 2. D's evidence: 2 against 3 levels on two members. It needs machine time but no build.
 3. If the Director wants I, start with a prototype on the 1-level base mesh: BDF2 with LU-SGS, the fill transient against the explicit march, about a week (*guessed*). It replaces the guessed inner-iteration counts with measured ones before 4 to 8 weeks are committed.
 
+**The Director, 01:40 24 October:** prototype first, about a week, on a bounded case, with its success criteria written before building. They are in [`IMPLICIT_PROTOTYPE.md`](IMPLICIT_PROTOTYPE.md) (the acoustic pulse and the C1 cold start; BDF2 with LU-SGS on one level and one thread; criteria 1 to 6; measurements M1 to M5; a proposed rule: build if the projected factor is at least 5, not if below 2).
+
 ### 5b. The chemistry skip, as built (lever A; the Director's 00:50 item 3)
 
 Built on `main` (4a7628f; extended and corrected in fc0c9b2), in `ReactingFlow::react` after Table B's lookup and before the CVODES call. It acts only on the finite-rate cells Table B does not place; equilibrium cells are untouched.
