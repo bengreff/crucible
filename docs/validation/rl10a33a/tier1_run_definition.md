@@ -93,7 +93,7 @@ The files that carry these inputs, pinned by SHA-256:
 The run mode is still to be added to `tests/rl10_tier1.cpp`. It may change the driver file, but not one input value: the dry run's printed Definition and G2 to G4 and G8 lines must stay identical (`diff` against `tier1_dry_run_length_2026-10-21.log`), apart from the switch to face inlet (a), the LOX ports and the plate's temperature, which are decisions 6 and 8. From here, a change to any frozen input is dated and reruns every member already run (the plan's *Pre-registration*).
 
 **Not frozen: the numerical settings, which wait on the Director.**
-- **The mesh (item 4):** the y+ target (300 or 956) and the tag thresholds, which wait on step D's verdicts (D1's igniter, D2's measure; `docs/evidence/AMR.md`).
+- **The mesh (item 4):** the y+ target (300 or 956), which waits on step D's verdicts (D1's igniter, D2's measure; `docs/evidence/AMR.md`). *The tag thresholds are frozen for tier 1 at s\* = 1/4 of step C's values* (f_H 0.005, T 0.0125, pressure 0.025, vorticity 0.0125; criterion 4, da3555f; the Director's note of 23 October, 05:00). The driver's compiled `kNumericsFrozen` still covers the y+ target, so `run central` stays refused until that is set.
 - **The settle rule's reading under a spray (below).**
 
 **What S7 shows for tier 1.**
@@ -324,6 +324,20 @@ The Director's brief (23 October, 00:00): the driver's run mode is built under d
   - **Seen in the first launch's log, its last line before the stop:** a Cantera warning that `equilibrate` met 188.7 K, outside h2o2_highT's 200 to 6,000 K. Inferred: p0's equilibrium stagnation in the cold H2 (supplied at 199.67 K). The lead's gate uses p0, so if p0 is undefined or wrong there, the gate fails for that reason and not for an unsteady lead.
 
 - **R1(b): met (23 October 2026, about 00:24 CDT).** Every line of `tier1_dry_run_length_2026-10-21.log`'s header and of its 149 × 16 section appears unchanged in the run mode's output. The run mode only adds its F3 lines, G7, the gates line and the run's own lines.
+- **The transport fits' range: an amendment, registered with its code (23 October 2026, about 23:30 CDT), before any RL10 output.**
+  - **The fix.** The run's transport fits are now `thermo::transportFits(mechanism, 60)`, fitted from 60 K as in the spray's other cases (SPRAY.md, Results: S2). They were fitted from the mechanism's own lower limit.
+  - **Why.**
+    - The old fits are extrapolations below that limit, and H2's conductivity polynomial turns negative below about 97 K.
+    - The drops' films, and the gas near them, reach 61 to 67 K.
+    - With the LOX from t = 0, a film node at 66.9 K got a negative conductivity. That drove the spray NaN, described in `docs/evidence/face_inlet/leak_2026-10-23/spray_nan/README.md` (*Resolved*).
+    - The flash branch's cold drops go through the same path.
+  - **What changes.** This is a numerical setting of the property evaluation, not a physical input.
+    - Two printed values move, both derived from the viscosity (measured: a diff of the gate lines, old fits against new):
+      - G4's H2 viscosity at 199.67 K: 6.833e-06 Pa s, where it was 6.844e-06 (−0.16%).
+      - F3's supply-turbulence viscosity ratios: slots 137.2 to 2523, where they were 137 to 2520, and porous 525, where it was 524.2.
+    - The inputs those lines report (I 0.05, the length scales) are unchanged, and so is every other G2 to G4, F3 and G8 line.
+    - No member has been run. B4 was development and never reached t_L, so nothing reruns.
+  - **The spray now refuses** a non-positive film conductivity or diffusivity, and a NaN B_T residual. It stops loudly in place of carrying a NaN.
 
 ## What it waits on
 

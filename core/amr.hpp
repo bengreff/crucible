@@ -93,8 +93,14 @@ public:
         double massResidual{}, energyResidual{}, momentumResidual{}, momentumGross{}, igniterEnergy{};
     };
     [[nodiscard]] Budget budget() const;
+    // A restart checkpoint (core/checkpoint.hpp, docs/evidence/RESTART.md): every level's Flow with its active
+    // cells, the clock, the counts and the budget's reference. Read into an Amr built from the same base
+    // Definition and levels, with the same tags set, before its next step.
+    void writeCheckpoint(CheckpointWriter& out) const;
+    void readCheckpoint(CheckpointReader& in);
 
 private:
+    template<class Self, class Io> static void checkpoint(Self& self, Io& io);
     // A level's state saved for a redone base step.
     struct Saved {
         std::vector<Conserved> state;

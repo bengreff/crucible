@@ -132,6 +132,12 @@ class Spray {
   void afterStep(int level, double dt);
   // On AMR, when the base step is redone: back to the snapshot taken at its base-level step.
   void redo();
+  // A restart checkpoint (core/checkpoint.hpp, docs/evidence/RESTART.md): the parcels with their random streams,
+  // the ledger, the pending stores, the injectors' streams and parcel rates, the AMR clock and redo snapshot, and
+  // each cell's gas temperature (the next step's warm start). Read into a Spray built with the same settings on
+  // the same flow or levels; the wall time is not kept.
+  void writeCheckpoint(CheckpointWriter& out) const;
+  void readCheckpoint(CheckpointReader& in);
   // Next injector schedule event after `time` (infinity if none).
   [[nodiscard]] double nextEvent(double time) const;
   // The base step's bound from the exchange (tier1_run_definition.md, registration B): `fraction` of the
@@ -249,6 +255,7 @@ class Spray {
   std::vector<double> gaussIntegral_;             // their integration matrix (filmConductances)
   // filmTransport's fits: each species' conductivity, and the binary D of O2 with each species.
   std::vector<std::array<double, 5>> conductivityFit_, oxygenDiffusionFit_;
+  template <class Self, class Io> static void checkpoint(Self& self, Io& io);
   void setCells();
   [[nodiscard]] const Mesh& finest() const { return levels_.back()->mesh(); }
   [[nodiscard]] int levelOf(std::size_t cell) const;

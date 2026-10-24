@@ -1,5 +1,6 @@
 #include "core/flow.hpp"
 #include "core/walls.hpp"
+#include "core/checkpoint.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -1681,5 +1682,35 @@ FieldSnapshot Flow::snapshot() const {
     out.definition=definition_;out.radius=mesh_.radius;out.fraction=mesh_.fraction;out.measurements=measurements();out.appliedTotalPressure=totalPressure_;
     out.cells.reserve(state_.size());for(std::size_t q=0;q<state_.size();++q) out.cells.push_back(cellPrimitive(q));
     return out;
+}
+// The checkpoint's fields, written and read in this order (docs/evidence/RESTART.md). Everything else is
+// rebuilt from the Definition, or recomputed by each step before it is read.
+template<class Self,class Io> void Flow::checkpoint(Self& self,Io& io) {
+    io.mark("flow");
+    io.same(static_cast<std::uint64_t>(self.state_.size()),"a level's cell count");
+    io.same(static_cast<std::uint64_t>(self.ns_),"the species count");
+    io.same(static_cast<std::uint64_t>(self.nt_),"the turbulence fields");
+    io.field(self.state_);io.field(self.species_);io.field(self.turbulence_);io.field(self.temperature_);
+    io.field(self.primitives_);io.field(self.sound_);io.field(self.fractions_);
+    io.field(self.active_);io.field(self.owned_);
+    io.field(self.time_);io.field(self.dt_);io.field(self.totalPressure_);
+    io.field(self.initialMass_);io.field(self.initialEnergy_);io.field(self.initialMomentum_);
+    io.field(self.integratedMassFlux_);io.field(self.integratedEnergyFlux_);io.field(self.integratedMomentumSource_);
+    io.field(self.integratedMomentumGross_);io.field(self.integratedHeat_);io.field(self.heatCompensation_);
+    io.field(self.clippedTurbulentEnergy_);io.field(self.prescribedTurbulentEnergy_);
+    io.field(self.massCompensation_);io.field(self.energyCompensation_);io.field(self.correctionCompensation_);io.field(self.momentumCompensation_);
+    io.field(self.integratedCorrection_);io.field(self.exchangedMass_);io.field(self.exchangedEnergy_);io.field(self.exchangedMomentum_);
+    io.field(self.igniterPower_);io.field(self.steps_);io.field(self.rejectedSteps_);io.field(self.lastRates_);
+    io.field(self.eddy_);io.field(self.wallOmega_);io.field(self.sources_);
+    io.field(self.wallSolutions_);io.field(self.prescribedValues_);io.field(self.plateMomentum_);
+    io.field(self.boundedExcess_);io.field(self.probe_.cells);io.field(self.probe_.weights);io.field(self.probe_.sums);
+}
+void Flow::writeCheckpoint(CheckpointWriter& out) const { checkpoint(*this,out); }
+void Flow::readCheckpoint(CheckpointReader& in) {
+    checkpoint(*this,in);
+    // The budget probe's per-stage scratch follows its cells.
+    if(!probe_.cells.empty()) {
+        probeStage_.assign(probe_.sums.size(),0.0);probeAttempt_.assign(probe_.sums.size(),0.0);
+    } else { probeStage_.clear();probeAttempt_.clear(); }
 }
 } // namespace crucible

@@ -1,5 +1,6 @@
 #include "adapters/reacting_flow.hpp"
 #include "core/spray.hpp"
+#include "core/checkpoint.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -313,5 +314,20 @@ void ReactingFlow::advanceTo(double target) {
   if (!std::isfinite(target) || target < flow_.time()) throw std::invalid_argument("Invalid target time.");
   while (flow_.time() < target) step(target - flow_.time());
 }
+
+// The checkpoint's fields (docs/evidence/RESTART.md); the wall time is not kept.
+template <class Self, class Io> void ReactingFlow::checkpoint(Self& self, Io& io) {
+  io.mark("reacting");
+  io.same(static_cast<int>(self.chemistry_), "the chemistry");
+  auto& st = self.stats_;
+  io.field(st.steps), io.field(st.asymmetricSteps), io.field(st.replans), io.field(st.maxTemperatureMismatch);
+  io.field(st.maxClippedFraction), io.field(st.tableCells), io.field(st.tableClamped), io.field(st.tableFallbacks);
+  io.field(st.auditedCells), io.field(st.auditTemperature), io.field(st.auditMassFraction);
+  io.field(st.manifoldCauses), io.field(st.manifoldMaxSnap), io.field(st.manifoldPartial), io.field(st.manifoldCellCauses);
+  io.field(st.manifoldFrozenWeight), io.field(st.manifoldFrozenNode);
+  io.field(self.tableCalls_);
+}
+void ReactingFlow::writeCheckpoint(CheckpointWriter& out) const { checkpoint(*this, out); }
+void ReactingFlow::readCheckpoint(CheckpointReader& in) { checkpoint(*this, in); }
 
 }  // namespace crucible::thermo

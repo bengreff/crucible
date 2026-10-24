@@ -1,5 +1,6 @@
 #include "core/spray.hpp"
 #include "core/amr.hpp"
+#include "core/checkpoint.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -361,6 +362,11 @@ Spray::FilmTransport Spray::filmTransport(double t, double p, const double* y) c
   out.conductivity = 0.5 * (series + 1 / parallel);
   out.diffusion = n == 1 ? t * sqrtT * poly(oxygenDiffusionFit_[oxygen_]) / p : sum > 0 ? others / (p * sum) : 0;
   out.r = Medium::universalGasConstant * moles;
+  // A fit taken below its range turns negative (H2's conductivity below about 97 K on fits from 200 K or more,
+  // thermo::transportFits); the film then has a negative phi and its shape leaves [0, 1].
+  if (!(out.conductivity > 0) || !(out.diffusion >= 0) || !std::isfinite(out.diffusion))
+    throw std::runtime_error("Spray: the film's transport is not positive at " + std::to_string(t) +
+                             " K: the transport fits do not reach the film's temperature (thermo::transportFits' minTemperature)");
   return out;
 }
 
@@ -516,7 +522,9 @@ Spray::Rates Spray::rates(const Parcel& parcel, const Gas& gas, std::vector<doub
     auto solve = [&](double start) {
       auto residual = [&](double b) {
         const double phi = cpf * rhoD * out.sherwood / (lambda * (2 + (nu0 - 2) / filmCorrection(b)));
-        return std::expm1(phi * lnBm) - b;
+        const double r = std::expm1(phi * lnBm) - b;
+        if (std::isnan(r)) throw std::runtime_error("Spray: the heat-transfer number's residual is NaN.");
+        return r;
       };
       double b = start;
       double rt = residual(b);
@@ -1254,4 +1262,35 @@ std::array<double, 3> Spray::balanceErrors() const {
                           std::max(std::abs(l.injectedMomentum) + std::abs(l.exchangedMomentum) + std::abs(l.outflowMomentum) + std::abs(l.wallImpulse), tiny);
   return {mass, energy, momentum};
 }
+// The checkpoint's fields (docs/evidence/RESTART.md). Parcels go field by field, so Parcel's padding never
+// reaches the file and equal states give equal bytes.
+namespace {
+template <class P, class Io> void parcelFields(P& p, Io& io) {
+  io.field(p.z), io.field(p.r), io.field(p.uz), io.field(p.ur), io.field(p.ut), io.field(p.d), io.field(p.t);
+  io.field(p.count), io.field(p.shed), io.field(p.rtTime), io.field(p.distance), io.field(p.injectedMass);
+  io.field(p.eddyZ), io.field(p.eddyR), io.field(p.eddyT), io.field(p.eddyTime), io.field(p.random);
+  io.field(p.cell), io.field(p.injector), io.field(p.phase);
+}
+template <class V, class Io> void parcelList(V& list, Io& io) {
+  std::uint64_t n = list.size();
+  io.field(n);
+  if constexpr (Io::reading) list.resize(static_cast<std::size_t>(n));
+  for (auto& p : list) parcelFields(p, io);
+}
+}  // namespace
+template <class Self, class Io> void Spray::checkpoint(Self& self, Io& io) {
+  io.mark("spray");
+  io.same(static_cast<std::uint64_t>(self.cellGas_.size()), "the spray's composite cells");
+  io.same(static_cast<std::uint64_t>(self.settings_.injectors.size()), "the injector count");
+  for (auto& j : self.settings_.injectors) io.field(j.parcelRate);
+  parcelList(self.parcels_, io);
+  io.field(self.ledger_), io.field(self.pending_), io.field(self.injectorRandom_), io.field(self.nextId_);
+  io.field(self.calls_), io.field(self.baseDt_), io.field(self.baseImpulse_);
+  parcelList(self.snapshot_.parcels, io);
+  io.field(self.snapshot_.ledger), io.field(self.snapshot_.pending), io.field(self.snapshot_.injectorRandom);
+  io.field(self.snapshot_.nextId), io.field(self.snapshotStep_);
+  io.field(self.cellGas_);
+}
+void Spray::writeCheckpoint(CheckpointWriter& out) const { checkpoint(*this, out); }
+void Spray::readCheckpoint(CheckpointReader& in) { checkpoint(*this, in); }
 }  // namespace crucible

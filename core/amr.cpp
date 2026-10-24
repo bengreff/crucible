@@ -1,4 +1,5 @@
 #include "core/amr.hpp"
+#include "core/checkpoint.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -645,6 +646,28 @@ double Amr::step(double maxDt) {
 void Amr::advanceTo(double target) {
     if(!std::isfinite(target) || target<time_) throw std::invalid_argument("Invalid target time.");
     while(time_<target) step(target-time_);
+}
+
+// The checkpoint's fields (docs/evidence/RESTART.md). The tags are the caller's, set before the read; their
+// numbers must match. The regions and owned cells are rebuilt from the active cells by check().
+template<class Self,class Io> void Amr::checkpoint(Self& self,Io& io) {
+    io.mark("amr");
+    io.same(static_cast<std::uint64_t>(self.levels_.size()),"the level count");
+    io.same(self.ghost_,"the ghost width");io.same(self.restricted_,"B1 or B2");io.same(self.tagged_,"whether the levels are tagged");
+    const Tags& t=self.tags_;
+    io.same(t.interval,"the regrid interval");io.same(t.buffer,"the tag buffer");io.same(t.throatHalfWidth,"the throat tag");
+    io.same(t.throatLevel,"the throat level");io.same(t.wallYPlus,"the wall row's y+");io.same(t.mixture,"the f_H tag");
+    io.same(t.temperature,"the T tag");io.same(t.pressure,"the pressure tag");io.same(t.vorticity,"the vorticity tag");
+    io.same(t.hydrogen,"the f_H weights");
+    for(const auto& v:self.levels_) io.object(*v.flow);
+    io.field(self.time_);io.field(self.steps_);io.field(self.rejected_);io.field(self.regrids_);
+    io.field(self.started_);io.field(self.regridded_);io.field(self.initial_);
+    io.field(self.fillError_);io.field(self.fillGross_);io.field(self.fillMassChange_);io.field(self.fillMassCompensation_);
+}
+void Amr::writeCheckpoint(CheckpointWriter& out) const { checkpoint(*this,out); }
+void Amr::readCheckpoint(CheckpointReader& in) {
+    checkpoint(*this,in);
+    checked_=false;
 }
 
 }  // namespace crucible

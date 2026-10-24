@@ -28,6 +28,10 @@
 // T, Y_OH and rho Y_OH per cell) and <prefix>_oh.csv (the radially integrated OH per unit length).
 // CRUCIBLE_WINDOW=<s> instead averages over consecutive windows of that length from <average from>, and writes
 // each as <prefix>_to<end ms>_{stations,field,oh}.csv when it closes (section 2's 10 ms extensions in one run).
+// Restart (tests/checkpoint_file.hpp, docs/evidence/RESTART.md): CRUCIBLE_CHECKPOINT=<stem> writes checkpoints,
+// CRUCIBLE_RESTART=auto continues from the latest, bit for bit the uninterrupted run; the history and an open hot
+// trace are cut back to their length at the checkpoint and appended; wall_s counts from the process's start.
+// Not with CRUCIBLE_BUDGET. On any exit the driver writes <prefix>_done ("exit N"); a killed process writes none.
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -44,6 +48,7 @@
 #include "adapters/reaction.hpp"
 #include "core/equilibrium_table.hpp"
 #include "core/spray.hpp"
+#include "tests/checkpoint_file.hpp"
 using namespace crucible;
 
 namespace {
@@ -90,7 +95,7 @@ double station(const Mesh& mesh, const Averages& a, double z, int j) {
 }
 }  // namespace
 
-int main(int argc, char** argv) {
+int run(int argc, char** argv) {
   if (argc < 9) {
     std::fprintf(stderr,
                  "usage: %s <blob|rr:SMD_um:q:core_mm> <nz> <nr> <end s> <average from s> <threads> <prefix> "
@@ -202,12 +207,6 @@ int main(int argc, char** argv) {
     std::printf("consistent turbulent fluxes %s, extremum-bounded face enthalpy %s\n",
                 d.turbulence.consistentFlux ? "on" : "off", d.extremumBoundedEnthalpy ? "on" : "off");
 
-    FILE* history = std::fopen((prefix + "_history.csv").c_str(), "w");
-    if (!history) throw std::runtime_error("cannot write " + prefix + "_history.csv");
-    std::fprintf(history,
-                 "t,steps,dt,wall_s,inlet,outlet,p_injector,T_max,parcels,liquid_mass,evaporated,liquid_out,"
-                 "mass_budget,energy_budget,liquid_mass_err,liquid_energy_err,table_cells,table_clamped,"
-                 "table_fallbacks,audit_T,spray_wall_s\n");
     // The averaging windows, in sample indices from averageFrom (one sample per kSample): one window, averageFrom
     // to endTime, written to <prefix>_*; or, with CRUCIBLE_WINDOW=<s>, consecutive windows of that length from
     // averageFrom, each written to <prefix>_to<end ms>_* when it closes. That is MASCOTTE_A10_PREDICTION.md
@@ -220,6 +219,7 @@ int main(int argc, char** argv) {
     };
     const char* windowEnv = std::getenv("CRUCIBLE_WINDOW");
     const long perWindow = std::lround((windowEnv ? std::atof(windowEnv) : endTime - averageFrom) / kSample);
+    if (perWindow < 1) throw std::invalid_argument("the averaging window is shorter than a sample interval (5e-5 s)");
     std::vector<Window> windows;
     for (long a = 0; averageFrom + (a + perWindow) * kSample <= endTime + 1e-12; a += perWindow)
       windows.push_back({a, a + perWindow});
@@ -366,6 +366,46 @@ int main(int argc, char** argv) {
     // (Flow::setBoundedExcess), from the first step with injected LOX (h_LOX is the spray's injected energy per
     // kilogram); h before.
     bool excessBound = !std::getenv("CRUCIBLE_BOUND_B") && !d.extremumBoundedEnthalpy;
+    CheckpointFile checkpoint(argc, argv, {6});  // argv[6], the thread count, may change
+    if (checkpoint.enabled() && budgetEnv) throw std::runtime_error("CRUCIBLE_CHECKPOINT does not keep CRUCIBLE_BUDGET's probe");
+    std::uint64_t historySize = 0, hotSize = 0;
+    // The driver's part of a checkpoint, after the flow's, the reaction's and the spray's.
+    const auto fields = [&](auto& io) {
+      io.object(flow), io.object(reacting), io.object(spray);
+      io.mark("mascotte");
+      io.field(steps), io.field(nextPrint), io.field(nextSample), io.field(sample), io.field(excessBound);
+      io.same(static_cast<std::uint64_t>(windows.size()), "the window count");
+      for (auto& w : windows) {
+        io.same(w.from, "a window's start"), io.same(w.to, "a window's end");
+        for (auto* a : {&w.all, &w.first, &w.second}) io.field(a->weight), io.field(a->t), io.field(a->yoh), io.field(a->rhoyoh);
+        io.field(w.written);
+      }
+      io.field(historySize), io.field(hotSize), io.field(hotAfter), io.field(hotLast), io.field(ringNext);
+      std::uint64_t n = ring.size();
+      io.field(n);
+      if constexpr (std::decay_t<decltype(io)>::reading) ring.resize(static_cast<std::size_t>(n));
+      for (auto& line : ring) io.field(line);
+    };
+    const bool restarted = checkpoint.read([&](CheckpointReader& r) { fields(r); });
+    const std::string historyPath = prefix + "_history.csv", hotPath = prefix + "_hot_trace.csv";
+    FILE* history = nullptr;
+    if (restarted) {
+      history = reopenAt(historyPath, historySize);
+      if (hotAfter > 0) hotTrace = reopenAt(hotPath, hotSize);
+      std::printf("restart: t %.6f ms, %ld steps, %zu parcels\n", flow.time() * 1e3, steps, spray.parcels().size());
+    } else {
+      history = std::fopen(historyPath.c_str(), "w");
+      if (!history) throw std::runtime_error("cannot write " + historyPath);
+      std::fprintf(history,
+                   "t,steps,dt,wall_s,inlet,outlet,p_injector,T_max,parcels,liquid_mass,evaporated,liquid_out,"
+                   "mass_budget,energy_budget,liquid_mass_err,liquid_energy_err,table_cells,table_clamped,"
+                   "table_fallbacks,audit_T,spray_wall_s\n");
+    }
+    const auto save = [&] {
+      historySize = flushedSize(history);
+      hotSize = hotAfter > 0 ? flushedSize(hotTrace) : 0;
+      checkpoint.write([&](CheckpointWriter& w) { fields(w); });
+    };
     while (flow.time() < endTime) {
       if (!excessBound && spray.ledger().injectedMass > 0) {
         const double hLox = spray.ledger().injectedEnergy / spray.ledger().injectedMass;
@@ -455,7 +495,11 @@ int main(int argc, char** argv) {
         std::fflush(stdout);
         nextPrint += kPrint;
       }
+      checkpoint.killPoint(steps);
+      if (checkpoint.due(steps) && flow.time() < endTime) save();
     }
+    if (checkpoint.enabled()) save();
+    writeStateOut([&](CheckpointWriter& w) { w.object(flow), w.object(reacting), w.object(spray); });
     std::fclose(history);
     if (budget) {
       budgetLines();
@@ -475,4 +519,12 @@ int main(int argc, char** argv) {
     return 1;
   }
   return 0;
+}
+
+int main(int argc, char** argv) {
+  const int status = run(argc, argv);
+  std::fflush(stdout);
+  if (argc >= 9)
+    if (FILE* f = std::fopen((std::string(argv[7]) + "_done").c_str(), "w")) std::fprintf(f, "exit %d\n", status), std::fclose(f);
+  return status;
 }

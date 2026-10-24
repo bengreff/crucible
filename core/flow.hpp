@@ -10,6 +10,8 @@
 #include "core/pool.hpp"
 
 namespace crucible {
+class CheckpointWriter;
+class CheckpointReader;
 // SI throughout. z is axial, r is radial; no swirl in this first gas model.
 using Conserved = std::array<double, 4>; // rho, rho*u_z, rho*u_r, total energy density
 struct Primitive { double rho{}, uz{}, ur{}, p{}; };
@@ -412,8 +414,15 @@ public:
     // do not bound (COST.md, lever 3). Empty: h. Definition::extremumBoundedEnthalpy's extremum test uses the same measure.
     void setBoundedExcess(std::vector<double> c) { boundedExcess_ = std::move(c); }
     [[nodiscard]] const BudgetProbe& budgetProbe() const { return probe_; }
+    // A restart checkpoint (core/checkpoint.hpp, docs/evidence/RESTART.md): the state, the temperature guess,
+    // the primitives and mass fractions the last refresh left, the active cells, the budgets' sums and what
+    // the measurements read. Read into a Flow built from the same Definition (on AMR, the same level), the
+    // continued run is the uninterrupted one bit for bit.
+    void writeCheckpoint(CheckpointWriter& out) const;
+    void readCheckpoint(CheckpointReader& in);
 private:
     friend class Amr;
+    template<class Self, class Io> static void checkpoint(Self& self, Io& io);
     // The budget probe: its sums, the current right-hand side's terms and the attempt's (dt/2 per stage).
     BudgetProbe probe_;
     std::vector<double> boundedExcess_;

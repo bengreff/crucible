@@ -91,6 +91,10 @@ class ReactingFlow {
   void setSpray(crucible::Spray* spray) { spray_ = spray; }
   Chemistry chemistry() const { return chemistry_; }
   const Stats& stats() const { return stats_; }
+  // A restart checkpoint (core/checkpoint.hpp, docs/evidence/RESTART.md): the stats and the audit's call
+  // count. Each reaction call starts every cell afresh, so nothing else carries from one step to the next.
+  void writeCheckpoint(CheckpointWriter& out) const;
+  void readCheckpoint(CheckpointReader& in);
 
  private:
   struct Worker;
@@ -109,6 +113,7 @@ class ReactingFlow {
   std::unique_ptr<ManifoldRuntime> manifold_;
   long audit_ = 0, tableCalls_ = 0;
   void reactTable();
+  template <class Self, class Io> static void checkpoint(Self& self, Io& io);
 };
 
 }  // namespace crucible::thermo

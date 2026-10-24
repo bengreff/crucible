@@ -13,7 +13,10 @@
 //        crucible_rl10_tier1 selftest                  (the settle judge, R4)
 // The run takes CRUCIBLE_MANIFOLD_TABLE (Table B), and in development CRUCIBLE_T1_BASE (149x16), _LEVELS (3),
 // _LEAD [s] (t_L, 20e-3), _END [s] (the simulated time, t_L + 1e-3), _THREADS (4), _OUT (the files' prefix, rl10_t1) and
-// _RATE_FACTOR (1).
+// _RATE_FACTOR (1). Restart (tests/checkpoint_file.hpp, docs/evidence/RESTART.md): CRUCIBLE_CHECKPOINT=<stem> writes
+// checkpoints and CRUCIBLE_RESTART=auto continues from the latest, bit for bit the uninterrupted run; _THREADS may
+// change and _END be extended across a restart. On any exit the run writes <out>_done ("exit N"), <out> being
+// rl10_t1_central or <_OUT>_DEVELOPMENT; a killed process writes none.
 // A member's element dimensions replace the central ones through the environment (the skeleton's brackets):
 //   CRUCIBLE_T1_POST_ID      d_L [mm], central 3.54
 //   CRUCIBLE_T1_TIP          t / d_L, central 0.272
@@ -50,6 +53,7 @@
 #include "core/manifold_table.hpp"
 #include "core/spray.hpp"
 #include "tests/amr_dump.hpp"
+#include "tests/checkpoint_file.hpp"
 #include "tests/rl10_geometry.hpp"
 
 using namespace crucible;
@@ -230,6 +234,8 @@ constexpr bool kNumericsFrozen = false;  // the y+ target and the tag thresholds
 constexpr double kG0 = 9.80665, kEngineFuel = 2.7946, kParcelRate = 5e5, kSample = 1e-5;
 struct Setup {
   std::string mode, out, mechanism;
+  int argc{};
+  char** argv{};  // the run's signature (tests/checkpoint_file.hpp)
   int levels{3}, threads{4};
   double end{1e-3}, rateFactor{1}, core{}, cylinderEnd{}, chamberFlow{};
   double lead{20e-3};  // t_L, the H2 lead (tier1_run_definition.md, the start amendment)
@@ -253,7 +259,7 @@ int runCase(const Setup& s) {
   amr.setThreads(s.threads);
   auto solution = Cantera::newSolution(s.mechanism, "", "none");
   Cantera::ThermoPhase& gas = *solution->thermo();
-  Amr::Tags tags;  // step C's defaults: provisional until the Director freezes them
+  Amr::Tags tags;  // the defaults: the thresholds frozen at s* = 1/4 for tier 1 (AMR.md, Criterion 4: results, da3555f)
   const std::size_t eH = gas.elementIndex("H");
   for (const auto& sp : s.definition.species) {
     const std::size_t k = gas.speciesIndex(sp.name);
@@ -295,8 +301,9 @@ int runCase(const Setup& s) {
               "throat station %d (A_t %.6e m2), p0 column %d at z %.4f mm, face area %.6e m2\n",
               s.mode.c_str(), mesh0.nz, mesh0.nr, s.levels, mesh0.nz << s.levels, mesh0.nr << s.levels, s.threads, s.end * 1e3,
               kParcelRate * s.rateFactor, throat, at, endColumn, mesh0.cells[mesh0.index(endColumn, 0)].z * 1e3, faceArea);
-  std::printf("tags (%s): interval %d, buffer %d, throat %.2f r_t to level %d, wall y+ %.0f, f_H %.3g, T %.3g, p %.3g, "
-              "vorticity %.3g; the face column to the top within %.3f mm\n", kNumericsFrozen ? "frozen" : "provisional",
+  std::printf("tags (thresholds frozen at s* = 1/4, the y+ target %s): interval %d, buffer %d, throat %.2f r_t to level %d, "
+              "wall y+ %.0f, f_H %.3g, T %.3g, p %.3g, vorticity %.3g; the face column to the top within %.3f mm\n",
+              kNumericsFrozen ? "frozen" : "provisional (step D)",
               tags.interval, tags.buffer, tags.throatHalfWidth, tags.throatLevel, tags.wallYPlus, tags.mixture,
               tags.temperature, tags.pressure, tags.vorticity, core * 1e3);
   // The start amendment: H2 alone from t = 0, the LOX from t_L, the judge's times counted from t_L.
@@ -375,10 +382,7 @@ int runCase(const Setup& s) {
         std::max({std::abs(systemMass) / massScale, std::abs(systemEnergy) / energyScale, std::abs(systemMomentum) / momentumScale})};
   };
 
-  std::FILE* csv = std::fopen((s.out + "_series.csv").c_str(), "w");
-  if (!csv) throw std::runtime_error("cannot write " + s.out + "_series.csv");
-  std::fprintf(csv, "# %s\nt_s,mdot_kg_s,fvac_N,isp_chamber_s,isp_inlet_s,p0_Pa,pface_Pa,cstar_m_s,qwall_W,qface_W,liquid_kg,parcels\n",
-               label.c_str());
+  std::FILE* csv = nullptr;
   std::vector<Sample> series;
   std::array<double, 3> worstBudget{};
   double worstArea = 0, worstGrid = 0;
@@ -469,8 +473,8 @@ int runCase(const Setup& s) {
     }
     std::fwrite(&spray.ledger(), sizeof(Spray::Ledger), 1, f);
     std::fclose(f);
-    std::printf("  state written: %s_%s_amr.bin and _spray.bin (not a restart: no reader, and the spray's pending stores, "
-                "random streams and clock are not in it)\n", s.out.c_str(), tag.c_str());
+    std::printf("  state written: %s_%s_amr.bin and _spray.bin (for reading out; a restart is CRUCIBLE_CHECKPOINT's file)\n",
+                s.out.c_str(), tag.c_str());
   };
   auto window = [&](long last, const char* name) {  // the 20 ms ending at sample `last`
     std::printf("\nThe settle judge over %.0f to %.0f ms, t_L + %.0f to t_L + %.0f (%s) [%s]\n", (last - 2000) * kSample * 1e3,
@@ -497,7 +501,47 @@ int runCase(const Setup& s) {
   long k = 0, shortened = 0, flashesAt = 0;
   bool flashReported = false;
   double smallestBound = std::numeric_limits<double>::infinity();
-  print(sample());
+  // Restart (tests/checkpoint_file.hpp, docs/evidence/RESTART.md): the engine's objects and this loop's state; the
+  // series file is cut back to its length at the checkpoint and appended.
+  CheckpointFile checkpoint(s.argc, s.argv);
+  std::uint64_t csvSize = 0;
+  auto fields = [&](auto& io) {
+    io.object(amr);
+    for (auto& r : reacting) io.object(*r);
+    io.object(spray);
+    io.mark("tier1");
+    io.same(mass0, "the initial gas mass");
+    io.same(energy0, "the initial gas energy");
+    io.field(series);
+    io.field(worstBudget), io.field(worstArea), io.field(worstGrid), io.field(nonfinite), io.field(undefined);
+    for (auto& f : first)
+      io.field(f.mean), io.field(f.se), io.field(f.halves), io.field(f.tau), io.field(f.batch), io.field(f.shortBatches),
+          io.field(f.settled);
+    io.field(k), io.field(shortened), io.field(flashesAt), io.field(flashReported), io.field(smallestBound);
+    io.field(csvSize);
+  };
+  if (checkpoint.read([&](CheckpointReader& in) { fields(in); })) {
+    csv = reopenAt(s.out + "_series.csv", csvSize);
+    std::printf("restart: t %.6g ms, %ld samples, %llu base steps, %zu parcels\n", amr.time() * 1e3, k,
+                static_cast<unsigned long long>(amr.steps()), spray.parcels().size());
+  } else {
+    csv = std::fopen((s.out + "_series.csv").c_str(), "w");
+    if (!csv) throw std::runtime_error("cannot write " + s.out + "_series.csv");
+    std::fprintf(csv, "# %s\nt_s,mdot_kg_s,fvac_N,isp_chamber_s,isp_inlet_s,p0_Pa,pface_Pa,cstar_m_s,qwall_W,qface_W,liquid_kg,parcels\n",
+                 label.c_str());
+    print(sample());
+  }
+  auto save = [&] {
+    csvSize = flushedSize(csv);
+    checkpoint.write([&](CheckpointWriter& out) { fields(out); });
+  };
+  auto stateOut = [&] {
+    writeStateOut([&](CheckpointWriter& out) {
+      out.object(amr);
+      for (const auto& r : reacting) out.object(*r);
+      out.object(spray);
+    });
+  };
   while (amr.time() < s.end - 1e-13) {
     const double t = amr.time(), next = static_cast<double>(k + 1) * kSample;
     const double other = std::min({s.end - t, spray.nextEvent(t) - t, next - t}), bound = spray.exchangeDt();
@@ -583,7 +627,11 @@ int runCase(const Setup& s) {
       }
       std::printf("  item 5: the parcel rate %s\n", doubles ? "DOUBLES for every run" : "holds");
     }
+    checkpoint.killPoint(k);
+    if (checkpoint.due(k) && amr.time() < s.end - 1e-13) save();
   }
+  if (checkpoint.enabled()) save();
+  stateOut();
   std::fclose(csv);
   if (k < leadK + 6000) dump("end");
   std::printf("\nend [%s]: %ld samples, the grid to %.3g s; face area to %.3g at worst; %ld non-finite values; %ld samples with p0 or c* "
@@ -762,7 +810,9 @@ int main(int argc, char** argv) {
     const std::string mechanism = std::getenv("CRUCIBLE_MECHANISM") ? std::getenv("CRUCIBLE_MECHANISM")
                                                                      : CRUCIBLE_SOURCE_DIR "/tools/mechanisms/h2o2_highT.yaml";
     thermo::ReactionSource source(mechanism);
-    const TransportFits fits = thermo::transportFits(mechanism);
+    // Fits from 60 K, as the spray's other cases (SPRAY.md, Results: S2): the drops' films and the gas near them reach
+    // 61 to 67 K, below which fits from the mechanism's own lower limit turn negative (spray NaN, 23 October).
+    const TransportFits fits = thermo::transportFits(mechanism, 60);
     Definition base;  // the medium with its transport data
     base.species = source.medium().species();
     base.transport = fits;
@@ -1159,6 +1209,7 @@ int main(int argc, char** argv) {
       setup.spray.injectors.push_back(j);
     }
     setup.spray.restitution = 0.5;
+    setup.argc = argc, setup.argv = argv;
     doneFile = setup.out + "_done";
     const int status = runCase(setup);
     if (std::FILE* f = std::fopen(doneFile.c_str(), "w")) std::fprintf(f, "exit %d\n", status), std::fclose(f);
