@@ -24,6 +24,7 @@ Backhouse was restarted from the Start menu at 17:08 on 23 October 2026, and eve
 - **Threads and priority:** the runner sets only `nice` and pins nothing. On backhouse, inquiry measured two things on 24 October (`docs/evidence/SPEED.md` section 3):
   - WSL2 shows 28 uniform virtual CPUs, so `taskset` cannot pick out the P-cores.
   - Under the other projects' nice-0 jobs, a 4-thread nice-10 run got 2.56 CPUs, and its wall time stopped improving beyond 4 threads.
+  - **The slot policy** for every backhouse job is in SPEED.md section 3: at most 4 threads a job; a launch only while the 1-minute load plus the job's threads stays within 28; the Director's priority order. It belongs in each job's `RESUME` command (a load gate, as `bh_rfx.sh`'s `wait_load`). The runner itself does not gate.
 - **To hold a job,** touch `DIR/.resume_hold`; to release it, remove the file. To retire a job, move its job file out of `jobs/`.
   - Killing a registered job without holding it means the next boot relaunches it.
 
