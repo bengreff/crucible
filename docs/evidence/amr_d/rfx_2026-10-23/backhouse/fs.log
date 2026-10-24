@@ -1,0 +1,461 @@
+RL10A-3-3A tier 1, the run mode (DEVELOPMENT (protocol §6): not the reported case; tier1_run_definition.md, *The run mode*): the gates on the base mesh, then the run; no measured value is read
+element: d_L 3.5400 mm, t 0.9629 mm (0.272 d_L), h 0.9487 mm (0.268 d_L), post OD 5.4658 mm, annulus OD 7.3632 mm, recess 1.7700 mm (0.500 d_L)
+face: R_c 130.3020 mm, pitch 15.7144 mm, r_8 122.4448 mm (R_c - 0.500 p), r_1 12.4436 mm (pitch 12.4436 mm, ring 1's smallest 11.8164 mm, clear of ring 2 from 12.4436 mm), ring spacing 15.7144 mm; per ring LOX area 265.7420 mm2, H2 area 516.1942 mm2
+
+ring  r [mm]    H2 inner slot [mm]   tip   LOX slot [mm] (w)          tip   H2 outer slot [mm]   cup width [mm]
+1    12.444   [  3.677,   9.781]   0.963  [ 10.744,  14.143] (3.3989)   0.963  [ 15.106,  17.617]   13.940
+2    28.158   [ 24.842,  26.444]   0.963  [ 27.407,  28.909] (1.5020)   0.963  [ 29.872,  31.217]   6.375
+3    43.873   [ 41.448,  42.428]   0.963  [ 43.391,  44.355] (0.9640)   0.963  [ 45.317,  46.215]   4.767
+4    59.587   [ 57.560,  58.269]   0.963  [ 59.232,  59.942] (0.7098)   0.963  [ 60.905,  61.576]   4.016
+5    75.301   [ 73.501,  74.058]   0.963  [ 75.021,  75.582] (0.5617)   0.963  [ 76.545,  77.080]   3.579
+6    91.016   [ 89.362,  89.821]   0.963  [ 90.784,  91.248] (0.4647)   0.963  [ 92.211,  92.656]   3.293
+7   106.730   [105.179, 105.569]   0.963  [106.532, 106.928] (0.3963)   0.963  [107.891, 108.271]   3.092
+8   122.445   [120.970, 121.309]   0.963  [122.272, 122.617] (0.3454)   0.963  [123.580, 123.912]   2.942
+
+G2   pass  no overlap: ring 1's inner H2 slot from 3.6769 mm (axis clear), ring 8's outer to 123.9123 mm (wall at 130.3020 mm)
+G2   pass  slot areas: largest relative error 3.43e-14 against A_L and A_H / 2
+G2   pass  cups 12784.04 mm2 + porous 40555.84 mm2 = pi R_c^2 to 0
+G3   pass  oxidizer 13.952500 kg/s, fuel 2.760138 kg/s, O/F 5.055000, chamber flow 16.712638 kg/s
+G3   pass  transpired 0.100000 of the fuel at 6.805773 kg/(m2 s) on every porous band (spread 1.31e-16); ring O/F 5.61667
+
+G4 (reported) at a nominal 2.8 MPa face pressure, H2 at 199.67 K: rho_H2 3.4002 kg/m3, mu 6.844e-06 Pa s; LOX at 101.17 K: rho_L 1084.65 kg/m3
+  ring 1: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 2: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 3: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 4: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 5: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 6: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 7: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 8: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  transpired: 2.0016 m/s; viscosity ratios from I 0.05: slots 137 to 2520 (L = 0.070 D_h, 0.0465 to 0.8546 mm), porous 524.2 (L = p, 15.7144 mm)
+G8   pass  every ring's group 5.0276 inside the digitised curve's table [0.23, 14.50]
+  q 3.2073 (D30 / D-bar 0.455000), SMD / D-bar 0.8511; D-bar / D_L 0.1483: SMD 447.0 um central, 262.9 um low (curve / 1.7), 581.0 um high (curve x 1.3)
+  core length: LOX at 101.17 K: mu_l 0.0001484 Pa s, sigma 0.01045 N/m; Oh 0.0007409, M = J 2.680; Porcheron 6.84 mm (1.933 d_L, used), Lasheras-Hopfinger 12.97 mm (3.665 d_L)
+
+=== 149 x 16 (radial stretching 0)
+G1   pass  throat station 33 radius to 0; face at -13.0862 in (+0.0138 from -13.1); face radius to 0; exit radius to 0; dz 10.0724 mm, face ring heights 8.1439 to 8.1439 mm
+  supply         [inner, outer] mm        true mm2   rings  mesh mm2   A_mesh/A_true  J_mesh/J
+  porous 0     [   0.000,    3.677]      42.47      0       0.00     0.0000   -
+  H2 in 1      [   3.677,    9.781]     258.10      1     208.36     0.8073   1.5344
+  H2 out 1     [  15.106,   17.617]     258.10      0       0.00     0.0000   -
+  porous 1     [  17.617,   24.842]     963.83      1    1041.79     1.0809   0.8559
+  H2 in 2      [  24.842,   26.444]     258.10      0       0.00     0.0000   -
+  H2 out 2     [  29.872,   31.217]     258.10      0       0.00     0.0000   -
+  porous 2     [  31.217,   41.448]    2335.65      1    1875.23     0.8029   1.5513
+  H2 in 3      [  41.448,   42.428]     258.10      0       0.00     0.0000   -
+  H2 out 3     [  45.317,   46.215]     258.10      0       0.00     0.0000   -
+  porous 3     [  46.215,   57.560]    3698.67      1    2708.67     0.7323   1.8646
+  H2 in 4      [  57.560,   58.269]     258.10      0       0.00     0.0000   -
+  H2 out 4     [  60.905,   61.576]     258.10      1    3125.38    12.1093   0.0068
+  porous 4     [  61.576,   73.501]    5060.62      1    3542.10     0.6999   2.0412
+  H2 in 5      [  73.501,   74.058]     258.10      0       0.00     0.0000   -
+  H2 out 5     [  76.545,   77.080]     258.10      0       0.00     0.0000   -
+  porous 5     [  77.080,   89.362]    6422.30      2    8334.36     1.2977   0.5938
+  H2 in 6      [  89.362,   89.821]     258.10      0       0.00     0.0000   -
+  H2 out 6     [  92.211,   92.656]     258.10      0       0.00     0.0000   -
+  porous 6     [  92.656,  105.179]    7783.87      2   10001.23     1.2849   0.6057
+  H2 in 7      [ 105.179,  105.569]     258.10      0       0.00     0.0000   -
+  H2 out 7     [ 107.891,  108.271]     258.10      0       0.00     0.0000   -
+  porous 7     [ 108.271,  120.970]    9145.39      2   11668.10     1.2758   0.6143
+  H2 in 8      [ 120.970,  121.309]     258.10      0       0.00     0.0000   -
+  H2 out 8     [ 123.580,  123.912]     258.10      0       0.00     0.0000   -
+  porous 8     [ 123.912,  130.302]    5103.05      1    6459.13     1.2657   0.6242
+G5   FAIL  0 of 25 supplies within 5% of their true area; 15 hold no ring centre (worst held: H2 out 4, 12.109)
+  merged band    [inner, outer] mm      slots mm2   cup mm2   rings  mesh mm2   J_mesh/J
+  ring 1       [   3.677,   17.617]     516.19    932.50      2     833.44   0.3836
+  ring 2       [  24.842,   31.217]     516.19   1122.65      1    1458.51   0.1253
+  ring 3       [  41.448,   46.215]     516.19   1312.79      1    2291.95   0.0507
+  ring 4       [  57.560,   61.576]     516.19   1502.93      1    3125.38   0.0273
+  ring 5       [  73.501,   77.080]     516.19   1693.08      0       0.00   -
+  ring 6       [  89.362,   92.656]     516.19   1883.22      0       0.00   -
+  ring 7       [ 105.179,  108.271]     516.19   2073.36      0       0.00   -
+  ring 8       [ 120.970,  123.912]     516.19   2263.51      0       0.00   -
+G6   FAIL  true slots: A supply contains no injector-face ring centre; widen it or refine the radial mesh.
+G6   FAIL  merged (each ring's H2 slots as one band across its cup): A supply contains no injector-face ring centre; widen it or refine the radial mesh.
+F3   pass  149 x 16, wall functions and corrections: 33 supplies; per ring, face mass flow to 5.76e-16; per supply, face mass flow and rho u A_true (38 supply-rings) to 1.01e-15; supply areas to 8.57e-16 (limit 1e-12)
+     one step: dt 1.436e-06 s, budgets mass -1.047e-15, energy 7.706e-16
+F3   pass  AMR level 0, wall functions and corrections (step D, D4): 33 supplies; per ring, face mass flow to 5.76e-16; per supply, face mass flow and rho u A_true (38 supply-rings) to 1.01e-15; supply areas to 8.57e-16 (limit 1e-12)
+F3   pass  AMR level 1, wall functions and corrections (step D, D4): 33 supplies; per ring, face mass flow to 1.71e-15; per supply, face mass flow and rho u A_true (51 supply-rings) to 3e-15; supply areas to 3.06e-15 (limit 1e-12)
+F3   pass  AMR level 2, wall functions and corrections (step D, D4): 33 supplies; per ring, face mass flow to 7.32e-15; per supply, face mass flow and rho u A_true (76 supply-rings) to 1.2e-15; supply areas to 1.19e-15 (limit 1e-12)
+G7   FAIL  the cup: 0.18 cells across its depth (need 4), fewest across a slot 0.04 and a tip 0.12 (need 2); Mesh is one body-fitted map of r(z) from the face plane, with no cells behind it, so it cannot carry the cup's walls
+
+4 check(s) failed
+gates (G1 to G4, G8, F3 on the run's Definition): 0 failed; G5 and G6 test the ring-centre rule decision 6 superseded, G7 is declared (decision 5)
+
+DEVELOPMENT (protocol §6): not the reported case
+Table B /home/greff/crucible_rfx/out/rl10_s.bin: Table B built 2026-10-21 02:43 CDT by crucible_build_manifold_table from /Users/ben/inquiry-project/tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes {0.133333,0.142857,0.153846,0.166667,0.181818} as given, Z_N {0.000000,0.300000}, eta 11 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 990 nodes in 16 s on 3 threads; node element error 5.78e-10 raw, 3.64e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE
+development: base 149 x 16 plus 3 levels (1192 x 128 finest), 4 threads, to 0.5 ms; parcels 5e+05 per s per injector; throat station 33 (A_t 1.236549e-02 m2), p0 column 7 at z 75.5376 mm, face area 5.333988e-02 m2
+tags (provisional): interval 2, buffer 2, throat 0.50 r_t to level 2, wall y+ 300, f_H 0.005, T 0.0125, p 0.025, vorticity 0.0125; the face column to the top within 6.844 mm
+the start: the H2 supplies open at 0, the LOX at t_L = 20 ms on its 0.5 ms ramp, the igniter at 20.2 ms; the lead's gate judged at t_L; the exchange bound (registration B) a step limit, f 0.25
+
+--- t 0.000 ms  [DEVELOPMENT (protocol §6): not the reported case]
+  0 base steps (0 redone), 0 regrids; wall 0 s, the spray's share 0.0%; active cells 1: 0 2: 0 3: 0
+  F_vac 0 N, Isp_vac 0 s (chamber flow) and 0 s (engine-inlet flow); outlet 0 kg/s
+  p0 nan Pa, face pressure 1000 Pa, c* nan m/s; hot-gas wall -0 W, face -0 W (gas to wall)
+  liquid 0 kg in 0 parcels; within 6.84 mm of the face: T_max 300.0 K, 0 parcels in 0 finest cells (0.00 per cell)
+  budgets: none before the first step
+  Table B, table / all updates: level 0: chamber 0 / 0, convergent 0 / 0, divergent 0 / 0; level 1: chamber 0 / 0, convergent 0 / 0, divergent 0 / 0; level 2: chamber 0 / 0, convergent 0 / 0, divergent 0 / 0; level 3: chamber 0 / 0, convergent 0 / 0, divergent 0 / 0
+CanteraWarning: ChemEquil::equilibrate: Temperature (189.92893289834808 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (188.7967929836494 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (188.793404266477 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (188.79340423606598 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (197.04790773269818 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.80753762285798 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469719155017 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676802123 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676789424 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676773783 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967676174 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676752433 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967674638 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676727174 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967671859 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967670515 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676692258 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676683453 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967666987 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676663314 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676651203 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676637692 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676630234 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676630495 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676606325 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676594266 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967658719 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967657494 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676568243 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676552017 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676539455 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676525528 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676517033 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676507674 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676495978 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676479886 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676470856 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967646518 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676452015 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676441929 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676433916 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676425424 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676408917 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676395146 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967638468 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676371565 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676370059 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967635217 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676335128 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967633274 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.79469676334625 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.7946967630568 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (196.21128249126662 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (188.15907848169115 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (186.2211456609773 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (186.21109175033897 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (186.211091478933 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.2482652694319 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (191.03946652827122 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (191.0126474877306 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (191.01264560505064 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (197.17745773942613 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.96239168450882 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863132237844 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128604717 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128595823 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128585188 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128569943 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.958631285666 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128541694 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128539798 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128527927 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128510783 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.9586312850034 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128486712 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128470126 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128459249 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.9586312844343 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128438728 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128418418 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128406617 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.9586312840319 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128384443 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128374106 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128362393 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128346502 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128336424 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128322867 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128306158 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128303512 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128290478 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128278103 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128265484 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128246373 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128236888 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.9586312822105 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128214887 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.9586312819416 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128181958 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.9586312816901 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128157663 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128152578 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128141355 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128130267 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128109607 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128104492 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128085327 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128072673 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.95863128057897 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55450404694477 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3313227133389 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971809745 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119718083464 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119718070267 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119718060158 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119718049184 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119718037293 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119718024963 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119718013634 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971800215 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717988393 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971797867 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717966338 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717953778 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717942347 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971793169 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971791973 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717907502 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717898958 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971788485 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717874754 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717863622 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971785013 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717841092 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717829362 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971781497 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717806656 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971779293 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717781818 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971776915 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717759746 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971774618 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717737108 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717723457 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717711548 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717700063 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971769018 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971767637 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971766612 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971765643 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717645968 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971763082 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717618962 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717610455 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717598584 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.33119717587167 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.3311971757311 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.93509008717166 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5525645732822 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962945011 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629410115 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629402302 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629394756 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629387912 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629379414 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629372834 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962936564 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962935834 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.552196293497 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962934245 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629335906 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629327954 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962932238 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629315098 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629307462 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629299827 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962929182 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.552196292878 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629277764 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629270042 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629263394 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629256268 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629248649 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962924232 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629235282 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629226323 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629221773 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629212587 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629205533 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962920068 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962919227 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629183452 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629176682 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629168604 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629163156 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629153825 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962914716 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629140407 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629133194 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629126103 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629119404 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.5521962911152 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629102754 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629098912 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.55219629088893 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (183.51845911309718 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (181.40515574558376 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (181.39288671778937 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (181.39288630290983 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (191.86435299572446 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (187.8056717238985 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (187.76208615984206 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (187.7620811013832 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.85052725816422 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (192.5927149817474 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (192.57952470095884 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (192.57952424924807 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (196.6879888026869 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55584551519462 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525737179918 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257369056267 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736904642 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736904807 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736905366 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257369038273 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257369026793 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736902714 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257369032455 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736902627 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.552573690224 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257369007705 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257369007668 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368997735 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368995512 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368991326 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368992196 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368979915 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368984326 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368973784 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368970587 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736896819 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.552573689565 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368949623 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368951342 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368939377 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368927897 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736893882 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736892074 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368920027 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368917006 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368922025 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.552573689057 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.552573688999 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736889321 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736889248 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368897327 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368882218 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368885066 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368879438 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368866688 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736886471 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.55257368863718 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736885983 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736884406 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (195.5525736884119 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (181.34653073915698 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.16277013299617 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.1605834951995 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.1605834831356 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.16058348313086 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (197.9619394783463 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (197.95634393739377 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (197.95634385831283 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.8529149180765 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.85283946850956 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (176.32911672541658 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (187.64418526060942 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (185.2925406904788 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (177.42856803539277 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (187.09750235418034 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (192.370468485035 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (175.83365634504148 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (188.66951621207585 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (183.49886010256154 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (181.41279593208054 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (197.43790753197663 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (197.2928068034874 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (187.93208430797142 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (178.63975578025048 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (193.01323487889945 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (188.34789849993763 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (183.05874747953317 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (182.93524032016256 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (187.57099502440838 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (189.7141997247003 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (194.65878832634417 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (181.9029669992767 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (187.8087102491992 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (191.4284207868057 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (189.36844603574866 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (182.82300913615055 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (188.2215839165768 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (181.08752298621147 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (189.72447951126233 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (179.1735627332564 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (184.02121814363176 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (179.27113547910704 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (192.0816024674347 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (189.55169151807658 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (176.4332172589925 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (183.60732840550756 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (176.41203380590508 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (185.01391802131064 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (193.5634722775088 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (184.2281037642764 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (179.25330145002525 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (197.7009950745342 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (181.6356079528201 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (180.96223021690585 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (180.1795600210426 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (178.89172410910243 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (177.70320436227777 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (176.3343797627661 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.97031541444787 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.92231291870564 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.92230727884726 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.98932240788224 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.93348728211362 K) outside valid range of 200 K to 6000 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (198.93347959519315 K) outside valid range of 200 K to 6000 K
+
+--- t 0.500 ms  [DEVELOPMENT (protocol §6): not the reported case]
+  2085 base steps (0 redone), 1045 regrids; wall 9555 s, the spray's share 0.0%; active cells 1: 4356 2: 16056 3: 61488
+  F_vac 3923.75 N, Isp_vac 23.9406 s (chamber flow) and 23.8914 s (engine-inlet flow); outlet 0.00159402 kg/s
+  p0 142553 Pa, face pressure 38901.6 Pa, c* 1.10585e+06 m/s; hot-gas wall -16391.2 W, face -147.76 W (gas to wall)
+  liquid 0 kg in 0 parcels; within 6.84 mm of the face: T_max 214.5 K, 0 parcels in 0 finest cells (0.00 per cell)
+  budgets: (a) gas 2.85e-15, (b) liquid 0.00e+00, (c) whole system 2.85e-15 (limit 1e-11)
+  Table B, table / all updates: level 0: chamber 0 / 266880, convergent 0 / 834000, divergent 0 / 3869760; level 1: chamber 0 / 2112436, convergent 0 / 6056684, divergent 0 / 5547340; level 2: chamber 0 / 16129808, convergent 0 / 46190032, divergent 0 / 31344424; level 3: chamber 0 / 127444000, convergent 0 / 335289984, divergent 0 / 179334448
+  exchange bound: smallest inf s since the last line; 0 base steps shortened by it so far; 0 flashes so far, 0 kg flashed
+  state written: fs_DEVELOPMENT_end_amr.bin and _spray.bin (not a restart: no reader, and the spray's pending stores, random streams and clock are not in it)
+
+end [DEVELOPMENT (protocol §6): not the reported case]: 50 samples, the grid to 0 s; face area to 3.9e-16 at worst; 0 non-finite values; 2 samples with p0 or c* undefined (no forward flux); worst budgets (a) 2.85e-15, (b) 0.00e+00, (c) 2.85e-15; 0 base steps shortened by the exchange bound; 0 flashes, 0 kg flashed
+	Command being timed: "/home/greff/crucible_rfx/build/crucible_rl10_tier1 run development"
+	User time (seconds): 26491.40
+	System time (seconds): 75.43
+	Percent of CPU this job got: 277%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:39:16
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 802920
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 103835
+	Voluntary context switches: 2909991
+	Involuntary context switches: 1006070
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 21808
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

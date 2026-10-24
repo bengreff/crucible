@@ -976,8 +976,23 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
 - **The ceiling and the break-even (derived).**
   - With every cell active on every level, AMR does (2,384 + 2 × 9,536 + 4 × 38,144 + 8 × 152,576) / 1,220,608 = **1.143 of uniform**, 14% more work.
   - With levels 1 and 2 full, it saves work while level 3 covers less than 1 - 1/8 - 1/64 - 1/512 = **86% of the domain**.
+- **At the frozen tags (measured 24 October 2026, about 02:15 CDT; the ratios derived).**
+  - Source: job rfx's chain A, `amr_d/rfx_2026-10-23/backhouse/fs.log`. Tier 1's development case, the H2 lead to 0.5 ms, at s* = 1/4, with the reflux clip at f8e0f65. It ran on backhouse at 4 threads, nice 10, exit 0.
+  - 2,085 base steps, 0 redone, 1,045 regrids.
+
+  | Interval | Base steps | AMR updates (levels 0 to 3) | Uniform | AMR / uniform | Step C's tags (above) |
+  |---|---|---|---|---|---|
+  | 0 to 0.5 ms | 2,085 | 754,419,796 | 2,544,967,680 | **0.296** | 0.249 |
+
+  - By level: 4,970,640; 13,716,460; 93,664,264; and 642,068,432. Level 3 does 85% of the work.
+  - **The snapshot at 0.5 ms** (active cells 4,356, 16,056 and 61,488 on levels 1 to 3) costs **0.465** of uniform per base step, against 0.366 at step C's tags.
+  - So the frozen tags cost 1.19 times step C's cumulatively and 1.27 times at the snapshot.
+  - **Level 3's mean occupancy to 0.5 ms, by region:** chamber 93%, convergent 79%, divergent 9%. The saving is again in the divergent nozzle.
+  - **So AMR pays for itself in cell updates in the H2 lead's first 0.5 ms at the frozen tags,** doing 0.30 of uniform's work.
+  - The share rises with time. At step C's tags the snapshot went from 0.366 at 0.5 ms to 0.503 at 1 ms. The frozen tags' share at 1 ms is likely above 0.503 (inferred).
+  - Wall: 9,555 s at 2.77 CPUs, including inquiry's 5 min 13 s pause for the contention measurement. That is 12.7 µs per update (derived). No uniform run exists to compare it with.
 - **Not measured:**
-  1. **The frozen tags.** They are four times tighter. On C1 that step (s = 1 to 1/4) raised level 1's mean coverage from 83% to 94% (*Criterion 4: results*). On this mesh, the chamber's and convergent's coverage has little room to rise. The divergent's is the open question.
+  1. **The frozen tags past 0.5 ms**, and with the LOX open.
   2. **The hot running,** which is 85 ms of the central case's 105 ms. Its chamber has the spray and flame, and its nozzle the expanding hot flow.
   3. **Wall time per update.**
      - AMR does work a uniform mesh does not: a regrid every 2 base steps (2,646 by 1 ms), fills, average-down and reflux.
@@ -1057,7 +1072,10 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
   - There were 992 clips between 32.49 and 99.57 µs, all onto level 2 and all in two cells: (151, 58), 624 times, and (108, 58), 368 times. Both are near the wall row (j = 58).
   - Largest clip: 5.41e-10 of level 2's largest rho k (rho k -5.75e-7 J/m3 against 1.06e3), at 55.3 µs onto (108, 58). Median: 2.73e-10. None was above the 1e-6 bound.
   - The same two cells clip again and again, 992 times in 67 µs, while the largest clip stays below 6e-10. So the deficit recurs and stays small, and does not build up (inferred).
-- **Still to come:** check 3's tier 1 to 0.5 ms (backhouse chain A), check 2 (D3), and check 1's D1 to 8 ms. All are on backhouse in job rfx, done-file `/home/greff/crucible_rfx/out/all_done`.
+- **Check 1 on backhouse** (f8e0f65 against fcb20f1, gcc): D0's three cases are `cmp`-identical, with 0 clips (`amr_d/rfx_2026-10-23/backhouse/d0.txt`).
+- **Check 3's tier 1: met.** At the frozen tags it reached 0.5 ms with exit 0 (backhouse, about 02:13 CDT, 2,085 base steps, 0 redone). Its cost is in the section above.
+- **Still to come:** check 2 (D3), and check 1's D1 to 8 ms. Both are on backhouse in job rfx, done-file `/home/greff/crucible_rfx/out/all_done`.
+- **Seen, not judged:** tier 1's log holds 329 Cantera warnings, "ChemEquil::equilibrate: Temperature (about 199 K) outside valid range of 200 K to 6000 K". The Mac trace to 0.1 ms had none, so they start after 0.1 ms. They come from the tier-1 driver's chemistry, B4's lane. Reported to inquiry.
 
 ## Deviations from the plan's text
 

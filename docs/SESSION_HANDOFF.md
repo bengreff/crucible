@@ -1200,6 +1200,9 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
        - **Answer: in the measured H2 lead it pays.** From B4's cumulative per-level update counts (step C's thresholds, to 1 ms), AMR did 0.363 of uniform 1192 x 128's cell updates (derived).
        - For the frozen tags and the hot running it is not measured. The ceiling is 1.143 of uniform. The estimate is 0.5 to 0.75 (inferred; the divergent's share is guessed). Wall time per update is not profiled.
        - **The frozen-tag run failed at 32.5 µs** (`amr_d/bh_t1cost.sh`, fcb20f1, exit 1: "could not advance an admissible state"). Item 5 covers the cause and the fix. Its rerun on the fix is chain A of job `rfx` (item 5).
+       - **Measured at the frozen tags, 24 October about 02:15 CDT** (AMR.md, *At the frozen tags*): to 0.5 ms of the H2 lead, AMR does **0.296 of uniform's cell updates** (step C's tags: 0.249), and **0.465 per base step at the 0.5 ms snapshot** (step C's: 0.366).
+         - Level 3's mean occupancy is 93% in the chamber, 79% in the convergent and 9% in the divergent.
+         - **AMR pays for itself in updates here.** Its share rises with time (inferred from step C's 0.366 to 0.503 between 0.5 and 1 ms). The hot running and the wall time per update (12.7 µs, no uniform run to compare) are not measured.
        - Compare its "--- t 0.500 ms" line (active cells, and the "Table B, table / all updates" counts) against B4's at 0.5 ms: 0.249 cumulative and 0.366 at the snapshot. Record the result in AMR.md's section.
        - Expected 2 to 3 h (inferred from B4's 9,397 s for 0.5 ms; the tighter tags add cells).
     3. **The resume-after-reboot path is built and registered** (`tools/resume/README.md`).
@@ -1235,12 +1238,12 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
          - D0: cmp-identical against fcb20f1, with 0 clips.
          - Trace to 0.1 ms: exit 0. There were 992 clips, all in two level-2 cells; the largest was 5.4e-10 of the level's largest rho k, against the 1e-6 bound.
          - Inquiry was told at about 00:15 that B4 can relaunch on main.
-       - Still open, all on backhouse in job rfx: tier 1 to 0.5 ms (chain A, alive at 00:13), D3, and D1 to 8 ms. Chain B reruns D0 and the trace there too, which duplicates the Mac's runs.
+       - **Check 3's tier 1 met:** it reached 0.5 ms at the frozen tags, exit 0 (about 02:13 CDT). Still open on backhouse in job rfx: D3, and D1 to 8 ms. Chain B reruns the trace there too, which duplicates the Mac's run.
          - Backhouse's D0 (f8e0f65 against fcb20f1, gcc): all four cmp-identical, 0 clips (measured, about 01:00 CDT).
          - Inquiry paused rfx from 00:56:48 to 01:02:01 CDT for the contention measurement. The run's wall times include that pause.
          - **The slot policy** (SPEED.md section 3, main f154ba9): a job launches only while the 1-minute load plus its own threads is within 28. rfx's D1 pair starts two 4-thread runs behind one load-24 gate. So `amr_d/bh_rfx_d1gate.sh`, detached on backhouse since 01:44 CDT, stops the parent run when it appears and continues it once the load is under 24. Its log is `out/d1gate.log`, and it exits on its own.
   - **Next for inquiry2, in order:**
-    1. **Score job `rfx`** against the amendment's checks 1 to 3, then the cost (item 2) from `out/fs.log`. Copy the logs (not `rl10_s.bin`) to `amr_d/rfx_2026-10-23/`.
+    1. **Finish scoring job `rfx`:** check 2 (D3, `out/d3.txt`), check 1's D1 to 8 ms (`out/d1.txt`), and the backhouse trace (`out/trace/clips.txt`, against the Mac's in `amr_d/rfx_2026-10-23/mac/`). Copy them to `amr_d/rfx_2026-10-23/backhouse/`. Checks 1's D0, 3's trace and 3's tier 1, and the cost, are done.
     2. **The WSL-stop test** (`tools/resume/README.md`), when Ubuntu holds no other worker's process, with a re-armed dummy. Then a tier-1 job file to match inquiry's checkpoint commit when it lands.
     3. **Criterion 4: met, scored 23 October about 04:50 CDT** (AMR.md, *Criterion 4: results*; logs in `amr_d/c4_2026-10-23/`). The runs ran on backhouse from 01:38 to 04:43 CDT, and every exit was 0.
        - **s\* = 1/4.** It is the largest s whose settled c\*, Isp and thrust lie within 2e-4 of the run at s/2: 6.4e-5 to 8.6e-5 at 1/4 against 1/8. s = 1 and 1/2 miss, with Isp and thrust moving 1.6e-3 and 6.8e-4. `Amr::Tags`' defaults are now f_H 0.005, T 0.0125, pressure 0.025 and vorticity 0.0125 (`core/amr.hpp`). `crucible_amr_c4`'s scale now multiplies step C's values written out.
