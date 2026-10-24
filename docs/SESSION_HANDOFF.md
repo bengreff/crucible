@@ -974,7 +974,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT; the face inlet 22 October about 02:45 CDT; AMR step D judged about 04:40 CDT; step D met 5 of 5 and criterion 4 coded 22 October about 23:50 CDT, its runs launched 23:55; the gas energy leak fixed 23 October about 01:00 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT; the face inlet 22 October about 02:45 CDT; AMR step D judged about 04:40 CDT; step D met 5 of 5 and criterion 4 coded 22 October about 23:50 CDT, its runs launched 23:55; the gas energy leak fixed 23 October about 01:00 CDT; step D scored, the AMR cost estimate and the resume path 23 October about 23:20 CDT)
 
 - **Synced with `main`:** on 22 October at about 02:20 CDT, inquiry2 rebased onto `main` 9294aa6, and at about 04:38 onto `main` 880d362 (the Director's merge of b84ae3a, with the engine DB's round 3). Both rebases were clean. Earlier, the Director merged step C at 02:47 on 21 October (af91015). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`. This session's worktree guard refuses git commands on the main checkout, so inquiry2 cannot fast-forward `main` itself.
 - **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
@@ -1069,17 +1069,43 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
     - The chain: `filmConductances`' shape F leaves [0, 1] (9.2 at one node), so the film's node temperature is −476 K and λ is NaN. The B_T solve then bisects a NaN residual down to 4.9e-324 and does not throw.
     - Two defects follow: the shape is not kept monotone in [0, 1], and the solve has no NaN guard. The drop is LOX at 65.08 K against T_sat 65.14 K at 2.4 kPa.
   - **Inquiry's wall-face fix 762806e, reviewed (AMR.md):** sound. Every in-step reader sees active cells only. `Flow::wallYPlus()` would be stale outside N_2 under AMR, but it has no AMR caller.
+  - **Tonight (Friday 23 October, from 23:00 CDT; the Director's three items), all on `worktree-inquiry2`, rebased onto `main` 7e91a4f and ready for `git merge --ff-only worktree-inquiry2`:**
+    1. **Step D on the new spread: 5 of 5 met** under the Director's amendments (AMR.md, *Step D's checks rerun on the new spread: results*; outputs in `amr_d/sd3_2026-10-23/`). The 05:00 amendment (check 2 is judged over the children's gross content) is recorded dated in AMR.md before D1 was judged, and `crucible_amr_budget` judges that measure only.
+    2. **AMR's cost on the RL10 tier-1 mesh** (AMR.md, *AMR's cost on the RL10 tier-1 mesh*).
+       - **Answer: in the measured H2 lead it pays.** From B4's cumulative per-level update counts (step C's thresholds, to 1 ms), AMR did 0.363 of uniform 1192 x 128's cell updates (derived).
+       - For the frozen tags and the hot running it is not measured. The ceiling is 1.143 of uniform. The estimate is 0.5 to 0.75 (inferred; the divergent's share is guessed). Wall time per update is not profiled.
+       - **Queued and running:** the same case to 0.5 ms at the frozen tags. It is `amr_d/bh_t1cost.sh` from `/home/greff/crucible_inq2t1` (fcb20f1), started 23:16 CDT at load 15. **Done-file `/home/greff/crucible_inq2t1/out/all_done`**, log `out/fs.log`.
+       - Compare its "--- t 0.500 ms" line (active cells, and the "Table B, table / all updates" counts) against B4's at 0.5 ms: 0.249 cumulative and 0.366 at the snapshot. Record the result in AMR.md's section.
+       - Expected 2 to 3 h (inferred from B4's 9,397 s for 0.5 ms; the tighter tags add cells).
+    3. **The resume-after-reboot path is built and registered** (`tools/resume/README.md`).
+       - The Windows task `CrucibleResume` (at startup, as Ben, S4U, no stored password) runs `/home/greff/resume/resume.sh` in Ubuntu as greff. It relaunches each registered, not-done, not-held, not-running job in `/home/greff/resume/jobs/`.
+       - The engine's side is inquiry's agreed interface: `CRUCIBLE_CHECKPOINT=<stem>`, `CRUCIBLE_RESTART=auto`, and the driver's own done-file. It is not on main yet.
+       - **Tested with the dummy (measured):**
+         - after `kill -9`, the task run by hand resumed it from its checkpoint;
+         - a corrupted latest checkpoint resumed from `.prev`;
+         - a second pass skips a running job.
+       - **Not tested:**
+         - **A WSL stop under the job.** Other workers' jobs were running in both distros: a gate job and someone's `sleep 25000` in Ubuntu, and Polytopia's self-play in Ubuntu-22.04. `wsl --shutdown` would have killed them.
+           - `test_wsl_kill.ps1 -Mode terminate` runs the test as soon as Ubuntu holds nothing else. It refuses otherwise (dry run: exit 2).
+           - A `-Mode shutdown` test also ends `PolytopiaWSLKeepalive`, which restarts only at Ben's logon, so it needs its owner's agreement.
+         - The boot trigger itself, which needs a reboot.
+       - Registered jobs now: `dummy` (re-arm per the README) and `t1cost` (no checkpoint, so a resume restarts it).
+    4. **For the Director, from B4's log** (B4's lane, not acted on):
+       - B4 ended at 10:52 with "AMR: could not advance an admissible state after 14 base-step reductions" (exit 1).
+       - It ran at ab3aa03, so it was before the energy fix. Its gas budget was 2.57e-5 at 0.5 ms and 6.34e-5 at 1 ms.
+       - `bh_b4.sh` touches `done_b4` whenever the program exits. If the program alone is killed (an OOM kill, say), the run would look done to the resume path. A registered job should use the driver's own done-file.
   - **Next for inquiry2, in order:**
-    1. **Step D's reruns on the new spread are running on backhouse** (launched 01:07 CDT; AMR.md, *Step D's checks rerun on the new spread*). They are from `/home/greff/crucible_sd3` (2058db1), with D0's parent, step D reversed, in `crucible_sd3p`. After D0's new-tree runs, they were resumed at 01:36 in tmux `inq2sd3b` at nice 10 with no load gate (`amr_d/bh_sd3b.sh`), because the original gate, load ≤ 24, cannot open beside S7 and B4. The done-file is `/home/greff/crucible_sd3/out/all_done`; the outputs are `out/d0.txt`, `d1.txt`, `d2.txt`, `d3.txt`, `ctest_n.txt` and `ctest_p.txt`, with `builds.txt` for the builds. D4 is already met on the rebased tree. Expected about 4 to 5 h at load 24 (inferred from the 22 October times, with D3's 1-thread run the longest). Score each against its verdict, copy the outputs to `amr_d/sd3_*`, and record them in AMR.md. **State at 04:48 CDT (measured):** `d0.txt`, `d2.txt`, `d3.txt` and D3's 1-thread dump are written, and D1's 4-thread run is at 6.5 ms of its AMR run, 5,736 s in. D1's single-level run and both ctests are still to run. D1 runs at step C's thresholds, from its own build (2058db1), so the change to the defaults does not touch it. Its fill error is 5.676e-12 over the parent, as in criterion 4's budget run; its check 2 judges that.
-    2. **Criterion 4: met, scored 23 October about 04:50 CDT** (AMR.md, *Criterion 4: results*; logs in `amr_d/c4_2026-10-23/`). The runs ran on backhouse from 01:38 to 04:43 CDT, and every exit was 0.
+    1. **Score the frozen-tag cost run** (item 2 above) when its done-file appears.
+    2. **The WSL-stop test** (`tools/resume/README.md`), when Ubuntu holds no other worker's process, with a re-armed dummy. Then a tier-1 job file to match inquiry's checkpoint commit when it lands.
+    3. **Criterion 4: met, scored 23 October about 04:50 CDT** (AMR.md, *Criterion 4: results*; logs in `amr_d/c4_2026-10-23/`). The runs ran on backhouse from 01:38 to 04:43 CDT, and every exit was 0.
        - **s\* = 1/4.** It is the largest s whose settled c\*, Isp and thrust lie within 2e-4 of the run at s/2: 6.4e-5 to 8.6e-5 at 1/4 against 1/8. s = 1 and 1/2 miss, with Isp and thrust moving 1.6e-3 and 6.8e-4. `Amr::Tags`' defaults are now f_H 0.005, T 0.0125, pressure 0.025 and vorticity 0.0125 (`core/amr.hpp`). `crucible_amr_c4`'s scale now multiplies step C's values written out.
        - **Criterion 4 at s\* against uniform 64 x 12:** c\* +7.3e-5, Isp and thrust -1.1e-4 (limit 1e-3 each), light-off -1.8e-8 s (limit 3.9e-7 s). Reported, not judged: t90 is 0.26 of a base step earlier on AMR (6.3e-5 relative).
        - **For the Director:**
          - (a) At s\*, level 1 covers 720 of 768 cells, and the composite does 6.3% more cell updates than the uniform run (derived). So C1 is not a case where AMR saves work.
          - (b) `rl10_tier1` (B4's lane) builds its tags from `Amr::Tags`' defaults. Its next build gets the fixed thresholds, four times tighter. Its comment "provisional until the Director freezes them" is now stale. I did not touch that file. B4's running job uses its own build and is unaffected.
          - (c) The budget run gave a fill content error of 5.676e-12 over the parent's content, against check 2's 1e-14; over the gross content it is 4.605e-16. The likely cause is a parent with near-zero energy (inferred, as step C found). Step D's D1 rerun judges it.
-    3. Run 5(a) when the Mac is quiet.
-    4. Register step E.
+    4. Run 5(a) when the Mac is quiet.
+    5. Register step E.
 - **The entropy method for `core/medium.*`: accepted as proposed** (the answer is under inquiry's proposal above).
 - **Held from the Director:** Penn State GO2/GH2 is the next validation case after the RL10 contour; the blind engine-set scraper drops outcome columns at ingest; spray subcycling is inquiry's.
 - **Earlier, still standing:** RL10A-3-3A tier 0 is committed, and no measured performance may be read until tier 1 is committed. The failing AMR criteria (0(d), 3(a)'s order, 3(b)'s peak, criterion 2's ten-times comparisons) are the Director's call. The Mascotte driver with average-from 0 segfaults after writing the stations: use average-from 1.
