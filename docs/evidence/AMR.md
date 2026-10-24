@@ -1031,6 +1031,10 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
 
    A difference there means the clip fires in that case. That would be reported with its count and rho k V, and would not count as a failure.
 2. **D3:** 1 and 4 threads identical on D1's case. The reflux is serial and in face order, so the clip's booking is too.
+   - *Narrowed before any run (about 23:35 CDT):* to 1 ms of D1's case, not 8 ms.
+     - D1 took 7,343 s at 4 threads in the 23 October rerun (measured, `sd3_2026-10-23/d1.txt`). So 8 ms at 1 thread would take about 8 hours (inferred).
+   - `crucible_amr_budget` now prints the reflux's clip count and rho k V, so checks 1 and 2 read whether the clip fired directly.
+   - D1's two 8 ms runs (new and parent) queue at nice 10 behind tier 1. They may finish after this session; their done-file is noted in the handoff.
 3. **Tier 1 at the frozen tags passes 32.5 µs and reaches 0.5 ms.**
    - Its counts give AMR's cost (the section above).
    - A print-only trace build to 0.1 ms reports each clip's rho k, to show its size against the cells' content.

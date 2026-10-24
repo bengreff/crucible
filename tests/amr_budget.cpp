@@ -215,6 +215,8 @@ int main(int argc, char** argv) {
   }
   const double amrWall = seconds(clock0);
   if (!dumpPath.empty()) writeAmrDump(amr, dumpPath);
+  std::printf("  the reflux's rho k clips (AMR.md, Amendment: the reflux clips rho k at zero): %llu cells, rho k V added %.6e J\n",
+              static_cast<unsigned long long>(amr.refluxClips()), amr.refluxClipped());
   const auto final = amr.budget();
   double mdot = 0, fVac = 0;
   for (int l = 0; l < amr.levels(); ++l) {

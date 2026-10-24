@@ -51,6 +51,11 @@ public:
     [[nodiscard]] double time() const { return time_; }
     [[nodiscard]] std::uint64_t steps() const { return steps_; }
     [[nodiscard]] std::uint64_t rejectedSteps() const { return rejected_; }
+    // The reflux's clips of rho k at zero (AMR.md, Amendment: the reflux clips rho k at zero): the cells
+    // clipped, and the rho k V the owned ones gained (also in their level's clippedTurbulentEnergy), over
+    // the accepted base steps.
+    [[nodiscard]] std::uint64_t refluxClips() const { return refluxClips_; }
+    [[nodiscard]] double refluxClipped() const { return refluxClipped_; }
     // Called after each step of a level (its index and dt), before the levels above it step: e.g. a
     // reaction step, which must keep each cell's mass and energy.
     void setAfterStep(std::function<void(int, double)> afterStep) { afterStep_=std::move(afterStep); }
@@ -132,6 +137,8 @@ private:
     std::function<void()> redo_;
     double time_{};
     std::uint64_t steps_{}, rejected_{};
+    std::uint64_t refluxClips_{}, savedRefluxClips_{};
+    double refluxClipped_{}, savedRefluxClipped_{};
     void check();
     bool advance(int l, double t, double dt, int half);
     // Fill the children of level l's parents (B2) or every cell that is not active (B1) from level l - 1

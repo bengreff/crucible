@@ -523,6 +523,15 @@ bool Amr::reflux(int l) {
         const std::size_t f0=naF+static_cast<std::size_t>(2*I)*(fm.nr+1)+2*J,f1=f0+(fm.nr+1);
         if(low) correct(cm.index(I,J),1,fc,f0,f1); else correct(cm.index(I,J-1),-1,fc,f0,f1);
     }
+    // At the turbulent front the fine faces can draw k from a cell that has none, a deficit no shorter
+    // step removes: rho k is set to max(rho k, 0) as the stages do (Flow::clipTurbulence), E untouched,
+    // the rho k V added booked for owned cells (AMR.md, Amendment: the reflux clips rho k at zero).
+    if(nt) for(auto u:touched) if(c.turbulence_[u*nt]<0) {
+        const double added=-c.turbulence_[u*nt]*cm.cells[u].volume;
+        c.turbulence_[u*nt]=0;
+        if(c.isOwned(u)) { c.clippedTurbulentEnergy_+=added;refluxClipped_+=added; }
+        ++refluxClips_;
+    }
     // A wall-function cell has no k or omega equation: the law sets them again at its refluxed state
     // (AMR.md, step D).
     if(nt && c.definition_.turbulence.wallFunctions) {
@@ -580,6 +589,7 @@ void Amr::save() {
         s.massCompensation=f.massCompensation_;s.energyCompensation=f.energyCompensation_;s.correctionCompensation=f.correctionCompensation_;s.momentumCompensation=f.momentumCompensation_;
         s.exchangedMass=f.exchangedMass_;s.exchangedEnergy=f.exchangedEnergy_;s.exchangedMomentum=f.exchangedMomentum_;
     }
+    savedRefluxClips_=refluxClips_;savedRefluxClipped_=refluxClipped_;
 }
 void Amr::restore() {
     for(auto& v:levels_) {
@@ -591,6 +601,7 @@ void Amr::restore() {
         f.massCompensation_=s.massCompensation;f.energyCompensation_=s.energyCompensation;f.correctionCompensation_=s.correctionCompensation;f.momentumCompensation_=s.momentumCompensation;
         f.exchangedMass_=s.exchangedMass;f.exchangedEnergy_=s.exchangedEnergy;f.exchangedMomentum_=s.exchangedMomentum;
     }
+    refluxClips_=savedRefluxClips_;refluxClipped_=savedRefluxClipped_;
 }
 Amr::Budget Amr::content() const {
     const Flow& b=level(0);const Mesh& m=b.mesh_;
