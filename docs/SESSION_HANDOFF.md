@@ -2,6 +2,53 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (24 October, about 01:55 CDT; inquiry, the Director's 01:40 decisions)
+
+**The Director (01:40):** backhouse's load of about 33 is all ours: the fly project's five `smoke_live.py` jobs (89 to 98 threads each, about 150% CPU; they end 02:45 to 03:20), S7 low and high, and inquiry2's rfx. Decisions:
+- E: S7 first, B4 second, the fly jobs after. Launch B4 now at 4 threads without the gate. Put the order in the runner's slot policy.
+- B: run the 1 ms test at the larger step and report its accuracy against the current step.
+- C: the run-length proposal is approved.
+- I: prototype first, about a week, on a bounded case, with success criteria written before building. Start after B4 runs.
+- Diagnose the 1-level lead's "could not advance" at 1.78 ms.
+
+**Done, all on `main`:**
+- **E (f154ba9).**
+  - `b4s` launched at 01:35:21 CDT without the gate (`bh_run.sh`'s gate now skips `b4`), on 64a78f4 in `/home/greff/crucible_b4s/runs/b4`, at 4 threads.
+  - The 2-level lead `lead2s` passed its gate at 01:33 and was stopped (SIGSTOP) at 01:36:25 by `relaunch_2026-10-24/bh_lead2_after_fly.sh`, running detached. It sends SIGCONT when no `smoke_live.py` is left. Its log is `/home/greff/crucible_b4s/runs/lead2/hold.log`.
+  - SPEED.md section 3 has the correction and the revised slot policy (the priority order, 4 threads counting BLAS and numba pools, load plus threads within 28, the top job without the gate). inquiry2 has it for the runner.
+- **C (6d893f0), in `tier1_run_definition.md`, registered before any output.**
+  - The central case ends at the first 1 ms check from t_L + 30 ms whose trailing 20 ms window passes the 22 October rule. The ceiling is t_L + 60 ms.
+  - The continuation runs to t_s + 25 ms. Warm members run 30 ms, judged over 10 to 30 ms.
+  - The driver's moving-window judge is **not built**. It is required before the central launch.
+- **B and the diagnosis, registered before their runs (4f2d81e).**
+  - `CRUCIBLE_T1_CFL` and `CRUCIBLE_T1_SEED` in `tests/rl10_tier1.cpp` (development only).
+  - Lever B: SPEED.md section 5c (L4/L8, H4/H8/H4s; criteria (a) and (b)).
+  - The diagnosis: `docs/evidence/admdiag_2026-10-24/README.md` (D1 on 27b135f, D2 on main; criteria (i) and (ii)) with the print-only `admdiag.py`.
+- **I's criteria (d87815d): `docs/evidence/IMPLICIT_PROTOTYPE.md`.**
+  - BDF2 dual time with LU-SGS, one level, one thread, Table A, on the acoustic pulse and the C1 cold start.
+  - Criteria 1 to 6, measurements M1 to M5, and a proposed rule: build if the projected factor is at least 5, not if below 2.
+  - Found after writing it: `Flow::rhs` already is the residual as a function, so day 1's refactor is mostly exposing it.
+
+**Running on the Mac** (each job through `slot.py`; the fly jobs held the slots until 01:46):
+- **Lever B** (`docs/evidence/cfl_2026-10-24/mac_cfl.sh`): L4, L8, H4, H8 and H4s in order, binary `/tmp/cfl/crucible_rl10_tier1` (4f2d81e). L4 started at 01:46.
+  - Logs and series: `/tmp/cfl/<name>/`. Done-files: `/tmp/cfl/<name>/done` and `/tmp/cfl/done`.
+- **The diagnosis** (`docs/evidence/admdiag_2026-10-24/mac_admdiag.sh`): both trees built in `/tmp/adm/old` and `/tmp/adm/new`, then D1 and D2 in turn. D1 was waiting for a slot at 01:49.
+  - Logs: `/tmp/adm/d1/d1.log` and `/tmp/adm/d2/d2.log`. Done-files: `/tmp/adm/done`.
+- **The prototype's explicit baselines** (`docs/evidence/implicit_prototype/mac_c1base.sh`): C1 `eqt` on 1 thread, 64x12 and 128x24 to 8 ms, then 256x48 to 1 ms. They start after `/tmp/adm/done`.
+  - Logs: `/tmp/c1base/<name>/`. Done-file: `/tmp/c1base/done`.
+
+**Backhouse (01:50 CDT):** load 29.0 with 5 smokes.
+- S7 low is at 3.0 ms and high at 3.1 ms, about 195 s of wall per 0.1 ms. At that pace 55 ms is about 28 hours away (*inferred*), faster once the smokes end.
+- `b4s` is at 226% CPU, still in its first 0.01 ms of output.
+- `lead2s` is stopped (state T).
+- rfx is running.
+
+**Next:**
+1. When the Mac runs end: judge D1 and D2 against (i) and (ii), and B against (a) and (b). Copy the logs and series into `admdiag_2026-10-24/` and `cfl_2026-10-24/`, and write the results (README, SPEED.md 5c).
+2. Build the driver's moving-window settle judge (C) before the central launch.
+3. The prototype, day 1: expose `Flow::rhs`, and read the C1 baselines for τ_C1 and the walls.
+4. The RL10 central run, when S7 low and high pass (Ben's rule).
+
 ## Stopped at (24 October, about 01:30 CDT; inquiry, the Director's 00:50 note)
 
 **The Director (00:50):** principle 1 stays as written: no steady solver, no pseudo-time that alters the transient. Items:
