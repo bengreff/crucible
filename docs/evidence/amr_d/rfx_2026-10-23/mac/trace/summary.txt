@@ -1,0 +1,15 @@
+trace_exit 0
+992
+clips 992 t from 3.24940203e-05 to 9.95691984e-05
+largest ratio 5.408e-10
+trace clip t 5.52932931e-05 onto nz 596 i 108 j 58 rhok -5.748698e-07 level max 1.063046e+03 ratio 5.408e-10
+onto nz 596 992
+distinct cells 2
+median ratio 2.730e-10 count above 1e-6:
+       0
+ 624 151 58
+ 368 108 58
+      153.02 real       538.79 user         3.38 sys
+           854048768  maximum resident set size
+G2   pass  slot areas: largest relative error 3.65e-14 against A_L and A_H / 2
+Table B /tmp/rl10_s.bin: Table B built 2026-10-21 02:43 CDT by crucible_build_manifold_table from /Users/ben/inquiry-project/tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes {0.133333,0.142857,0.153846,0.166667,0.181818} as given, Z_N {0.000000,0.300000}, eta 11 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 990 nodes in 16 s on 3 threads; node element error 5.78e-10 raw, 3.64e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE

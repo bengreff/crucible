@@ -1,0 +1,5 @@
+fixed pattern dump identical
+C1 law hp state identical
+C1 law hp history identical
+check 3 dump identical
+  the reflux's rho k clips (AMR.md, Amendment: the reflux clips rho k at zero): 0 cells, rho k V added 0.000000e+00 J

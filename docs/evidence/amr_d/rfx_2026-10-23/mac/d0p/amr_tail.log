@@ -1,0 +1,40 @@
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.391061942179 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.514643653408 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.363351323312 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.4896317784046 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.335679595748 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.464647405191 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.3080471090652 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.4396906809948 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.280454192726 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.4147616831665 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.2529011859474 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.2253871440425 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.389860482464 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.1979119346374 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.364987093963 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.340141531367 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.1704758758287 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.3153237615193 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.143079264243 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.115722379258 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.290533746223 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.265771393513 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.0884054535563 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.2410365978467 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.0611287266634 K) outside valid range of 300 K to 3500 K
+CanteraWarning: CanteraWarning: ChemEquil::equilibrate: Temperature (3501.0338923926297 K) outside valid range of 300 K to 3500 K
+ChemEquil::equilibrate: Temperature (3501.2163292041637 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.1916490451895 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.0066966021795 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.166995939784 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.1423696624656 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.117769971096 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.0931966020453 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.068649272034 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.044127684984 K) outside valid range of 300 K to 3500 K
+CanteraWarning: ChemEquil::equilibrate: Temperature (3501.019631510554 K) outside valid range of 300 K to 3500 K
+  AMR t 1.0000 ms, 8451 base steps (0 redone), 181 s: mass 9.17e-16, energy 9.43e-17, momentum 0.00e+00; igniter 0.499999999999999 J
+  level 0: table cells 1612528, clamped 51980, outside (direct) 10064
+  level 1: table cells 6034014, clamped 154333, outside (direct) 0
+AMR only, not judged: mass 9.172e-16, energy 9.431e-17, momentum 0.000e+00 at the end (largest 2.434e-15, 6.050e-15, 1.551e-15); igniter |E - 0.5 J| 5.551e-16 J; c* 2552.64 m/s, vacuum thrust 1406.49 N; 8451 base steps, 181.0 s of wall

@@ -1042,6 +1042,23 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
    - Pass: tier 1 reaches 0.5 ms, and every clip is under 1e-6 of the cell's rho k scale. The scale is the largest rho k over that level's active cells at the same step.
    - Otherwise the clip is hiding something larger, and that is reported.
 
+**Results so far (24 October 2026, about 00:15 CDT; measured).**
+
+- *Where they ran (a deviation of place, not of check):* backhouse's chain B was held by its load gate (load 35 to 39 from other workers' jobs). So D0's three short cases and the trace ran on the Mac, by `amr_d/rfx_2026-10-23/mac/mac_rfx.sh`, with the same commands and tables as `bh_rfx.sh`'s chain B.
+  - Equilibrium table: md5 75b15a1c… on both machines.
+  - Manifold table: md5 1be4531e….
+  - New tree: worktree HEAD 59e8325, the clip rebased, the same code as main's cab591b. Parent: fcb20f1. Builds had 0 warnings. Logs are in `amr_d/rfx_2026-10-23/mac/`.
+- **Check 1, D0's three short cases: met.**
+  - The fixed-pattern dump, C1 eqtt with law and hp (state and history), and step C's check 3 dump are `cmp`-identical, new against parent.
+  - The clip fired 0 times in the fixed-pattern case. All six exits were 0.
+  - D1's 8 ms pair waits on backhouse.
+- **Check 3's trace: met.**
+  - The trace build reached 0.1 ms with exit 0 (4 threads, 153 s wall, 854 MB). Before the fix the run failed at 32.5 µs.
+  - There were 992 clips between 32.49 and 99.57 µs, all onto level 2 and all in two cells: (151, 58), 624 times, and (108, 58), 368 times. Both are near the wall row (j = 58).
+  - Largest clip: 5.41e-10 of level 2's largest rho k (rho k -5.75e-7 J/m3 against 1.06e3), at 55.3 µs onto (108, 58). Median: 2.73e-10. None was above the 1e-6 bound.
+  - The same two cells clip again and again, 992 times in 67 µs, while the largest clip stays below 6e-10. So the deficit recurs and stays small, and does not build up (inferred).
+- **Still to come:** check 3's tier 1 to 0.5 ms (backhouse chain A), check 2 (D3), and check 1's D1 to 8 ms. All are on backhouse in job rfx, done-file `/home/greff/crucible_rfx/out/all_done`.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.

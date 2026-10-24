@@ -1230,7 +1230,12 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
          - Then D1 to 8 ms, new and parent together (`out/d1.txt`, about 2.4 h).
          - At 23:49 CDT (measured): tier 1 had run 15 min with no failure (before the fix it failed after about 30 s of wall time). d0n was done; d0p was queued on load 42.
        - **Rebased onto main 1166721** (23:48 CDT). 59e8325 adds the two clip counts to `Amr::checkpoint`, as inquiry asked, and fixes the resume README's tier-1 central template (done-file `rl10_t1_central_done`). It builds on the Mac with no warnings. Job rfx tests f8e0f65, the clip before the rebase.
-       - **Main is not fast-forwarded.** The guard refuses it from this worktree, and main is checked out in inquiry's tree. Inquiry (inquiry-project-6b) was told at 23:50 CDT that the branch is ready for `git merge --ff-only worktree-inquiry2`, and that the clip's checks are not scored yet. B4 relaunches on main once the fix lands there.
+       - **Main was fast-forwarded to cab591b by inquiry at 23:58 CDT.** The guard refuses a fast-forward from this worktree, and main is checked out in inquiry's tree.
+       - **Checks 1 (D0's three short cases) and 3's trace: met, on the Mac, 24 October about 00:15 CDT** (AMR.md, *Results so far*; logs in `amr_d/rfx_2026-10-23/mac/`). They ran there because backhouse's chain B was held by load 35 to 39.
+         - D0: cmp-identical against fcb20f1, with 0 clips.
+         - Trace to 0.1 ms: exit 0. There were 992 clips, all in two level-2 cells; the largest was 5.4e-10 of the level's largest rho k, against the 1e-6 bound.
+         - Inquiry was told at about 00:15 that B4 can relaunch on main.
+       - Still open, all on backhouse in job rfx: tier 1 to 0.5 ms (chain A, alive at 00:13), D3, and D1 to 8 ms. Chain B reruns D0 and the trace there too, which duplicates the Mac's runs.
   - **Next for inquiry2, in order:**
     1. **Score job `rfx`** against the amendment's checks 1 to 3, then the cost (item 2) from `out/fs.log`. Copy the logs (not `rl10_s.bin`) to `amr_d/rfx_2026-10-23/`.
     2. **The WSL-stop test** (`tools/resume/README.md`), when Ubuntu holds no other worker's process, with a re-armed dummy. Then a tier-1 job file to match inquiry's checkpoint commit when it lands.
