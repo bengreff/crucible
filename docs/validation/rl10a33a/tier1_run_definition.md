@@ -40,6 +40,23 @@ Status: drafted 21 October 2026, about 02:40 CDT, before any tier-1 run. It hold
       - After 60 ms, the central case continues warm at twice the parcel rate to 85 ms, and is judged over 65 to 85 ms by the same rule.
       - The rate doubles for every run if any item-3 quantity's 20 ms mean moves by more than 0.5% (the halves bar). It also doubles if the move exceeds twice the two runs' combined SE.
       - This adds 25 ms at about twice the spray's cost to the central case alone (*derived*). It is in the restated budget.
+  - **Replaced in part by the Director's decision (24 October 2026, 01:40 CDT; recorded at about 01:50 CDT, before any output of the central case or of a member exists).** The Director approved SPEED.md section 4's proposal: a settle rule with the 60 ms ceiling for the central case, and warm members judged after 10 ms plus the 20 ms window. The bars, the batches and the quantities above are unchanged; only when a run ends and which window is judged change.
+    - **The central case ends when settled, with t_L + 60 ms as its ceiling.**
+      - From t_L + 30 ms on, every 1 ms, the trailing 20 ms window [t − 20, t] is judged by the rule above: for the face pressure and for c*, the batch-means SE at most 0.2% and the halves at most 0.5%, with the batches as above.
+      - The first check that passes ends the run at that time, t_s. The reported values are that window's means with their judged SE.
+      - If no check passes, the run ends at t_L + 60 ms, is judged over t_L + 40 to t_L + 60 ms, and is reported flagged unsettled, as above.
+      - The earliest window, t_L + 10 to t_L + 30 ms, leaves the same 10 ms of transient as a warm member. The gas settles in about 9 ms (7 τ, SPEED.md section 4). The spray's 10 to 30 ms is *inferred*, and the halves bar is what fails a window that still drifts.
+      - **Recorded as a cost, not hidden:** checking up to 31 times and stopping at the first pass is optional stopping. A window can pass while it still drifts slowly. The halves bar bounds such a drift to about 0.5% of the mean between the window's two halves.
+    - **The parcel-rate continuation starts at t_s.** The central case continues warm at twice the parcel rate to t_s + 25 ms and is judged over t_s + 5 to t_s + 25 ms, with the move test as above.
+    - **A warm member runs 30 ms from its warm start:** 10 ms of transient, then one judgment over the 20 ms window, 10 to 30 ms, by the same rule.
+      - If it is unsettled there, it is reported and flagged as above, and its SE enters the quantity's range.
+      - The first warm member's transient measures whether 10 ms is enough (the ensemble plan's item 4). Its 0 to 10 ms series is reported. If its window is unsettled, the members' length is amended by a dated note before the next member's output.
+      - A member that starts cold (re-meshed, with no mapping) runs as the central case does: its own lead, then the settle rule with the 60 ms ceiling.
+    - **The lead is unchanged:** 20 ms, with its gate (the start amendment below).
+    - **Flow time (*derived*):**
+      - The central case runs t_L + 55 to t_L + 85 ms, 75 to 105 ms with the lead, against 105 before.
+      - A warm member runs 30 ms against 60, half the cost.
+    - **The driver** (`tests/rl10_tier1.cpp`) still runs the fixed schedule. Before the central launch it needs the moving-window judge every 1 ms from t_L + 30 ms, the end and the state dumps at t_s, the continuation from t_s, and R4's selftest extended to the moving window. These are built and tested before the launch. *Not built on 24 October.*
 
 ## Proposed (engineering, stated before the code)
 

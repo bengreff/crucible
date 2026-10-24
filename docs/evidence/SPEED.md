@@ -313,7 +313,7 @@ Built on `main` (4a7628f; extended and corrected in fc0c9b2), in `ReactingFlow::
 
 ### 5c. Lever B's test: CFL 0.8 against 0.4 (the Director, 01:40: "run the 1 ms test at the larger step and report accuracy against the current step")
 
-**Registered before any run (24 October, about 01:55 CDT).** The hooks: `CRUCIBLE_T1_CFL` sets `Definition::cfl` and `CRUCIBLE_T1_SEED` the spray's seed, both in development only (the central case keeps CFL 0.4 and seed 1). Every run is tier 1 development on `main` at the commit that adds them, on the Mac at 4 threads through the slot harness, with `scripts` and logs in `cfl_2026-10-24/`.
+**Registered before any run (24 October, about 01:43 CDT).** The hooks: `CRUCIBLE_T1_CFL` sets `Definition::cfl` and `CRUCIBLE_T1_SEED` the spray's seed, both in development only (the central case keeps CFL 0.4 and seed 1). Every run is tier 1 development on `main` at the commit that adds them, on the Mac at 4 threads through the slot harness, with `scripts` and logs in `cfl_2026-10-24/`.
 - **L4 and L8:** 3 levels, the 20 ms H2 lead, 0 to 1 ms, at CFL 0.4 and 0.8. The finest level binds here (the H2 jet, then the throat's axis; section 2).
 - **H4 and H8:** 1 level, the lead shortened to 1 ms (LOX at 1 ms on its 0.5 ms ramp, the igniter at 1.2 ms), 0 to 2 ms, at CFL 0.4 and 0.8. This is the hot transient after LOX opens, where B alone acts (A does nothing there).
 - **H4s:** H4 with the spray's seed 2. The parcels' random draws depend on the step, so H8 against H4 holds sampling noise as well as the step's error. H4s against H4 measures that noise (the floor). Before LOX opens, H4s must equal H4 bit for bit.
