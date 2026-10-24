@@ -57,7 +57,7 @@ Status: drafted 21 October 2026, about 02:40 CDT, before any tier-1 run. It hold
       - The central case runs t_L + 55 to t_L + 85 ms, 75 to 105 ms with the lead, against 105 before.
       - A warm member runs 30 ms against 60, half the cost.
     - **The driver** (`tests/rl10_tier1.cpp`) had the fixed schedule when this was registered. Before the central launch it needs the moving-window judge every 1 ms from t_L + 30 ms, the end and the state dumps at t_s, the continuation from t_s, and R4's selftest extended to the moving window.
-      - **Built on 24 October, about 02:00 CDT.** The functions are `runCheck`, with the constants `kFirstCheck`, `kCheckEvery`, `kCeiling`, `kWindow` and `kContinuation`.
+      - **Built on 24 October, about 01:55 CDT.** The functions are `runCheck`, with the constants `kFirstCheck`, `kCheckEvery`, `kCeiling`, `kWindow` and `kContinuation`.
       - In the loop: a check line at each 1 ms check, and the full judge at t_s. The state is dumped at t_s (`_settled_`) and at t_s + 25 ms (`_continuation_`), and the parcel rate doubles at t_s. The run ends at t_s + 25 ms or at `s.end`, whichever is first. t_s is kept in the checkpoint.
       - **R4's (d) to (g) pass** (`crucible_rl10_tier1 selftest`, 0 failures). They cover:
         - (d) a constant series, settled at the first check, t_L + 30 ms;
