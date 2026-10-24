@@ -76,6 +76,60 @@ Total for the central case, the check, 26 warm members and the grid run (derived
 
 *Dated note, 21 October 2026, about 02:35 CDT (derived from the rows above):* the count is still 26 warm members and the grid run, so the total stays **15 to 200 run-hours**. The re-meshed runs are now 6 (members 2, 3, 12, 13), so the cold-start ceiling falls from about 240 to **about 230 run-hours**. Members 18 and 19 cost 0.35 to 4.4 h each per run, 1.1 to 13 run-hours together.
 
+*Dated note, 23 October 2026, about 23:00 CDT: the budget restated from B4's measured pace (the Director's step-back).* This replaces the rows above, which assumed minutes per settled run.
+
+**Measured, from B4:**
+- **Where it ran:** backhouse, at ab3aa03, before inquiry2's energy fix. Base 149 × 16 plus 3 levels, 4 threads, nice 10. The load was about 25 beside S7, and B4 got 258% CPU.
+- **Its pace in the H2-only lead:**
+  - 0 to 0.5 ms took 9,397 s, which is 5.2 h per ms;
+  - 0.5 to 1.0 ms took 20,251 s, which is 11.2 h per ms.
+- **The base step** was 0.25 µs, then 0.15 µs: 3,299 steps for the second 0.5 ms, at 6.1 s per step.
+- **The end:** B4 stopped at 1.09 ms after 9.8 h with "AMR: could not advance an admissible state after 14 base-step reductions" (exit 1). The gas budget was 6.34e-5 at 1 ms, against a limit of 1e-11.
+- **The Mac's 0.21 ms in 11 min** (0.87 h per ms) was the first 0.2 ms of the start. It is not the run's pace.
+
+**The step's limit:** `Amr::step` takes the smallest of each level's explicit stable step times 2^l (`core/amr.cpp:628`). Each level's stable step is CFL 0.4 on the acoustic rate plus the diffusive rate, eddy viscosity included (`core/flow.cpp:970`).
+- On the 1 mm finest cells, the acoustic bound alone would allow about 0.5 to 0.8 µs per base step (*derived*). So the measured 0.15 µs points to the diffusive bound at the lead's low density, or to smaller cells (*inferred*, not measured).
+- `Flow::stepLimit()` names the cell and both rates. It has not been printed for the RL10 yet.
+- **Two more costs, neither profiled:**
+  - The lead regrids every 2 base steps: 2,646 regrids by 1 ms.
+  - Table B placed none of the lead's chemistry updates; at level 3 in the chamber there were 3.3e8 by 1 ms. Pure H2 lies outside the table's f_H range, so each update fell back, presumably to CVODES (*inferred*).
+- **Against the base mesh alone:** that mesh went from cold start to settled thrust in 3.3 min (pre-vaporized, Table A; the row above). B4's 3 levels cost about 5,000 times more per ms of flow.
+  - Cells and steps alone explain about 200 to 500 times (*derived*: 64 times the cells at 41% occupancy, 8 times the steps).
+  - The rest has not been profiled.
+
+**Per run, on 4 threads of backhouse (derived):**
+- The basis: 7.5 to 11 h per ms of gas. 11 is measured; 7.5 assumes no contention (*inferred*). The spray multiplies by 1.5 to 1.7, measured on S7.
+- **The central case** runs 20 ms of lead and 85 ms after it: 1,100 to 1,800 h, or 46 to 75 days.
+- **A warm member** runs 60 ms: 680 to 1,120 h each.
+- **The cold-start check:** 830 to 1,340 h.
+- **The grid member** (finer, 6 to 8 times a warm member): 4,000 to 9,000 h.
+- **The total** is the central case, the check, 26 warm members and the grid run: **about 24,000 to 41,000 run-hours.**
+- **In calendar time:** 5 or 6 at once on backhouse gives **about 6 to 12 months**. The grid member alone is 6 to 12 months end to end. Even at the Mac's start pace, the total is about 3,000 run-hours, with the grid member 3 to 4 weeks on its own.
+- **Not included:**
+  - The hot running's own step, which is not measured.
+  - The frozen tags (da3555f) refine more than B4's provisional ones. At 1 ms level 3 held 41% of its cells; that share may rise toward 100%, up to about 2.4 times the cost (*inferred*).
+
+**What would change it (factors derived or inferred; each change to the registered plan is the Director's):**
+1. **B4 as the central case's lead.** One lead, checkpointed at t_L, picks the flash branch and seeds the central case. It saves one 150 to 220 h lead and about 9 days.
+2. **The grid member coarser, not finer.** Richardson from 2 against 3 levels costs about 1/6 of a warm run in place of 6 to 8 times. That saves 4,000 to 9,000 h, and the longest single run. Cost to accuracy: the coarser pair sits further from the asymptotic range.
+3. **Deviations as differences at 2 levels.**
+   - Each member's signed change is taken against a 2-level central case. A registered check runs 2 members at both 2 and 3 levels, and their changes must agree.
+   - That is about 5 to 8 times cheaper per member: a quarter of the finest cells and a base step up to twice as long (*inferred*).
+   - The 2-level central case and its members run beside the 3-level central case.
+4. **Warm members judged after 10 ms of transient plus the 20 ms window,** not to 60 ms: 2 times cheaper. The first member's transient measures whether 10 ms is enough.
+5. **Threads** shorten the central case's calendar time, not the ensemble's total. Scaling past 4 threads is not measured. A checkpoint makes it a 1 h test.
+6. **Implicit acoustics** (COST.md lever 4, 3.5 to 23 times, from guessed costs) applies only if the acoustic bound sets the step; if the diffusive bound does, the lever is implicit diffusion. It means weeks of engine work and reopens validated numerics.
+7. **The y+ target 956 in place of 300, and one level fewer** (the plan's factor of 4). This is step D's choice, inquiry2's line.
+8. **A GPU** is not a lever for this prediction. The engine is CPU C++ calling Cantera and CVODES, and a port would take months.
+
+**With 1 to 4,** the calendar is set by the 3-level central case: about 7 to 11 weeks on 4 threads, or 3 to 5 weeks if the threads scale 2 times (*inferred*). The 2-level members finish beside it.
+
+**First measurements, all from a checkpoint once the restart reader exists:**
+- a profile of one base step;
+- `stepLimit()` per level;
+- the pace at 8 and 16 threads;
+- the pace after the LOX opens, with the frozen tags.
+
 What sets the range is the wall-function y+ target (300 against 956: a factor of 4) and the spray's cost (a factor of about 3). Both are measured before any member runs:
 - AMR criterion 6 and the wall functions' y+ question (AMR step D) give the gas-side cost.
 - The spray's ratio on the Mascotte setup (SPRAY.md's restated S6 trigger) gives the spray side.
