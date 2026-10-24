@@ -2,6 +2,84 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (24 October, about 01:30 CDT; inquiry, the Director's 00:50 note)
+
+**The Director (00:50):** principle 1 stays as written: no steady solver, no pseudo-time that alters the transient. Items:
+1. Estimate implicit time-accurate integration: the physical step, against today's explicit step, and the cost per step.
+2. Measure backhouse's contention pinned and with our jobs paused, and propose a slot policy for inquiry2's resume runner.
+3. Skip the chemistry exactly where nothing can react, with a test.
+4. The finest level stays a numerics question for evidence: 2 against 3 levels on two members.
+
+Fix the NaN first, then commit SPEED.md.
+
+**All on `main`; the answers are in `docs/evidence/SPEED.md`** (its opening lists where each item is answered):
+- **The spray NaN is fixed (26f6fd9).**
+  - Cause: B_T's secant near saturation (B_M 7.7e7). A residual past the double range gave an infinite step, which the stop test accepted.
+  - Test `spray_transfer`: 6 failures before, passes after (6.7e-16).
+  - The case that stopped at 1.35 ms runs to 1.5 ms, exit 0.
+  - SPEED.md section 6.
+- **The chemistry skip: 4a7628f, extended and corrected in fc0c9b2.**
+  - A molecule with a trace of its own atom (Y ≤ 1e-14) is now skipped, bounded by the dissociation equilibrium.
+  - The mask reads the partial densities. A negative trace had been skipped, against the rule.
+  - Test `chemistry_skip`: criteria 1 to 5 pass.
+  - In the lead: 91% of the chemistry updates skipped, wall 1.5 to 2.2 times less, CPU 1.8 to 2.4 times less.
+- **Contention (SPEED.md section 3).**
+  - With our jobs paused, the segment took 91 s against 150 s. Pinned, it was 19% slower; nice made no difference.
+  - Backhouse is 1.53 times the Mac's wall once our jobs are paused.
+  - The slot policy (no pinning, at most 4 threads per job, total within the free virtual CPUs, critical path first) went to inquiry2 for the runner.
+- **The implicit step (SPEED.md section 5a, lever I):** a 20 to 50 μs physical step, 5 to 50 times faster in the lead, 4 to 8 weeks to build (estimated, not built).
+- **The fast ctest** (`docs/evidence/ctest_2026-10-24_skip_nan.txt`): only the 4 known failures (amr, amr_subcycling, transport and spray verification).
+
+**Backhouse (checked 01:28 CDT):**
+- **B4 and the 2-level lead are relaunched on main 64a78f4** (the NaN fix and the skip) in their own tree, `/home/greff/crucible_b4s` (the `REVISION` file; table `runs/rl10_s.bin`, hard-linked).
+  - `relaunch_2026-10-24/bh_switch.sh` ran at 01:27:14 CDT. It held and stopped `b4r` (0.27 ms of its lead, c910fca, no NaN fix) and `lead2` (0.55 ms, `crucible_rst`'s 27b135f binary), and moved their job files to `/home/greff/resume/retired/`. Their directories and checkpoints are kept; a rebuilt binary would refuse those checkpoints anyway.
+  - The new jobs are `b4s` and `lead2s` (`/home/greff/resume/jobs/`). Done-files: `/home/greff/crucible_b4s/runs/b4/b4_DEVELOPMENT_done` and `runs/lead2/lead2_DEVELOPMENT_done`.
+  - **Both are queued behind the load gate** (`bh_run.sh` waits while the 1-minute load is above 24). The load was 33.7 at 01:28: S7 low and high and inquiry2's rfx (4 threads each), plus five python processes of another project at about 1.5 CPUs each. Each run's `.log` gets a "launch" line with the time and load when it starts.
+  - This is the slot policy's rule 4: the critical path (S7) first. Starting B4 sooner is the Director's machine-priority call (E). The gate could wait until S7 ends if the other project's load stays.
+- **S7 low and high** (`crucible_rst`, from 23:36 CDT, to 55 ms) were at 2.3 and 2.4 ms at 01:28, after 6,664 and 6,738 s of wall, about 225 s per 0.1 ms. At that pace they reach 55 ms around 10:00 CDT on Sunday 25 October (*inferred*; the pace depends on the load). About 5 minutes were lost to the 00:56 to 01:02 contention pause.
+- **inquiry2's rfx** runs in `/home/greff/crucible_rfx`. It was paused from 00:56:48 to 01:02:01 CDT, and inquiry2 records that beside its wall times.
+- The other job files (`b4` in `crucible_rst`, `dummy`, `t1cost`) all have done-files, so a reboot will not relaunch them.
+
+**Next:**
+1. The Director's decisions:
+   - B (a 1 ms test at CFL 0.8);
+   - C (run length);
+   - E (machine priority) and the slot policy;
+   - whether to prototype I (BDF2 with LU-SGS on the base mesh, about a week).
+2. The RL10 central run, when S7 low and high pass (Ben's rule). The NaN no longer blocks it.
+3. Still undiagnosed: the 1-level lead's "could not advance an admissible state" at about 1.78 ms.
+
+## Stopped at (24 October, about 01:00 CDT; inquiry, the Director's 23:50 speed questions)
+
+**The Director (23:50):** speed is the critical path; measure before deciding. (1) Profile tier 1 and say which constraint sets the finest level's step. (2) Test the hypothesis that the explicit acoustic CFL in a low-Mach chamber costs most of the time, and estimate local time stepping, dual time and low-Mach preconditioning from the profile, not built. (3) Thread scaling on backhouse at 1 to 16 threads. (4) Whether 60 ms of flow is physically required.
+
+**The answers: `docs/evidence/SPEED.md`**, with its raw outputs, scripts and the print-only patches in `docs/evidence/speed_2026-10-24/`.
+- **Wall time.** In the H2 lead (B4's 3 levels), chemistry takes 68 to 71%. Table B misses every cell (pure H2 lies outside its f_H range), so every cell goes to CVODES, about 15 μs of thread time each, to confirm that H2 alone does not react. The flow stages take 23%, the stable step 4%, AMR under 1%, the spray and I/O 0. In the hot base mesh (rl10dev, Table A), the flow stages take 73%, the stable step 21% and the chemistry 3.5%, at about 2 μs of wall per cell update on 4 threads.
+- **The step.** In the lead, level 3 binds 94 to 98% of base steps, at the H2 jet and then at the throat's axis. The binding term is acoustic first, then eddy thermal diffusion. In the hot base mesh, the throat binds every step: acoustic 0.59 of the rate, flow 0.41. The chemistry, the spray and the wall functions set no steps.
+- **The hypothesis holds only in part.** The binding cells are sonic or nearly so, so removing the acoustic term altogether lengthens the step only 1.4 to 2.2 times. Lever table and stacks: SPEED.md section 5.
+- **60 ms:** physics needs about 9 ms for the gas and 20 to 40 ms after t_L with the spray (inferred); the schedule runs 105 ms.
+- **Threads:** SPEED.md section 3.
+
+**The measurement trees are not on `main`:** `/tmp/prof_tree` on the Mac and `/home/greff/crucible_prof` on backhouse. Each is main 1166721, plus 716c3d2's reflux clip, plus `stepdiag.patch`. The Mac tree also has `nandiag.patch`.
+
+**B4r relaunched on main c910fca** (with the reflux clip) in `/home/greff/crucible_b4r` (the `REVISION` file).
+- Job `b4r` under the resume runner, launched at 00:27 CDT. It was running at 00:36.
+- Done-file: `/home/greff/crucible_b4r/runs/b4r/b4_DEVELOPMENT_done`.
+- inquiry2 was told. S7's `crucible_rst` build is untouched.
+
+**New blocker: the spray NaN after LOX opens.**
+- A 1-level tier-1 run (lead shortened to 1 ms, 2 threads, `/tmp/prof_l1`) stopped at about 1.35 ms with "Spray: the film's transport is not positive at nan K".
+- So the film temperature is NaN. 27b135f's guard reports it; the NaN's source upstream is unknown.
+- Expected to stop B4 at about t_L + 0.35 ms, and the central run too.
+- The print-only diagnostic run (`/tmp/prof_nan2`, NANDIAG lines in `nan.log`, done-file `done`): see below.
+
+**Also undiagnosed:** the 1-level lead run stopped at about 1.78 ms with "could not advance an admissible state after 14 base-step reductions" (earlier tonight).
+
+**Next, in order:**
+1. The Director's decisions on SPEED.md's levers B (CFL 0.8), C (run length), D (levels) and E (machine priority).
+2. Build lever A (skip the chemistry where nothing can react) if the Director agrees.
+3. Fix the spray NaN from NANDIAG's output.
+
 ## Stopped at (23 October, about 23:45 CDT; inquiry, Friday night, the Director's 23:00 brief)
 
 **Backhouse rebooted at 17:08; S7 low and high and B4 died with it.** The brief's items, in order:
