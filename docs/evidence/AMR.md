@@ -994,6 +994,49 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
   - A profile of one base step, which splits AMR's own overhead from the updates.
   - Both are among the ensemble plan's first measurements from a checkpoint, once the restart reader exists. A uniform 1192 × 128 run is not needed: the counts and the profile answer it.
 
+## Amendment: the reflux clips rho k at zero, as the stages do (recorded 23 October 2026, about 23:30 CDT, before its code)
+
+**What happened (measured).** The frozen-tag run that was to measure AMR's cost (`amr_d/bh_t1cost.sh`, fcb20f1) stopped at about 32.5 µs of the H2 lead. Its error was "AMR: could not advance an admissible state after 14 base-step reductions". **At the frozen tags, tier 1 cannot run on main's code.**
+
+- **Isolation.** I ran four variants to 0.1 ms on backhouse:
+  - fcb20f1 as committed: fails, twice, at the same sample.
+  - With the face fix c7e6bd1's line reverted: fails.
+  - With step C's thresholds restored: passes.
+  - With both changes reverted: passes.
+  - So the frozen tags cause it. The leak fix does not.
+- **Where.** A print-only trace build located it.
+  - It is the reflux of level 3 onto level 2, at level-2 cell (i 151, j 58), base step at t = 32.494 µs. That is near the wall just past the throat (the throat is base station 33, so level 2's 132).
+  - After the correction, the cell's rho k was -3.83e-8 J/m3 at dt 1.24e-7 s, then -1.89e-8 at half that dt.
+  - It halves with each reduction and stays negative.
+  - The rest of the state is admissible: rho 0.0115 kg/m3, rho omega 0.856, partial densities non-negative.
+- **The cause (inferred).** The cell sits at the turbulent front, with rho k at zero or nearly so.
+  - Level 3's face integrals of k at its coarse-fine face draw more k out of the cell than level 2's own did.
+  - So the reflux takes k from a cell that has none. A shorter step shrinks the deficit but never removes it.
+  - This is the mechanism flow.cpp's comment records for the stages, which is why the stages clip rho k at zero (`Flow::clipTurbulence`).
+  - The reflux was written without that clip. The step C thresholds put no coarse-fine face at that front in the first 0.1 ms; the frozen ones do.
+
+**The change.**
+
+- In `Amr::reflux`, after the corrections and before the wall-function cells are represcribed, each touched cell's rho k becomes max(rho k, 0). E is not touched, since k is part of it, so the energy budget stays exact.
+- The rho k V added goes into the level's `clippedTurbulentEnergy` for owned cells, as the stages' clips do. It is saved and restored with a redone base step, as theirs is.
+- Amr counts the reflux clips, and an accessor reports the count and the rho k V added. No driver output changes.
+
+**Checks, registered before the code.**
+
+1. **Bit identity where the clip does not fire.** D0's four cases, the new code against fcb20f1, `cmp`-identical:
+   - the fixed pattern;
+   - C1 eqtt with law and hp;
+   - step C's check 3;
+   - D1's tagged case with law and hp, to 8 ms.
+
+   A difference there means the clip fires in that case. That would be reported with its count and rho k V, and would not count as a failure.
+2. **D3:** 1 and 4 threads identical on D1's case. The reflux is serial and in face order, so the clip's booking is too.
+3. **Tier 1 at the frozen tags passes 32.5 µs and reaches 0.5 ms.**
+   - Its counts give AMR's cost (the section above).
+   - A print-only trace build to 0.1 ms reports each clip's rho k, to show its size against the cells' content.
+   - Pass: tier 1 reaches 0.5 ms, and every clip is under 1e-6 of the cell's rho k scale. The scale is the largest rho k over that level's active cells at the same step.
+   - Otherwise the clip is hiding something larger, and that is reported.
+
 ## Deviations from the plan's text
 
 - **Active regions are unions of parent cells, not rectangles.** The plan says patches are rectangles of index space so that each is a small structured mesh for the existing kernels. Full-domain level arrays give the kernels their structured neighbours anyway, and interval lists make clustering into rectangles unnecessary. A rectangle cover would refine whole blocks of rows to hold a two-row wall strip. Nothing in the conservation argument depends on rectangles.
