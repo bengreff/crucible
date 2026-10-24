@@ -11,12 +11,16 @@ struct Gas { double gamma{1.4}, specificR{287.05}; };
 // cp/R = a0 + a1 T + a2 T^2 + a3 T^3 + a4 T^4,  h/(R T) = a0 + a1 T/2 + ... + a4 T^4/5 + a5/T.
 // Above tHigh, cp is held at its tHigh value and h continues linearly: a constant-cp continuation,
 // outside the model, so that e(T) keeps increasing (none when tHigh is infinite).
+// Below tLow (when tLow > 0) a lowest range, joined to the low range at tLow with cp, h and s continuous
+// (thermo::withLowTemperatureRanges; docs/evidence/LOW_T_THERMO.md); at and above tLow nothing changes.
 struct Species {
     std::string name;
     double molarMass{};  // kg/kmol
     double tMid{1000};
     std::array<double, 7> low{}, high{};
     double tHigh{std::numeric_limits<double>::infinity()};
+    double tLow{0};
+    std::array<double, 7> lowest{};
 };
 // Molecular transport fits in the form of Cantera's GasTransport (degree 4 in ln T):
 // sqrt(mu_k / sqrt(T)) [Pa s], lambda_k / sqrt(T) [W/(m K)], and D_kj p / T^1.5 [m^2 Pa/s] for the
@@ -45,11 +49,12 @@ public:
     [[nodiscard]] double cv(double t, const double* y) const;             // J/(kg K)
     // Frozen sound speed sqrt(cp/cv R T).
     [[nodiscard]] double soundSpeed(double t, const double* y) const;
-    // Internal energy as T -> 0 on the low-range polynomials: admissible states lie above it.
+    // Internal energy as T -> 0 on the lowest (else low) range polynomials: admissible states lie above it.
     [[nodiscard]] double energyFloor(const double* y) const;
     // sum_k max(w_k, 0) R_k a5_k for unnormalised weights w (e.g. partial densities).
     [[nodiscard]] double energyFloorOfClipped(const double* w) const;
     // Temperature with internal energy e (safeguarded Newton from guess); NaN if e is not above the floor.
+    // A state at or above every species' tLow inverts along the same iterates as without the lowest ranges.
     [[nodiscard]] double temperature(double e, const double* y, double guess) const;
 
     // Mixture-averaged molecular transport, the same formulas as Cantera's "mixture-averaged"
@@ -62,10 +67,13 @@ public:
     // Writes D_km [m^2/s] to diffusion (size()); work is scratch reused between calls.
     Transport transport(double t, double p, const double* y, double* diffusion, std::vector<double>& work) const;
 private:
+    // properties() with each species' lowest range in use (lowest) or not (its low range continued below tLow).
+    [[nodiscard]] Properties properties(double t, const double* y, bool lowest) const;
     std::vector<Species> species_;
     std::vector<double> specificR_, inverseMass_;
-    // h/R coefficients a0, a1/2, a2/3, a3/4, a4/5, a5 of each species' low and high range, divided once.
-    std::vector<std::array<double, 6>> lowEnthalpy_, highEnthalpy_;
+    // h/R coefficients a0, a1/2, a2/3, a3/4, a4/5, a5 of each species' lowest, low and high range, divided once.
+    std::vector<std::array<double, 6>> lowestEnthalpy_, lowEnthalpy_, highEnthalpy_;
+    double tLowTop_{0};  // the largest tLow
     TransportFits fits_;
     std::vector<double> wilkeMass_, wilkeInverseRoot_;  // (W_j/W_k)^(1/4) and 1 / sqrt(8 (1 + W_k/W_j)), row k
 };

@@ -117,6 +117,39 @@ TransportFits transportFits(const std::string& mechanism, double minTemperature)
   return fits;
 }
 
+namespace {
+// Each species' TM-4513 low range (h2o2_highT.yaml) and the lowest range joined to it at 200 K: the output of
+// tools/mechanisms/make_low_t.py (largest |cp/source - 1| from 20 to 200 K: H2 1.28e-2, O2 8.63e-4, H2O 2.43e-3).
+struct LowRange {
+  const char* name;
+  std::array<double, 7> joins, lowest;
+};
+const std::array<LowRange, 3> kLowRanges{{
+    {"H2", {2.34433112, 0.00798052075, -1.9478151e-05, 2.01572094e-08, -7.37611761e-12, -917.935173, 0.683010238},
+     {2.689881211581441, -0.01122772394694092, 0.0001816445871257059, -7.769978514617583e-07, 1.1353925134353586e-09,
+      -893.4827670882183, 0.34000974018240093}},
+    {"O2", {3.78245636, -0.00299673415, 9.847302e-06, -9.68129508e-09, 3.24372836e-12, -1063.94356, 3.65767573},
+     {3.5036912732307766, -0.00022958696329450492, 4.4735388159647454e-06, -3.382114721561324e-08,
+      8.662184953152519e-11, -1044.8837101235702, 4.719729147315945}},
+    {"H2O", {4.19864056, -0.0020364341, 6.52040211e-06, -5.48797062e-09, 1.77197817e-12, -30293.7267, -0.849032208},
+     {4.010820304985315, -0.0006688323647342781, 1.2916418898093538e-05, -9.649670655744628e-08,
+      2.4335268063085523e-10, -30279.62839905314, -0.10928389036570962}},
+}};
+}  // namespace
+
+std::vector<Species> withLowTemperatureRanges(std::vector<Species> species) {
+  for (auto& s : species)
+    for (const auto& r : kLowRanges) {
+      if (s.name != r.name) continue;
+      if (s.low != r.joins || s.tLow != 0 || !(s.tMid > 200))
+        throw std::invalid_argument("Species " + s.name +
+                                    ": the lowest range joins TM-4513's low range (h2o2_highT.yaml), not this one.");
+      s.tLow = 200;
+      s.lowest = r.lowest;
+    }
+  return species;
+}
+
 std::vector<double> ReactionSource::massFractions(const std::string& moles) {
   impl_->gas->setMoleFractionsByName(moles);
   std::vector<double> y(nSpecies());

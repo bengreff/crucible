@@ -1,0 +1,3 @@
+D3: 1 and 4 threads identical to 1 ms
+  the reflux's rho k clips (AMR.md, Amendment: the reflux clips rho k at zero): 0 cells, rho k V added 0.000000e+00 J
+  the reflux's rho k clips (AMR.md, Amendment: the reflux clips rho k at zero): 0 cells, rho k V added 0.000000e+00 J

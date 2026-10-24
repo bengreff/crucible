@@ -1,0 +1,43 @@
+crucible_low_temperature_tests: worktree-inquiry2 at 66d45f4 plus the code committed after it (uncommitted then), Release build on the Mac; run 24 October 2026, finished about 03:32 CDT
+1. At and above 200 K, every property bit for bit
+  128448 composition-temperature pairs
+  pairs with any property not bit for bit                        0.0000e+00  (tol 0.0e+00) ok
+2. The inversion of every e at or above e(200 K), bit for bit, from guesses either side of 200 K
+  220416 inversions
+  inversions not bit for bit                                     0.0000e+00  (tol 0.0e+00) ok
+3. The joins at 200 K (between 200 K and the double below it)
+  H2:
+    |cv jump| / cv                                               0.0000e+00  (tol 1.0e-14) ok
+    |h jump| [J/kg]                                              2.3283e-10  (tol 1.4e-06) ok
+    |s jump| / s                                                 2.8800e-16  (tol 1.0e-12) ok
+  O2:
+    |cv jump| / cv                                               0.0000e+00  (tol 1.0e-14) ok
+    |h jump| [J/kg]                                              2.9104e-11  (tol 9.1e-08) ok
+    |s jump| / s                                                 0.0000e+00  (tol 1.0e-12) ok
+  H2O:
+    |cv jump| / cv                                               3.2722e-16  (tol 1.0e-14) ok
+    |h jump| [J/kg]                                              0.0000e+00  (tol 1.4e-05) ok
+    |s jump| / s                                                 1.8603e-16  (tol 1.0e-12) ok
+4. Below 200 K: round trips from 20 to 199.99 K, cv > 0 from 1 K, the floor below e(20 K)
+  largest |T - T0| / T0                                          4.0331e-13  (tol 1.0e-09) ok
+  least cv from 1 to 200 K [J/(kg K)]                            3.1218e+02  (tol 0.0e+00) ok
+  least e(20 K) - floor [J/kg]                                   6.2437e+03  (tol 0.0e+00) ok
+5. A shock tube above 200 K, with and without the lowest ranges; the control at 120 K
+  300 K: 919 and 919 steps
+  runs above 200 K not bit for bit (1 if they differ)            0.0000e+00  (tol 0.0e+00) ok
+  120 K: 843 and 843 steps
+  the control differs (1 if it does)                             1.0000e+00  (tol 0.0e+00) ok
+6. The lowest ranges' cp against independent tables (J/(mol K) over R = 8.314462618)
+  |cp/table - 1|, H2 100 K, NIST normal H2 Cp0                   1.9998e-03  (tol 1.5e-02) ok
+  |cp/table - 1|, H2 150 K, NIST normal H2 Cp0                   2.5689e-03  (tol 1.5e-02) ok
+  |cp/table - 1|, H2 199.9 K, NIST normal H2 Cp0 at 200 K        8.9989e-03  (tol 1.5e-02) ok
+  |cp/table - 1|, O2 100 K, JANAF O-029                          9.6600e-05  (tol 2.0e-03) ok
+  |cp/table - 1|, O2 150 K, NIST Cp0                             5.0123e-04  (tol 2.0e-03) ok
+  |cp/table - 1|, H2O 100 K, JANAF H-064                         1.0011e-03  (tol 5.0e-03) ok
+  H2 100 K, |cp/JANAF H-050 - 1| (must exceed)                   1.9670e-01  (tol 1.5e-01) ok
+0 failures
+exit 0
+
+The rebase onto main 96635e8 (about 03:45 CDT) made 66d45f4 into 5f2ae46 and 0026427 into 72c5c38, with the same trees apart from main's files.
+
+A second rebase, onto main 695df32 (about 03:57 CDT, inquiry's admdiag logs, no code), made 5f2ae46 into 623ae0f, 72c5c38 into a83459c and 622f5c7 into aa5abf4. No code changed, so the results stand.

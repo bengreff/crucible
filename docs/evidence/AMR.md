@@ -1072,9 +1072,22 @@ All six runs and the judge exited 0 on backhouse, from dad635a at 2 threads a jo
   - There were 992 clips between 32.49 and 99.57 µs, all onto level 2 and all in two cells: (151, 58), 624 times, and (108, 58), 368 times. Both are near the wall row (j = 58).
   - Largest clip: 5.41e-10 of level 2's largest rho k (rho k -5.75e-7 J/m3 against 1.06e3), at 55.3 µs onto (108, 58). Median: 2.73e-10. None was above the 1e-6 bound.
   - The same two cells clip again and again, 992 times in 67 µs, while the largest clip stays below 6e-10. So the deficit recurs and stays small, and does not build up (inferred).
+- **Check 3's trace on backhouse: met** (f8e0f65, gcc; exit 0 at about 02:24 CDT; files in `amr_d/rfx_2026-10-23/backhouse/trace/`).
+  - There were 973 clips between 32.49 and 99.57 µs, all in the same two cells: (151, 58), 624 times, and (108, 58), 349 times.
+  - Largest clip: 5.20e-10 of level 2's largest rho k, at 48.6 µs onto (108, 58). Median: 2.97e-10. None was above the 1e-6 bound.
+  - Against the Mac's (clang): the same cells and the same bound met, but 19 fewer clips onto (108, 58), and the first clip time differs in its sixth digit. The two compilers round differently, so the runs part at rounding level (inferred). The check does not ask for identity across machines.
 - **Check 1 on backhouse** (f8e0f65 against fcb20f1, gcc): D0's three cases are `cmp`-identical, with 0 clips (`amr_d/rfx_2026-10-23/backhouse/d0.txt`).
 - **Check 3's tier 1: met.** At the frozen tags it reached 0.5 ms with exit 0 (backhouse, about 02:13 CDT, 2,085 base steps, 0 redone). Its cost is in the section above.
-- **Still to come:** check 2 (D3), and check 1's D1 to 8 ms. Both are on backhouse in job rfx, done-file `/home/greff/crucible_rfx/out/all_done`.
+- **Check 2, D3: met** (backhouse, about 03:41 CDT; files in `amr_d/rfx_2026-10-23/backhouse/d3*`).
+  - D1's case (C1 eqtt, tags at Tags' defaults, regridding) ran to 1 ms at 1 and at 4 threads. The two output dumps, `d3_t1.txt` and `d3_t4.txt`, are `cmp`-identical.
+  - Both logs say "PASSED (0 failures)" and both took 8,404 base steps with 0 redone. They differ only in their thread-count line and their wall times.
+  - The reflux clipped rho k in 0 cells in both runs, adding 0 J of rho k V.
+- **Check 1's fourth case, D1's tagged case with law and hp to 8 ms: met** (backhouse, f8e0f65 against fcb20f1, gcc; the done-file written at 04:11 CDT, scored about 04:20 CDT; files in `amr_d/rfx_2026-10-23/backhouse/d1*`).
+  - The two output dumps, `d1n.txt` (new) and `d1p.txt` (parent), are `cmp`-identical, on backhouse and again on the Mac after the copy.
+  - Both exits were 0, both logs say "PASSED (0 failures)", and both took 67,634 base steps with 0 redone.
+  - With wall times masked, the logs differ in one line only: the new tree's reflux line, 0 cells clipped and 0 J of rho k V added.
+  - Wall times were 811 s (new) and 1,592 s (parent, which includes the watcher's hold from 03:43 to 04:01; `d1gate.log`). The inference above of about 7,300 s per run was wrong by about 9 times; its cause is not established.
+- **So all three checks are met.** The clip does not fire in any of D0's four cases, so where it does not fire the code is bit-identical to its parent. It is thread-independent (D3), and where it fires (tier 1), every clip is under 6e-10 of the level's largest rho k.
 - **Seen, not judged:** tier 1's log holds 329 Cantera warnings, "ChemEquil::equilibrate: Temperature (about 199 K) outside valid range of 200 K to 6000 K". The Mac trace to 0.1 ms had none, so they start after 0.1 ms. They come from the tier-1 driver's chemistry, B4's lane. Reported to inquiry.
 
 ## Deviations from the plan's text

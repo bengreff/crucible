@@ -1,0 +1,2 @@
+D1 tagged 8 ms dump identical
+  the reflux's rho k clips (AMR.md, Amendment: the reflux clips rho k at zero): 0 cells, rho k V added 0.000000e+00 J

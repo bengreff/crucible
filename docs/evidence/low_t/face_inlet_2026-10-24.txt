@@ -1,0 +1,5 @@
+T_s 199.67 K, x_p 0.998: dh 162.29 kJ/kg; same-enthalpy inlet 187.69 K (11.98 K colder, density 6.38% higher)
+T_s 199.67 K, x_p 0.950: dh 151.73 kJ/kg; same-enthalpy inlet 188.47 K (11.20 K colder, density 5.94% higher)
+equilibrium para fraction at 199.67 K: 0.2598
+on the normal-H2 continuation, x_p 0.998: inlet 187.59 K (12.08 K colder, density 6.44% higher)
+on the normal-H2 continuation, x_p 0.950: inlet 188.38 K (11.29 K colder, density 5.99% higher)
