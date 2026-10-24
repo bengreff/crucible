@@ -1,0 +1,245 @@
+implicit prototype: BDF2 at dt 7.003860e-06 s, inner tolerance 1.000e-06, at most 400 inner iterations, pseudo CFL 3, extrapolated first iterate on, Table A inside each inner iteration and after the step
+mechanism: h2o2.yaml
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 64x12: dz 2.604 mm, throat station 32 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 17 at z 0.0456 m
+chemistry eqt; igniter 0.5 J over 0.2 ms from 0.2 ms
+  implicit t 7.003860e-06 attempt 0 iteration 0 defect 2.4287e-01
+  implicit t 7.003860e-06 attempt 0 iteration 1 defect 1.0028e+00
+  implicit t 7.003860e-06 attempt 0 iteration 2 defect 6.7779e-01
+  implicit t 7.003860e-06 attempt 0 iteration 3 defect 5.6231e-01
+  implicit t 7.003860e-06 attempt 0 iteration 4 defect 7.0808e-01
+  implicit t 7.003860e-06 attempt 0 iteration 5 defect 8.0786e-01
+  implicit t 7.003860e-06 attempt 0 iteration 6 defect 8.2747e-01
+  implicit t 7.003860e-06 attempt 0 iteration 7 defect 8.0552e-01
+  implicit t 7.003860e-06 attempt 0 iteration 8 defect 7.5486e-01
+  implicit t 7.003860e-06 attempt 0 iteration 9 defect 6.8141e-01
+  implicit t 7.003860e-06 attempt 0 iteration 10 defect 6.0067e-01
+  implicit t 7.003860e-06 attempt 0 iteration 11 defect 5.3362e-01
+  implicit t 7.003860e-06 attempt 0 iteration 12 defect 4.6779e-01
+  implicit t 7.003860e-06 attempt 0 iteration 13 defect 4.0191e-01
+  implicit t 7.003860e-06 attempt 0 iteration 14 defect 3.4085e-01
+  implicit t 7.003860e-06 attempt 0 iteration 15 defect 2.8688e-01
+  implicit t 7.003860e-06 attempt 0 iteration 16 defect 2.3957e-01
+  implicit t 7.003860e-06 attempt 0 iteration 17 defect 2.0002e-01
+  implicit t 7.003860e-06 attempt 0 iteration 18 defect 1.6795e-01
+  implicit t 7.003860e-06 attempt 0 iteration 19 defect 1.4179e-01
+  implicit t 7.003860e-06 attempt 0 iteration 20 defect 1.2048e-01
+  implicit t 7.003860e-06 attempt 0 iteration 21 defect 1.0300e-01
+  implicit t 7.003860e-06 attempt 0 iteration 22 defect 8.8472e-02
+  implicit t 7.003860e-06 attempt 0 iteration 23 defect 7.6254e-02
+  implicit t 7.003860e-06 attempt 0 iteration 24 defect 6.5912e-02
+  implicit t 7.003860e-06 attempt 0 iteration 25 defect 5.7100e-02
+  implicit t 7.003860e-06 attempt 0 iteration 26 defect 4.9011e-02
+  implicit t 7.003860e-06 attempt 0 iteration 27 defect 4.2192e-02
+  implicit t 7.003860e-06 attempt 0 iteration 28 defect 3.6416e-02
+  implicit t 7.003860e-06 attempt 0 iteration 29 defect 3.1505e-02
+  implicit t 7.003860e-06 attempt 0 iteration 30 defect 2.7316e-02
+  implicit t 7.003860e-06 attempt 0 iteration 31 defect 2.3732e-02
+  implicit t 7.003860e-06 attempt 0 iteration 32 defect 2.0658e-02
+  implicit t 7.003860e-06 attempt 0 iteration 33 defect 1.8010e-02
+  implicit t 7.003860e-06 attempt 0 iteration 34 defect 1.5725e-02
+  implicit t 7.003860e-06 attempt 0 iteration 35 defect 1.3745e-02
+  implicit t 7.003860e-06 attempt 0 iteration 36 defect 1.2024e-02
+  implicit t 7.003860e-06 attempt 0 iteration 37 defect 1.0527e-02
+  implicit t 7.003860e-06 attempt 0 iteration 38 defect 9.2201e-03
+  implicit t 7.003860e-06 attempt 0 iteration 39 defect 8.0788e-03
+  implicit t 7.003860e-06 attempt 0 iteration 40 defect 7.0815e-03
+  implicit t 7.003860e-06 attempt 0 iteration 41 defect 6.2099e-03
+  implicit t 7.003860e-06 attempt 0 iteration 42 defect 5.4485e-03
+  implicit t 7.003860e-06 attempt 0 iteration 43 defect 4.7836e-03
+  implicit t 7.003860e-06 attempt 0 iteration 44 defect 4.2031e-03
+  implicit t 7.003860e-06 attempt 0 iteration 45 defect 3.6962e-03
+  implicit t 7.003860e-06 attempt 0 iteration 46 defect 3.2536e-03
+  implicit t 7.003860e-06 attempt 0 iteration 47 defect 2.8667e-03
+  implicit t 7.003860e-06 attempt 0 iteration 48 defect 2.5283e-03
+  implicit t 7.003860e-06 attempt 0 iteration 49 defect 2.2319e-03
+  implicit t 7.003860e-06 attempt 0 iteration 50 defect 1.9718e-03
+  implicit t 7.003860e-06 attempt 0 iteration 51 defect 1.7432e-03
+  implicit t 7.003860e-06 attempt 0 iteration 52 defect 1.5421e-03
+  implicit t 7.003860e-06 attempt 0 iteration 53 defect 1.3648e-03
+  implicit t 7.003860e-06 attempt 0 iteration 54 defect 1.2084e-03
+  implicit t 7.003860e-06 attempt 0 iteration 55 defect 1.0701e-03
+  implicit t 7.003860e-06 attempt 0 iteration 56 defect 9.4766e-04
+  implicit t 7.003860e-06 attempt 0 iteration 57 defect 8.3923e-04
+  implicit t 7.003860e-06 attempt 0 iteration 58 defect 7.4316e-04
+  implicit t 7.003860e-06 attempt 0 iteration 59 defect 6.5803e-04
+  implicit t 7.003860e-06 attempt 0 iteration 60 defect 5.8249e-04
+  implicit t 7.003860e-06 attempt 0 iteration 61 defect 5.1534e-04
+  implicit t 7.003860e-06 attempt 0 iteration 62 defect 4.5572e-04
+  implicit t 7.003860e-06 attempt 0 iteration 63 defect 4.0283e-04
+  implicit t 7.003860e-06 attempt 0 iteration 64 defect 3.5591e-04
+  implicit t 7.003860e-06 attempt 0 iteration 65 defect 3.1431e-04
+  implicit t 7.003860e-06 attempt 0 iteration 66 defect 2.7742e-04
+  implicit t 7.003860e-06 attempt 0 iteration 67 defect 2.4474e-04
+  implicit t 7.003860e-06 attempt 0 iteration 68 defect 2.1580e-04
+  implicit t 7.003860e-06 attempt 0 iteration 69 defect 1.9018e-04
+  implicit t 7.003860e-06 attempt 0 iteration 70 defect 1.6751e-04
+  implicit t 7.003860e-06 attempt 0 iteration 71 defect 1.4748e-04
+  implicit t 7.003860e-06 attempt 0 iteration 72 defect 1.2978e-04
+  implicit t 7.003860e-06 attempt 0 iteration 73 defect 1.1416e-04
+  implicit t 7.003860e-06 attempt 0 iteration 74 defect 1.0037e-04
+  implicit t 7.003860e-06 attempt 0 iteration 75 defect 8.8215e-05
+  implicit t 7.003860e-06 attempt 0 iteration 76 defect 7.7499e-05
+  implicit t 7.003860e-06 attempt 0 iteration 77 defect 6.8062e-05
+  implicit t 7.003860e-06 attempt 0 iteration 78 defect 5.9764e-05
+  implicit t 7.003860e-06 attempt 0 iteration 79 defect 5.2470e-05
+  implicit t 7.003860e-06 attempt 0 iteration 80 defect 4.6062e-05
+  implicit t 7.003860e-06 attempt 0 iteration 81 defect 4.0435e-05
+  implicit t 7.003860e-06 attempt 0 iteration 82 defect 3.5493e-05
+  implicit t 7.003860e-06 attempt 0 iteration 83 defect 3.1155e-05
+  implicit t 7.003860e-06 attempt 0 iteration 84 defect 2.7355e-05
+  implicit t 7.003860e-06 attempt 0 iteration 85 defect 2.4025e-05
+  implicit t 7.003860e-06 attempt 0 iteration 86 defect 2.1097e-05
+  implicit t 7.003860e-06 attempt 0 iteration 87 defect 1.8526e-05
+  implicit t 7.003860e-06 attempt 0 iteration 88 defect 1.6270e-05
+  implicit t 7.003860e-06 attempt 0 iteration 89 defect 1.4292e-05
+  implicit t 7.003860e-06 attempt 0 iteration 90 defect 1.2557e-05
+  implicit t 7.003860e-06 attempt 0 iteration 91 defect 1.1035e-05
+  implicit t 7.003860e-06 attempt 0 iteration 92 defect 9.6986e-06
+  implicit t 7.003860e-06 attempt 0 iteration 93 defect 8.5265e-06
+  implicit t 7.003860e-06 attempt 0 iteration 94 defect 7.4958e-06
+  implicit t 7.003860e-06 attempt 0 iteration 95 defect 6.5913e-06
+  implicit t 7.003860e-06 attempt 0 iteration 96 defect 5.7973e-06
+  implicit t 7.003860e-06 attempt 0 iteration 97 defect 5.0999e-06
+  implicit t 7.003860e-06 attempt 0 iteration 98 defect 4.4869e-06
+  implicit t 7.003860e-06 attempt 0 iteration 99 defect 3.9488e-06
+  implicit t 7.003860e-06 attempt 0 iteration 100 defect 3.4763e-06
+  implicit t 7.003860e-06 attempt 0 iteration 101 defect 3.0605e-06
+  implicit t 7.003860e-06 attempt 0 iteration 102 defect 2.6949e-06
+  implicit t 7.003860e-06 attempt 0 iteration 103 defect 2.3730e-06
+  implicit t 7.003860e-06 attempt 0 iteration 104 defect 2.0899e-06
+  implicit t 7.003860e-06 attempt 0 iteration 105 defect 1.8415e-06
+  implicit t 7.003860e-06 attempt 0 iteration 106 defect 1.6232e-06
+  implicit t 7.003860e-06 attempt 0 iteration 107 defect 1.4310e-06
+  implicit t 7.003860e-06 attempt 0 iteration 108 defect 1.2622e-06
+  implicit t 7.003860e-06 attempt 0 iteration 109 defect 1.1138e-06
+  implicit t 7.003860e-06 attempt 0 iteration 110 defect 9.8385e-07
+  implicit t 3.501930e-06 attempt 1 iteration 0 defect 6.2666e-02
+  implicit t 3.501930e-06 attempt 1 iteration 1 defect 1.3665e-01
+  implicit t 3.501930e-06 attempt 1 iteration 2 defect 1.0606e-01
+  implicit t 3.501930e-06 attempt 1 iteration 3 defect 8.5734e-02
+  implicit t 3.501930e-06 attempt 1 iteration 4 defect 5.0750e-02
+  implicit t 3.501930e-06 attempt 1 iteration 5 defect 4.8617e-02
+  implicit t 3.501930e-06 attempt 1 iteration 6 defect 6.0842e-02
+  implicit t 3.501930e-06 attempt 1 iteration 7 defect 6.5652e-02
+  implicit t 3.501930e-06 attempt 1 iteration 8 defect 6.2822e-02
+  implicit t 3.501930e-06 attempt 1 iteration 9 defect 4.5723e-02
+  implicit t 3.501930e-06 attempt 1 iteration 10 defect 3.1310e-02
+  implicit t 3.501930e-06 attempt 1 iteration 11 defect 2.0772e-02
+  implicit t 3.501930e-06 attempt 1 iteration 12 defect 1.3612e-02
+  implicit t 3.501930e-06 attempt 1 iteration 13 defect 8.8785e-03
+  implicit t 3.501930e-06 attempt 1 iteration 14 defect 5.8334e-03
+  implicit t 3.501930e-06 attempt 1 iteration 15 defect 3.9081e-03
+  implicit t 3.501930e-06 attempt 1 iteration 16 defect 2.6960e-03
+  implicit t 3.501930e-06 attempt 1 iteration 17 defect 1.9177e-03
+  implicit t 3.501930e-06 attempt 1 iteration 18 defect 1.3964e-03
+  implicit t 3.501930e-06 attempt 1 iteration 19 defect 1.0302e-03
+  implicit t 3.501930e-06 attempt 1 iteration 20 defect 7.6350e-04
+  implicit t 3.501930e-06 attempt 1 iteration 21 defect 5.6602e-04
+  implicit t 3.501930e-06 attempt 1 iteration 22 defect 4.1954e-04
+  implicit t 3.501930e-06 attempt 1 iteration 23 defect 3.1174e-04
+  implicit t 3.501930e-06 attempt 1 iteration 24 defect 2.3378e-04
+  implicit t 3.501930e-06 attempt 1 iteration 25 defect 1.7850e-04
+  implicit t 3.501930e-06 attempt 1 iteration 26 defect 1.3991e-04
+  implicit t 3.501930e-06 attempt 1 iteration 27 defect 1.1306e-04
+  implicit t 3.501930e-06 attempt 1 iteration 28 defect 9.4057e-05
+  implicit t 3.501930e-06 attempt 1 iteration 29 defect 8.0070e-05
+  implicit t 3.501930e-06 attempt 1 iteration 30 defect 6.9200e-05
+  implicit t 3.501930e-06 attempt 1 iteration 31 defect 6.0292e-05
+  implicit t 3.501930e-06 attempt 1 iteration 32 defect 5.2676e-05
+  implicit t 3.501930e-06 attempt 1 iteration 33 defect 4.6002e-05
+  implicit t 3.501930e-06 attempt 1 iteration 34 defect 4.0079e-05
+  implicit t 3.501930e-06 attempt 1 iteration 35 defect 3.4805e-05
+  implicit t 3.501930e-06 attempt 1 iteration 36 defect 3.0114e-05
+  implicit t 3.501930e-06 attempt 1 iteration 37 defect 2.5958e-05
+  implicit t 3.501930e-06 attempt 1 iteration 38 defect 2.2290e-05
+  implicit t 3.501930e-06 attempt 1 iteration 39 defect 1.9072e-05
+  implicit t 3.501930e-06 attempt 1 iteration 40 defect 1.6264e-05
+  implicit t 3.501930e-06 attempt 1 iteration 41 defect 1.3826e-05
+  implicit t 3.501930e-06 attempt 1 iteration 42 defect 1.1721e-05
+  implicit t 3.501930e-06 attempt 1 iteration 43 defect 9.9111e-06
+  implicit t 3.501930e-06 attempt 1 iteration 44 defect 8.3620e-06
+  implicit t 3.501930e-06 attempt 1 iteration 45 defect 7.0423e-06
+  implicit t 3.501930e-06 attempt 1 iteration 46 defect 5.9191e-06
+  implicit t 3.501930e-06 attempt 1 iteration 47 defect 4.9654e-06
+  implicit t 3.501930e-06 attempt 1 iteration 48 defect 4.1580e-06
+  implicit t 3.501930e-06 attempt 1 iteration 49 defect 3.4766e-06
+  implicit t 3.501930e-06 attempt 1 iteration 50 defect 2.9013e-06
+  implicit t 3.501930e-06 attempt 1 iteration 51 defect 2.4177e-06
+  implicit t 3.501930e-06 attempt 1 iteration 52 defect 2.0115e-06
+  implicit t 3.501930e-06 attempt 1 iteration 53 defect 1.6710e-06
+  implicit t 3.501930e-06 attempt 1 iteration 54 defect 1.3878e-06
+  implicit t 3.501930e-06 attempt 1 iteration 55 defect 1.1518e-06
+  implicit t 3.501930e-06 attempt 1 iteration 56 defect 9.5496e-07
+  implicit t 7.003860e-06 attempt 0 iteration 0 defect 5.5299e-01
+  implicit t 7.003860e-06 attempt 0 iteration 1 defect 2.9723e-01
+  implicit t 7.003860e-06 attempt 0 iteration 2 defect 1.5609e-01
+  implicit t 7.003860e-06 attempt 0 iteration 3 defect 1.5095e-01
+  implicit t 7.003860e-06 attempt 0 iteration 4 defect 1.5618e-01
+  implicit t 7.003860e-06 attempt 0 iteration 5 defect 1.4312e-01
+  implicit t 7.003860e-06 attempt 0 iteration 6 defect 1.1946e-01
+  implicit t 7.003860e-06 attempt 0 iteration 7 defect 9.3889e-02
+  implicit t 7.003860e-06 attempt 0 iteration 8 defect 7.0855e-02
+  implicit t 7.003860e-06 attempt 0 iteration 9 defect 5.2033e-02
+  implicit t 7.003860e-06 attempt 0 iteration 10 defect 3.7587e-02
+  implicit t 7.003860e-06 attempt 0 iteration 11 defect 2.6962e-02
+  implicit t 7.003860e-06 attempt 0 iteration 12 defect 1.9361e-02
+  implicit t 7.003860e-06 attempt 0 iteration 13 defect 1.4000e-02
+  implicit t 7.003860e-06 attempt 0 iteration 14 defect 1.0224e-02
+  implicit t 7.003860e-06 attempt 0 iteration 15 defect 7.5477e-03
+  implicit t 7.003860e-06 attempt 0 iteration 16 defect 5.6172e-03
+  implicit t 7.003860e-06 attempt 0 iteration 17 defect 4.1973e-03
+  implicit t 7.003860e-06 attempt 0 iteration 18 defect 3.1477e-03
+  implicit t 7.003860e-06 attempt 0 iteration 19 defect 2.3658e-03
+  implicit t 7.003860e-06 attempt 0 iteration 20 defect 1.7772e-03
+  implicit t 7.003860e-06 attempt 0 iteration 21 defect 1.3340e-03
+  implicit t 7.003860e-06 attempt 0 iteration 22 defect 1.0013e-03
+  implicit t 7.003860e-06 attempt 0 iteration 23 defect 7.5180e-04
+  implicit t 7.003860e-06 attempt 0 iteration 24 defect 5.6492e-04
+  implicit t 7.003860e-06 attempt 0 iteration 25 defect 4.2503e-04
+  implicit t 7.003860e-06 attempt 0 iteration 26 defect 3.2030e-04
+  implicit t 7.003860e-06 attempt 0 iteration 27 defect 2.4182e-04
+  implicit t 7.003860e-06 attempt 0 iteration 28 defect 1.8291e-04
+  implicit t 7.003860e-06 attempt 0 iteration 29 defect 1.3860e-04
+  implicit t 7.003860e-06 attempt 0 iteration 30 defect 1.0521e-04
+  implicit t 7.003860e-06 attempt 0 iteration 31 defect 7.9986e-05
+  implicit t 7.003860e-06 attempt 0 iteration 32 defect 6.0894e-05
+  implicit t 7.003860e-06 attempt 0 iteration 33 defect 4.6417e-05
+  implicit t 7.003860e-06 attempt 0 iteration 34 defect 3.5417e-05
+  implicit t 7.003860e-06 attempt 0 iteration 35 defect 2.7059e-05
+  implicit t 7.003860e-06 attempt 0 iteration 36 defect 2.0698e-05
+  implicit t 7.003860e-06 attempt 0 iteration 37 defect 1.5849e-05
+  implicit t 7.003860e-06 attempt 0 iteration 38 defect 1.2149e-05
+  implicit t 7.003860e-06 attempt 0 iteration 39 defect 9.3206e-06
+  implicit t 7.003860e-06 attempt 0 iteration 40 defect 7.1562e-06
+  implicit t 7.003860e-06 attempt 0 iteration 41 defect 5.4992e-06
+  implicit t 7.003860e-06 attempt 0 iteration 42 defect 4.2291e-06
+  implicit t 7.003860e-06 attempt 0 iteration 43 defect 3.2546e-06
+  implicit t 7.003860e-06 attempt 0 iteration 44 defect 2.5063e-06
+  implicit t 7.003860e-06 attempt 0 iteration 45 defect 1.9313e-06
+  implicit t 7.003860e-06 attempt 0 iteration 46 defect 1.4901e-06
+  implicit t 7.003860e-06 attempt 0 iteration 47 defect 1.1496e-06
+  implicit t 7.003860e-06 attempt 0 iteration 48 defect 8.8654e-07
+
+end 0.007 ms after 2 steps (0 replans), wall 0 s
+budgets: mass -1.15e-15  energy 5.70e-16
+implicit: 2 steps, 104 inner iterations (52.000 per step, most 56), 0 unconverged, 1 rejected; wall 1.694e-03 s per inner iteration with the projection's share
+cost: 114.721 us of wall time per cell update on 1 threads, 25.2 s per simulated ms over the run
+reaction wall 0.0 s (23.2% of the run), 26.633 us per cell update
+table: 168192 cell updates from it (148776 clamped at an axis end), 0 outside it took the direct call (0.000e+00)
+drift over last 1 ms: outlet mass flow 1.80e+00, injector pressure 2.69e-01, vacuum thrust 3.25e-01
+chamber end: static 0.00100 MPa, equilibrium stagnation p0 0.00100 MPa; injector face 0.01031 MPa
+simulated: mdot out -0.000000 kg/s (supply 0.005603), c* -335255165790813120.00 m/s, vacuum thrust 20.01 N, vacuum Isp -2177793850155471872.00 s
+ideal-rocket comparison failed at p0 = 1000 Pa: 
+*******************************************************************************
+CanteraError thrown by ThermoPhase::setState_HPorUV (HP):
+No convergence in 500 iterations
+	Target Enthalpy         = 5827.099100208228
+	Current Pressure        = 1000.0000008758328
+	Starting Temperature    = 2999.9999999999977
+	Current Temperature     = 1.887508982331022e-223
+	Current Enthalpy        = 25490821.74175619
+	Current Delta T         = -3.775017964662044e-223
+*******************************************************************************
+

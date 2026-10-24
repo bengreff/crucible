@@ -2,6 +2,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -431,10 +432,15 @@ public:
     // until the cell is admissible; a final state that is not admissible, or a failed evaluation, halves the step (at
     // most 14 times). Returns the step taken.
     // extrapolate: the first iterate U^n + w (U^n - U^(n-1)) in each cell where it is admissible (U^n elsewhere and
-    // without a history); trace: each inner iteration's defect to stdout.
-    struct ImplicitControl { double tolerance{1e-6}; int maxIterations{100}; double pseudoCfl{1e6}; bool extrapolate{false}, trace{false}; };
+    // without a history); trace: each inner iteration's defect to stdout. project, when set, is called before each
+    // residual with the iterate swapped into the state (a closure's projection of the composition, such as Table A's,
+    // inside the step instead of split after it).
+    struct ImplicitControl {
+        double tolerance{1e-6}; int maxIterations{100}; double pseudoCfl{1e6}; bool extrapolate{false}, trace{false};
+        std::function<void()> project;
+    };
     struct ImplicitStats {
-        std::uint64_t steps{}, iterations{}, rejected{}, unconverged{};
+        std::uint64_t steps{}, iterations{}, rejected{}, unconverged{}, rejectedIterations{};  // the last: spent on rejected attempts
         int lastIterations{}, mostIterations{};
         double lastDefect{}, lastFirstDefect{};
     };

@@ -103,9 +103,11 @@ double Flow::implicitStep(double dt,const ImplicitControl& control) {
         if(history) { const double w=dt/implicitPreviousDt_;a=(1+w)/(1+2*w);c=w*w/(1+2*w); }
         for(std::size_t q=0;q<n;++q) {
             double* known=implicitKnown_.data()+q*nv;
-            for(int k=0;k<4;++k) known[k]=(1+c)*start[q][k]-(history?c*implicitPrevious_[q][k]:0.0);
+            // As U^n + c (U^n - U^(n-1)): (1 + c) U^n - c U^(n-1) rounds with a bias (about -6e-17 of U at c = 1/3)
+            // that does not vanish when U^n = U^(n-1), and the budgets drift by it every step.
+            for(int k=0;k<4;++k) known[k]=start[q][k]+(history?c*(start[q][k]-implicitPrevious_[q][k]):0.0);
             for(std::size_t k=0;k<ns_;++k)
-                known[4+k]=(1+c)*startSpecies[q*ns_+k]-(history?c*implicitPreviousSpecies_[q*ns_+k]:0.0);
+                known[4+k]=startSpecies[q*ns_+k]+(history?c*(startSpecies[q*ns_+k]-implicitPreviousSpecies_[q*ns_+k]):0.0);
         }
         // The igniter's mean power over [t, t + h], as the explicit step's.
         const auto& ig=definition_.igniter;
@@ -132,6 +134,11 @@ double Flow::implicitStep(double dt,const ImplicitControl& control) {
         std::array<double,4> scale{};
         try {
             for(;;++it) {
+                if(control.project) {
+                    state_.swap(stage_);species_.swap(speciesStage_);
+                    try { control.project(); } catch(...) { state_.swap(stage_);species_.swap(speciesStage_);throw; }
+                    state_.swap(stage_);species_.swap(speciesStage_);
+                }
                 rates=rhs(stage_,speciesStage_,turbulence_,rhs_,speciesRhs_,turbulenceRhs_,time_+dt);
                 if(it==0) {
                     double r2=0,ra2=0,e2=0;
@@ -183,8 +190,16 @@ double Flow::implicitStep(double dt,const ImplicitControl& control) {
                 const double* known=implicitKnown_.data()+q*nv;
                 for(int k=0;k<4;++k) next_[q][k]=known[k]+a*dt*rhs_[q][k];
                 for(std::size_t k=0;k<ns_;++k) speciesNext_[q*ns_+k]=known[4+k]+a*dt*speciesRhs_[q*ns_+k];
-                if(!admissible(next_[q],speciesNext_.data()+q*ns_,nullptr)) ok=false;
             }
+            // With the projection inside, the final update's transported composition (unreacted over the step) is
+            // projected before it is judged, as the iterates were: at the reacted gas's energy it can fall below the floor.
+            if(control.project) {
+                state_.swap(next_);species_.swap(speciesNext_);
+                try { control.project(); } catch(const std::runtime_error&) { ok=false; }
+                state_.swap(next_);species_.swap(speciesNext_);
+            }
+            for(std::size_t q=0;q<n && ok;++q)
+                if(!admissible(next_[q],speciesNext_.data()+q*ns_,nullptr)) ok=false;
             if(ok) {
                 implicitPrevious_=start;implicitPreviousSpecies_=startSpecies;implicitPreviousDt_=dt;
                 state_.swap(next_);species_.swap(speciesNext_);
@@ -213,7 +228,7 @@ double Flow::implicitStep(double dt,const ImplicitControl& control) {
                 return dt;
             }
         }
-        ++rejectedSteps_;++implicitStats_.rejected;
+        ++rejectedSteps_;++implicitStats_.rejected;implicitStats_.rejectedIterations+=static_cast<std::uint64_t>(it);
     }
     throw std::runtime_error("Could not advance an admissible gas state after 14 implicit step reductions.");
 }

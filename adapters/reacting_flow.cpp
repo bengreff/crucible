@@ -373,10 +373,24 @@ double ReactingFlow::step(double maxDt) {
   return taken;
 }
 
-double ReactingFlow::implicitStep(double dt, const Flow::ImplicitControl& control) {
+double ReactingFlow::implicitStep(double dt, const Flow::ImplicitControl& control, bool inside) {
   if (chemistry_ == Chemistry::FiniteRate || spray_)
     throw std::runtime_error("The implicit prototype takes equilibrium or frozen chemistry and no spray.");
-  const double taken = flow_.implicitStep(dt, control);
+  if (inside && !table_) throw std::runtime_error("The projection inside the implicit step needs Table A.");
+  Flow::ImplicitControl c = control;
+  // The projection's own failures (Cantera's, at a non-finite iterate) reach the step as std::runtime_error,
+  // which it takes as a failed attempt and halves the step.
+  if (inside)
+    c.project = [this] {
+      try {
+        react(0);
+      } catch (const std::runtime_error&) {
+        throw;
+      } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("The projection failed: ") + e.what());
+      }
+    };
+  const double taken = flow_.implicitStep(dt, c);
   react(taken);
   ++stats_.steps;
   return taken;

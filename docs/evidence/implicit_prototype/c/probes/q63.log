@@ -1,0 +1,25 @@
+implicit prototype: BDF2 at dt 7.003860e-06 s, inner tolerance 1.000e-06, at most 400 inner iterations, pseudo CFL 3, extrapolated first iterate on, Table A inside each inner iteration and after the step
+mechanism: h2o2.yaml
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 64x12: dz 2.604 mm, throat station 32 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 17 at z 0.0456 m
+chemistry eqt; igniter 0.5 J over 0.2 ms from 0.2 ms
+
+end 1.500 ms after 247 steps (0 replans), wall 20 s
+budgets: mass -5.68e-13  energy -1.23e-11
+implicit: 247 steps, 15654 inner iterations (63.377 per step, most 400), 1 unconverged, 32 rejected; wall 1.304e-03 s per inner iteration with the projection's share
+cost: 107.636 us of wall time per cell update on 1 threads, 13.6 s per simulated ms over the run
+step limit after 1 ms (73 samples): mean step inf s; set in the wall row 0.0%, the axis row 100.0%, upstream of the throat 100.0%, at it (its two columns) 0.0%, downstream 0.0%; diffusive rate above convective 0.0%; last: step inf s set by cell (0, 0), convective 0.000e+00 and diffusive 0.000e+00 per s
+reaction wall 4.7 s (23.0% of the run), 24.734 us per cell update
+table: 15897600 cell updates from it (1409061 clamped at an axis end), 0 outside it took the direct call (0.000e+00)
+drift over last 1 ms: outlet mass flow 5.93e-01, injector pressure 5.15e-01, vacuum thrust 5.18e-01
+chamber end: static 2.95357 MPa, equilibrium stagnation p0 2.97008 MPa; injector face 3.12765 MPa
+simulated: mdot out 0.377948 kg/s (supply 0.400000), c* 2468.80 m/s, vacuum thrust 1604.47 N, vacuum Isp 432.89 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3345.5 K, c* 2428.29 m/s, Isp_vac shifting 435.87 s, frozen 419.12 s, gamma 1.2076
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2436.93 m/s, Isp_vac shifting 428.99 s, frozen 412.45 s, F_vac 1590.02 N
+simulated/predicted - 1: c* +1.3078%, Isp_vac (shifting) +0.9089%
+real 254.84
+user 218.07
+sys 0.98

@@ -339,21 +339,33 @@ int main(int argc, char** argv) {
   const int nz = std::atoi(argv[2]), nr = std::atoi(argv[3]), threads = std::atoi(argv[5]);
   const double end = std::atof(argv[4]);
   // The implicit prototype's case C (docs/evidence/IMPLICIT_PROTOTYPE.md; added 24 October 2026):
-  // CRUCIBLE_IMPLICIT = "dt,tolerance[,max iterations[,pseudo CFL[,extrapolate (0/1)[,trace (0/1)]]]]" marches by ReactingFlow::implicitStep at the
+  // CRUCIBLE_IMPLICIT = "dt,tolerance[,max iterations[,pseudo CFL[,extrapolate (0/1)[,trace (0/1)[,Table A inside the
+  // step (0/1)]]]]]" marches by ReactingFlow::implicitStep at the
   // fixed step dt (each step to the next multiple of dt, or the end), sampling after every step instead of every 2 us, and
   // writes each step's inner iterations and defects to <prefix>_implicit.csv.
   double implicitDt = 0;
+  bool implicitInside = false;
   Flow::ImplicitControl implicitControl;
   if (const char* text = std::getenv("CRUCIBLE_IMPLICIT")) {
-    int extrapolate = 0, trace = 0;
-    if (std::sscanf(text, "%lf,%lf,%d,%lf,%d,%d", &implicitDt, &implicitControl.tolerance, &implicitControl.maxIterations,
-                    &implicitControl.pseudoCfl, &extrapolate, &trace) < 2 || !(implicitDt > 0))
-      throw std::runtime_error("CRUCIBLE_IMPLICIT is dt,tolerance[,max iterations[,pseudo CFL[,extrapolate[,trace]]]]");
+    int extrapolate = 0, trace = 0, inside = 0;
+    if (std::sscanf(text, "%lf,%lf,%d,%lf,%d,%d,%d", &implicitDt, &implicitControl.tolerance, &implicitControl.maxIterations,
+                    &implicitControl.pseudoCfl, &extrapolate, &trace, &inside) < 2 || !(implicitDt > 0))
+      throw std::runtime_error("CRUCIBLE_IMPLICIT is dt,tolerance[,max iterations[,pseudo CFL[,extrapolate[,trace[,inside]]]]]");
     implicitControl.extrapolate = extrapolate != 0;
     implicitControl.trace = trace != 0;
+    implicitInside = inside != 0;
     std::printf("implicit prototype: BDF2 at dt %.6e s, inner tolerance %.3e, at most %d inner iterations, pseudo CFL %.3g, "
-                "extrapolated first iterate %s\n", implicitDt, implicitControl.tolerance, implicitControl.maxIterations,
-                implicitControl.pseudoCfl, implicitControl.extrapolate ? "on" : "off");
+                "extrapolated first iterate %s, Table A %s\n", implicitDt, implicitControl.tolerance,
+                implicitControl.maxIterations, implicitControl.pseudoCfl, implicitControl.extrapolate ? "on" : "off",
+                implicitInside ? "inside each inner iteration and after the step" : "after the step (split)");
+  }
+  // CRUCIBLE_IMPLICIT_WINDOW = "from,until": the implicit march only over [from, until), the explicit one outside it
+  // (criterion 5's diagnosis: each march's boundary rates at the other's settled state).
+  double implicitFrom = 0, implicitUntil = std::numeric_limits<double>::infinity();
+  if (const char* text = std::getenv("CRUCIBLE_IMPLICIT_WINDOW")) {
+    if (std::sscanf(text, "%lf,%lf", &implicitFrom, &implicitUntil) != 2 || !(implicitDt > 0))
+      throw std::runtime_error("CRUCIBLE_IMPLICIT_WINDOW is from,until, with CRUCIBLE_IMPLICIT set");
+    std::printf("implicit only over [%.6f, %.6f) ms, explicit outside it\n", implicitFrom * 1e3, implicitUntil * 1e3);
   }
   // pasr: the criterion-4 runs (judged); turbulent: those and eqtt.
   const bool pasr = mode == "frt" || mode == "frp", turbulent = pasr || mode == "eqtt", closure = mode == "frp";
@@ -390,6 +402,7 @@ int main(int argc, char** argv) {
 
   Definition d;
   d.experiment = Case::Chamber;
+  if (const char* v = std::getenv("CRUCIBLE_CFL")) d.cfl = std::atof(v);  // the explicit march's CFL (default 0.4)
   d.nz = nz;
   d.nr = nr;
   d.contour = geo.contour;
@@ -658,6 +671,10 @@ int main(int argc, char** argv) {
   std::vector<Row> rows;
   // Criterion 4 (a) over the whole run and (b) at every sample.
   const double initialEnergy = flow.measurements().energy;
+  // Every run's budgets against the throughput (the implicit prototype's criterion 2), largest over the samples:
+  // the residuals in kg and J, the supplied mass (trapezoids over the samples) and its total enthalpy at 300 K.
+  const double initialMass = flow.measurements().mass;
+  double worstMassKg = 0, worstEnergyJ = 0, suppliedMass = 0, lastSupplyTime = 0, lastSupply = 0;
   double worstMass = 0, worstEnergyResidual = 0, negativeAt = -1, lightOff = -1, segregatedAtLightOff = 0;
   // The cell that set the step at each sample (Flow::stepLimit, added 13 October 2026 for the implicit-time decision
   // rule): wall row, axis row or between; upstream of, within one column of, or downstream of the throat station; and
@@ -675,6 +692,11 @@ int main(int argc, char** argv) {
   };
   auto sample = [&]() {
     auto m = flow.measurements();
+    worstMassKg = std::max(worstMassKg, std::abs(m.massBalanceError * initialMass));
+    worstEnergyJ = std::max(worstEnergyJ, std::abs(m.energyBalanceError * initialEnergy));
+    suppliedMass += 0.5 * (lastSupply + m.supplyMassFlow) * (m.time - lastSupplyTime);
+    lastSupplyTime = m.time;
+    lastSupply = m.supplyMassFlow;
     if (m.time > 1e-3) {
       const auto& l = flow.stepLimit();
       const int i = static_cast<int>(l.cell / nr), j = static_cast<int>(l.cell % nr);
@@ -783,13 +805,14 @@ int main(int argc, char** argv) {
   if (implicitLog) std::fprintf(implicitLog, "t,dt,iterations,first_defect,last_defect,rejected_so_far\n");
   auto march = [&](double end) {
   while (flow.time() < end && !settledStop) {
-    if (implicitDt > 0) {
+    if (implicitDt > 0 && flow.time() >= implicitFrom - 1e-12 && flow.time() < implicitUntil - 1e-12) {
       if (end - flow.time() < 1e-12) break;
       // To the next multiple of dt, so that a step halved by a rejection is followed by one that lands back on the
       // grid and the runs at dt and dt / 2 share their sample times.
       double target = (std::floor(flow.time() / implicitDt + 1e-6) + 1) * implicitDt;
       if (end - target < 1e-12) target = end;
-      reacting.implicitStep(target - flow.time(), implicitControl);
+      if (implicitUntil - target < 1e-12) target = std::min(target, implicitUntil);
+      reacting.implicitStep(target - flow.time(), implicitControl, implicitInside);
       const auto& s = flow.implicitStats();
       std::fprintf(implicitLog, "%.9e,%.6e,%d,%.4e,%.4e,%llu\n", flow.time(), flow.measurements().dt, s.lastIterations,
                    s.lastFirstDefect, s.lastDefect, static_cast<unsigned long long>(s.rejected));
@@ -919,14 +942,27 @@ int main(int argc, char** argv) {
   std::printf("\nend %.3f ms after %ld steps (%ld replans), wall %.0f s\n", m.time * 1e3, reacting.stats().steps,
               reacting.stats().replans, wall);
   std::printf("budgets: mass %.2e  energy %.2e\n", m.massBalanceError, m.energyBalanceError);
+  {
+    const auto& supply = flow.definition().supplies[0];
+    const double supplied = suppliedMass * flow.medium().enthalpy(supply.totalTemperature, supply.composition.data()) +
+                            m.igniterEnergy;
+    std::printf("budgets against the throughput, largest over the samples: mass %.3e kg of %.4e kg supplied (%.2e); "
+                "energy %.3e J of %.4e J, the supplied total enthalpy and the igniter's energy (%.2e), and of |E| at "
+                "the end %.4e J (%.2e)\n",
+                worstMassKg, suppliedMass, worstMassKg / suppliedMass, worstEnergyJ, supplied,
+                worstEnergyJ / std::abs(supplied), std::abs(m.energy), worstEnergyJ / std::abs(m.energy));
+  }
   if (implicitDt > 0) {
     std::fclose(implicitLog);
     const auto& s = flow.implicitStats();
-    std::printf("implicit: %llu steps, %llu inner iterations (%.3f per step, most %d), %llu unconverged, %llu rejected; "
-                "wall %.3e s per inner iteration with the projection's share\n", static_cast<unsigned long long>(s.steps),
-                static_cast<unsigned long long>(s.iterations), static_cast<double>(s.iterations) / static_cast<double>(s.steps),
-                s.mostIterations, static_cast<unsigned long long>(s.unconverged), static_cast<unsigned long long>(s.rejected),
-                wall / static_cast<double>(s.iterations));
+    std::printf("implicit: %llu steps, %llu inner iterations (%.3f per step, most %d), %llu unconverged, %llu rejected "
+                "(%llu inner iterations on them); wall %.3e s per inner iteration, all counted, with the projection's share\n",
+                static_cast<unsigned long long>(s.steps), static_cast<unsigned long long>(s.iterations),
+                static_cast<double>(s.iterations) / static_cast<double>(s.steps), s.mostIterations,
+                static_cast<unsigned long long>(s.unconverged), static_cast<unsigned long long>(s.rejected),
+                static_cast<unsigned long long>(s.rejectedIterations),
+                wall / static_cast<double>(s.iterations + s.rejectedIterations));
+    std::printf("march wall %.3f s\n", wall);
   }
   std::printf("cost: %.3f us of wall time per cell update on %d threads, %.1f s per simulated ms over the run\n",
               1e6 * wall / (static_cast<double>(reacting.stats().steps) * flow.state().size()), threads,

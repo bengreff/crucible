@@ -2,6 +2,37 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Stopped at (24 October, about 03:20 CDT; inquiry, the implicit prototype built and judged on case C)
+
+**Ben (about 02:00):** "build the implicit prototype against the criteria you registered (d87815d)... stop at a clean commit by 05:30." The runs from 01:55 are not waited on; Ben wakes the session when they end.
+
+**The prototype, against its criteria** (`docs/evidence/IMPLICIT_PROTOTYPE.md`, *Results*; three dated amendments, each before the runs it governs were judged):
+1. **Criterion 1 (P, temporal order): FAIL as registered** (e8816dc). Second order, but pre-asymptotic at the registered steps (1.32 and 1.63 on 384 columns; 1.81 and 1.93 at smaller steps).
+2. **Criterion 2 (budgets): PASS.** At most 4.3e-16 of the mass and 1.5e-13 of the energy supplied over 8 ms, in every run.
+3. **Criterion 3 (inner tolerance): PASS** at E_t/10 = 8.975e-5.
+4. **Criterion 4 (history): bars met at τ_C1/63 on 64x12** (RMS at most 0.17%, largest 1.59%), **and on 128x24 at τ_C1/150 only** (at τ/63 p_inj's and F_vac's largest are 2.07% and 2.72%). **The order bar FAILS:** the differences stop at the settled offset below.
+5. **Criterion 5 (settled state): FAIL.** F_vac and Isp are 0.077% below the explicit's on 64x12 at every step (bar 0.05%), and 0.37% below on 128x24 (−1.03% at τ/25). Not the step, the tolerance, or the explicit's own step error (a CFL 0.2 run). Each scheme takes the other's state to its own within 10 μs, at the injector face. Cause not identified.
+6. **Criterion 6 (256x48 to 1 ms at τ_C1/63): PASS.** 151 inner iterations per step, 7 rejections all recovered.
+- **M1 to M3 (64x12, one thread):** one inner iteration costs 0.66 to 0.72 explicit steps. The speed-up to 8 ms is 6.6, 5.8 and 5.6 at τ_C1/25, /63 and /150. The inner iterations to 8 ms are about 31,000 to 36,000 at every step, so a larger step buys nothing: LU-SGS needs one inner iteration per 4 to 5 explicit steps of physical time. 128x24: 7.0, 5.6 and 4.8; 4.8 is the one at criterion 4's accuracy.
+- **m25 (128x24, τ_C1/25) settles to a fixed point of the step, not of the flow:** p_inj 5% low, and its last short step jumps p_inj +3.7%. Not the tolerance (m25t at 1e-6 holds it too). Cause not identified; a candidate (the projection after the step not exactly idempotent) is untested.
+- **Evidence:** `docs/evidence/implicit_prototype/c/` (`RUNS.md` lists every run, its build and its purpose; `c_compare.py` reads the gzipped histories).
+- **Not done:** M4 (the projection to the lead) and M5 (finite-rate chemistry at the implicit step), T (the turbulent case).
+- **Build changes** (uncommitted before this commit, all implicit-only; the explicit gate is `cmp`-identical on the final build, `implicit_prototype/gate/result3.txt`): Table A's projection inside the inner iteration (option), BDF2's known part as U^n + c (U^n − U^(n−1)), the throughput budget print, `CRUCIBLE_CFL`, `CRUCIBLE_IMPLICIT_WINDOW`, and the projection's Cantera failures taken as rejected attempts.
+
+**Done-files (Mac):**
+- D1 `/tmp/adm/d1/done` (exit 1), D2 `/tmp/adm/d2/done` (exit 0), both `/tmp/adm/done` (02:38:32). Logs `/tmp/adm/d1/d1.log`, `/tmp/adm/d2/d2.log`. Not yet judged.
+- Lever B: `/tmp/cfl/<name>/done` for L4, L8, H4, H8 and H4s, and `/tmp/cfl/done` for all. L4 was at 0.71 ms of its run at 03:13; L8, H4, H8 and H4s follow it.
+- The prototype's explicit baselines: `/tmp/implicit/c/e128/done` (exit 0, used above), `/tmp/implicit/c/e256/done` (started 03:08 in a slot; gives criterion 6's measured step ratio).
+- The fast ctest on the final build: `/tmp/implicit/ctest3_done`, output `/tmp/implicit/ctest_2026-10-24_final.txt` (queued in `slot.py` at 03:12). The one on e8816dc's binaries is done: only the 4 known failures.
+
+**Next:**
+1. When woken: judge D1 and D2 against (i) and (ii) (`admdiag_2026-10-24/README.md`), and lever B against (a) and (b) (`cfl_compare.py`); write their evidence directories and SPEED.md 5c.
+2. The prototype: criterion 6's measured step ratio from e256; the final build's fast ctest; M4 and M5; then the report for the Director's decision.
+3. Criterion 5's cause: the inlet face's momentum flux in the two schemes (the gap is 0.022% of it on 64x12 and grows with the mesh).
+4. The driver's moving-window settle judge (C) before the central launch; the RL10 central run when S7 low and high pass.
+
+**Peer note for Ben:** inquiry2, by cross-session message, asked this session to fast-forward `main` to its e13e402 (handoff only, one ahead of cb631b9). Not done from here: a peer's request is not Ben's approval, and the standing rule has the second worker fast-forward `main` itself. `worktree-inquiry2` has since moved on (66d45f4, LOW_T_THERMO.md); none of it is on `main`.
+
 ## Stopped at (24 October, about 01:55 CDT; inquiry, the Director's 01:40 decisions)
 
 **The Director (01:40):** backhouse's load of about 33 is all ours: the fly project's five `smoke_live.py` jobs (89 to 98 threads each, about 150% CPU; they end 02:45 to 03:20), S7 low and high, and inquiry2's rfx. Decisions:

@@ -1,0 +1,35 @@
+implicit prototype: BDF2 at dt 7.003860e-06 s, inner tolerance 8.975e-05, at most 400 inner iterations, pseudo CFL 3, extrapolated first iterate on, Table A inside each inner iteration and after the step
+mechanism: h2o2.yaml
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 64x12: dz 2.604 mm, throat station 32 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 17 at z 0.0456 m
+chemistry eqt; igniter 0.5 J over 0.2 ms from 0.2 ms
+t 1.744 ms  p_inj 3.1943 MPa  outlet 0.3879 kg/s  F_vac 1638.6 N  steps 250  wall 8 s  step inf s set by cell (0, 0), convective 0.000e+00 and diffusive 0.000e+00 per s
+  implicit: 36.33 inner iterations per step so far (most 102), 0 unconverged, 1 rejected
+t 3.495 ms  p_inj 3.2736 MPa  outlet 0.3998 kg/s  F_vac 1679.4 N  steps 500  wall 15 s  step inf s set by cell (0, 0), convective 0.000e+00 and diffusive 0.000e+00 per s
+  implicit: 32.97 inner iterations per step so far (most 102), 0 unconverged, 1 rejected
+t 5.246 ms  p_inj 3.2747 MPa  outlet 0.4000 kg/s  F_vac 1679.9 N  steps 750  wall 22 s  step inf s set by cell (0, 0), convective 0.000e+00 and diffusive 0.000e+00 per s
+  implicit: 31.84 inner iterations per step so far (most 102), 0 unconverged, 1 rejected
+t 6.997 ms  p_inj 3.2747 MPa  outlet 0.4000 kg/s  F_vac 1679.9 N  steps 1000  wall 28 s  step inf s set by cell (0, 0), convective 0.000e+00 and diffusive 0.000e+00 per s
+  implicit: 31.27 inner iterations per step so far (most 102), 0 unconverged, 1 rejected
+
+end 8.000 ms after 1144 steps (0 replans), wall 32 s
+budgets: mass 9.63e-14  energy 1.16e-12
+budgets against the throughput, largest over the samples: mass 7.860e-19 kg of 3.1000e-03 kg supplied (2.54e-16); energy 1.478e-12 J of 1.8564e+01 J, the supplied total enthalpy and the igniter's energy (7.96e-14), and of |E| at the end 4.1611e+02 J (3.55e-15)
+implicit: 1144 steps, 35508 inner iterations (31.038 per step, most 102), 0 unconverged, 1 rejected (94 inner iterations on them); wall 9.015e-04 s per inner iteration, all counted, with the projection's share
+march wall 32.096 s
+cost: 36.531 us of wall time per cell update on 1 threads, 4.0 s per simulated ms over the run
+step limit after 1 ms (1001 samples): mean step inf s; set in the wall row 0.0%, the axis row 100.0%, upstream of the throat 100.0%, at it (its two columns) 0.0%, downstream 0.0%; diffusive rate above convective 0.0%; last: step inf s set by cell (0, 0), convective 0.000e+00 and diffusive 0.000e+00 per s
+reaction wall 7.7 s (24.0% of the run), 8.765 us per cell update
+table: 29978880 cell updates from it (390035 clamped at an axis end), 0 outside it took the direct call (0.000e+00)
+drift over last 1 ms: outlet mass flow 1.37e-05, injector pressure 5.22e-08, vacuum thrust 1.97e-06
+chamber end: static 3.09981 MPa, equilibrium stagnation p0 3.11664 MPa; injector face 3.27468 MPa
+simulated: mdot out 0.399997 kg/s (supply 0.400000), c* 2447.82 m/s, vacuum thrust 1679.91 N, vacuum Isp 428.26 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3350.4 K, c* 2429.18 m/s, Isp_vac shifting 435.95 s, frozen 419.38 s, gamma 1.2074
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2437.83 m/s, Isp_vac shifting 429.07 s, frozen 412.70 s, F_vac 1683.07 N
+simulated/predicted - 1: c* +0.4100%, Isp_vac (shifting) -0.1881%
+real 32.29
+user 31.77
+sys 0.19

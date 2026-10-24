@@ -109,6 +109,33 @@ What the build changed from the plan above. Below that are the definitions crite
 - **M2's explicit wall per step** is measured by the explicit baseline on the same mesh, in the same batch, on one thread.
   - Both runs share the machine's load at the time. The load is stated with each number.
 
+## Second amendment, 24 October 2026, about 02:45 CDT (after case C's first runs at the registered steps; the criteria are unchanged)
+
+Four changes to the build and one to how criterion 2 is measured. They were made after the first case C runs, and every run is reported below, including the ones from before the changes.
+
+- **Table A's projection can run inside the inner iteration.** This is an option: `ReactingFlow::implicitStep(dt, control, inside)`, which is the seventh field of `CRUCIBLE_IMPLICIT`.
+  - Why: the split of the first amendment is first order at the injector face, and at τ_C1/63 it misses criterion 4 by a factor of about 30 (below).
+  - With the option, each inner iterate is projected before its residual is formed. The final update is projected before it is judged admissible.
+  - The final update's projection was added after the first inside runs rejected every full step. The update's composition, transported but unreacted, fell below the floor at the reacted gas's energy.
+  - The budgets are unaffected: the projection keeps ρ, ρu, E and the elements.
+- **The inner settings are pseudo CFL 3 with the extrapolated first iterate.** They were chosen from seven probes to 0.5 ms (table below). They are settings of the solver, not of a criterion.
+- **BDF2's known part is formed as U^n + c (U^n − U^(n−1)).** The old form was (1 + c) U^n − c U^(n−1).
+  - The two are equal in exact arithmetic. In floating point the old form rounds with a bias of about −6e-17 of U at c = 1/3. The bias does not vanish when U^n = U^(n−1), so the budgets drifted by it every step.
+  - *Measured:* with the old form, the energy budget fell linearly to −8.3e-11 of the initial fill at τ/63, and to −1.6e-10 at τ/126, which has twice the steps. With the new form, the largest is 8.8e-12 and 6.7e-12, with no trend.
+- **Criterion 2 is now measured as registered, against the throughput.**
+  - The history's budgets are normalised by the initial fill. In C1 that is nitrogen at 1 kPa: about 0.25 J of energy, against 18.6 J supplied over 8 ms.
+  - `crucible_chamber_study` now prints, for every run, the largest residual over the samples in kg and J. It gives each against the mass supplied, against the supplied total enthalpy at 300 K plus the igniter's energy, and against |E| at the end.
+  - The enthalpy reference is the mechanism's (formation at 298.15 K), so propellant at 300 K carries little energy. That is why |E| at the end (416 J) is printed as a second scale.
+  - The bar (1e-11) is unchanged.
+- **`CRUCIBLE_CFL` sets the explicit march's CFL.** The default stays 0.4. It is used for criterion 5's diagnosis below.
+
+## Third amendment, 24 October 2026, about 02:55 CDT (after criteria 2 to 5 were measured on 64x12; the criteria are unchanged)
+
+- **`CRUCIBLE_IMPLICIT_WINDOW=from,until`** (seconds) runs the implicit step only over [from, until), and the explicit march outside it. It is for criterion 5's diagnosis: each scheme started from the other's settled state.
+- **A failure inside the projection is a failed attempt.** Cantera's own exception (a non-finite temperature at an iterate) is now rethrown by the adapter as `std::runtime_error`, which the step takes as a rejected attempt and halves the step.
+  - Why: m150 (128x24, τ_C1/150) stopped at 0.147 ms on `CanteraError: temperature must be positive. T = nan` from the projection of an inner iterate. The exception was not a `std::runtime_error`, so the step did not catch it.
+  - The explicit march does not call this code; its gate is unaffected.
+
 ## Results
 
 ### Criterion 1 (P): FAIL as registered *(measured, 24 October, about 01:00 to 02:05 CDT, Mac, one thread)*
@@ -152,3 +179,171 @@ These ran at Δt = 7.94 μs on 64x12, a step chosen before τ_C1 was measured. L
   - With tolerance 1e-6 and a limit of 100 iterations, 35 of the first 43 steps (0.3 ms) ended unconverged, and 10 attempts were rejected.
   - With a pseudo CFL of 3 and a limit of 300, the first 0.1 ms took 150 iterations per step, with none unconverged.
 - **One inner iteration costs 6.6e-4 to 9.0e-4 s,** with Table A's projection's share included. The explicit 64x12 step in the gate run costs 1.7e-3 s (29 s for 17,008 steps). That puts M2 at about 0.4 to 0.5 *(measured walls, both under a load of about 10 to 12 on 10 CPUs; not the judged M2)*.
+
+### Case C: the split is first order at the injector face *(measured, 64x12, 24 October, about 02:15 to 02:30 CDT)*
+
+These runs used Table A's projection after the step (the first amendment's split), with tolerance 1e-6, at most 400 iterations, pseudo CFL 3 and the extrapolated first iterate. Logs: `implicit_prototype/c/t63/` and `t126/`.
+- **p_inj sits above the explicit run's by an amount proportional to the step.** Over [0.5, 8] ms the RMS difference is 14.3% at τ_C1/63 (largest 14.4%) and 7.3% at τ_C1/126 (largest 7.4%).
+  - Why: each step transports unreacted propellant into the first columns and then projects it. The injector face sees that composition for a whole step.
+- **The explicit march is the same split at its own step** (0.06 μs, 117 times smaller than τ_C1/63). By the same scaling, its own p_inj carries about 0.12% *(derived)*.
+- **The split's F_vac jumps on the run's last, short step.** At τ/63 it goes from 1668 to 2140 N on the 1.6 μs step that lands on 8 ms. The device thrust comes from the inner iterate's rates, taken before the projection, while the cell pressures are taken after it.
+  - Not pursued: the split is not the build carried forward.
+- **E_t for the split pair is 7.0%** (p_inj). Criterion 4 is not met at τ/63.
+- 96 inner iterations per step at τ/63 over 8 ms, against 39 with the projection inside (below).
+
+### Case C: the inner settings *(measured, probes to 0.5 ms at τ_C1/63, split, tolerance 1e-6, at most 400 iterations)*
+
+| Probe | Pseudo CFL | Extrapolated first iterate | Iterations per step (most) | Unconverged of 72 |
+|---|---|---|---|---|
+| pa | 1e6 | off | 353 (400) | 62 |
+| pc | 1e6 | on | 354 (400) | 61 |
+| pe | 30 | off | 344 (400) | 57 |
+| pd | 10 | off | 308 (400) | 47 |
+| pg | 1.5 | off | 210 (272) | 0 |
+| pb | 3 | off | 151 (217) | 0 |
+| pf | 3 | on | 133 (230) | 0 |
+
+- A large pseudo CFL stalls the LU-SGS iteration on the Rusanov-split Jacobian. Pseudo CFL 3 is the fastest that converges. The extrapolation saves 12%.
+
+### Criterion 2 on C: PASS *(measured, with the projection inside, the new known part)*
+
+- **In every run with the second amendment's build,** the largest residual over the samples is:
+  - mass: at most 4.3e-16 of the mass supplied over 8 ms (c25 to c150, s10, s100, k63, k126, m25, m63, w1), and 4.2e-15 over v63's 1 ms;
+  - energy: at most 1.5e-13 of the supplied total enthalpy and the igniter's energy over 8 ms, and 1.2e-12 over v63's 1 ms; at most 9e-15 of |E| at the end.
+  - The bar is 1e-11. w2, mostly explicit, gives 5.8e-16 and 4.2e-13.
+- **The explicit 64x12 run, for comparison:** its history's largest energy budget is 3.2e-11 of the initial fill. That is about 8e-12 J, or 4e-13 of the throughput *(derived from the fill's 0.245 J)*.
+- **The runs with the old known part** (i63 and i126, logs kept) drifted to 8.5e-11 and 1.65e-10 of the initial fill. That is 1.1e-12 and 2.2e-12 of the throughput *(derived)*. So they would pass the registered bar too, but the drift was a defect, and it is fixed.
+
+### Criterion 3: PASS at tolerance E_t/10 = 8.975e-5 *(measured, 24 October, about 02:38 to 02:41 CDT)*
+
+- **The pair at τ_C1/63 and τ_C1/126, tolerance 1e-6:** E_t = 8.975e-4, set by F_vac. The other two observables' RMS differences are 1.43e-4 (p_inj) and 1.45e-4 (outlet flow).
+  - E_t/1,000 came out below 1e-6, so the pair was repeated at 8.9748e-7, as registered. That gave E_t = 8.9749e-4.
+- **The sweep at τ_C1/63.** The E_t/1,000 run is the repeated pair's τ/63 member, k63. The bar is 0.1 E_t = 0.0090%.
+
+| Tolerance | p_inj RMS | outlet flow RMS | F_vac RMS | Iterations per step (most) |
+|---|---|---|---|---|
+| E_t/10 = 8.975e-5 | 0.00033% | 0.00062% | 0.00194% | 31.0 (102) |
+| E_t/100 = 8.975e-6 | 0.00005% | 0.00013% | 0.00032% | 33.9 (214) |
+| E_t/1,000 = 8.975e-7 | (reference) | | | 39.7 (243) |
+
+- **The loosest tolerance passes, by a factor of 4.6** on F_vac. 8.975e-5 is the tolerance for criteria 4 and 5 and for M1 to M3.
+- **The iterations barely depend on the tolerance:** 31 against 40 for 100 times tighter. Most steps reach the tolerance in a few iterations from the extrapolated iterate. The mean is set by the start and the fill (M1 below).
+
+### Criterion 4 on 64x12: the bars are met at τ_C1/63; the order FAILS as registered *(measured, 24 October, about 02:40 to 02:50 CDT)*
+
+Against the explicit run at CFL 0.4 (e64), over [0.5, 8] ms, tolerance 8.975e-5, each observable normalised by e64's [6, 8] ms mean:
+
+| Step | p_inj RMS (largest) | Outlet flow RMS (largest) | F_vac RMS (largest) | Iterations per step (most) |
+|---|---|---|---|---|
+| τ_C1/25 (c25) | 0.459% (3.63%) | 0.128% (0.684%) | 0.257% (1.92%) | 69.1 (400) |
+| τ_C1/63 (c63) | 0.0993% (0.330%) | 0.0166% (0.236%) | 0.169% (1.59%) | 31.0 (102) |
+| τ_C1/150 (c150) | 0.0970% (0.159%) | 0.0064% (0.081%) | 0.129% (0.571%) | 12.4 (400) |
+
+- **At τ_C1/63 the bars are met:** the largest RMS is 0.17% (bar 0.5%), and the largest single difference is 1.59% (bar 2%). At τ_C1/25 the RMS passes, but p_inj's largest (3.63%) does not.
+- **The order bar (at least 1) fails for p_inj and F_vac.** The observed orders are:
+  - p_inj: 1.66 from τ/25 to τ/63, then 0.03 from τ/63 to τ/150;
+  - outlet flow: 2.2, then 1.10 (passes);
+  - F_vac: 0.46, then 0.31.
+- **Why: the differences stop at a floor that does not depend on the step.** The floor is the settled offset of criterion 5 below. The implicit's settled state is the same to 7 digits at all three steps (p_inj 3.274683 MPa, F_vac 1679.906 N), so at τ/150 the RMS is almost all offset.
+- The first 0.5 ms (not judged): the outlet flow's largest difference is 11.9%, 10.6% and 7.7% at the three steps; the starting shock is smeared, as expected.
+
+### Criterion 5: FAIL *(measured, 64x12; 128x24 below)*
+
+Over [6, 8] ms against e64: F_vac and vacuum Isp are −0.0768% at τ_C1/25, /63 and /150, against the bar of 0.05%. c* is +0.012% (2447.80 against 2447.50 m/s; from the logs' *simulated* line, because the history's c* column is empty in these runs).
+
+**The offset is not the time step, not the inner tolerance, and not the explicit reference's step error.** *(measured unless labelled)*
+- **Not the step:** the implicit's settled F_vac is 1679.906 N at all three steps.
+- **Not the tolerance:** criterion 3's sweep moves F_vac by at most 0.0019% between tolerances 8.975e-5 and 8.975e-7.
+- **The explicit's own step error, from a run at CFL 0.2** (x64h, `CRUCIBLE_CFL=0.2`, settled means over [6, 8] ms):
+
+| | e64 (CFL 0.4) | x64h (CFL 0.2) | First-order limit *(derived)* | Implicit (all three steps) |
+|---|---|---|---|---|
+| p_inj (MPa) | 3.277835 | 3.276252 | 3.274669 | 3.274683 |
+| Wall axial force (N) | −4471.224 | −4471.564 | −4471.904 | −4471.911 |
+| F_vac (N) | 1681.198 | 1681.236 | 1681.273 | 1679.906 |
+
+- **The explicit's p_inj and wall force move with its step, and the implicit sits on their limit,** within 0.0004% and 0.007 N. That is the split at the injector face (first amendment), at the explicit's own 0.06 μs step.
+- **F_vac does not:** it barely moves with the explicit's step (+0.04 N), and the implicit is 1.37 N (0.081%) below its limit.
+  - With the wall force agreeing, the 1.37 N is in the inlet's momentum flux (F_vac − wall force, about 6,153 N). That is a difference of 0.022% in the inlet's gross flux, which the net thrust (3.7 times smaller) shows as 0.08% *(derived)*.
+  - It is not the explicit's booking of its two stages: that term is proportional to the explicit step, and halving the step moved F_vac by 0.04 N, not by half of 1.37 N.
+- **Each scheme takes the other's settled state to its own within about 10 μs** (`CRUCIBLE_IMPLICIT_WINDOW`, below):
+  - w1 (implicit to 7.9 ms, then explicit): p_inj rises from 3.27468 to 3.27821 MPa and F_vac from 1679.91 to 1681.3 N within 10 μs. p at the chamber end does not change.
+  - w2 (explicit to 7.9 ms, then implicit): p_inj falls from 3.27784 to 3.27421 MPa within the first two steps (7.4 μs), and F_vac is 1680.03 N at 8 ms, approaching 1679.9.
+  - So the two discretisations hold different stationary states at the injector face. The difference is set within a few cells of it, and is not a failure of the implicit to settle.
+- **On 128x24 the offset is larger** (below). An offset that grows as the mesh is refined is not a truncation error of either scheme.
+- **Cause: not identified.** The candidates are how the inlet face's flux sees the projected composition in the two schemes, and the face's boundary state. Neither was tested tonight.
+
+`CRUCIBLE_IMPLICIT_WINDOW=from,until` (in seconds) runs the implicit step only over [from, until) and the explicit march outside it. It was added for this diagnosis (third amendment, above).
+
+### Criterion 6: PASS *(measured, v63: 256x48 to 1 ms at τ_C1/63, tolerance 8.975e-5, 24 October, about 02:43 to 02:48 CDT)*
+
+- **The run completes:** 148 steps, 7 attempts rejected (418 inner iterations spent on them), each recovered at the halved step. One step ended at the limit of 400 iterations (unconverged).
+- **151.3 inner iterations per step** (most 400). At the same step, 64x12 takes 52.4 per step over the first 0.5 ms (c63), and 128x24 takes 68.4 per step over 8 ms (m63).
+- **The step ratio** is about 480 *(derived: the explicit step halves with each doubling of the mesh, 5.916e-8 s on 64x12 and 2.936e-8 s on 128x24, measured)*. The explicit 256x48 baseline (e256) was queued behind the other jobs and gives the measured step when it runs.
+- Budgets: 4.2e-15 of the mass supplied, 1.2e-12 of the energy supplied (criterion 2).
+
+### M1 to M3 on 64x12 *(measured, one thread, tolerance 8.975e-5; machine load about 13 to 15 on 10 CPUs throughout)*
+
+The explicit baseline e64b (same build, same batch): 136,227 steps to 8 ms in 296.0 s, 2.173e-3 s per step.
+
+| Step | Step ratio | M1 start [0, 0.5] ms | M1 fill [0.5, 3] ms | M1 settled [3, 8] ms | M2 (explicit steps per inner iteration) | Wall to 8 ms | M3 |
+|---|---|---|---|---|---|---|---|
+| τ_C1/25 | 300 | 165.7 (most 400) | 63.1 | 62.6 | 0.659 | 44.9 s | 6.59 |
+| τ_C1/63 | 119 | 52.4 (most 102) | 29.7 | 29.5 | 0.662 | 51.1 s | 5.79 |
+| τ_C1/150 | 50 | 22.4 (most 400) | 11.8 | 11.7 | 0.722 | 52.7 s | 5.61 |
+
+- **The speed-up is about 6 and barely depends on the step.** The inner iterations to 8 ms are 31,366, 35,508 and 33,628 at the three steps.
+  - The settled iterations per step are 0.21, 0.25 and 0.23 of the step ratio: LU-SGS on this Jacobian needs about one inner iteration per 4 to 5 explicit steps of physical time, whatever the step *(derived from the table)*.
+  - So a larger step does not buy more speed-up here; the inner solver's convergence rate sets it. A better inner solver (a stronger preconditioner, or Newton-Krylov) is what would raise it.
+- **M3 is at criterion 4's accuracy only at τ_C1/63 and τ_C1/150,** where criterion 4's bars are met (its order bar is not). At τ_C1/25 p_inj's largest difference (3.63%) misses the bar.
+- **Criterion 5's offset applies to all of them:** the settled thrust is 0.077% below the explicit's.
+
+### Case C on 128x24 *(measured, one thread, tolerance 8.975e-5 unless stated; 24 October, about 02:42 to 03:10 CDT)*
+
+Against the explicit run at CFL 0.4 on the same mesh (e128, explicit step 2.936e-8 s, so the step ratios are 601, 239 and 100):
+
+| Run | Step | Iterations per step (most) | Unconverged, rejected | p_inj RMS (largest) | Outlet flow RMS (largest) | F_vac RMS (largest) | F_vac over [6, 8] ms |
+|---|---|---|---|---|---|---|---|
+| m25 | τ_C1/25 | 137.7 (400) | 5, 0 | 5.60% (7.52%) | 0.187% (0.812%) | 1.09% (2.75%) | 1669.36 N (−1.03%) |
+| m63 | τ_C1/63 | 68.4 (199) | 0, 2 | 0.206% (2.07%) | 0.084% (0.591%) | 0.400% (2.72%) | 1680.52 N (−0.370%) |
+| m150b | τ_C1/150 | 27.0 (76) | 0, 1 | 0.104% (0.226%) | 0.011% (0.128%) | 0.353% (0.883%) | 1680.52 N (−0.370%) |
+
+- **Criterion 4 on 128x24: not met at τ_C1/63, met at τ_C1/150.** At τ/63 the RMS values pass, but the largest differences do not: p_inj 2.07% and F_vac 2.72%, against 2%. At τ/150 every bar is met. The order bar fails as on 64x12 (F_vac's RMS: 1.09%, 0.400%, 0.353%).
+- **Criterion 5 on 128x24: FAIL, and the offset is larger.** e128's settled F_vac is 1686.76 N. m63 and m150b settle to the same state to 6 digits (p_inj 3.264434 MPa, F_vac 1680.525 N), 0.370% below it.
+  - p_inj is 0.10% below e128's (3.267774 MPa), as on 64x12: the explicit's own split error at the injector face.
+  - The wall force differs by 0.34 N, so the inlet's momentum flux carries about 5.9 N of the 6.2 N. On 64x12 it was 1.37 N. The gap grows about four times when the mesh is refined twice *(derived)*.
+- **m150 stopped at 0.147 ms** on the Cantera exception in the projection (third amendment). m150b is the same run with the fix: the one attempt that failed was rejected and recovered at the halved step.
+- **m25 settles somewhere else, and that state is not a steady state of the equations.**
+  - From 4 to 8 ms it holds p_inj 3.093075 MPa and F_vac 1669.612 N, constant to 7 digits. m63's are 3.264434 MPa and 1680.525 N. The histories part already in the fill: at 0.55 ms p_inj is 1.467 MPa in m25 and 1.652 MPa in m63.
+  - Every settled step starts from a defect of 5.4e-2 and takes 123 iterations. At a steady state the extrapolated first iterate should already be near the answer (m63's settled steps start at 1.8e-3).
+  - **The run's last, short step (4.67 μs, step ratio w = 0.26) moves p_inj by +3.7% and F_vac by −1.8%** (to 3.2075 MPa and 1640.3 N). A steady state of the semi-discrete equations does not move on any step. So m25's state is a fixed point of the BDF2 map at this step, not of the flow.
+  - **Not the tolerance:** m25t, the same run at tolerance 1e-6 to 5 ms (330 iterations per step, 31 unconverged at 400), holds the same state (p_inj 3.0930 MPa, F_vac 1669.6 N at 4.4 ms). Its last, short step jumps the same way (to 3.2096 MPa and 1643.2 N).
+  - **Cause: not identified.** One candidate, untested: the state is projected again after the step (`ReactingFlow::implicitStep`'s `react`), and if Table A's projection is not exactly idempotent, each step's result is kicked off the inner iteration's fixed point by the same amount. That would give a constant first defect. A step ratio of 600 amplifies such a kick most.
+  - No 64x12 run shows this: c25's last steps start at 2.2e-3, and its last short step moves nothing.
+
+### M1 to M3 on 128x24 *(measured, one thread; load about 8 to 31 on 10 CPUs, varying: the fast ctest took 4 threads from 02:57)*
+
+The explicit baseline e128: 275,738 steps to 8 ms in 1,755 s, 6.365e-3 s per step (02:39 to 03:08).
+
+| Step | Step ratio | M1 start | M1 fill | M1 settled | M2 | Wall to 8 ms | M3 |
+|---|---|---|---|---|---|---|---|
+| τ_C1/25 (m25) | 605 | 286.3 (most 400) | 138.6 | 122.7 | 0.633 | 251.9 s | 6.97 |
+| τ_C1/63 (m63) | 241 | 102.8 (most 199) | 65.2 | 66.5 | 0.629 | 313.3 s | 5.60 |
+| τ_C1/150 (m150b) | 101 | 38.8 (most 76) | 26.2 | 26.2 | 0.786 | 368.0 s | 4.77 |
+
+- **At criterion 4's accuracy on 128x24 (τ_C1/150 only), M3 is 4.8.** m25's 7.0 is at the wrong settled state above.
+- The settled iterations are 0.20, 0.28 and 0.26 of the step ratio, as on 64x12 (0.21 to 0.25).
+- All three ran while e128 ran, as the amendment asks, but the load changed over e128's 29 minutes. m150b (M2 0.79) ran beside m25t and the ctest. So M2 on 128x24 carries the load's variation *(the walls are measured; how evenly the load fell is not)*.
+
+### What the measurements say for the decision *(derived from the tables above; M4 and M5 not done)*
+
+- **The measured speed-up is 5 to 6 on one thread, at the steps where the history is accurate** (64x12 at τ_C1/63: 5.8; 128x24 at τ_C1/150: 4.8).
+- **It is set by LU-SGS's convergence, not by the step.** The inner iterations per unit of physical time are about the same from τ_C1/25 to τ_C1/150: about one inner iteration per 4 to 5 explicit steps, at 0.63 to 0.79 explicit steps each. The bound this gives is about 1/(0.23 × 0.66), or 6.6, whatever the step.
+- **Two failures stand before trusting the numbers** (the plan's rule: 1, 2, 3 and 5 must pass): criterion 1 (pre-asymptotic order on P) and criterion 5 (a settled thrust 0.08% low on 64x12 and 0.37% on 128x24, growing with the mesh, cause not identified). The m25 fixed point is a third problem.
+- **M4 (the projection to the lead) and M5 (finite-rate chemistry at the implicit step) are not done.** The proposed rule (build at 5 or more, not below 2) needs M4. On these measurements, a projection that keeps LU-SGS would start from about 5 to 6 before threads, AMR and turbulence, which the prototype does not measure.
+
+### The gate and the fast ctest
+
+- **The explicit march is unchanged by every build** (C1 64x12 to 1 ms, one thread: state dump, history and 10 field files `cmp`-identical to 4f2d81e's). First build 02:11 (`gate/result.txt`), second 02:38 (`result2.txt`), third 03:10 (`result3.txt`, all targets rebuilt).
+- **The fast ctest on the first build's binaries (02:13, e8816dc's code):** only the 4 known failures (amr, amr_subcycling, transport and spray verification); 11 of 15 pass. Ran 02:57 to 03:07 (`ctest_2026-10-24_e8816dc.txt`).
+- **The fast ctest on the third build:** queued at 03:12 behind the other slot jobs. Output `/tmp/implicit/ctest_2026-10-24_final.txt`, done-file `/tmp/implicit/ctest3_done`.

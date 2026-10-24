@@ -1,0 +1,8 @@
+Bit-identity gate, second build, 24 October 2026, about 02:38 to 02:41 CDT, Mac, one thread, nice 10.
+old: the 02:11 gate's outputs from /tmp/c1base/crucible_chamber_study (4f2d81e), kept in /tmp/implicit/gate/old.
+new: build/ at e8816dc plus the second amendment (known part U^n + c (U^n - U^(n-1)), the throughput budget print,
+CRUCIBLE_CFL unset, Table A inside as an option), /tmp/implicit/c/bin4.
+crucible_chamber_study eqt 64 12 1e-3 1 g, CRUCIBLE_EQ_TABLE=build/table_a.bin
+cmp state.bin (CRUCIBLE_STATE_DUMP): identical
+cmp g_history.csv: identical
+cmp g_field_*.csv (10 files): identical

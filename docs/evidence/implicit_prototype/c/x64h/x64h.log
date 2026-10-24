@@ -1,0 +1,40 @@
+mechanism: h2o2.yaml
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 64x12: dz 2.604 mm, throat station 32 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 17 at z 0.0456 m
+chemistry eqt; igniter 0.5 J over 0.2 ms from 0.2 ms
+t 0.500 ms  p_inj 1.5035 MPa  outlet 0.1521 kg/s  F_vac 782.2 N  steps 16195  wall 36 s  step 2.816e-08 s set by cell (33, 9), convective 7.101e+06 and diffusive 0.000e+00 per s
+t 1.000 ms  p_inj 2.7681 MPa  outlet 0.3249 kg/s  F_vac 1420.8 N  steps 33764  wall 74 s  step 2.909e-08 s set by cell (33, 9), convective 6.876e+06 and diffusive 0.000e+00 per s
+t 1.500 ms  p_inj 3.1293 MPa  outlet 0.3779 kg/s  F_vac 1604.7 N  steps 50983  wall 112 s  step 2.944e-08 s set by cell (33, 9), convective 6.794e+06 and diffusive 0.000e+00 per s
+t 2.000 ms  p_inj 3.2335 MPa  outlet 0.3936 kg/s  F_vac 1659.0 N  steps 67983  wall 146 s  step 2.954e-08 s set by cell (33, 9), convective 6.771e+06 and diffusive 0.000e+00 per s
+t 2.500 ms  p_inj 3.2638 MPa  outlet 0.3981 kg/s  F_vac 1674.8 N  steps 84983  wall 182 s  step 2.957e-08 s set by cell (33, 9), convective 6.764e+06 and diffusive 0.000e+00 per s
+t 3.000 ms  p_inj 3.2726 MPa  outlet 0.3995 kg/s  F_vac 1679.3 N  steps 101983  wall 222 s  step 2.958e-08 s set by cell (33, 9), convective 6.762e+06 and diffusive 0.000e+00 per s
+t 3.500 ms  p_inj 3.2752 MPa  outlet 0.3998 kg/s  F_vac 1680.7 N  steps 118983  wall 249 s  step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+t 4.000 ms  p_inj 3.2759 MPa  outlet 0.4000 kg/s  F_vac 1681.1 N  steps 135983  wall 288 s  step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+t 4.500 ms  p_inj 3.2762 MPa  outlet 0.4000 kg/s  F_vac 1681.2 N  steps 152983  wall 325 s  step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+t 5.000 ms  p_inj 3.2762 MPa  outlet 0.4000 kg/s  F_vac 1681.2 N  steps 169983  wall 362 s  step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+t 5.500 ms  p_inj 3.2762 MPa  outlet 0.4000 kg/s  F_vac 1681.2 N  steps 186983  wall 399 s  step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+t 6.000 ms  p_inj 3.2762 MPa  outlet 0.4000 kg/s  F_vac 1681.2 N  steps 203983  wall 437 s  step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+t 6.500 ms  p_inj 3.2763 MPa  outlet 0.4000 kg/s  F_vac 1681.2 N  steps 220983  wall 475 s  step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+t 7.000 ms  p_inj 3.2763 MPa  outlet 0.4000 kg/s  F_vac 1681.2 N  steps 237983  wall 508 s  step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+t 7.500 ms  p_inj 3.2763 MPa  outlet 0.4000 kg/s  F_vac 1681.2 N  steps 254983  wall 537 s  step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+t 8.000 ms  p_inj 3.2763 MPa  outlet 0.4000 kg/s  F_vac 1681.2 N  steps 271983  wall 567 s  step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+
+end 8.000 ms after 271983 steps (0 replans), wall 567 s
+budgets: mass -2.50e-13  energy 8.21e-11
+budgets against the throughput, largest over the samples: mass 3.090e-18 kg of 3.1000e-03 kg supplied (9.97e-16); energy 2.200e-11 J of 1.8564e+01 J, the supplied total enthalpy and the igniter's energy (1.19e-12), and of |E| at the end 4.1609e+02 J (5.29e-14)
+cost: 2.716 us of wall time per cell update on 1 threads, 70.9 s per simulated ms over the run
+step limit after 1 ms (3501 samples): mean step 2.955e-08 s; set in the wall row 0.0%, the axis row 0.0%, upstream of the throat 0.0%, at it (its two columns) 0.0%, downstream 100.0%; diffusive rate above convective 0.0%; last: step 2.958e-08 s set by cell (33, 9), convective 6.761e+06 and diffusive 0.000e+00 per s
+reaction wall 69.0 s (12.2% of the run), 0.330 us per cell update
+table: 208882944 cell updates from it (873292 clamped at an axis end), 0 outside it took the direct call (0.000e+00)
+drift over last 1 ms: outlet mass flow 6.51e-08, injector pressure 5.28e-08, vacuum thrust 5.35e-08
+chamber end: static 3.09962 MPa, equilibrium stagnation p0 3.11645 MPa; injector face 3.27625 MPa
+simulated: mdot out 0.400000 kg/s (supply 0.400000), c* 2447.65 m/s, vacuum thrust 1681.24 N, vacuum Isp 428.60 s
+1-D ideal rocket at p0 (h2o2.yaml thermo): Tc 3350.4 K, c* 2429.18 m/s, Isp_vac shifting 435.95 s, frozen 419.38 s, gamma 1.2074
+NASA CEA at p0: unavailable (no interpreter at /Users/ben/inquiry-project/.venv-cea/bin/python)
+corrections: Cd 0.99645 (R = 2.0), lambda 0.98296
+predicted 2-D: c* 2437.83 m/s, Isp_vac shifting 429.07 s, frozen 412.70 s, F_vac 1683.09 N
+simulated/predicted - 1: c* +0.4030%, Isp_vac (shifting) -0.1100%
+real 568.10
+user 457.50
+sys 2.65

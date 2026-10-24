@@ -1,0 +1,48 @@
+started Sat Oct 24 02:57:15 CDT 2026
+main e8816dc plus the uncommitted implicit prototype (core/flow_implicit.cpp, the flow.hpp API, ReactingFlow::implicitStep, chamber_study's CRUCIBLE_IMPLICIT); ctest -LE slow -j4
+Test project /Users/ben/inquiry-project/build
+      Start  4: amr_verification
+      Start  5: amr_subcycling_verification
+      Start  8: transport_verification
+      Start 15: spray_verification
+ 1/15 Test  #4: amr_verification .................***Failed    0.12 sec
+      Start 17: spray_amr_verification
+ 2/15 Test #15: spray_verification ...............***Failed  108.35 sec
+      Start  9: turbulence_verification
+ 3/15 Test  #9: turbulence_verification ..........   Passed   81.66 sec
+      Start  6: thermo_cea_verification
+ 4/15 Test  #5: amr_subcycling_verification ......***Failed  217.41 sec
+      Start  1: core_verification
+ 5/15 Test  #6: thermo_cea_verification ..........   Passed   78.29 sec
+      Start 12: face_inlet
+ 6/15 Test #12: face_inlet .......................   Passed    4.78 sec
+      Start 18: mixture_verification
+ 7/15 Test  #1: core_verification ................   Passed   61.04 sec
+      Start 13: chemistry_skip
+ 8/15 Test #13: chemistry_skip ...................   Passed    0.29 sec
+      Start 16: spray_transfer
+ 9/15 Test #16: spray_transfer ...................   Passed    0.20 sec
+      Start  7: reaction_verification
+10/15 Test  #7: reaction_verification ............   Passed    1.53 sec
+      Start 11: wall_function_threads
+11/15 Test #11: wall_function_threads ............   Passed    0.41 sec
+      Start  2: wall_function_verification
+12/15 Test #18: mixture_verification .............   Passed    7.96 sec
+13/15 Test  #2: wall_function_verification .......   Passed    0.21 sec
+14/15 Test  #8: transport_verification ...........***Failed  381.59 sec
+15/15 Test #17: spray_amr_verification ...........   Passed  580.21 sec
+
+73% tests passed, 4 tests failed out of 15
+
+Total Test time (real) = 580.34 sec
+
+The following tests FAILED:
+	  4 - amr_verification (Failed)
+	  5 - amr_subcycling_verification (Failed)
+	  8 - transport_verification (Failed)
+	 15 - spray_verification (Failed)
+Errors while running CTest
+Output from these tests are in: /Users/ben/inquiry-project/build/Testing/Temporary/LastTest.log
+Use "--rerun-failed --output-on-failure" to re-run the failed cases verbosely.
+ctest exit 8
+finished Sat Oct 24 03:06:55 CDT 2026

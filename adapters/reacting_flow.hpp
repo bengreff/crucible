@@ -77,8 +77,10 @@ class ReactingFlow {
   void advanceTo(double time);
   // The implicit prototype (docs/evidence/IMPLICIT_PROTOTYPE.md): one Flow::implicitStep of dt, then the equilibrium
   // projection (react) as after an explicit step, so the BDF2 history is the projected state. Equilibrium or frozen
-  // chemistry only, no spray. Returns the step taken.
-  double implicitStep(double dt, const Flow::ImplicitControl& control);
+  // chemistry only, no spray. Returns the step taken. inside (Table A only): the projection also before each inner
+  // residual, so the step's iterates carry the equilibrium composition and the split after it moves only the transported
+  // composition of the final update.
+  double implicitStep(double dt, const Flow::ImplicitControl& control, bool inside = false);
   // Table A (TECHNICAL_PLAN, *Lightweight engine*; docs/evidence/TABLE_A.md): with LocalEquilibrium,
   // each cell's equilibrium comes from the table, and cells outside it take the direct Cantera call.
   // Every audit-th reaction call (0: never) also makes the direct call in every cell and records the

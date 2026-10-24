@@ -1,0 +1,18 @@
+libc++abi: terminating due to uncaught exception of type std::runtime_error: Non-admissible gas state: density or internal energy is not positive.
+implicit prototype: BDF2 at dt 2.941621e-06 s, inner tolerance 8.975e-05, at most 400 inner iterations, pseudo CFL 3, extrapolated first iterate on, Table A inside each inner iteration and after the step
+mechanism: h2o2.yaml
+table /Users/ben/inquiry-project/build/table_a.bin: Table A built 2026-10-05 22:18 CDT by crucible_build_equilibrium_table from h2o2.yaml, Cantera 3.2.0; f 131 nodes (20 lean, 64 rich uniform, node at f_st 0.111907, 46 clustered at it and the ends from spacing 0.0001), T 129 over [300, 3500] K, ln rho_r 97 over [1e-08, 30] kg/m3; 2 inert species; 1639203 nodes in 11 s on 4 threads; node element error 1.93e-10 from Cantera, 3.46e-16 after the projection, |sum Y - 1| 4.44e-16, failures 0
+audit every 0 reaction calls
+mesh 128x24: dz 1.302 mm, throat station 64 at z 0.0833 m (design 0.0833), r_t 0.01000 m, eps 10.0000, chamber-end column 35 at z 0.0462 m
+chemistry eqt; igniter 0.5 J over 0.2 ms from 0.2 ms
+
+exception at 0.147081 ms after 50 steps: 
+*******************************************************************************
+CanteraError thrown by Phase::setTemperature:
+temperature must be positive. T = nan
+*******************************************************************************
+
+time: command terminated abnormally
+real 16.13
+user 11.35
+sys 0.17
