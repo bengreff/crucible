@@ -974,7 +974,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
 - **Wall functions: 2(a)'s resolved half restated like for like** (898f631, after the result, flagged): engine against tool on the same 64 rings, passes (+0.27%, −0.51%); the shared grid error is a stated limit.
 - **fast ctest** (13 October): 7 of 9 pass; the failures are the known ones (`transport_verification` radial order 1.218 and 1.444, `spray_verification` S0(b)). The slow pipe test has still not been rerun.
 
-## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT; the face inlet 22 October about 02:45 CDT; AMR step D judged about 04:40 CDT; step D met 5 of 5 and criterion 4 coded 22 October about 23:50 CDT, its runs launched 23:55; the gas energy leak fixed 23 October about 01:00 CDT; step D scored, the AMR cost estimate and the resume path 23 October about 23:20 CDT)
+## inquiry2's lane (worktree `.claude/worktrees/inquiry2`, 21 October, about 02:05 CDT; lever 3 updated about 02:20 CDT; AMR step C 03:46 CDT; the mass error settled about 22:05 CDT; the face inlet 22 October about 02:45 CDT; AMR step D judged about 04:40 CDT; step D met 5 of 5 and criterion 4 coded 22 October about 23:50 CDT, its runs launched 23:55; the gas energy leak fixed 23 October about 01:00 CDT; step D scored, the AMR cost estimate and the resume path 23 October about 23:20 CDT; the reflux clip about 23:35 CDT)
 
 - **Synced with `main`:** on 22 October at about 02:20 CDT, inquiry2 rebased onto `main` 9294aa6, and at about 04:38 onto `main` 880d362 (the Director's merge of b84ae3a, with the engine DB's round 3). Both rebases were clean. Earlier, the Director merged step C at 02:47 on 21 October (af91015). From the main checkout, when clean: `git merge --ff-only worktree-inquiry2`. This session's worktree guard refuses git commands on the main checkout, so inquiry2 cannot fast-forward `main` itself.
 - **Lever 3, the consistent turbulent fluxes: c2 fails, so the pocket does not go; not adopted (COST.md, d79df48; evidence `cost/dh_*`).**
@@ -1074,7 +1074,7 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
     2. **AMR's cost on the RL10 tier-1 mesh** (AMR.md, *AMR's cost on the RL10 tier-1 mesh*).
        - **Answer: in the measured H2 lead it pays.** From B4's cumulative per-level update counts (step C's thresholds, to 1 ms), AMR did 0.363 of uniform 1192 x 128's cell updates (derived).
        - For the frozen tags and the hot running it is not measured. The ceiling is 1.143 of uniform. The estimate is 0.5 to 0.75 (inferred; the divergent's share is guessed). Wall time per update is not profiled.
-       - **Queued and running:** the same case to 0.5 ms at the frozen tags. It is `amr_d/bh_t1cost.sh` from `/home/greff/crucible_inq2t1` (fcb20f1), started 23:16 CDT at load 15. **Done-file `/home/greff/crucible_inq2t1/out/all_done`**, log `out/fs.log`.
+       - **The frozen-tag run failed at 32.5 µs** (`amr_d/bh_t1cost.sh`, fcb20f1, exit 1: "could not advance an admissible state"). Item 5 covers the cause and the fix. Its rerun on the fix is chain A of job `rfx` (item 5).
        - Compare its "--- t 0.500 ms" line (active cells, and the "Table B, table / all updates" counts) against B4's at 0.5 ms: 0.249 cumulative and 0.366 at the snapshot. Record the result in AMR.md's section.
        - Expected 2 to 3 h (inferred from B4's 9,397 s for 0.5 ms; the tighter tags add cells).
     3. **The resume-after-reboot path is built and registered** (`tools/resume/README.md`).
@@ -1089,13 +1089,22 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
            - `test_wsl_kill.ps1 -Mode terminate` runs the test as soon as Ubuntu holds nothing else. It refuses otherwise (dry run: exit 2).
            - A `-Mode shutdown` test also ends `PolytopiaWSLKeepalive`, which restarts only at Ben's logon, so it needs its owner's agreement.
          - The boot trigger itself, which needs a reboot.
-       - Registered jobs now: `dummy` (re-arm per the README) and `t1cost` (no checkpoint, so a resume restarts it).
+       - Registered jobs now: `dummy` (re-arm per the README), `t1cost` (done: it failed, item 5) and `rfx` (item 5; no checkpoint, so a resume restarts it from its builds).
     4. **For the Director, from B4's log** (B4's lane, not acted on):
        - B4 ended at 10:52 with "AMR: could not advance an admissible state after 14 base-step reductions" (exit 1).
        - It ran at ab3aa03, so it was before the energy fix. Its gas budget was 2.57e-5 at 0.5 ms and 6.34e-5 at 1 ms.
        - `bh_b4.sh` touches `done_b4` whenever the program exits. If the program alone is killed (an OOM kill, say), the run would look done to the resume path. A registered job should use the driver's own done-file.
+       - B4's end is the same error that item 5's fix addresses. It may be the same cause, at step C's tags later in the lead (inferred, not checked).
+    5. **At the frozen tags, tier 1 could not run on main's code. Fixed; the checks are running** (AMR.md, *Amendment: the reflux clips rho k at zero*; amendment 8cc4572 registered before the code in f8e0f65).
+       - **Isolation (measured, four variants to 0.1 ms):** fcb20f1 fails at 32.5 µs, and fails again with the face fix reverted. It passes with step C's thresholds, with or without the face fix. So the frozen tags cause it.
+       - **The trace (measured):** level 3's reflux onto level-2 cell (151, 58), just past the throat near the wall, leaves rho k at -3.83e-8 J/m3. The value halves with each step reduction and stays negative.
+       - **The fix:** `Amr::reflux` clips rho k at zero as the stages do. E is untouched, and the clip is booked in `clippedTurbulentEnergy`. `crucible_amr_budget` prints the clip count.
+       - **Job `rfx`** (`amr_d/bh_rfx.sh` in `/home/greff/crucible_rfx`, f8e0f65, registered with tools/resume) started 23:33 CDT. Both builds passed with 0 warnings. **Done-file `/home/greff/crucible_rfx/out/all_done`.**
+         - Chain A is tier 1 at the frozen tags to 0.5 ms (`out/fs.log`, exit in `out/t1_exit`).
+         - Chain B runs D0's short cases new against fcb20f1 (`out/d0.txt`), then the trace to 0.1 ms (`out/trace/clips.txt`, exit in `trace_exit`), then D3 to 1 ms (`out/d3.txt`).
+         - Then D1 to 8 ms, new and parent together (`out/d1.txt`, about 2.4 h).
   - **Next for inquiry2, in order:**
-    1. **Score the frozen-tag cost run** (item 2 above) when its done-file appears.
+    1. **Score job `rfx`** against the amendment's checks 1 to 3, then the cost (item 2) from `out/fs.log`. Copy the logs (not `rl10_s.bin`) to `amr_d/rfx_2026-10-23/`.
     2. **The WSL-stop test** (`tools/resume/README.md`), when Ubuntu holds no other worker's process, with a re-armed dummy. Then a tier-1 job file to match inquiry's checkpoint commit when it lands.
     3. **Criterion 4: met, scored 23 October about 04:50 CDT** (AMR.md, *Criterion 4: results*; logs in `amr_d/c4_2026-10-23/`). The runs ran on backhouse from 01:38 to 04:43 CDT, and every exit was 0.
        - **s\* = 1/4.** It is the largest s whose settled c\*, Isp and thrust lie within 2e-4 of the run at s/2: 6.4e-5 to 8.6e-5 at 1/4 against 1/8. s = 1 and 1/2 miss, with Isp and thrust moving 1.6e-3 and 6.8e-4. `Amr::Tags`' defaults are now f_H 0.005, T 0.0125, pressure 0.025 and vorticity 0.0125 (`core/amr.hpp`). `crucible_amr_c4`'s scale now multiplies step C's values written out.
