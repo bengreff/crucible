@@ -22,9 +22,24 @@
 //      (a) Skip on: skippedCells 48 (columns 0-11) and integratedCells 16; off: 0 and 64.
 //      (b) Skip on: every cell of columns 0-11 keeps its partial densities and conserved state bit for bit.
 //      (c) On against off: every partial density within 1e-15 of the cell's density; columns 12-15 bit for bit.
+//   5. Trace atoms (stated 24 October 2026 at about 01:10 CDT, after tier 1's lead showed 7% of level 3's updates
+//      skipped, CVODES leaving traces of H in the H2 it integrates, and before the extension was run): the
+//      molecule may carry its atom at 0 < Y <= 1e-14 (ReactingFlow::kAtomTrace).
+//      (a) The mechanisms: every direction whose reactants lie within {H2, H} and the inert species changes only H2
+//          and H, at least one of them (the recombinations); likewise {O2, O}.
+//      (b) A duct as in 4, columns: 0-3 X_H2 0.5 and N2 with Y_H 1e-15 at 300 K; 4-7 the same with Y_H 1e-10;
+//          8-11 X_O2 0.3 and N2 with Y_O 1e-15 at 300 K; 12-13 as 0-3 at 600 K; 14-15 as 0-3 with Y_H -1e-15
+//          (Y_H2 making up the sum). Skip on: skippedCells 32 (columns 0-3 and 8-11), integratedCells 32; off: 0, 64.
+//      (c) Skip on: columns 0-3 and 8-11 keep their partial densities and conserved state bit for bit. On against
+//          off: every partial density within 1e-14 of the cell's density; columns 4-7 and 12-15 bit for bit.
 //   Run 1 (24 October 2026): 4(a) failed, integratedCells 0 with the skip off, since the engine counted the
 //   integrations only with the skip on, against the stat's own definition (every CVODES integration). The counter
 //   fixed; the criteria unchanged. Run 2: every check passes.
+//   Criterion 5, run 1 (24 October 2026, the trace extension): 5(a) passes; 5(b) and 5(c) fail in both mechanisms,
+//   skipped 40 and integrated 24, and columns 14-15 not bit for bit (gap 1.0e-15 of the density). The engine built
+//   the skip's mask from Flow::massFractions, which clips a negative partial density to 0, so the cells with Y_H
+//   -1e-15 were skipped and kept the negative partial density the integrator's path clips (4a7628f too, against its
+//   own comment). The mask now reads the partial densities; the criteria unchanged. Run 2: every check passes.
 
 #include <algorithm>
 #include <cmath>
@@ -143,6 +158,29 @@ void mechanism(const std::string& name) {
       }
   check(worstY <= 1e-16, "3. ReactionStep over 1e-3 s: largest |dY_k|", worstY, 1e-16);
   check(worstT <= 1e-14, "3. ReactionStep over 1e-3 s: largest |dT| / T", worstT, 1e-14);
+
+  // 5(a). The directions within {molecule, atom}.
+  for (const auto& [m, a] : {std::pair{"H2", "H"}, std::pair{"O2", "O"}}) {
+    const std::size_t im = index(m), ia = index(a);
+    int started = 0;
+    bool only = true;
+    auto within = [&](const std::vector<std::size_t>& set) {
+      for (auto k : set) if (k != im && k != ia && reactive[k]) return false;
+      return true;
+    };
+    auto direction = [&](const std::vector<std::size_t>& from, const std::vector<std::size_t>& to) {
+      if (!within(from)) return;
+      ++started;
+      if (!within(to)) only = false;
+    };
+    for (const auto& r : reactions) {
+      direction(r.reactants, r.products);
+      if (r.reversible) direction(r.products, r.reactants);
+    }
+    char what[96];
+    std::snprintf(what, sizeof what, "5(a) within %s and %s: directions (at least 1), all to %s and %s only", m, a, m, a);
+    check(started >= 1 && only, what, started, 1);
+  }
 }
 
 // The duct of 4.
@@ -223,6 +261,64 @@ void flow(const std::string& name) {
   check(same, "4(c) columns 12-15 on against off bit for bit (1 = differ)", same ? 0 : 1, 0);
 }
 
+// 5(b) and (c): the duct with trace atoms.
+void traces(const std::string& name) {
+  std::printf("%s, the duct with trace atoms\n", name.c_str());
+  thermo::ReactionSource source(name);
+  Medium medium = source.medium();
+  const auto fits = thermo::transportFits(name);
+  medium.setTransport(fits);
+  const std::size_t ns = medium.size();
+  auto index = [&](const char* s) {
+    for (std::size_t k = 0; k < ns; ++k) if (medium.species()[k].name == s) return k;
+    throw std::runtime_error(std::string("missing species ") + s);
+  };
+  const std::size_t h2 = index("H2"), h = index("H"), o2 = index("O2"), o = index("O");
+  Duct d = duct(source, medium, fits);
+  for (std::size_t q = 0; q < d.cells.size(); ++q) {
+    const int c = d.column[q];
+    const bool oxygen = c >= 8 && c < 12;
+    auto y = source.massFractions(oxygen ? "O2:0.3, N2:0.7" : "H2:0.5, N2:0.5");
+    const double trace = c >= 4 && c < 8 ? 1e-10 : c >= 14 ? -1e-15 : 1e-15;
+    y[oxygen ? o : h] = trace;
+    y[oxygen ? o2 : h2] -= trace;
+    const double t = c >= 12 && c < 14 ? 600 : 300;
+    std::copy(y.begin(), y.end(), d.y.begin() + static_cast<std::ptrdiff_t>(q * ns));
+    d.cells[q] = {p0 / (medium.gasConstant(y.data()) * t), 0, 0, p0};
+  }
+  Flow on(d.definition), off(d.definition);
+  for (Flow* f : {&on, &off}) f->setInitialState(d.cells, d.y);
+  const auto before = on.partialDensities();
+  const auto beforeState = on.state();
+  thermo::ReactingFlow a(on, name, 2, 1e-6, 1e-12, thermo::Chemistry::FiniteRate);
+  thermo::ReactingFlow b(off, name, 2, 1e-6, 1e-12, thermo::Chemistry::FiniteRate);
+  b.setChemistrySkip(false);
+  a.react(1e-6);
+  b.react(1e-6);
+  const auto& sa = a.stats();
+  const auto& sb = b.stats();
+  std::printf("  skip on: skipped %ld, integrated %ld; off: skipped %ld, integrated %ld\n", sa.skippedCells,
+              sa.integratedCells, sb.skippedCells, sb.integratedCells);
+  const bool counts = sa.skippedCells == 32 && sa.integratedCells == 32 && sb.skippedCells == 0 && sb.integratedCells == 64;
+  check(counts, "5(b) the counts (1 = differ)", counts ? 0 : 1, 0);
+  const auto& pa = on.partialDensities();
+  const auto& pb = off.partialDensities();
+  bool kept = true, same = true;
+  double gap = 0;
+  for (std::size_t q = 0; q < d.cells.size(); ++q) {
+    const bool skipped = d.column[q] < 4 || (d.column[q] >= 8 && d.column[q] < 12);
+    const std::size_t off0 = q * ns;
+    if (skipped && (std::memcmp(pa.data() + off0, before.data() + off0, ns * sizeof(double)) != 0 ||
+                    std::memcmp(on.state()[q].data(), beforeState[q].data(), sizeof(beforeState[q])) != 0))
+      kept = false;
+    if (!skipped && std::memcmp(pa.data() + off0, pb.data() + off0, ns * sizeof(double)) != 0) same = false;
+    for (std::size_t k = 0; k < ns; ++k) gap = std::max(gap, std::abs(pa[off0 + k] - pb[off0 + k]) / on.state()[q][0]);
+  }
+  check(kept, "5(c) skipped cells unchanged bit for bit (1 = changed)", kept ? 0 : 1, 0);
+  check(gap <= 1e-14, "5(c) on against off: largest partial density gap / rho", gap, 1e-14);
+  check(same, "5(c) columns 4-7 and 12-15 on against off bit for bit (1 = differ)", same ? 0 : 1, 0);
+}
+
 }  // namespace
 
 int main() {
@@ -230,6 +326,7 @@ int main() {
     for (const std::string name : {std::string("h2o2.yaml"), std::string(CRUCIBLE_SOURCE_DIR "/tools/mechanisms/h2o2_highT.yaml")}) {
       mechanism(name);
       flow(name);
+      traces(name);
     }
   } catch (const std::exception& e) {
     std::printf("error: %s\n", e.what());

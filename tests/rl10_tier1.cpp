@@ -276,6 +276,8 @@ int runCase(const Setup& s) {
     reacting.push_back(std::make_unique<thermo::ReactingFlow>(amr.level(l), s.mechanism, s.threads, 1e-6, 1e-12,
                                                               thermo::Chemistry::FiniteRate));
     reacting.back()->useManifoldTable(manifold);
+    // CRUCIBLE_CHEM_SKIP=0 integrates every cell, for timing the skip against the unskipped path.
+    reacting.back()->setChemistrySkip(env("CRUCIBLE_CHEM_SKIP", 1) != 0);
   }
   Spray::Settings settings = s.spray;
   for (auto& j : settings.injectors) j.parcelRate = kParcelRate * s.rateFactor;

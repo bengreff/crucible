@@ -93,9 +93,13 @@ class ReactingFlow {
   // is zero there; so is a cell at or below kSkipTemperature whose one reactive species is H2, or O2 (no
   // oxidizer, or no fuel). The one reaction such a cell can start is the molecule's dissociation into its atoms
   // (checked on the mechanism at construction; if it fails, that molecule is not skipped), whose equilibrium
-  // bounds the change at any step length (tests/chemistry_skip_tests.cpp). A fraction that is not exactly zero,
-  // negative included, counts as present.
-  static constexpr double kSkipTemperature = 500;
+  // bounds the change at any step length (tests/chemistry_skip_tests.cpp). A partial density that is not exactly
+  // zero, negative included, counts as present. The atom may be present too, at 0 < Y <= kAtomTrace, if the mechanism
+  // has no reaction direction that needs no reactive species but the molecule and the atom and changes another
+  // (dissociation and recombination only): the cell then moves only toward the dissociation equilibrium, so its
+  // change at any step length is at most the larger of Y_atom and the atom's equilibrium fraction. The atoms
+  // come from CVODES itself, which leaves the H2 it integrates with a positive trace of H.
+  static constexpr double kSkipTemperature = 500, kAtomTrace = 1e-14;
   void setChemistrySkip(bool on) { skip_ = on; }
   // A liquid spray (core/spray.hpp) inside the shared step: it moves after the flow step with the
   // same dt, before the second reaction half (docs/evidence/SPRAY.md, Coupling). Null: none.
@@ -124,9 +128,11 @@ class ReactingFlow {
   std::unique_ptr<ManifoldRuntime> manifold_;
   long audit_ = 0, tableCalls_ = 0;
   // The chemistry skip's species classes, bits of a cell's mask: 0 a species no reaction has, then H2 and O2
-  // where the mechanism's check passed, then every other reactive species.
-  enum : unsigned char { kFuel = 1, kOxidizer = 2, kReactive = 4 };
+  // where the mechanism's check passed, then every other reactive species, then H and O where the closure check
+  // passed (their indices in atom_, else the species count).
+  enum : unsigned char { kFuel = 1, kOxidizer = 2, kReactive = 4, kFuelAtom = 8, kOxidizerAtom = 16 };
   std::vector<unsigned char> skipClass_;
+  std::array<std::size_t, 2> atom_{};
   bool skip_ = true;
   void reactTable();
   template <class Self, class Io> static void checkpoint(Self& self, Io& io);

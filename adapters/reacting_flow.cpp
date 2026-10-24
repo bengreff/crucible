@@ -58,7 +58,8 @@ ReactingFlow::ReactingFlow(Flow& flow, const std::string& mechanism, int threads
   // The chemistry skip's classes. A species is reactive if some reaction changes it (a nonzero net coefficient).
   // Any reaction that changes something consumes some reactive species (mass is conserved), so in a cell with no
   // reactive species every rate is zero. H2 (O2) is skipped alone only if every reaction direction that needs no
-  // reactive species but H2 (O2) changes no reactive species but H2 and H (O2 and O): its dissociation.
+  // reactive species but H2 (O2) changes no reactive species but H2 and H (O2 and O): its dissociation. H (O)
+  // may then join H2 (O2) at a trace if no direction that needs no reactive species but the two changes another.
   const auto reactions = workers_[0]->source.reactionSpecies();
   skipClass_.assign(mine.size(), 0);
   for (const auto& r : reactions)
@@ -68,7 +69,9 @@ ReactingFlow::ReactingFlow(Flow& flow, const std::string& mechanism, int threads
     while (k < mine.size() && mine[k].name != name) ++k;
     return k;
   };
-  for (const auto& [molecule, atom, bit] : {std::tuple{"H2", "H", kFuel}, std::tuple{"O2", "O", kOxidizer}}) {
+  atom_.fill(mine.size());
+  for (const auto& [molecule, atom, bit, atomBit, slot] :
+       {std::tuple{"H2", "H", kFuel, kFuelAtom, 0}, std::tuple{"O2", "O", kOxidizer, kOxidizerAtom, 1}}) {
     const std::size_t m = find(molecule), a = find(atom);
     if (m == mine.size() || !skipClass_[m]) continue;
     auto within = [&](const std::vector<std::size_t>& set, std::size_t x, std::size_t y) {
@@ -79,7 +82,17 @@ ReactingFlow::ReactingFlow(Flow& flow, const std::string& mechanism, int threads
       if (within(r.reactants, m, m) && !within(r.products, m, a)) dissociation = false;
       if (r.reversible && within(r.products, m, m) && !within(r.reactants, m, a)) dissociation = false;
     }
-    if (dissociation) skipClass_[m] = bit;
+    if (!dissociation) continue;
+    skipClass_[m] = bit;
+    bool closed = a < mine.size();
+    for (const auto& r : reactions) {
+      if (within(r.reactants, m, a) && !within(r.products, m, a)) closed = false;
+      if (r.reversible && within(r.products, m, a) && !within(r.reactants, m, a)) closed = false;
+    }
+    if (closed) {
+      skipClass_[a] = atomBit;
+      atom_[static_cast<std::size_t>(slot)] = a;
+    }
   }
 }
 
@@ -280,12 +293,19 @@ void ReactingFlow::react(double dt) {
         }
       }
       if (skip_ && !equilibrium) {
-        // The chemistry skip (setChemistrySkip): a negative fraction counts as present, so the integrator's path
-        // still clips it.
+        // The chemistry skip (setChemistrySkip): a negative partial density counts as present, so the integrator's
+        // path still clips it. Read from the partial densities, since massFractions has already clipped it to 0.
+        const double* partial = flow_.partialDensities().data() + q * ns;
         unsigned mask = 0;
         for (std::size_t k = 0; k < ns; ++k)
-          if (y[k] != 0) mask |= skipClass_[k];
-        if (mask == 0 || ((mask == kFuel || mask == kOxidizer) && flow_.temperature(q) <= kSkipTemperature)) {
+          if (partial[k] != 0) mask |= skipClass_[k];
+        // The molecule, with at most a positive trace of its atom.
+        auto alone = [&](unsigned molecule, unsigned atom, std::size_t a) {
+          return (mask & (molecule | atom)) && !(mask & ~(molecule | atom)) &&
+                 (!(mask & atom) || (partial[a] > 0 && y[a] <= kAtomTrace));
+        };
+        if (mask == 0 || ((alone(kFuel, kFuelAtom, atom_[0]) || alone(kOxidizer, kOxidizerAtom, atom_[1])) &&
+                          flow_.temperature(q) <= kSkipTemperature)) {
           ++worker.skipped;
           continue;
         }
