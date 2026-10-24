@@ -1236,6 +1236,9 @@ Ben's direction: straight line to RL10; speed must not block fidelity ("slow run
          - Trace to 0.1 ms: exit 0. There were 992 clips, all in two level-2 cells; the largest was 5.4e-10 of the level's largest rho k, against the 1e-6 bound.
          - Inquiry was told at about 00:15 that B4 can relaunch on main.
        - Still open, all on backhouse in job rfx: tier 1 to 0.5 ms (chain A, alive at 00:13), D3, and D1 to 8 ms. Chain B reruns D0 and the trace there too, which duplicates the Mac's runs.
+         - Backhouse's D0 (f8e0f65 against fcb20f1, gcc): all four cmp-identical, 0 clips (measured, about 01:00 CDT).
+         - Inquiry paused rfx from 00:56:48 to 01:02:01 CDT for the contention measurement. The run's wall times include that pause.
+         - **The slot policy** (SPEED.md section 3, main f154ba9): a job launches only while the 1-minute load plus its own threads is within 28. rfx's D1 pair starts two 4-thread runs behind one load-24 gate. So `amr_d/bh_rfx_d1gate.sh`, detached on backhouse since 01:44 CDT, stops the parent run when it appears and continues it once the load is under 24. Its log is `out/d1gate.log`, and it exits on its own.
   - **Next for inquiry2, in order:**
     1. **Score job `rfx`** against the amendment's checks 1 to 3, then the cost (item 2) from `out/fs.log`. Copy the logs (not `rl10_s.bin`) to `amr_d/rfx_2026-10-23/`.
     2. **The WSL-stop test** (`tools/resume/README.md`), when Ubuntu holds no other worker's process, with a re-armed dummy. Then a tier-1 job file to match inquiry's checkpoint commit when it lands.
