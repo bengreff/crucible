@@ -2,9 +2,24 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Working (5 November, about 02:40 CST; inquiry, the speed brief: SPEED_PLAN.md and the implicit port)
+## Stopped at (5 November, about 03:40 CST; inquiry, the speed brief: SPEED_PLAN.md, the implicit port, the spray's sub-step)
 
-**Interim; the park entry replaces this.** Committed and pushed: 28865e3, 7eb8956, 37fde78 (SPEED_PLAN.md 7.3 to 7.5: window L passes on the implicit step at 6.8 to 7.5 times the explicit speed; the p0 and CVODES fixes past t_L; the 200 K cold limit). Hot-window runs on backhouse (`/home/greff/crucible_p0/agree/`, binary `t1_c` through the symlinks `t1_h` and `t1_r`): e1h and e2h from 16 ms, i10k from 0, all past 20 ms at 02:34, registered as `agree_e1h`, `agree_e2h`, `agree_i10k` with the resume runner. Window H needs all three at 30 ms.
+**Parked by the Director at the usage line (week 48%).** Commits: 28865e3, 7eb8956, 37fde78, cb1f4cb, 95f0ed3, 37a4ba7, 80e4b18 and this park commit, all on `main` and pushed.
+
+1. **SPEED_PLAN.md** (docs/evidence/SPEED_PLAN.md) lists every lever with a measured or derived speedup, their product and the ranked order; no lever needs Ben. Headline (measured, backhouse, one thread, base mesh): the implicit step is 6.8 to 7.5 times the explicit over the lead [0.5, 20] ms and window L passes (7.2 to 7.5); past t_L it falls to 2.0 to 2.7 times, because the spray is 69 to 77% of the wall there (7.6). The spray is now lever 2.
+2. **The spray's sub-step fix landed** (80e4b18, 7.6): every hot-window run broke about 1 ms past t_L on a condensing drop's Heun predictor; a sub-step over twice stage 2's limits is now retaken at them. Check F3 FAILs unfixed, PASSes fixed; tier 1 selftest 0 failed.
+3. **e1s and e2s FAILED at about 3.0 ms in the lead** (explicit, fresh from 0 on `t1_f`): "AMR: could not advance an admissible state after 14 base-step reductions". The explicit path had never run the lead on `t1_c`'s source (e1h and e2h restarted on it from 16 ms). One of 7.5's changes breaks it; first suspect the 200 K cold limit (7.6, *The run-level checks so far*). Their `done` files (exit 1) stop the resume runner relaunching them. Window H's explicit reference is therefore not running.
+4. **Running on backhouse:**
+   - i10s (implicit, `t1_f`), pid 14835 under the resume runner (job `agree_i10s`), dir `/home/greff/crucible_p0/agree/i10s`, done-file `done` there. It must pass 21.19 ms with budget (b) under 1e-11 (pre-registered (b)); then runs to 30 ms, at least 2.5 h (guessed).
+   - B4 replay (diagnostic to 1.36 ms), pid 13482, log `/home/greff/crucible_b4d/runs/b4/b4d.log`, done-file `/home/greff/crucible_b4d.done`. Bounded; read its ADMDIAG lines.
+   - f3a (the AMR spray checks, unfixed against fixed), pid 15214, output `/home/greff/crucible_f3a.out` ("differing:" should be 0), done-file `/home/greff/crucible_f3a.done`. Bounded.
+   - S7 high and low (pids 688 and 698): not this session's; left alone.
+5. **Kept, failed:** e1h, e2h, i10k (window H attempts on the unfixed spray), and `agree/i10k_nc`. Binaries: `t1_f` (the fix), `t1_c` (unfixed; `t1_h` and `t1_r` link to it), `t1_h0` (e1h's lead binary). Scratch, safe to clear after a look: `crucible_lb`, `crucible_lb2`, `crucible_b4d`, `crucible_f3`, `crucible_f3a`, `~/gdbroot`, `/tmp/gdbdl`, the p0bench binaries, `agree/p0t`, `agree/i10c`.
+6. **Model choice for Ben's review (not a decision needed):** the 200 K cold limit freezes chemistry below the mechanisms' fits. Recommendation: keep it, once item 3 is traced.
+
+**To collect and score:** `grep -A5 "^--- t 21" i10s/i10s.log` for (b); `cat /home/greff/crucible_f3a.out`; copy finished runs to `~/crucible_runs/2026-11-05/bh_agree/` and judge window H with `tools/agreement_tier1.py` against an explicit reference (7.2's bars).
+
+**Next:** (1) trace the explicit lead failure: rerun e1s from 0 with CRUCIBLE_CHEM_COLD=0 (about 4 min to 3 ms, measured pace), then bisect 7.5's other changes; fix with a test; relaunch e1s and e2s (remove their `done` files). (2) Score (b) on i10s. (3) Window H on the agreement test. (4) The spray lever's print-only probe of which sub-step limit binds (SPEED_PLAN 5, item 2). (5) D's test.
 
 ## Stopped at (24 October, about 04:42 CDT; inquiry, the Director's 04:20 decisions)
 

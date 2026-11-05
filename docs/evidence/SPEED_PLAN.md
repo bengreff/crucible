@@ -389,6 +389,12 @@ The step size used on tier 1 is the largest that passes both windows.
 - (b) i10s passes 21.19 ms (i10k's last sample) and e1s passes 21.03 ms (e1h's), with the liquid budget (b) under the run's own 1e-11 at every progress line, and no throw.
 - (c) Window H then goes to the agreement test of 7.2 as it stands, unchanged.
 
+**The run-level checks so far (03:35 CST; measured).**
+- (a) for i10s: identical to i10k bit for bit to 20.5 ms (PASS).
+- (a) and (b) for e1s and e2s: **FAIL, before the spray is reached.** Both stopped at about 3.0 ms, 250 s into the run, with "AMR: could not advance an admissible state after 14 base-step reductions" (`done` reads exit 1; no parcels exist then). Their 2.5 and 3.0 ms lines already differ from e1h's (c* 936.397 against 936.764 m/s at 3.0 ms; budget (a) 2.07e-15 against 5.60e-14 at 2.5 ms).
+- So the explicit path on `t1_c`'s source fails in the lead. It had never been run there: e1h and e2h ran 0 to 16 ms on the binary then behind the `t1_h` link (now `t1_h0`) and only restarted on `t1_c` from 16 ms. The change between them is one of 7.5's (the omega guard, p0 frozen below 600 K, ChemEquil's trace stall, the cold limit). Not traced yet; the cold limit is the first suspect, since e1s counts 430,717 cold updates by 3.0 ms where e1h counted none from 16 to 18.7 ms (inferred, not checked).
+- (b) for i10s and the B4 replay and f3a (the AMR spray checks, A against B) were still running at the park.
+
 **F3's result** (backhouse, gcc 13; `/home/greff/crucible_f3`, a `git archive` of 95f0ed3 with the new test; A is the unfixed spray.cpp, md5 e2a2e28d, and B the fix, md5 dfa546ed):
 - A: **FAIL**, as predicted. 26 of the 81 runs end with the drop on the table's floor (54.361 K); none throws, since one advance gives a drop only one or two sub-steps (the most in a run is 2). The worst energy budget is **2.88e-2**.
 - B: **PASS**. No run is bad, the coldest end T is 95.176 K, and the worst energy budget is **7.8e-16**. The most sub-steps in a run is 23, the retakes included.
