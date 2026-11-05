@@ -353,8 +353,8 @@ The step size used on tier 1 is the largest that passes both windows.
 
 **The failure.** e1h, e2h (explicit, seeds 1 and 2) and i10k (implicit) all run window H on `t1_c` from their lead checkpoints. All three break within about 1 ms of t_L:
 - the liquid's energy budget, (b), is 4e-14 at 20.5 ms and 1.7e-8 to 5.0e-7 at 21.0 ms;
-- e1h stops at 21.03 ms and i10k at about 20.88 ms, both on "Spray: the heat-transfer number's residual is NaN" (the guard added for the 23 October NaN, `face_inlet/leak_2026-10-23/spray_nan/`, reached here by another route);
-- e2h was stopped at 03:14, past 21.0 ms with (b) at 1.7e-8, since it was on the same path.
+- e1h's last sample is at 21.03 ms and i10k's at 21.19 ms, both stopped by "Spray: the heat-transfer number's residual is NaN" (the guard added for the 23 October NaN, `face_inlet/leak_2026-10-23/spray_nan/`, reached here by another route);
+- e2h was stopped by hand at 03:14 (its last sample 21.14 ms; (b) 1.7e-8 at 21.0 ms), since it was on the same path.
 
 **Two probes, from i10k's 20.81 ms checkpoint** (print-only copies of the code; switches outside the CRUCIBLE_* environment, so the checkpoint's signature holds):
 - Probe 1 prints the three liquid budgets after every base step. The energy budget is 2.7e-14 at 20.810 ms, then jumps to 5.23e-9 in the one step ending at 20.8378 ms, and climbs in steps from there; mass and momentum stay at about 5e-14.
@@ -371,7 +371,7 @@ The step size used on tier 1 is the largest that passes both windows.
 - A sub-step over twice them is retaken at them, at most 30 times. The factor 2 leaves every sub-step that was already smooth exactly as it was.
 - A corrector that takes the mass below zero now throws by name. Bound (derived): with both limits met, s falls by at most a quarter in a sub-step, so this cannot fire unless the 30 retakes run out.
 
-**Check F3, pre-registered** (written 5 November at about 03:20 CST, before it was built or run; in `tests/spray_tests.cpp`):
+**Check F3, pre-registered** (written 5 November at about 03:15 CST and committed in 95f0ed3, before it was built or run; in `tests/spray_tests.cpp`):
 - The probed drop alone, in a chamber at rest (4 x 2 cells, 4 mm by 2 mm), filled with O2 0.27 and H2 0.73 by moles (Y_O2 0.8545, derived) at 579,378.25 Pa and 183.932 K.
   - The drop: d 1.544204 μm, T 93.894757 K, at rest, count 1. One-way coupling; breakup and dispersion off.
   - At rest its Nusselt number is 2, not the run's, so the step that lands the predictor just short of saturation differs from the probe's 0.773 μs. Hence a sweep: one `advance(dt)` for each dt from 0.10 to 1.70 μs by 0.02 μs (81 runs), each run a fresh spray on the same flow.
@@ -381,3 +381,8 @@ The step size used on tier 1 is the largest that passes both windows.
   - the liquid energy budget (`balanceErrors()[1]`) is at most 1e-12 in magnitude.
   - Reported: the worst budget, the coldest end T, and the most sub-steps in a run.
 - Expected: FAIL on the unfixed spray.cpp (some dt ends on the floor, or throws), PASS with the fix. The other spray checks keep their verdicts.
+
+**The fix in tier 1, pre-registered** (written 5 November at about 03:23 CST, before any of it was seen). `t1_f` (md5 1ef89249) is `t1_c`'s source plus the fix (the two trees differ in `core/spray.cpp` and `tests/spray_tests.cpp` alone, by `diff -r`). e1s, e2s and i10s are e1h's, e2h's and i10k's settings on `t1_f`, from 0 to 30 ms, launched at 03:22 under the resume runner. Every surviving checkpoint of the failed runs is past t_L, so none is reused.
+- (a) Before t_L there are no parcels, so i10s's series to 20 ms is identical to i10k's, and e1s's and e2s's to e1h's and e2h's, bit for bit, comparing columns as printed.
+- (b) i10s passes 21.19 ms (i10k's last sample) and e1s passes 21.03 ms (e1h's), with the liquid budget (b) under the run's own 1e-11 at every progress line, and no throw.
+- (c) Window H then goes to the agreement test of 7.2 as it stands, unchanged.
