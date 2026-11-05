@@ -81,4 +81,49 @@ None tonight. One possible call later: if the measured FP64 rate of the 4070 Ti 
 
 ## 7. Tonight's lever: the implicit step on tier 1's physics
 
-(Filled in below as it is measured.)
+### 7.1 What was built (4 November, uncommitted at the time of 7.2)
+
+- **`Flow::implicitStep` on the full gas step** (`core/flow_implicit.cpp`):
+  - transport, SST and wall functions, on one level without regions;
+  - the SST sources Strang-split around the transport exactly as in the explicit step: half a step with the coefficients at the start, half with those at the new state;
+  - the wall functions prescribe the wall cells at every iterate and at the end; the end's prescription and the clip of rho k at 0 are booked as the explicit stages' are;
+  - LU-SGS gains a thin-layer viscous term per face, l_v = nu |S|^2 / V, with nu as `stableDt` takes it;
+  - the flux Jacobian's product carries rho k and rho omega (and k in the pressure).
+- **The history is now the step's own increment**, not U^n - U^(n-1).
+  - Why: with an operator split after the step (the chemistry, the spray, the half sources), the difference form settles where a R + (the split change)/h = 0, so at a = 2/3 the transport is weighted by 2/3 against the split change (derived). The increment form settles where R + (the split change)/h = 0.
+  - Without split operators the two are the same number: case P at 192 columns is identical to 17 digits in error and both budgets on all six implicit runs (measured, against 5d4a41c's binary).
+  - With Table A's projection inside the step, the increment is taken after the projection (it is part of the step's equations, keeping rho, E and the elements).
+- **`Amr` takes 0 finer levels**, and `Amr::implicitStep` steps the base alone: it lands on events and lets the step at most double from one step to the next (BDF2's variable step is zero-stable below a ratio of 1 + sqrt 2).
+- **Tier 1:** `CRUCIBLE_T1_IMPLICIT="dt,tolerance[,iterations[,pseudo CFL[,extrapolate]]]"`, development only, with `CRUCIBLE_T1_LEVELS=0`. The BDF2 history is not checkpointed, so a restarted run's first step is backward Euler.
+- **Probe** (measured, 0.1 ms, base 149x16, one thread): the explicit stable step is 5.2e-7 s in the lead's first 0.1 ms; the implicit at 10 μs took 21 inner iterations per step, 0 rejected. Too short to judge anything; it fixed the test's lengths below.
+
+### 7.2 The agreement test, pre-registered (written 4 November at 22:55 CST, before the runs)
+
+**Case.** Tier 1 development, base 149x16 alone (`CRUCIBLE_T1_LEVELS=0`), central element, one thread each, Table B, from t = 0 to 30 ms:
+- the H2 lead to t_L = 20 ms (transport, SST, wall functions, the chemistry hook);
+- then the LOX, the igniter at t_L + 0.2 ms and 10 ms of hot flow with the spray.
+
+**Runs.**
+- e1: explicit at CFL 0.4 (the reference), spray seed 1.
+- e2: explicit, spray seed 2 (the hot window's noise floor; identical to e1 before t_L, which is checked).
+- i10 and i5: the implicit step at most 10 μs and 5 μs a step, seed 1. Tolerance 8.975e-5, at most 400 inner iterations, pseudo CFL 3, extrapolated first iterate (the prototype's chosen settings).
+
+**Observables.** From the 10 μs series: outlet mdot, F_vac, p0, p_face, q_wall (q_face reported, not judged).
+
+**Window L, the lead, [0.5, 20] ms.** For each observable:
+- the RMS of (implicit - e1) over the window's samples, over e1's RMS magnitude on the window;
+- the largest |implicit - e1| over the same scale.
+- **Pass at a step size:** every RMS ≤ 0.5% and every largest ≤ 2%.
+
+**Window H, the hot flow, [23, 30] ms.** The spray makes the flow chaotic, so the pointwise difference is not judged (it is reported). For each observable, the window mean's difference from e1's over e1's mean.
+- **Pass:** |difference| ≤ max(1%, 2 × the e2 - e1 difference) for mdot, F_vac, p0 and p_face; ≤ max(3%, 2 × the floor) for q_wall.
+- If e1 does not reach 30 ms, window H is not judged, and the reason is reported.
+
+**Also judged.** The gas budget within the run's own 1e-11, and no non-finite value, in every run.
+
+**Reported, not judged.**
+- The speed-up: e1's wall over each implicit run's, per window, from the progress lines. The four runs share the Mac, one thread each, so this is measured under that load.
+- The observed order from i10's and i5's RMS differences.
+- The inner iterations, rejections and unconverged steps.
+
+The step size used on tier 1 is the largest that passes both windows.
