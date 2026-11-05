@@ -33,7 +33,7 @@ struct ReactingFlow::Worker {
   double snap = 0;
   long partial = 0;
   // The chemistry skip's tallies of one reaction call.
-  long skipped = 0, integrated = 0;
+  long skipped = 0, integrated = 0, cold = 0;
   std::array<long, 5> frozenWeight{};
   std::vector<long> frozenNode;
   ManifoldRuntime::Work manifold;
@@ -256,7 +256,7 @@ void ReactingFlow::react(double dt) {
   // takes it (the integrator is reinitialised per cell).
   for (const auto& w : workers_) {
     w->mismatch = w->clipped = w->snap = 0;
-    w->partial = w->skipped = w->integrated = 0;
+    w->partial = w->skipped = w->integrated = w->cold = 0;
     w->causes.fill(0);
     w->frozenWeight.fill(0);
     std::fill(w->frozenNode.begin(), w->frozenNode.end(), 0);
@@ -311,6 +311,10 @@ void ReactingFlow::react(double dt) {
           ++worker.skipped;
           continue;
         }
+        if (flow_.temperature(q) < coldLimit_) {
+          ++worker.skipped, ++worker.cold;
+          continue;
+        }
       }
       if (!equilibrium) ++worker.integrated;
       worker.z[0] = flow_.temperature(q);
@@ -345,6 +349,7 @@ void ReactingFlow::react(double dt) {
     for (std::size_t c = 0; c < w->frozenWeight.size(); ++c) stats_.manifoldFrozenWeight[c] += w->frozenWeight[c];
     for (std::size_t n = 0; n < w->frozenNode.size(); ++n) stats_.manifoldFrozenNode[n] += w->frozenNode[n];
     stats_.skippedCells += w->skipped;
+    stats_.coldCells += w->cold;
     stats_.integratedCells += w->integrated;
   }
 }

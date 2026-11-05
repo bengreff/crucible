@@ -32,6 +32,13 @@
 //          (Y_H2 making up the sum). Skip on: skippedCells 32 (columns 0-3 and 8-11), integratedCells 32; off: 0, 64.
 //      (c) Skip on: columns 0-3 and 8-11 keep their partial densities and conserved state bit for bit. On against
 //          off: every partial density within 1e-14 of the cell's density; columns 4-7 and 12-15 bit for bit.
+//   6. The cold limit (ReactingFlow::setColdLimit; stated 5 November 2026 at about 02:30 CST, before the check was
+//      built or run). The duct of 4 with columns 14-15 at 150 K, one flow with the limit at kColdLimit (200 K) and one
+//      without, the skip on in both.
+//      (a) With the limit: skippedCells 56 (columns 0-11 and 14-15), coldCells 8 and integratedCells 8; without: 48,
+//          0 and 16.
+//      (b) With the limit: columns 14-15 keep their partial densities and conserved state bit for bit.
+//      (c) With against without: columns 0-13 bit for bit.
 //   Run 1 (24 October 2026): 4(a) failed, integratedCells 0 with the skip off, since the engine counted the
 //   integrations only with the skip on, against the stat's own definition (every CVODES integration). The counter
 //   fixed; the criteria unchanged. Run 2: every check passes.
@@ -319,6 +326,49 @@ void traces(const std::string& name) {
   check(same, "5(c) columns 4-7 and 12-15 on against off bit for bit (1 = differ)", same ? 0 : 1, 0);
 }
 
+// 6: the cold limit.
+void cold(const std::string& name) {
+  std::printf("%s, the duct with columns 14-15 at 150 K\n", name.c_str());
+  thermo::ReactionSource source(name);
+  Medium medium = source.medium();
+  const auto fits = thermo::transportFits(name);
+  medium.setTransport(fits);
+  const std::size_t ns = medium.size();
+  Duct d = duct(source, medium, fits);
+  for (std::size_t q = 0; q < d.cells.size(); ++q)
+    if (d.column[q] >= 14) d.cells[q].rho = p0 / (medium.gasConstant(d.y.data() + q * ns) * 150);
+  Flow with(d.definition), without(d.definition);
+  for (Flow* f : {&with, &without}) f->setInitialState(d.cells, d.y);
+  const auto before = with.partialDensities();
+  const auto beforeState = with.state();
+  thermo::ReactingFlow a(with, name, 2, 1e-6, 1e-12, thermo::Chemistry::FiniteRate);
+  thermo::ReactingFlow b(without, name, 2, 1e-6, 1e-12, thermo::Chemistry::FiniteRate);
+  a.setColdLimit(thermo::ReactingFlow::kColdLimit);
+  a.react(1e-6);
+  b.react(1e-6);
+  const auto& sa = a.stats();
+  const auto& sb = b.stats();
+  std::printf("  with the limit: skipped %ld, cold %ld, integrated %ld; without: skipped %ld, cold %ld, integrated %ld\n",
+              sa.skippedCells, sa.coldCells, sa.integratedCells, sb.skippedCells, sb.coldCells, sb.integratedCells);
+  const bool counts = sa.skippedCells == 56 && sa.coldCells == 8 && sa.integratedCells == 8 && sb.skippedCells == 48 &&
+                      sb.coldCells == 0 && sb.integratedCells == 16;
+  check(counts, "6(a) the counts (1 = differ)", counts ? 0 : 1, 0);
+  const auto& pa = with.partialDensities();
+  const auto& pb = without.partialDensities();
+  bool kept = true, same = true;
+  for (std::size_t q = 0; q < d.cells.size(); ++q) {
+    const std::size_t o = q * ns;
+    if (d.column[q] >= 14 && (std::memcmp(pa.data() + o, before.data() + o, ns * sizeof(double)) != 0 ||
+                              std::memcmp(with.state()[q].data(), beforeState[q].data(), sizeof(beforeState[q])) != 0))
+      kept = false;
+    if (d.column[q] < 14 && (std::memcmp(pa.data() + o, pb.data() + o, ns * sizeof(double)) != 0 ||
+                             std::memcmp(with.state()[q].data(), without.state()[q].data(), sizeof(beforeState[q])) != 0))
+      same = false;
+  }
+  check(kept, "6(b) columns 14-15 unchanged bit for bit with the limit (1 = changed)", kept ? 0 : 1, 0);
+  check(same, "6(c) columns 0-13 with against without bit for bit (1 = differ)", same ? 0 : 1, 0);
+}
+
 }  // namespace
 
 int main() {
@@ -327,6 +377,7 @@ int main() {
       mechanism(name);
       flow(name);
       traces(name);
+      cold(name);
     }
   } catch (const std::exception& e) {
     std::printf("error: %s\n", e.what());

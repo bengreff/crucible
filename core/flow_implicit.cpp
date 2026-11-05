@@ -161,6 +161,16 @@ double Flow::implicitStep(double dt,const ImplicitControl& control) {
         bool failed=false;
         std::string why;
         const auto fail=[&](const char* stage,std::size_t q) { why=std::string(stage)+(q<n?" at cell "+std::to_string(q):""); };
+        // A cell's density, thermal energy over the floor, rho k and rho omega, for the error.
+        const auto show=[&](const char* label,const Conserved& u,const double* y,const double* t) {
+            double sum=0;
+            for(std::size_t k=0;k<ns_;++k) sum+=std::max(y[k],0.0);
+            const double floor=sum>0?medium_.energyFloorOfClipped(y)/sum:0.0;
+            char text[256];
+            std::snprintf(text,sizeof text," %s: rho %.6e, e - floor - k %.6e, rho k %.6e, rho omega %.6e;",label,u[0],
+                          (u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-floor-(nt_?t[0]/u[0]:0.0),nt_?t[0]:0.0,nt_?t[1]:0.0);
+            why+=text;
+        };
         int it=0;
         double defect=0,first=0,turbulenceDefect=0;
         // The first half source, from the start's rho k and rho omega with the start's coefficients.
@@ -168,7 +178,14 @@ double Flow::implicitStep(double dt,const ImplicitControl& control) {
             turbulence_=turbulenceStart_;
             turbulenceSource(state_,turbulence_,sourcesStart_,0.5*dt,ghostWidth()-1);
             for(std::size_t q=0;q<n && !failed;++q)
-                if((failed=!admissible(state_[q],species_.data()+q*ns_,turbulence_.data()+q*nt_))) fail("the first half source",q);
+                if((failed=!admissible(state_[q],species_.data()+q*ns_,turbulence_.data()+q*nt_))) {
+                    fail("the first half source",q);
+                    show("after",state_[q],species_.data()+q*ns_,turbulence_.data()+q*nt_);
+                    show("start",state_[q],species_.data()+q*ns_,turbulenceStart_.data()+q*nt_);
+                    char text[64];
+                    std::snprintf(text,sizeof text," T %.6g K, dt %.6e s",temperature_[q],dt);
+                    why+=text;
+                }
         }
         if(!failed) for(std::size_t q=0;q<n;++q) {
             double* known=implicitKnown_.data()+q*nv;
@@ -177,6 +194,17 @@ double Flow::implicitStep(double dt,const ImplicitControl& control) {
             for(int k=0;k<4;++k) known[k]=start[q][k]+(history?c*increment(q,k):0.0);
             for(std::size_t k=0;k<ns_;++k) known[4+k]=startSpecies[q*ns_+k]+(history?c*increment(q,4+k):0.0);
             for(std::size_t k=0;k<nt_;++k) known[4+ns_+k]=turbulence_[q*nt_+k]+(history?c*increment(q,4+ns_+k):0.0);
+            // Where rho omega fell more than (1 + c) / c times over the last step, the history alone asks for rho omega
+            // <= 0, the damping then halves it every iteration, and the cross-diffusion's destruction (|CD| / omega,
+            // singular at omega = 0) takes the rest: 5.4 to 1.7e-118 in one step, then a NaN in the next first half
+            // source at every step size (the run i20u at 8.975 ms, SPEED_PLAN.md 7.4). Half the step shrinks c at least
+            // twofold.
+            if(nt_ && !failed && !prescribed(q) && !(known[4+ns_+1]>0)) {
+                failed=true;fail("the history's rho omega at or below 0",q);
+                char text[96];
+                std::snprintf(text,sizeof text," (%.6e from %.6e, c %.4g)",known[4+ns_+1],turbulence_[q*nt_+1],c);
+                why+=text;
+            }
         }
         // The igniter's mean power over [t, t + h], as the explicit step's.
         const auto& ig=definition_.igniter;
@@ -277,6 +305,16 @@ double Flow::implicitStep(double dt,const ImplicitControl& control) {
                 }
             }
         } catch(const std::runtime_error& e) { failed=true;why=std::string("iteration ")+std::to_string(it)+": "+e.what(); }
+        // With the time error on, a step the inner iterations leave over their tolerance is redone at half: the time
+        // error does not see rho k or rho omega. One accepted at 400 iterations took a thin nozzle cell's rho k from
+        // 5.6 to 0.11 and its rho omega from 31 to 650, where the explicit run holds 5.5 and 29, and omega's collapse
+        // followed 9 steps later (the run i20u at 8.89 ms, SPEED_PLAN.md 7.4).
+        if(!failed && control.timeTolerance>0 && std::max(defect,turbulenceDefect)>control.tolerance) {
+            failed=true;++implicitStats_.unconverged;
+            char text[128];
+            std::snprintf(text,sizeof text,"no convergence in %d iterations (defect %.3e, turbulence %.3e)",it,defect,turbulenceDefect);
+            why=text;
+        }
         if(!failed) {
             // The step from the last iterate's residual: U^(n+1) = U_known + a h R(U^(m)), and the increment U^(n+1) - U^n,
             // kept as the next step's history, before anything split after it: rho k and rho omega before the clip, the
@@ -309,17 +347,7 @@ double Flow::implicitStep(double dt,const ImplicitControl& control) {
                 for(std::size_t q=0;q<n && ok;++q)
                     if(!admissible(next_[q],speciesNext_.data()+q*ns_,nt_?turbulenceNext_.data()+q*nt_:nullptr)) {
                         ok=false;fail("the final update",q);
-                        // What failed: the density, the thermal energy over the floor, rho k, rho omega; the start's and
-                        // the last iterate's alongside.
-                        const auto show=[&](const char* label,const Conserved& u,const double* y,const double* t) {
-                            double sum=0;
-                            for(std::size_t k=0;k<ns_;++k) sum+=std::max(y[k],0.0);
-                            const double floor=sum>0?medium_.energyFloorOfClipped(y)/sum:0.0;
-                            char text[256];
-                            std::snprintf(text,sizeof text," %s: rho %.6e, e - floor - k %.6e, rho k %.6e, rho omega %.6e;",label,u[0],
-                                          (u[3]-(sq(u[1])+sq(u[2]))/(2*u[0]))/u[0]-floor-(nt_?t[0]/u[0]:0.0),nt_?t[0]:0.0,nt_?t[1]:0.0);
-                            why+=text;
-                        };
+                        // What failed, with the start's and the last iterate's alongside.
                         show("final",next_[q],speciesNext_.data()+q*ns_,turbulenceNext_.data()+q*nt_);
                         show("iterate",stage_[q],speciesStage_.data()+q*ns_,turbulenceStage_.data()+q*nt_);
                         show("start",start[q],startSpecies.data()+q*ns_,turbulence_.data()+q*nt_);

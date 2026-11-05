@@ -461,14 +461,17 @@ public:
     // inside the step instead of split after it), and on the final state before it is judged. timeTolerance, when
     // above 0, bounds the time error (the step's increment against the predictor U^n + w increment, per cell over its
     // own scales, as an RMS over the cells): a step over it is redone shorter, and Amr::implicitStep takes the next
-    // step from it (the first at the explicit stable step). 0: the step is the caller's.
+    // step from it (the first at the explicit stable step), and a step whose inner iterations end over their tolerance
+    // is redone at half. 0: the step is the caller's, and an unconverged step is taken.
     struct ImplicitControl {
         double tolerance{1e-6}; int maxIterations{100}; double pseudoCfl{1e6}; bool extrapolate{false}, trace{false};
         double timeTolerance{0};
         std::function<void()> project;
     };
     struct ImplicitStats {
-        std::uint64_t steps{}, iterations{}, rejected{}, unconverged{}, rejectedIterations{};  // the last: spent on rejected attempts
+        // unconverged: steps the inner iterations left over the tolerance (taken, or redone with the time error on);
+        // rejectedIterations: spent on rejected attempts.
+        std::uint64_t steps{}, iterations{}, rejected{}, unconverged{}, rejectedIterations{};
         std::uint64_t timeRejected{};  // of rejected, those over the time tolerance
         int lastIterations{}, mostIterations{};
         // lastTurbulenceDefect: the last iterate's rho k and rho omega defects as the bulk's, over their RMS (in the

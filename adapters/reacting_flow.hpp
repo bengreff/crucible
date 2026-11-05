@@ -56,6 +56,8 @@ class ReactingFlow {
     std::vector<long> manifoldFrozenNode;
     // FiniteRate cell updates the chemistry skip left unchanged (setChemistrySkip), and those CVODES integrated.
     long skippedCells = 0, integratedCells = 0;
+    // Of the skipped, those left frozen below the cold limit (not checkpointed: counted since this process started).
+    long coldCells = 0;
   };
   // Sets the flow's thread count (Flow::setThreads), whose pool then runs the reaction loops too;
   // it must not change while this object lives.
@@ -106,8 +108,14 @@ class ReactingFlow {
   // (dissociation and recombination only): the cell then moves only toward the dissociation equilibrium, so its
   // change at any step length is at most the larger of Y_atom and the atom's equilibrium fraction. The atoms
   // come from CVODES itself, which leaves the H2 it integrates with a positive trace of H.
-  static constexpr double kSkipTemperature = 500, kAtomTrace = 1e-14;
+  // With setColdLimit(t), every cell below t is left unchanged too, whatever its species: not exact but a model,
+  // frozen chemistry below the mechanisms' fits (kColdLimit, their 200 K floor). Off by default (0); RL10 tier 1 sets
+  // it, where past t_L the LOX's O2 reaches the cold H2 expanding in the nozzle and CVODES failed there at 2.4 K
+  // (flag -4, h 1.4e-31 s; SPEED_PLAN.md 7.5). Inferred, not computed: below 200 K the rates with an activation
+  // barrier are nil, and the barrierless recombinations have only the radicals' traces to act on.
+  static constexpr double kSkipTemperature = 500, kAtomTrace = 1e-14, kColdLimit = 200;
   void setChemistrySkip(bool on) { skip_ = on; }
+  void setColdLimit(double t) { coldLimit_ = t; }
   // A liquid spray (core/spray.hpp) inside the shared step: it moves after the flow step with the
   // same dt, before the second reaction half (docs/evidence/SPRAY.md, Coupling). Null: none.
   void setSpray(crucible::Spray* spray) { spray_ = spray; }
@@ -141,6 +149,7 @@ class ReactingFlow {
   std::vector<unsigned char> skipClass_;
   std::array<std::size_t, 2> atom_{};
   bool skip_ = true;
+  double coldLimit_ = 0;
   void reactTable();
   template <class Self, class Io> static void checkpoint(Self& self, Io& io);
 };

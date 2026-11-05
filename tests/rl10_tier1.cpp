@@ -266,43 +266,51 @@ int selftest() {
   return failures ? 1 : 0;
 }
 
-// Equilibrium isentropic stagnation pressure of a cell, and its column's mass-flux average (chamber_study's, which
-// rl10dev used); NaN while the column's net forward mass flux is not positive.
+// Isentropic stagnation pressure of a cell (at equilibrium, or frozen below 600 K as below), and its column's mass-flux
+// average (chamber_study's, which rl10dev used); NaN while the column's net forward mass flux is not positive.
 //
-// Gas with no oxygen and no H atoms below 600 K (the H2 lead into the N2 fill) is already at equilibrium to rounding,
-// so its p0 is taken frozen. Only H2 = 2H can shift there: at 600 K its K_p is about 1.6e-33 atm, so x_H is about
-// 4e-17 and its enthalpy under 1e-15 of the gas's (derived), and traces of O or H at 1e-15 by mass move h by under
-// 1e-10 (derived). Cantera's ChemEquil on that gas (two elements at zero) took 84 to 100% of the base-only lead's wall
-// from about 11 ms (SPEED_PLAN.md 7.3). The equilibrium path is unchanged, and taken if the frozen T0 reaches 600 K.
-constexpr double kFrozenBelow = 600, kTrace = 1e-15;
+// Gas below 600 K is taken frozen. With no oxygen and no H atoms (the H2 lead into the N2 fill) it is already at
+// equilibrium to rounding: only H2 = 2H can shift there, and at 600 K its K_p is about 1.6e-33 atm, so x_H is about
+// 4e-17 and its enthalpy under 1e-15 of the gas's (derived). With oxygen (the LOX, past t_L) the equilibrium path would
+// burn it to water, which no probe reads: H2 and O2 do not react below 600 K in a stagnation's microseconds (inferred;
+// no ignition delay was computed), so there the instrument reports the frozen value, not equilibrium. Cantera's
+// ChemEquil on cold gas took 84 to 100% of the base-only lead's wall from about 11 ms, and stalled every run past t_L
+// (SPEED_PLAN.md 7.3, 7.4). The equilibrium path is taken if the cell or the frozen T0 reaches 600 K.
+//
+// The equilibrium path drops species under a mass fraction of 1e-20 first. The N2 fill washes out to about 1e-70, and
+// with N that scarce ChemEquil took 41 s on one cell past t_L (4.6 ms with the N2 at 1e-30, 2.4 ms with none; measured
+// on backhouse, SPEED_PLAN.md 7.5). A species enters h and s in proportion to its mass fraction, so dropping it moves p0
+// by of order 1e-19 (derived). The loop stops at a step of 1e-13, or once a step under 1e-6 fails to halve: ChemEquil's
+// SP solve has a floor near a step of 1e-9, where the loop ran all 50 solves on hot gas and drifted up to 7e-8.
+constexpr double kFrozenBelow = 600, kTraceBelow = 1e-20;
 long stagnationSolves = 0, stagnationCells = 0, stagnationFrozen = 0;  // the SP solves, cells and frozen cells of p0
-double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const double* y, double kinetic, bool frozen) {
-  gas.setState_TPY(t, p, y);
-  if (!frozen) gas.equilibrate("TP");
+double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const double* y, double kinetic, bool frozen,
+                          const std::string& solver = "auto") {
+  if (frozen) {
+    gas.setState_TPY(t, p, y);
+  } else {
+    std::vector<double> kept(y, y + gas.nSpecies());
+    for (auto& v : kept)
+      if (v < kTraceBelow) v = 0;
+    gas.setState_TPY(t, p, kept.data());
+    gas.equilibrate("TP", solver);
+  }
   const double s = gas.entropy_mass(), h0 = gas.enthalpy_mass() + kinetic;
-  double p0 = p;
+  double p0 = p, last = HUGE_VAL;
   for (int n = 0; n < 50; ++n) {
     ++stagnationSolves;
     gas.setState_SP(s, p0);
-    if (!frozen) gas.equilibrate("SP");
-    double step = (h0 - gas.enthalpy_mass()) / (p0 / gas.density());
+    if (!frozen) gas.equilibrate("SP", solver);
+    const double step = (h0 - gas.enthalpy_mass()) / (p0 / gas.density());
     p0 *= std::exp(step);
-    if (std::abs(step) < 1e-13) break;
+    if (std::abs(step) < 1e-13 || (std::abs(step) < 1e-6 && std::abs(step) > 0.5 * last)) break;
+    last = std::abs(step);
   }
   return p0;
 }
-bool settledGas(Cantera::ThermoPhase& gas, double t, const double* y) {
-  const std::size_t o = gas.elementIndex("O", false), h = gas.speciesIndex("H", false);
-  if (t >= kFrozenBelow || (h != Cantera::npos && y[h] > kTrace)) return false;
-  if (o == Cantera::npos) return true;
-  double oxygen = 0;
-  for (std::size_t k = 0; k < gas.nSpecies(); ++k)
-    oxygen += y[k] * gas.nAtoms(k, o) * gas.atomicWeight(o) / gas.molecularWeight(k);
-  return oxygen <= kTrace;
-}
 double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const double* y, double kinetic) {
   ++stagnationCells;
-  if (settledGas(gas, t, y)) {
+  if (t < kFrozenBelow) {
     const double p0 = stagnationPressure(gas, t, p, y, kinetic, true);
     if (gas.temperature() < kFrozenBelow) return ++stagnationFrozen, p0;
   }
@@ -323,7 +331,8 @@ double columnStagnation(const Flow& flow, Cantera::ThermoPhase& gas, int column)
   return flux > 0 ? p0 / flux : std::nan("");
 }
 // P0 (in selftest): the frozen path against the equilibrium path on the lead's gas, pure H2 and H2 with N2 from 25 to
-// 550 K, and two states that must take the equilibrium path (a trace of O2 over kTrace, and a T0 past 600 K).
+// 550 K, where the two agree; the paths taken (cold gas with oxygen frozen, a cell or a T0 past 600 K on equilibrium);
+// and, reported, how far the frozen value lies from equilibrium on cold H2 with O2.
 void frozenStagnationChecks() {
   auto solution = Cantera::newSolution(CRUCIBLE_SOURCE_DIR "/tools/mechanisms/h2o2_highT.yaml", "", "none");
   auto& gas = *solution->thermo();
@@ -334,25 +343,69 @@ void frozenStagnationChecks() {
     return y;
   };
   struct State { double t, p, u, fH2, fO2; bool frozen; };
-  const State states[] = {{25, 2e5, 300, 1, 0, true},     {100, 1e3, 100, 1, 0, true},  {100, 5e5, 600, 0.5, 0, true},
-                          {300, 3e6, 1000, 0.2, 0, true}, {550, 1e5, 200, 1, 0, true},  {550, 1e5, 2000, 1, 0, false},
-                          {300, 1e5, 300, 1, 1e-12, false}};
-  double worst = 0, worstT = 0, worstP = 0;
+  const State states[] = {{25, 2e5, 300, 1, 0, true},       {100, 1e3, 100, 1, 0, true},  {100, 5e5, 600, 0.5, 0, true},
+                          {300, 3e6, 1000, 0.2, 0, true},   {550, 1e5, 200, 1, 0, true},  {550, 1e5, 2000, 1, 0, false},
+                          {700, 1e5, 100, 1, 0, false},     {300, 1e5, 300, 1, 1e-12, true},
+                          {300, 1e6, 100, 1, 0.5, true}};
+  double worst = 0, worstT = 0, worstP = 0, oxygen = 0;
   bool paths = true;
   for (const auto& x : states) {
     const auto y = mix(x.fH2, x.fO2);
     const long before = stagnationFrozen;
     const double p0 = stagnationPressure(gas, x.t, x.p, y.data(), 0.5 * x.u * x.u);
-    const double reference = stagnationPressure(gas, x.t, x.p, y.data(), 0.5 * x.u * x.u, false);
     paths = paths && (stagnationFrozen > before) == x.frozen;
-    if (std::abs(p0 - reference) / reference > worst) worst = std::abs(p0 - reference) / reference, worstT = x.t, worstP = x.p;
+    double reference = std::nan("");
+    try {
+      reference = stagnationPressure(gas, x.t, x.p, y.data(), 0.5 * x.u * x.u, false);
+    } catch (const Cantera::CanteraError&) {
+    }
+    const double difference = std::abs(p0 - reference) / reference;
+    if (x.fO2 > 0) oxygen = std::isnan(difference) ? difference : std::max(oxygen, difference);
+    else if (!(difference <= worst)) worst = difference, worstT = x.t, worstP = x.p;
   }
-  // The limit is the bound claimed above (traces at kTrace move h by under 1e-10); the equilibrium path's own SP solve
-  // is not exact either.
+  // The limit is the bound claimed above (H at 4e-17 moves h by under 1e-15); the equilibrium path's own SP solve is not
+  // exact either.
   check("P0", paths && worst <= 1e-10,
         strf("the p0 instrument: frozen against equilibrium to %.2e on the lead's gas (limit 1e-10; at %.0f K, %.3g Pa); "
-             "paths as expected %.0f (5 frozen, a T0 past 600 K and an O2 trace of 1e-12 on equilibrium)", worst, worstT, worstP,
-             paths));
+             "paths as expected %.0f (7 frozen, 2 past 600 K on equilibrium)", worst, worstT, worstP, paths) +
+            strf("; on cold H2 with O2 the frozen value lies %.2e from equilibrium (reported)", oxygen));
+  // The equilibrium path's two guards: on the cell past t_L whose N2 had washed out to 7.6e-70 (633 K, fresh H2 and O2 at
+  // 736 m/s), p0 equals the N2-free cell's to 1e-12; and on hot gas (burnt at constant h and p from 300 K at O/F 2, 5
+  // and 8, half burnt, fresh at 900 K) the loop's early stop leaves p0 within 1e-6 of Cantera's other solver, gibbs.
+  // gibbs and ChemEquil agreed to 2.1e-7 on these states with both loops at 50 solves (measured, SPEED_PLAN.md 7.5).
+  std::vector<double> washed(gas.nSpecies(), 0.0);
+  washed[h2] = 0.6148, washed[o2] = 0.3852;
+  const std::vector<double> none = washed;
+  washed[n2] = 7.576e-70;
+  const double kinetic = 0.5 * 736.3 * 736.3;
+  const auto start = std::chrono::steady_clock::now();
+  const double p0Washed = stagnationPressure(gas, 633, 281945, washed.data(), kinetic);
+  const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+  const double trace = std::abs(p0Washed - stagnationPressure(gas, 633, 281945, none.data(), kinetic)) / p0Washed;
+  struct Hot { double of, p, u, burnt, t; };
+  const Hot hot[] = {{5, 3e5, 200, 1, 0}, {5, 3e6, 700, 1, 0}, {8, 3e6, 100, 1, 0}, {8, 3e5, 300, 1, 0},
+                     {2, 1e5, 300, 1, 0}, {5, 3e5, 300, 0.5, 0}, {5, 3e5, 100, 0, 900}};
+  double apart = 0;
+  const long solves = stagnationSolves;
+  for (const auto& x : hot) {
+    std::vector<double> y(gas.nSpecies(), 0.0), b(gas.nSpecies());
+    y[h2] = 1 / (1 + x.of), y[o2] = x.of / (1 + x.of);
+    double t = x.t;
+    if (x.burnt > 0) {
+      gas.setState_TPY(300, x.p, y.data());
+      gas.equilibrate("HP");
+      gas.getMassFractions(b.data());
+      t = gas.temperature();
+      for (std::size_t k = 0; k < y.size(); ++k) y[k] = x.burnt * b[k] + (1 - x.burnt) * y[k];
+    }
+    const double p0 = stagnationPressure(gas, t, x.p, y.data(), 0.5 * x.u * x.u, false);
+    const double gibbs = stagnationPressure(gas, t, x.p, y.data(), 0.5 * x.u * x.u, false, "gibbs");
+    apart = std::max(apart, std::abs(p0 - gibbs) / gibbs);
+  }
+  check("P0", trace <= 1e-12 && apart <= 1e-6,
+        strf("the equilibrium path: the washed-out N2 cell against the N2-free one %.2e (limit 1e-12; %.4f s), hot gas "
+             "against gibbs %.2e (limit 1e-6) at %.1f SP solves a state, the two solvers' together",
+             trace, took, apart, (stagnationSolves - solves) / 7.0));
 }
 
 // The run (tier1_run_definition.md, *The run mode*).
@@ -406,6 +459,8 @@ int runCase(const Setup& s) {
     reacting.back()->useManifoldTable(manifold);
     // CRUCIBLE_CHEM_SKIP=0 integrates every cell, for timing the skip against the unskipped path.
     reacting.back()->setChemistrySkip(env("CRUCIBLE_CHEM_SKIP", 1) != 0);
+    // Frozen chemistry below 200 K (ReactingFlow::setColdLimit; SPEED_PLAN.md 7.5); CRUCIBLE_CHEM_COLD=0 sets it off.
+    reacting.back()->setColdLimit(env("CRUCIBLE_CHEM_COLD", 1) != 0 ? thermo::ReactingFlow::kColdLimit : 0);
   }
   Spray::Settings settings = s.spray;
   for (auto& j : settings.injectors) j.parcelRate = kParcelRate * s.rateFactor;
@@ -567,11 +622,12 @@ int runCase(const Setup& s) {
                 x.liquid, x.parcels, core * 1e3, tMax, near, cells, cells ? static_cast<double>(near) / cells : 0.0);
     if (s.implicitDt > 0) {
       const auto& st = amr.level(0).implicitStats();
-      std::printf("  implicit: %llu steps, %.2f inner iterations per step (most %d), %llu unconverged, %llu rejected (%llu on the "
+      std::printf("  implicit: %llu steps, %.2f inner iterations per step (most %d), %llu unconverged%s, %llu rejected (%llu on the "
                   "time error); the last: %d iterations, defect %.3e from %.3e, turbulence %.3e, time error %.3e, step %.4g s; "
                   "explicit stable step %.4g s\n",
                   static_cast<unsigned long long>(st.steps), st.steps ? static_cast<double>(st.iterations) / st.steps : 0.0,
-                  st.mostIterations, static_cast<unsigned long long>(st.unconverged), static_cast<unsigned long long>(st.rejected),
+                  st.mostIterations, static_cast<unsigned long long>(st.unconverged),
+                  s.implicit.timeTolerance > 0 ? " (redone)" : "", static_cast<unsigned long long>(st.rejected),
                   static_cast<unsigned long long>(st.timeRejected), st.lastIterations, st.lastDefect, st.lastFirstDefect,
                   st.lastTurbulenceDefect, st.lastTimeError, amr.level(0).measurements().dt, st.lastExplicitDt);
     }
@@ -597,7 +653,8 @@ int runCase(const Setup& s) {
     std::printf("\n  chemistry skipped / integrated (ReactingFlow::setChemistrySkip): ");
     for (int l = 0; l < amr.levels(); ++l) {
       const auto& st = reacting[static_cast<std::size_t>(l)]->stats();
-      std::printf("%slevel %d: %ld / %ld", l ? "; " : "", l, st.skippedCells, st.integratedCells);
+      std::printf("%slevel %d: %ld / %ld (%ld cold since this process started)", l ? "; " : "", l, st.skippedCells,
+                  st.integratedCells, st.coldCells);
     }
     std::printf("\n");
     std::fflush(stdout);

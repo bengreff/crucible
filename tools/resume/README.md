@@ -78,3 +78,19 @@ With the dummy job (`dummy_job.sh`), which counts one step a second and checkpoi
   - The script refuses if any other user process runs in a distro it would stop.
   - `wsl --shutdown` also ends the `PolytopiaWSLKeepalive` task's `sleep infinity`. That task restarts only at Ben's next logon, so a shutdown test needs its owner's agreement.
 - **The boot trigger itself,** which needs a Windows reboot.
+
+## The distro stops when idle (5 November 2026)
+
+**Ubuntu stops a few seconds after its last `wsl.exe` session ends, with its jobs, though the VM stays up.**
+- On 24 October at 06:05 it stopped without a reboot, and the boot-only `CrucibleResume` left S7 and B4 dead for 10 days. So on 4 November inquiry added `CrucibleResumeWatch`, which runs the same runner every 30 minutes.
+- On 5 November between 00:50 and 00:51 CST it stopped again and killed S7 low, S7 high and B4 (measured: their last log lines at 00:49 to 00:50; the VM's uptime unbroken at 12.07 days; `last -x` showed the distro booting at 00:52, 00:52, 00:53 and 00:54, each at a new SSH session). Its journal was "uncleanly shut down". The trigger is not known; `.wslconfig`'s `vmIdleTimeout=-1` keeps only the VM.
+- The watch alone does not fix this: a job it relaunches dies again once the session that launched it has gone.
+- **The fix, `CrucibleWSLKeepalive`** (5 November, 00:55): a task that holds one hidden session, `conhost.exe --headless wsl.exe -d Ubuntu -u greff -- sleep infinity`, as `PolytopiaWSLKeepalive` does for Ubuntu-22.04. It runs at Ben's logon; it was started by hand at 00:55. With it, the distro's PID 1 kept its start time across idle gaps (measured from 00:55:44).
+  - It does not survive `wsl --shutdown`, and it restarts only at Ben's next logon. After either, run `schtasks /run /tn CrucibleWSLKeepalive`.
+  - To remove it: `schtasks /delete /tn CrucibleWSLKeepalive /f`.
+- The runner relaunched S7 low (from 17.546 ms), S7 high (17.251 ms) and B4 (0.94 ms) from their checkpoints at 00:57.
+- **It stopped again at about 01:29 to 01:30 CST, with the keepalive in place.**
+  - Measured: at 01:38 the keepalive task showed `Ready` (its process had exited; last result 0, last run 00:55:54); `last -x` showed the distro booting at 01:30 and 01:31; the VM's uptime unbroken (12.1 days); `/etc/wsl.conf` and `.wslconfig` unchanged since 2025 and 1 October.
+  - It killed every job: S7 low, S7 high and B4s (back to their checkpoints), and the speed work's runs, which had none (`SPEED_PLAN.md` 7.4). The runner relaunched the unfinished jobs at 01:31:15.
+  - Another session started its own keepalive on Ubuntu at 01:32:47 (`worm_keepalive_w0b`). The cause is not known.
+  - The keepalive was restarted by hand at 01:39 (`Running`). The lesson for short runs: checkpoint them often (`CRUCIBLE_CHECKPOINT_EVERY`, wall seconds), since a run without a checkpoint restarts from 0.
