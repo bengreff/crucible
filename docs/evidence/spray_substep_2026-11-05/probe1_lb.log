@@ -1,0 +1,164 @@
+RL10A-3-3A tier 1, the run mode (DEVELOPMENT (protocol §6): not the reported case; tier1_run_definition.md, *The run mode*): the gates on the base mesh, then the run; no measured value is read
+element: d_L 3.5400 mm, t 0.9629 mm (0.272 d_L), h 0.9487 mm (0.268 d_L), post OD 5.4658 mm, annulus OD 7.3632 mm, recess 1.7700 mm (0.500 d_L)
+face: R_c 130.3020 mm, pitch 15.7144 mm, r_8 122.4448 mm (R_c - 0.500 p), r_1 12.4436 mm (pitch 12.4436 mm, ring 1's smallest 11.8164 mm, clear of ring 2 from 12.4436 mm), ring spacing 15.7144 mm; per ring LOX area 265.7420 mm2, H2 area 516.1942 mm2
+
+ring  r [mm]    H2 inner slot [mm]   tip   LOX slot [mm] (w)          tip   H2 outer slot [mm]   cup width [mm]
+1    12.444   [  3.677,   9.781]   0.963  [ 10.744,  14.143] (3.3989)   0.963  [ 15.106,  17.617]   13.940
+2    28.158   [ 24.842,  26.444]   0.963  [ 27.407,  28.909] (1.5020)   0.963  [ 29.872,  31.217]   6.375
+3    43.873   [ 41.448,  42.428]   0.963  [ 43.391,  44.355] (0.9640)   0.963  [ 45.317,  46.215]   4.767
+4    59.587   [ 57.560,  58.269]   0.963  [ 59.232,  59.942] (0.7098)   0.963  [ 60.905,  61.576]   4.016
+5    75.301   [ 73.501,  74.058]   0.963  [ 75.021,  75.582] (0.5617)   0.963  [ 76.545,  77.080]   3.579
+6    91.016   [ 89.362,  89.821]   0.963  [ 90.784,  91.248] (0.4647)   0.963  [ 92.211,  92.656]   3.293
+7   106.730   [105.179, 105.569]   0.963  [106.532, 106.928] (0.3963)   0.963  [107.891, 108.271]   3.092
+8   122.445   [120.970, 121.309]   0.963  [122.272, 122.617] (0.3454)   0.963  [123.580, 123.912]   2.942
+
+G2   pass  no overlap: ring 1's inner H2 slot from 3.6769 mm (axis clear), ring 8's outer to 123.9123 mm (wall at 130.3020 mm)
+G2   pass  slot areas: largest relative error 3.43e-14 against A_L and A_H / 2
+G2   pass  cups 12784.04 mm2 + porous 40555.84 mm2 = pi R_c^2 to 0
+G3   pass  oxidizer 13.952500 kg/s, fuel 2.760138 kg/s, O/F 5.055000, chamber flow 16.712638 kg/s
+G3   pass  transpired 0.100000 of the fuel at 6.805773 kg/(m2 s) on every porous band (spread 1.31e-16); ring O/F 5.61667
+
+G4 (reported) at a nominal 2.8 MPa face pressure, H2 at 199.67 K: rho_H2 3.4002 kg/m3, mu 6.833e-06 Pa s; LOX at 101.17 K: rho_L 1084.65 kg/m3
+  ring 1: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 2: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 3: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 4: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 5: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 6: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 7: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  ring 8: V_L 6.0508 m/s, V_H2 176.917 m/s, J 2.680, (V_g - V_L) / (V_L MR) 5.028
+  transpired: 2.0016 m/s; viscosity ratios from I 0.05: slots 137.2 to 2523 (L = 0.070 D_h, 0.0465 to 0.8546 mm), porous 525 (L = p, 15.7144 mm)
+G8   pass  every ring's group 5.0276 inside the digitised curve's table [0.23, 14.50]
+  q 3.2073 (D30 / D-bar 0.455000), SMD / D-bar 0.8511; D-bar / D_L 0.1483: SMD 447.0 um central, 262.9 um low (curve / 1.7), 581.0 um high (curve x 1.3)
+  core length: LOX at 101.17 K: mu_l 0.0001484 Pa s, sigma 0.01045 N/m; Oh 0.0007409, M = J 2.680; Porcheron 6.84 mm (1.933 d_L, used), Lasheras-Hopfinger 12.97 mm (3.665 d_L)
+
+=== 149 x 16 (radial stretching 0)
+G1   pass  throat station 33 radius to 0; face at -13.0862 in (+0.0138 from -13.1); face radius to 0; exit radius to 0; dz 10.0724 mm, face ring heights 8.1439 to 8.1439 mm
+  supply         [inner, outer] mm        true mm2   rings  mesh mm2   A_mesh/A_true  J_mesh/J
+  porous 0     [   0.000,    3.677]      42.47      0       0.00     0.0000   -
+  H2 in 1      [   3.677,    9.781]     258.10      1     208.36     0.8073   1.5344
+  H2 out 1     [  15.106,   17.617]     258.10      0       0.00     0.0000   -
+  porous 1     [  17.617,   24.842]     963.83      1    1041.79     1.0809   0.8559
+  H2 in 2      [  24.842,   26.444]     258.10      0       0.00     0.0000   -
+  H2 out 2     [  29.872,   31.217]     258.10      0       0.00     0.0000   -
+  porous 2     [  31.217,   41.448]    2335.65      1    1875.23     0.8029   1.5513
+  H2 in 3      [  41.448,   42.428]     258.10      0       0.00     0.0000   -
+  H2 out 3     [  45.317,   46.215]     258.10      0       0.00     0.0000   -
+  porous 3     [  46.215,   57.560]    3698.67      1    2708.67     0.7323   1.8646
+  H2 in 4      [  57.560,   58.269]     258.10      0       0.00     0.0000   -
+  H2 out 4     [  60.905,   61.576]     258.10      1    3125.38    12.1093   0.0068
+  porous 4     [  61.576,   73.501]    5060.62      1    3542.10     0.6999   2.0412
+  H2 in 5      [  73.501,   74.058]     258.10      0       0.00     0.0000   -
+  H2 out 5     [  76.545,   77.080]     258.10      0       0.00     0.0000   -
+  porous 5     [  77.080,   89.362]    6422.30      2    8334.36     1.2977   0.5938
+  H2 in 6      [  89.362,   89.821]     258.10      0       0.00     0.0000   -
+  H2 out 6     [  92.211,   92.656]     258.10      0       0.00     0.0000   -
+  porous 6     [  92.656,  105.179]    7783.87      2   10001.23     1.2849   0.6057
+  H2 in 7      [ 105.179,  105.569]     258.10      0       0.00     0.0000   -
+  H2 out 7     [ 107.891,  108.271]     258.10      0       0.00     0.0000   -
+  porous 7     [ 108.271,  120.970]    9145.39      2   11668.10     1.2758   0.6143
+  H2 in 8      [ 120.970,  121.309]     258.10      0       0.00     0.0000   -
+  H2 out 8     [ 123.580,  123.912]     258.10      0       0.00     0.0000   -
+  porous 8     [ 123.912,  130.302]    5103.05      1    6459.13     1.2657   0.6242
+G5   FAIL  0 of 25 supplies within 5% of their true area; 15 hold no ring centre (worst held: H2 out 4, 12.109)
+  merged band    [inner, outer] mm      slots mm2   cup mm2   rings  mesh mm2   J_mesh/J
+  ring 1       [   3.677,   17.617]     516.19    932.50      2     833.44   0.3836
+  ring 2       [  24.842,   31.217]     516.19   1122.65      1    1458.51   0.1253
+  ring 3       [  41.448,   46.215]     516.19   1312.79      1    2291.95   0.0507
+  ring 4       [  57.560,   61.576]     516.19   1502.93      1    3125.38   0.0273
+  ring 5       [  73.501,   77.080]     516.19   1693.08      0       0.00   -
+  ring 6       [  89.362,   92.656]     516.19   1883.22      0       0.00   -
+  ring 7       [ 105.179,  108.271]     516.19   2073.36      0       0.00   -
+  ring 8       [ 120.970,  123.912]     516.19   2263.51      0       0.00   -
+G6   FAIL  true slots: A supply contains no injector-face ring centre; widen it or refine the radial mesh.
+G6   FAIL  merged (each ring's H2 slots as one band across its cup): A supply contains no injector-face ring centre; widen it or refine the radial mesh.
+F3   pass  149 x 16, wall functions and corrections: 33 supplies; per ring, face mass flow to 5.76e-16; per supply, face mass flow and rho u A_true (38 supply-rings) to 1.01e-15; supply areas to 8.57e-16 (limit 1e-12)
+     one step: dt 1.436e-06 s, budgets mass -3.537e-16, energy 1.364e-15
+F3   pass  AMR level 0, wall functions and corrections (step D, D4): 33 supplies; per ring, face mass flow to 5.76e-16; per supply, face mass flow and rho u A_true (38 supply-rings) to 1.01e-15; supply areas to 8.57e-16 (limit 1e-12)
+F3   pass  AMR level 1, wall functions and corrections (step D, D4): 33 supplies; per ring, face mass flow to 1.71e-15; per supply, face mass flow and rho u A_true (51 supply-rings) to 3e-15; supply areas to 3.06e-15 (limit 1e-12)
+F3   pass  AMR level 2, wall functions and corrections (step D, D4): 33 supplies; per ring, face mass flow to 7.32e-15; per supply, face mass flow and rho u A_true (76 supply-rings) to 1.2e-15; supply areas to 1.19e-15 (limit 1e-12)
+G7   FAIL  the cup: 0.18 cells across its depth (need 4), fewest across a slot 0.04 and a tip 0.12 (need 2); Mesh is one body-fitted map of r(z) from the face plane, with no cells behind it, so it cannot carry the cup's walls
+
+4 check(s) failed
+gates (G1 to G4, G8, F3 on the run's Definition): 0 failed; G5 and G6 test the ring-centre rule decision 6 superseded, G7 is declared (decision 5)
+implicit (development): BDF2 at most 1e-05 s a step, inner tolerance 8.975e-05, at most 400 inner iterations, pseudo CFL 3, extrapolated first iterate on, time tolerance 0.003; the base alone
+
+DEVELOPMENT (protocol §6): not the reported case
+Table B /home/greff/crucible_p0/rl10_s.bin: Table B built 2026-10-21 02:43 CDT by crucible_build_manifold_table from /Users/ben/inquiry-project/tools/mechanisms/h2o2_highT.yaml, Cantera 3.2.0; f_H 5 nodes {0.133333,0.142857,0.153846,0.166667,0.181818} as given, Z_N {0.000000,0.300000}, eta 11 over [0,1], ln rho 9 over [0.001, 80] kg/m3; progress variable the specific entropy; 990 nodes in 16 s on 3 threads; node element error 5.78e-10 raw, 3.64e-16 after projection, |sum Y - 1| 4.44e-16; gates: 2a FAIL, 2b pass, 2c FAIL, criterion 1 pass -- GATE FAILURE
+development: base 149 x 16 plus 0 levels (149 x 16 finest), 1 threads, to 21.05 ms, CFL 0.4; parcels 5e+05 per s per injector; throat station 33 (A_t 1.236549e-02 m2), p0 column 7 at z 75.5376 mm, face area 5.333988e-02 m2
+tags (thresholds frozen at s* = 1/4, the y+ target provisional (step D)): interval 2, buffer 2, throat 0.50 r_t to level 2, wall y+ 300, f_H 0.005, T 0.0125, p 0.025, vorticity 0.0125; the face column to the top within 6.844 mm
+the start: the H2 supplies open at 0, the LOX at t_L = 20 ms on its 0.5 ms ramp, the igniter at 20.2 ms; the lead's gate judged at t_L; the exchange bound (registration B) a step limit, f 0.25
+restart: from /home/greff/crucible_lb/i10k/ck.ckpt
+restart: t 20.81 ms, 2081 samples, 4253 base steps, 30321 parcels
+LBPROBE t 2.081016535e-02 dt 1.6535e-07 mass -4.5279e-14 energy 2.7258e-14 momentum -7.2323e-14; liquid 4.180429651e-03 kg, 30327 parcels; injected +7.8157e-03 exchanged +3.6353e-03 out +0.0000e+00; vaporised +41856 walls +0 children +68943 flashes +851 clamped +0 substeps +56523285
+LBPROBE t 2.083781373e-02 dt 9.5811e-07 mass -4.3678e-14 energy 5.2314e-09 momentum -3.7420e-14; liquid 4.321757512e-03 kg, 31586 parcels; injected +1.3368e-05 exchanged +8.5342e-06 out +0.0000e+00; vaporised +56 walls +0 children +105 flashes +0 clamped +12 substeps +135426
+LBPROBE t 2.083876525e-02 dt 9.5151e-07 mass -4.2657e-14 energy 5.2220e-09 momentum -3.2849e-14; liquid 4.326626688e-03 kg, 31637 parcels; injected +1.3276e-05 exchanged +8.4068e-06 out +0.0000e+00; vaporised +58 walls +0 children +101 flashes +0 clamped +7 substeps +136507
+LBPROBE t 2.083970937e-02 dt 9.4413e-07 mass -3.9742e-14 energy 5.2127e-09 momentum -2.8564e-14; liquid 4.331397082e-03 kg, 31670 parcels; injected +1.3173e-05 exchanged +8.4025e-06 out +0.0000e+00; vaporised +57 walls +0 children +90 flashes +0 clamped +8 substeps +137641
+LBPROBE t 2.084000000e-02 dt 2.9063e-07 mass -3.9933e-14 energy 5.2098e-09 momentum -2.9124e-14; liquid 4.332869143e-03 kg, 31675 parcels; injected +4.0550e-06 exchanged +2.5829e-06 out +0.0000e+00; vaporised +20 walls +0 children +17 flashes +0 clamped +4 substeps +60741
+LBPROBE t 2.084058126e-02 dt 5.8126e-07 mass -4.7262e-14 energy 5.2041e-09 momentum -3.5646e-14; liquid 4.335847699e-03 kg, 31686 parcels; injected +8.1100e-06 exchanged +5.1314e-06 out +0.0000e+00; vaporised +44 walls +0 children +55 flashes +0 clamped +7 substeps +94778
+LBPROBE t 2.084164391e-02 dt 1.0627e-06 mass -5.2221e-14 energy 5.1937e-09 momentum -2.6503e-14; liquid 4.341325737e-03 kg, 31748 parcels; injected +1.4827e-05 exchanged +9.3487e-06 out +0.0000e+00; vaporised +68 walls +0 children +130 flashes +0 clamped +6 substeps +150267
+LBPROBE t 2.084255454e-02 dt 9.1062e-07 mass -5.3190e-14 energy 5.1848e-09 momentum -3.7592e-14; liquid 4.345919820e-03 kg, 31794 parcels; injected +1.2705e-05 exchanged +8.1114e-06 out +0.0000e+00; vaporised +59 walls +0 children +97 flashes +0 clamped +4 substeps +129716
+LBPROBE t 2.084343508e-02 dt 8.8054e-07 mass -5.4787e-14 energy 5.1763e-09 momentum -2.0526e-14; liquid 4.350473991e-03 kg, 31844 parcels; injected +1.2286e-05 exchanged +7.7316e-06 out +0.0000e+00; vaporised +50 walls +0 children +100 flashes +0 clamped +6 substeps +127316
+LBPROBE t 2.084434159e-02 dt 9.0651e-07 mass -5.8573e-14 energy 5.1676e-09 momentum -3.3466e-14; liquid 4.355162941e-03 kg, 31914 parcels; injected +1.2648e-05 exchanged +7.9591e-06 out +0.0000e+00; vaporised +60 walls +0 children +122 flashes +0 clamped +7 substeps +130193
+LBPROBE t 2.084525438e-02 dt 9.1279e-07 mass -5.7544e-14 energy 5.1587e-09 momentum -3.1427e-14; liquid 4.359760148e-03 kg, 31966 parcels; injected +1.2736e-05 exchanged +8.1385e-06 out +0.0000e+00; vaporised +44 walls +0 children +96 flashes +0 clamped +9 substeps +131949
+LBPROBE t 2.084615639e-02 dt 9.0201e-07 mass -6.3296e-14 energy 5.1500e-09 momentum -3.2170e-14; liquid 4.364300603e-03 kg, 32003 parcels; injected +1.2585e-05 exchanged +8.0449e-06 out +0.0000e+00; vaporised +65 walls +0 children +94 flashes +0 clamped +11 substeps +132953
+LBPROBE t 2.084705112e-02 dt 8.9473e-07 mass -5.7683e-14 energy 5.1414e-09 momentum -3.5806e-14; liquid 4.368683282e-03 kg, 32032 parcels; injected +1.2484e-05 exchanged +8.1010e-06 out +0.0000e+00; vaporised +56 walls +0 children +85 flashes +0 clamped +8 substeps +132756
+LBPROBE t 2.084793975e-02 dt 8.8863e-07 mass -4.6993e-14 energy 9.0259e-09 momentum -3.3778e-14; liquid 4.373087370e-03 kg, 32061 parcels; injected +1.2399e-05 exchanged +7.9945e-06 out +0.0000e+00; vaporised +63 walls +0 children +92 flashes +0 clamped +10 substeps +132488
+LBPROBE t 2.084882218e-02 dt 8.8244e-07 mass -3.9345e-14 energy 1.8542e-08 momentum -3.4270e-14; liquid 4.377526660e-03 kg, 32127 parcels; injected +1.2312e-05 exchanged +7.8729e-06 out +0.0000e+00; vaporised +55 walls +0 children +113 flashes +0 clamped +12 substeps +130054
+LBPROBE t 2.084970146e-02 dt 8.7928e-07 mass -3.4623e-14 energy 1.8511e-08 momentum -3.3056e-14; liquid 4.381882017e-03 kg, 32153 parcels; injected +1.2268e-05 exchanged +7.9127e-06 out +0.0000e+00; vaporised +61 walls +0 children +87 flashes +0 clamped +13 substeps +128531
+LBPROBE t 2.085000000e-02 dt 2.9854e-07 mass -4.4137e-14 energy 1.8501e-08 momentum -3.1191e-14; liquid 4.383378508e-03 kg, 32179 parcels; injected +4.1654e-06 exchanged +2.6689e-06 out +0.0000e+00; vaporised +9 walls +0 children +27 flashes +0 clamped +4 substeps +62073
+LBPROBE t 2.085059709e-02 dt 5.9709e-07 mass -4.2541e-14 energy 1.8481e-08 momentum -3.0791e-14; liquid 4.386385651e-03 kg, 32203 parcels; injected +8.3308e-06 exchanged +5.3237e-06 out +0.0000e+00; vaporised +51 walls +0 children +75 flashes +0 clamped +10 substeps +98217
+LBPROBE t 2.085158514e-02 dt 9.8806e-07 mass -5.0015e-14 energy 5.7633e-08 momentum -3.1412e-14; liquid 4.391344900e-03 kg, 32238 parcels; injected +1.3786e-05 exchanged +8.8266e-06 out +0.0000e+00; vaporised +66 walls +0 children +101 flashes +0 clamped +16 substeps +142696
+LBPROBE t 2.085243358e-02 dt 8.4844e-07 mass -5.3349e-14 energy 7.8104e-08 momentum -3.0717e-14; liquid 4.395574810e-03 kg, 32272 parcels; injected +1.1838e-05 exchanged +7.6080e-06 out +0.0000e+00; vaporised +55 walls +0 children +81 flashes +0 clamped +15 substeps +126221
+LBPROBE t 2.085325727e-02 dt 8.2369e-07 mass -4.5136e-14 energy 7.7985e-08 momentum -3.0120e-14; liquid 4.399752545e-03 kg, 32311 parcels; injected +1.1493e-05 exchanged +7.3148e-06 out +0.0000e+00; vaporised +53 walls +0 children +92 flashes +0 clamped +18 substeps +125528
+LBPROBE t 2.085410246e-02 dt 8.4518e-07 mass -5.1761e-14 energy 7.7864e-08 momentum -3.0866e-14; liquid 4.404014772e-03 kg, 32354 parcels; injected +1.1792e-05 exchanged +7.5302e-06 out +0.0000e+00; vaporised +61 walls +0 children +96 flashes +0 clamped +14 substeps +127085
+LBPROBE t 2.085495609e-02 dt 8.5364e-07 mass -5.5799e-14 energy 7.7742e-08 momentum -3.0471e-14; liquid 4.408364606e-03 kg, 32401 parcels; injected +1.1910e-05 exchanged +7.5605e-06 out +0.0000e+00; vaporised +43 walls +0 children +90 flashes +0 clamped +10 substeps +128377
+LBPROBE t 2.085580249e-02 dt 8.4640e-07 mass -4.4638e-14 energy 7.7621e-08 momentum -3.2073e-14; liquid 4.412622807e-03 kg, 32432 parcels; injected +1.1809e-05 exchanged +7.5512e-06 out +0.0000e+00; vaporised +56 walls +0 children +87 flashes +0 clamped +5 substeps +132435
+LBPROBE t 2.085663833e-02 dt 8.3584e-07 mass -5.1545e-14 energy 7.7503e-08 momentum -2.6576e-14; liquid 4.416855983e-03 kg, 32460 parcels; injected +1.1662e-05 exchanged +7.4288e-06 out +0.0000e+00; vaporised +61 walls +0 children +81 flashes +0 clamped +9 substeps +136103
+LBPROBE t 2.085747040e-02 dt 8.3207e-07 mass -6.6108e-14 energy 7.7385e-08 momentum -3.1772e-14; liquid 4.421113451e-03 kg, 32486 parcels; injected +1.1609e-05 exchanged +7.3520e-06 out +0.0000e+00; vaporised +75 walls +0 children +101 flashes +0 clamped +6 substeps +133933
+LBPROBE t 2.085830080e-02 dt 8.3041e-07 mass -6.7142e-14 energy 7.7268e-08 momentum -3.2509e-14; liquid 4.425314684e-03 kg, 32505 parcels; injected +1.1586e-05 exchanged +7.3851e-06 out +0.0000e+00; vaporised +67 walls +0 children +78 flashes +0 clamped +9 substeps +127794
+LBPROBE t 2.085912537e-02 dt 8.2456e-07 mass -7.1542e-14 energy 7.7152e-08 momentum -2.5932e-14; liquid 4.429577257e-03 kg, 32536 parcels; injected +1.1505e-05 exchanged +7.2421e-06 out +0.0000e+00; vaporised +60 walls +0 children +91 flashes +0 clamped +12 substeps +127990
+LBPROBE t 2.085994482e-02 dt 8.1945e-07 mass -7.9395e-14 energy 7.7038e-08 momentum -2.7733e-14; liquid 4.433799383e-03 kg, 32571 parcels; injected +1.1433e-05 exchanged +7.2112e-06 out +0.0000e+00; vaporised +68 walls +0 children +103 flashes +0 clamped +8 substeps +124184
+LBPROBE t 2.086000000e-02 dt 5.5183e-08 mass -7.4904e-14 energy 7.7030e-08 momentum -1.6958e-14; liquid 4.434066116e-03 kg, 32576 parcels; injected +7.6993e-07 exchanged +5.0320e-07 out +0.0000e+00; vaporised +3 walls +0 children +8 flashes +0 clamped +3 substeps +35983
+LBPROBE t 2.086011037e-02 dt 1.1037e-07 mass -6.6739e-14 energy 7.7014e-08 momentum -2.3685e-14; liquid 4.434607126e-03 kg, 32591 parcels; injected +1.5399e-06 exchanged +9.9886e-07 out +0.0000e+00; vaporised +6 walls +0 children +13 flashes +0 clamped +3 substeps +40638
+LBPROBE t 2.086033110e-02 dt 2.2073e-07 mass -5.9993e-14 energy 7.6983e-08 momentum -2.1689e-14; liquid 4.435706034e-03 kg, 32605 parcels; injected +3.0797e-06 exchanged +1.9808e-06 out +0.0000e+00; vaporised +8 walls +0 children +22 flashes +0 clamped +1 substeps +52329
+LBPROBE t 2.086077256e-02 dt 4.4146e-07 mass -5.6387e-14 energy 7.6921e-08 momentum -2.0291e-14; liquid 4.437929214e-03 kg, 32631 parcels; injected +6.1595e-06 exchanged +3.9363e-06 out +0.0000e+00; vaporised +25 walls +0 children +51 flashes +0 clamped +4 substeps +79473
+LBPROBE t 2.086165548e-02 dt 8.8292e-07 mass -5.8033e-14 energy 7.6798e-08 momentum -2.7655e-14; liquid 4.442347631e-03 kg, 32665 parcels; injected +1.2319e-05 exchanged +7.9005e-06 out +0.0000e+00; vaporised +66 walls +0 children +100 flashes +0 clamped +6 substeps +133059
+LBPROBE t 2.086246388e-02 dt 8.0840e-07 mass -5.3694e-14 energy 7.6685e-08 momentum -2.0625e-14; liquid 4.446376457e-03 kg, 32722 parcels; injected +1.1279e-05 exchanged +7.2504e-06 out +0.0000e+00; vaporised +51 walls +0 children +100 flashes +0 clamped +5 substeps +122248
+LBPROBE t 2.086324775e-02 dt 7.8387e-07 mass -5.3524e-14 energy 7.6576e-08 momentum -2.3394e-14; liquid 4.450242881e-03 kg, 32760 parcels; injected +1.0937e-05 exchanged +7.0706e-06 out +0.0000e+00; vaporised +47 walls +0 children +85 flashes +0 clamped +2 substeps +117653
+LBPROBE t 2.086404074e-02 dt 7.9299e-07 mass -6.0845e-14 energy 7.6467e-08 momentum -1.7810e-14; liquid 4.454303071e-03 kg, 32805 parcels; injected +1.1064e-05 exchanged +7.0040e-06 out +0.0000e+00; vaporised +45 walls +0 children +82 flashes +0 clamped +4 substeps +121793
+LBPROBE t 2.086483702e-02 dt 7.9628e-07 mass -5.5205e-14 energy 7.6357e-08 momentum -1.7020e-14; liquid 4.458365380e-03 kg, 32839 parcels; injected +1.1110e-05 exchanged +7.0478e-06 out +0.0000e+00; vaporised +49 walls +0 children +83 flashes +0 clamped +5 substeps +121101
+LBPROBE t 2.086563011e-02 dt 7.9309e-07 mass -5.2913e-14 energy 7.6248e-08 momentum -2.0581e-14; liquid 4.462358740e-03 kg, 32866 parcels; injected +1.1066e-05 exchanged +7.0722e-06 out +0.0000e+00; vaporised +54 walls +0 children +81 flashes +0 clamped +9 substeps +122766
+LBPROBE t 2.086641828e-02 dt 7.8817e-07 mass -4.7803e-14 energy 7.6140e-08 momentum -2.1113e-14; liquid 4.466367184e-03 kg, 32913 parcels; injected +1.0997e-05 exchanged +6.9884e-06 out +0.0000e+00; vaporised +56 walls +0 children +95 flashes +0 clamped +4 substeps +123157
+LBPROBE t 2.086720133e-02 dt 7.8305e-07 mass -5.1469e-14 energy 7.6033e-08 momentum -1.2626e-14; liquid 4.470302578e-03 kg, 32956 parcels; injected +1.0925e-05 exchanged +6.9901e-06 out +0.0000e+00; vaporised +52 walls +0 children +95 flashes +0 clamped +8 substeps +121183
+LBPROBE t 2.086798021e-02 dt 7.7888e-07 mass -4.4161e-14 energy 1.0419e-07 momentum -1.4404e-14; liquid 4.474249223e-03 kg, 32986 parcels; injected +1.0867e-05 exchanged +6.9206e-06 out +0.0000e+00; vaporised +49 walls +0 children +79 flashes +0 clamped +15 substeps +121214
+LBPROBE t 2.086875866e-02 dt 7.7845e-07 mass -4.2598e-14 energy 1.0405e-07 momentum -1.4755e-14; liquid 4.478174190e-03 kg, 33027 parcels; injected +1.0861e-05 exchanged +6.9363e-06 out +0.0000e+00; vaporised +54 walls +0 children +87 flashes +0 clamped +17 substeps +121019
+LBPROBE t 2.086953183e-02 dt 7.7317e-07 mass -4.8164e-14 energy 1.0390e-07 momentum -9.8365e-15; liquid 4.482019032e-03 kg, 33058 parcels; injected +1.0788e-05 exchanged +6.9428e-06 out +0.0000e+00; vaporised +45 walls +0 children +76 flashes +0 clamped +11 substeps +120981
+LBPROBE t 2.087000000e-02 dt 4.6817e-07 mass -4.4418e-14 energy 1.0382e-07 momentum -1.4335e-14; liquid 4.484350772e-03 kg, 33089 parcels; injected +6.5322e-06 exchanged +4.2005e-06 out +0.0000e+00; vaporised +33 walls +0 children +56 flashes +0 clamped +6 substeps +84325
+LBPROBE t 2.087066831e-02 dt 6.6831e-07 mass -3.5356e-14 energy 1.0369e-07 momentum -3.5345e-15; liquid 4.487706409e-03 kg, 33096 parcels; injected +9.3246e-06 exchanged +5.9690e-06 out +0.0000e+00; vaporised +48 walls +0 children +55 flashes +0 clamped +10 substeps +107799
+LBPROBE t 2.087149488e-02 dt 8.2657e-07 mass -3.7009e-14 energy 1.0354e-07 momentum -8.6457e-15; liquid 4.491844478e-03 kg, 33125 parcels; injected +1.1533e-05 exchanged +7.3947e-06 out +0.0000e+00; vaporised +50 walls +0 children +79 flashes +0 clamped +9 substeps +129151
+LBPROBE t 2.087228893e-02 dt 7.9404e-07 mass -4.1158e-14 energy 1.4842e-07 momentum -8.8205e-15; liquid 4.495847558e-03 kg, 33164 parcels; injected +1.1079e-05 exchanged +7.0758e-06 out +0.0000e+00; vaporised +65 walls +0 children +96 flashes +0 clamped +13 substeps +128034
+LBPROBE t 2.087303726e-02 dt 7.4833e-07 mass -4.4800e-14 energy 1.4823e-07 momentum -5.6828e-15; liquid 4.499494973e-03 kg, 33187 parcels; injected +1.0441e-05 exchanged +6.7937e-06 out +0.0000e+00; vaporised +56 walls +0 children +79 flashes +0 clamped +16 substeps +117507
+LBPROBE t 2.087378189e-02 dt 7.4463e-07 mass -3.9864e-14 energy 1.4803e-07 momentum -8.6229e-15; liquid 4.503268059e-03 kg, 33231 parcels; injected +1.0389e-05 exchanged +6.6164e-06 out +0.0000e+00; vaporised +49 walls +0 children +93 flashes +0 clamped +13 substeps +117353
+LBPROBE t 2.087453327e-02 dt 7.5138e-07 mass -4.1906e-14 energy 1.4783e-07 momentum -6.0596e-15; liquid 4.507027444e-03 kg, 33278 parcels; injected +1.0484e-05 exchanged +6.7243e-06 out +0.0000e+00; vaporised +50 walls +0 children +89 flashes +0 clamped +14 substeps +118912
+LBPROBE t 2.087528233e-02 dt 7.4906e-07 mass -3.8873e-14 energy 1.4764e-07 momentum -1.1727e-15; liquid 4.510793454e-03 kg, 33303 parcels; injected +1.0451e-05 exchanged +6.6852e-06 out +0.0000e+00; vaporised +56 walls +0 children +81 flashes +0 clamped +4 substeps +118564
+LBPROBE t 2.087602531e-02 dt 7.4298e-07 mass -3.9323e-14 energy 1.4744e-07 momentum -2.5369e-15; liquid 4.514553461e-03 kg, 33335 parcels; injected +1.0366e-05 exchanged +6.6065e-06 out +0.0000e+00; vaporised +53 walls +0 children +77 flashes +0 clamped +3 substeps +118033
+LBPROBE t 2.087676810e-02 dt 7.4279e-07 mass -5.0584e-14 energy 1.4725e-07 momentum -8.1968e-15; liquid 4.518343785e-03 kg, 33374 parcels; injected +1.0364e-05 exchanged +6.5734e-06 out +0.0000e+00; vaporised +48 walls +0 children +87 flashes +0 clamped +4 substeps +117894
+LBPROBE t 2.087750595e-02 dt 7.3785e-07 mass -4.4877e-14 energy 1.4706e-07 momentum -6.0495e-15; liquid 4.521965894e-03 kg, 33408 parcels; injected +1.0295e-05 exchanged +6.6727e-06 out +0.0000e+00; vaporised +52 walls +0 children +86 flashes +0 clamped +5 substeps +119450
+LBPROBE t 2.087823989e-02 dt 7.3394e-07 mass -4.6309e-14 energy 1.4687e-07 momentum -4.4761e-15; liquid 4.525698599e-03 kg, 33441 parcels; injected +1.0240e-05 exchanged +6.5077e-06 out +0.0000e+00; vaporised +54 walls +0 children +79 flashes +0 clamped +12 substeps +120252
+LBPROBE t 2.087897134e-02 dt 7.3145e-07 mass -5.0308e-14 energy 1.4668e-07 momentum 1.9459e-16; liquid 4.529365651e-03 kg, 33457 parcels; injected +1.0206e-05 exchanged +6.5385e-06 out +0.0000e+00; vaporised +53 walls +0 children +69 flashes +0 clamped +10 substeps +118100
+LBPROBE t 2.087970260e-02 dt 7.3126e-07 mass -5.0743e-14 energy 1.4649e-07 momentum -3.1135e-15; liquid 4.533121630e-03 kg, 33478 parcels; injected +1.0203e-05 exchanged +6.4469e-06 out +0.0000e+00; vaporised +55 walls +0 children +76 flashes +0 clamped +10 substeps +115623
+LBPROBE t 2.088000000e-02 dt 2.9740e-07 mass -6.3744e-14 energy 1.4641e-07 momentum -3.4951e-15; liquid 4.534635724e-03 kg, 33513 parcels; injected +4.1495e-06 exchanged +2.6354e-06 out +0.0000e+00; vaporised +16 walls +0 children +43 flashes +0 clamped +6 substeps +63617
+LBPROBE t 2.088055487e-02 dt 5.5487e-07 mass -6.6350e-14 energy 1.4627e-07 momentum -1.3398e-14; liquid 4.537431692e-03 kg, error: Spray: the heat-transfer number's residual is NaN.
+33538 parcels; injected +7.7419e-06 exchanged +4.9459e-06 out +0.0000e+00; vaporised +43 walls +0 children +68 flashes +0 clamped +12 substeps +95970
+LBPROBE t 2.088136958e-02 dt 8.1470e-07 mass -6.4787e-14 energy 1.4606e-07 momentum -1.0097e-14; liquid 4.541518443e-03 kg, 33567 parcels; injected +1.1367e-05 exchanged +7.2804e-06 out +0.0000e+00; vaporised +59 walls +0 children +88 flashes +0 clamped +5 substeps +126587
+LBPROBE t 2.088214909e-02 dt 7.7951e-07 mass -6.3724e-14 energy 1.4586e-07 momentum -6.3908e-15; liquid 4.545296485e-03 kg, 33608 parcels; injected +1.0876e-05 exchanged +7.0981e-06 out +0.0000e+00; vaporised +52 walls +0 children +85 flashes +0 clamped +8 substeps +118919
+LBPROBE t 2.088285670e-02 dt 7.0761e-07 mass -6.2179e-14 energy 1.4568e-07 momentum -9.2934e-15; liquid 4.548825694e-03 kg, 33648 parcels; injected +9.8729e-06 exchanged +6.3437e-06 out +0.0000e+00; vaporised +43 walls +0 children +83 flashes +0 clamped +5 substeps +111436
+LBPROBE t 2.088355462e-02 dt 6.9792e-07 mass -5.7303e-14 energy 1.5824e-07 momentum -1.5486e-15; liquid 4.552344351e-03 kg, 33679 parcels; injected +9.7378e-06 exchanged +6.2191e-06 out +0.0000e+00; vaporised +43 walls +0 children +74 flashes +0 clamped +11 substeps +110196
+LBPROBE t 2.088426341e-02 dt 7.0878e-07 mass -6.0081e-14 energy 1.5805e-07 momentum -4.4415e-15; liquid 4.555887595e-03 kg, 33699 parcels; injected +9.8893e-06 exchanged +6.3461e-06 out +0.0000e+00; vaporised +57 walls +0 children +69 flashes +0 clamped +10 substeps +114612
+LBPROBE t 2.088497760e-02 dt 7.1419e-07 mass -5.9035e-14 energy 1.6122e-07 momentum -6.5651e-15; liquid 4.559526562e-03 kg, 33731 parcels; injected +9.9648e-06 exchanged +6.3258e-06 out +0.0000e+00; vaporised +40 walls +0 children +72 flashes +0 clamped +6 substeps +112377
+LBPROBE t 2.088568425e-02 dt 7.0665e-07 mass -5.8969e-14 energy 1.6102e-07 momentum -1.4675e-14; liquid 4.563106274e-03 kg, 33747 parcels; injected +9.8595e-06 exchanged +6.2798e-06 out +0.0000e+00; vaporised +49 walls +0 children +65 flashes +0 clamped +9 substeps +112103
+LBPROBE t 2.088638654e-02 dt 7.0229e-07 mass -5.9588e-14 energy 1.6082e-07 momentum -7.7059e-15; liquid 4.566736722e-03 kg, 33802 parcels; injected +9.7987e-06 exchanged +6.1683e-06 out +0.0000e+00; vaporised +44 walls +0 children +91 flashes +0 clamped +10 substeps +112635
+LBPROBE t 2.088708652e-02 dt 6.9998e-07 mass -5.9327e-14 energy 1.6063e-07 momentum -8.8617e-15; liquid 4.570248425e-03 kg, 33821 parcels; injected +9.7665e-06 exchanged +6.2548e-06 out +0.0000e+00; vaporised +47 walls +0 children +66 flashes +0 clamped +9 substeps +113021
+LBPROBE t 2.088778735e-02 dt 7.0083e-07 mass -6.1991e-14 energy 1.6043e-07 momentum -9.0544e-15; liquid 4.573792337e-03 kg, 33868 parcels; injected +9.7783e-06 exchanged +6.2344e-06 out +0.0000e+00; vaporised +43 walls +0 children +90 flashes +0 clamped +6 substeps +111453
+LBPROBE t 2.088848275e-02 dt 6.9540e-07 mass -5.3258e-14 energy 1.6024e-07 momentum -8.8395e-15; liquid 4.577239023e-03 kg, 33904 parcels; injected +9.7026e-06 exchanged +6.2559e-06 out +0.0000e+00; vaporised +55 walls +0 children +83 flashes +0 clamped +9 substeps +114491

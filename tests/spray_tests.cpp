@@ -1,6 +1,7 @@
 // Verification of the liquid oxygen spray (core/spray.hpp) on the criteria of docs/evidence/SPRAY.md,
 // stated before the code: S0 (properties), S1 (the drop model's algebra and integrator), S3 (budgets
-// with parcels), S4 (threads), S5 (breakup) and S8 (turbulent dispersion). S2's reference is tools/drop_film_1d.cpp.
+// with parcels), S4 (threads), S5 (breakup) and S8 (turbulent dispersion); F2 (the flashed mass) and F3 (Heun's stage 2
+// just short of saturation, docs/evidence/SPEED_PLAN.md 7.6). S2's reference is tools/drop_film_1d.cpp.
 // With the argument "cost" it measures S6 instead: the S3 run with and without the spray; with "lafon",
 // the model's side of S2(c) (outer step dt, default 2 us).
 // Usage: crucible_spray_tests [cost [threads] | lafon [dt]]
@@ -679,6 +680,56 @@ void flash(thermo::ReactionSource& source) {
   check(error < 1e-12 && l.flashes == 1, "(F2) flashed mass against the liquid mass times (h - h_sat) / L, one flash", error, 1e-12);
 }
 
+// F3 (SPEED_PLAN.md 7.6, stated before it was built): the drop tier 1's hot window broke on, a condensing
+// drop whose Heun predictor lands just short of saturation, where stage 2's evaporation is far stiffer than
+// stage 1 allowed. One advance for each dt over a sweep (at rest its Nusselt number is 2, not the run's, so
+// the dt that lands the predictor there differs from the run's sub-step). Pass: nothing throws; the drop
+// vaporised, or its T is finite, at least its start and above the table's floor; and the liquid energy
+// budget is at most 1e-12.
+void stage2(thermo::ReactionSource& source) {
+  std::printf("F3. Heun's stage 2 just short of saturation\n");
+  Flow flow(chamber(source, 4, 2, 0.004, 0.002, "O2:0.27,H2:0.73", 579378.25, 183.932));
+  const auto liquid = liquidFor(flow.medium());
+  Spray::Settings settings;
+  settings.twoWay = false;
+  settings.breakup.on = false;
+  settings.dispersion = false;
+  const double t0 = 93.894757;
+  double worstBudget = 0, coldest = std::numeric_limits<double>::infinity();
+  long mostSubsteps = 0, thrown = 0, bad = 0, vaporised = 0;
+  for (int i = 0; i <= 80; ++i) {
+    const double dt = 0.10e-6 + 0.02e-6 * i;
+    Parcel p;
+    p.z = 0.0015;
+    p.r = 0.0005;
+    p.d = 1.544204e-6;
+    p.count = 1;
+    p.t = t0;
+    try {
+      Spray spray(flow, liquid, settings);
+      spray.add(p);
+      spray.advance(dt);
+      const double budget = std::abs(spray.balanceErrors()[1]);
+      worstBudget = std::isfinite(budget) ? std::max(worstBudget, budget) : std::numeric_limits<double>::infinity();
+      mostSubsteps = std::max(mostSubsteps, spray.ledger().substeps);
+      if (spray.parcels().empty()) {
+        ++vaporised;
+        continue;
+      }
+      const double t = spray.parcels()[0].t;
+      coldest = std::isfinite(t) ? std::min(coldest, t) : -std::numeric_limits<double>::infinity();
+      if (!(t >= t0 && t > liquid.minTemperature())) ++bad;
+    } catch (const std::exception& e) {
+      if (thrown++ == 0) std::printf("  dt %.2f us threw: %s\n", dt * 1e6, e.what());
+    }
+  }
+  std::printf("  81 runs, dt 0.10 to 1.70 us: %ld threw, %ld vaporised; coldest end T %.6f K (start %.6f, floor %.3f); "
+              "most sub-steps in a run %ld\n", thrown, vaporised, coldest, t0, liquid.minTemperature(), mostSubsteps);
+  check(thrown == 0 && bad == 0, "(F3) no throw; every drop vaporised or at least its start and above the floor (bad runs)",
+        static_cast<double>(bad + thrown), 0);
+  check(thrown == 0 && worstBudget <= 1e-12, "(F3) the liquid energy budget, worst over the sweep", worstBudget, 1e-12);
+}
+
 // ---------------------------------------------------------------------------------------------------
 // S8
 
@@ -858,6 +909,7 @@ int main(int argc, char** argv) {
     budgets(source);
     dispersion(source);
     flash(source);
+    stage2(source);
   } catch (const std::exception& e) {
     std::printf("error: %s\n", e.what());
     return 2;

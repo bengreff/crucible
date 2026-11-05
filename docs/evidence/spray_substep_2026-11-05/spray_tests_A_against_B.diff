@@ -1,0 +1,8 @@
+48,50c48,50
+<   (F3) no throw; every drop vaporised or at least its start and above the floor (bad runs) 2.600e+01 (limit 0e+00)  FAIL
+<   (F3) the liquid energy budget, worst over the sweep                            2.882e-02 (limit 1e-12)  FAIL
+< FAIL: 4 failure(s)
+---
+>   (F3) no throw; every drop vaporised or at least its start and above the floor (bad runs) 0.000e+00 (limit 0e+00)  PASS
+>   (F3) the liquid energy budget, worst over the sweep                            7.815e-16 (limit 1e-12)  PASS
+> FAIL: 2 failure(s)

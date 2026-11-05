@@ -1,0 +1,194 @@
+Test project /home/greff/crucible_f3/build
+    Start 12: face_inlet
+1/5 Test #12: face_inlet .......................   Passed    4.61 sec
+    Start 13: chemistry_skip
+2/5 Test #13: chemistry_skip ...................   Passed    0.07 sec
+    Start 15: spray_verification
+3/5 Test #15: spray_verification ...............***Failed   34.65 sec
+S0. Properties
+  table 54.3610 to 154.4140 K
+  (a) T(h(T)) at 10,000 temperatures across the table                            3.716e-16 (limit 1e-12)  PASS
+  (a) T_sat(p_sat(T)) likewise (the vapour-pressure inverse)                     2.446e-16 (limit 1e-12)  PASS
+     75 K: h_medium - h_NIST  -1245.1 J/kg
+     90 K: h_medium - h_NIST   -873.7 J/kg
+    100 K: h_medium - h_NIST   -673.5 J/kg
+    120 K: h_medium - h_NIST   -370.2 J/kg
+    150 K: h_medium - h_NIST   -106.7 J/kg
+    200 K: h_medium - h_NIST    +23.5 J/kg
+    250 K: h_medium - h_NIST    +10.9 J/kg
+    300 K: h_medium - h_NIST     +0.2 J/kg
+  medium O2 against NIST's 1e-6 MPa isobar, 75 to 300 K (the table's range): largest at 75 K
+  (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+S1. The drop model's algebra and integrator
+  N2:1 at 300 K, 3 film points: wet bulb 108.553227074 K (T_sat 119.621223957 K, evaporating), B_M 1.1024e+00, K 9.716492e-08 m^2/s, time to d_min 1.029177e-01 s
+  1700 sub-steps; drop temperature at the end 108.553227074 K
+  (a) d^2 against d0^2 - K t at 1,000 times (relative to d0^2)                   1.224e-13 (limit 1e-10)  PASS
+  (a) alive at (1 - 1e-10) and vaporised by (1 + 1e-10) of (d0^2 - d_min^2)/K    0.000e+00 (limit 1e-10)  PASS
+  H2:1 at 1200 K, 3 film points: wet bulb 115.155594844 K (T_sat 119.621223957 K, evaporating), B_M 5.1106e+01, K 1.873295e-06 m^2/s, time to d_min 5.338181e-03 s
+  1393 sub-steps; drop temperature at the end 115.155594844 K
+  (a) d^2 against d0^2 - K t at 1,000 times (relative to d0^2)                   1.908e-13 (limit 1e-10)  PASS
+  (a) alive at (1 - 1e-10) and vaporised by (1 + 1e-10) of (d0^2 - d_min^2)/K    0.000e+00 (limit 1e-10)  PASS
+  208 evaporating cases, B_M 1.000e-06 to 2.000e+01, Re to 400.0; largest difference in B_T
+  (b) Re, B_M, Sh*, Nu*, B_T, mdot, Q against the paper's forms (evaporating)    9.139e-16 (limit 1e-12)  PASS
+  (b) boiling at saturation: Nu*, B_T, mdot, Q against the paper's forms         0.000e+00 (limit 1e-12)  PASS
+  (c) the film's lean transport against Medium::transport (lambda, D_O2, R)      6.962e-16 (limit 1e-13)  PASS
+S5. Breakup
+  (a) KH and RT wavelengths and growth rates against the published forms         3.999e-16 (limit 1e-12)  PASS
+  KH alone: 2 parcels at 0.2 ms, 17 children, 0 RT events of the blob, liquid 3.095701e-07 of 5.980043e-07 kg (exchanged 2.884e-07 kg)
+  (b) KH alone: liquid mass through every child (relative)                       2.744e-15 (limit 1e-13)  PASS
+  (b) KH alone: no RT event                                                      0.000e+00 (limit 5e-01)  PASS
+  17 children of the blob checked against it at creation
+  (b) each child's diameter against 2 B0 Lambda at its creation                  1.250e-16 (limit 1e-12)  PASS
+  KH-RT: 0 parcels at 0.5 ms, 0 children, 4 RT events of the blob, liquid 0.000000e+00 of 5.980043e-07 kg (exchanged 5.980e-07 kg)
+  (b) KH-RT: liquid mass through every child and RT event                        1.044e-12 (limit 1e-13)  FAIL
+  (b) KH-RT: the blob breaks by RT at least once                                 0.000e+00 (limit 5e-01)  PASS
+S3. Budgets with parcels (16 by 6 cold chamber to 0.5 ms)
+  5415 steps in 8.3 s; 99 parcels injected, 201 children, 247 held at the end; 4 wall hits, 0 flashes, 3 vaporised, 0 clamped condensation sub-steps, 525926 sub-steps
+  liquid injected 1.000000e-06 kg, evaporated 2.578226e-07 kg, out 1.481351e-07 kg, held 5.940422e-07 kg; wall impulse 0.0000e+00 N s, wall loss 4.5544e-06 J
+  (a) gas mass balance with the exchange                                         7.949e-16 (limit 1e-11)  PASS
+  (a) gas energy balance with the exchange                                       3.329e-16 (limit 1e-11)  PASS
+  (a) gas axial momentum balance with the exchange                               7.546e-20 (limit 1e-11)  PASS
+  (a) liquid mass ledger                                                         3.931e-13 (limit 1e-11)  PASS
+  (a) liquid energy ledger                                                       2.534e-13 (limit 1e-11)  PASS
+  (a) liquid axial momentum ledger                                               2.537e-13 (limit 1e-11)  PASS
+  (b) whole system mass                                                          7.763e-14 (limit 1e-11)  PASS
+  (b) whole system energy                                                        2.753e-14 (limit 1e-11)  PASS
+  (b) whole system axial momentum                                                5.371e-17 (limit 1e-11)  PASS
+  B1: the exchange bound never binds (smallest bound / dt)                       1.431e+02 (limit 1e+00)  PASS
+  injection, evaporation, wall rebounds and parcels leaving all occurred         0.000e+00 (limit 5e-01)  PASS
+S4. Threads
+  final gas state and parcel list on 4 threads against 1, bit for bit            0.000e+00 (limit 5e-01)  PASS
+  final gas state and parcel list on 6 threads against 1, bit for bit            0.000e+00 (limit 5e-01)  PASS
+S8. Turbulent dispersion
+  102 cases bound by the crossing time, 298 by the eddy lifetime
+  (b) interaction time against the formulas (both branches)                      3.934e-16 (limit 1e-14)  PASS
+  d 15.079 um, tau_p 2.1429e-03 s, tau_e 4.2857e-02 s (ratio 20.00), Re at 3 sigma slip 7.79e-03; 10000 parcels left, 8095706 sub-steps, 0 clamped, 0 vaporised
+  <dz> 1.6690e-07 m (3 se 1.0461e-06); <dz^2> 1.215990e-09 m^2 against 1.212551e-09 (+0.284%); <r^2> 2.398162e-09 against 2.425102e-09 (-1.111%)
+  (a) every parcel kept, no mass passed                                          0.000e+00 (limit 5e-01)  PASS
+  (a) <dz> against 0, in standard errors                                         4.786e-01 (limit 3e+00)  PASS
+  (a) <dz^2> against the held-velocity expectation, in s.e.                      2.005e-01 (limit 3e+00)  PASS
+  (a) <r^2> against twice it, in standard errors                                 1.111e+00 (limit 3e+00)  PASS
+  (c) 47 of the parcels held are inside an eddy at the end
+  (c) dispersion acted (parcels inside an eddy)                                  0.000e+00 (limit 5e-01)  PASS
+  2168 steps in 2.0 s; 40 parcels injected, 9 children, 48 held at the end; 0 wall hits, 0 flashes, 1 vaporised, 0 clamped condensation sub-steps, 51304 sub-steps
+  liquid injected 4.000000e-07 kg, evaporated 4.292516e-08 kg, out 0.000000e+00 kg, held 3.570748e-07 kg; wall impulse 0.0000e+00 N s, wall loss 0.0000e+00 J
+  (c) gas mass balance with the exchange                                         5.685e-16 (limit 1e-11)  PASS
+  (c) gas energy balance with the exchange                                       1.129e-16 (limit 1e-11)  PASS
+  (c) gas axial momentum balance with the exchange                               6.367e-19 (limit 1e-11)  PASS
+  (c) liquid mass ledger                                                         1.927e-13 (limit 1e-11)  PASS
+  (c) liquid energy ledger                                                       1.578e-13 (limit 1e-11)  PASS
+  (c) liquid axial momentum ledger                                               1.575e-13 (limit 1e-11)  PASS
+  (c) whole system mass                                                          1.775e-14 (limit 1e-11)  PASS
+  (c) whole system energy                                                        5.720e-15 (limit 1e-11)  PASS
+  (c) whole system axial momentum                                                2.538e-17 (limit 1e-11)  PASS
+  B1 (c): the exchange bound never binds (smallest bound / dt)                   1.434e+02 (limit 1e+00)  PASS
+  (c) final gas state and parcel list on 4 threads against 1, bit for bit        0.000e+00 (limit 5e-01)  PASS
+F2. The flashed mass
+  T_sat 90.1879 K at 101325.0 Pa, flashed share 0.038699, flashed mass 2.829016e-11 kg, 1 flash(es)
+  (F2) flashed mass against the liquid mass times (h - h_sat) / L, one flash     1.142e-16 (limit 1e-12)  PASS
+F3. Heun's stage 2 just short of saturation
+  81 runs, dt 0.10 to 1.70 us: 0 threw, 0 vaporised; coldest end T 95.175885 K (start 93.894757, floor 54.361); most sub-steps in a run 23
+  (F3) no throw; every drop vaporised or at least its start and above the floor (bad runs) 0.000e+00 (limit 0e+00)  PASS
+  (F3) the liquid energy budget, worst over the sweep                            7.815e-16 (limit 1e-12)  PASS
+FAIL: 2 failure(s)
+
+    Start 16: spray_transfer
+4/5 Test #16: spray_transfer ...................   Passed    0.02 sec
+    Start 17: spray_amr_verification
+5/5 Test #17: spray_amr_verification ...........***Failed  411.28 sec
+A1(a) S3, frozen, 0.5 ms
+  B1: the exchange bound never binds, either run (smallest bound / dt)                   1.431e+02 (limit 1e+00)  PASS
+  5415 base steps (0 redone), t 0.00050000000000000001 against 0.00050000000000000001; 15.0 s of wall
+  every step's dt and the end time equal (steps that differ)                             0.000e+00 (limit 0e+00)  PASS
+  final gas state, partial densities and turbulence bit-identical (largest relative difference) 0.000e+00 (limit 0e+00)  PASS
+  parcel list bit-identical, every field (247 against 247 parcels)                       0.000e+00 (limit 0e+00)  PASS
+      printed: ledgers equal (injected, exchanged, outflow, walls, sub-steps, children, wall thrust): yes; evaporated 2.5782261279580679e-07 kg; level moves 0 finer, 0 coarser
+      printed, not judged: ReactingFlow's frozen driver on the same (coarsened) mesh: largest relative difference of the conserved state 2.194e-13; evaporated 2.5782261279580181e-07 kg, 247 parcels
+      printed, not judged: ReactingFlow's frozen driver on the directly built mesh: largest relative difference of the conserved state 3.315e-13; evaporated 2.5782261279580531e-07 kg, 247 parcels
+      printed: the uniform run's spray 3.97 s of 6.08 s
+A1(b) S8(c), SST and dispersion, 0.2 ms
+  B1: the exchange bound never binds, either run (smallest bound / dt)                   1.434e+02 (limit 1e+00)  PASS
+  2168 base steps (0 redone), t 0.00020000000000000001 against 0.00020000000000000001; 4.0 s of wall
+      printed: 1676 of 2168 steps' dt differ
+  every step's dt within the limit and the end time equal (largest relative difference)  1.087e-12 (limit 1e-12)  FAIL
+  final gas state, partial densities and turbulence (largest relative difference)        1.663e-13 (limit 1e-12)  PASS
+  parcel list, every field (48 against 48 parcels; largest relative difference)          6.687e-13 (limit 1e-12)  PASS
+  ledger: injected, exchanged, outflow mass and wall impulse (largest relative difference) 2.420e-14 (limit 1e-12)  PASS
+      printed: ledgers equal (injected, exchanged, outflow, walls, sub-steps, children, wall thrust): no; evaporated 4.2925157553742266e-08 kg; level moves 0 finer, 0 coarser
+      printed, not judged: ReactingFlow's frozen driver on the same (coarsened) mesh: largest relative difference of the conserved state 1.147e-13; evaporated 4.2925157553743021e-08 kg, 48 parcels
+      printed, not judged: ReactingFlow's frozen driver on the directly built mesh: largest relative difference of the conserved state 1.137e-13; evaporated 4.2925157553742591e-08 kg, 48 parcels
+      printed: the uniform run's spray 0.42 s of 1.76 s
+A2 on 1 thread: 16 x 6 base plus 2 levels (64 x 24 finest), to 1 ms
+  B1: the exchange bound never binds (smallest bound / dt)                               5.975e+01 (limit 1e+00)  PASS
+  10840 base steps (0 redone), 194 regrids that changed the pattern, 174.5 s of wall
+  it exercises regrids: pattern-changing regrids (at least 50)                           1.940e+02 (limit 5e+01)  PASS
+  it exercises moves: parcel moves to a finer owner within a step (at least 100)         3.550e+02 (limit 1e+02)  PASS
+  it exercises moves: parcel moves to a coarser owner within a step (at least 100)       7.590e+02 (limit 1e+02)  PASS
+  (a) composite gas budget with the exchange: mass                                       1.467e-15 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: energy                                     8.516e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: axial momentum                             0.000e+00 (limit 1e-11)  PASS
+  (b) liquid ledger: mass                                                                1.411e-12 (limit 1e-11)  PASS
+  (b) liquid ledger: energy                                                              7.547e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: axial momentum                                                      7.831e-13 (limit 1e-11)  PASS
+  (c) whole system: mass                                                                 4.606e-13 (limit 1e-11)  PASS
+  (c) whole system: energy                                                               1.770e-13 (limit 1e-11)  PASS
+  (c) whole system: axial momentum                                                       1.929e-16 (limit 1e-11)  PASS
+      printed: exchanged mass by the gas 6.5813446067445831e-07 kg, by the liquid ledger 6.5813446067443777e-07 kg
+      printed, not judged: evaporated 6.581345e-07 kg, 159 parcels held, 199 injected, 174 children, 2812720 sub-steps; level moves 355 finer, 759 coarser; spray 29.36 s of 174.52 s (16.8%)
+      printed: level 1 ends with 120 active cells of 384
+      printed: level 2 ends with 264 active cells of 1536
+A2 on 4 threads: 16 x 6 base plus 2 levels (64 x 24 finest), to 1 ms
+  B1: the exchange bound never binds (smallest bound / dt)                               5.975e+01 (limit 1e+00)  PASS
+  10840 base steps (0 redone), 194 regrids that changed the pattern, 108.4 s of wall
+  it exercises regrids: pattern-changing regrids (at least 50)                           1.940e+02 (limit 5e+01)  PASS
+  it exercises moves: parcel moves to a finer owner within a step (at least 100)         3.550e+02 (limit 1e+02)  PASS
+  it exercises moves: parcel moves to a coarser owner within a step (at least 100)       7.590e+02 (limit 1e+02)  PASS
+  (a) composite gas budget with the exchange: mass                                       1.467e-15 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: energy                                     8.516e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: axial momentum                             0.000e+00 (limit 1e-11)  PASS
+  (b) liquid ledger: mass                                                                1.411e-12 (limit 1e-11)  PASS
+  (b) liquid ledger: energy                                                              7.547e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: axial momentum                                                      7.831e-13 (limit 1e-11)  PASS
+  (c) whole system: mass                                                                 4.606e-13 (limit 1e-11)  PASS
+  (c) whole system: energy                                                               1.770e-13 (limit 1e-11)  PASS
+  (c) whole system: axial momentum                                                       1.929e-16 (limit 1e-11)  PASS
+      printed: exchanged mass by the gas 6.5813446067445831e-07 kg, by the liquid ledger 6.5813446067443777e-07 kg
+      printed, not judged: evaporated 6.581345e-07 kg, 159 parcels held, 199 injected, 174 children, 2812720 sub-steps; level moves 355 finer, 759 coarser; spray 26.75 s of 108.39 s (24.7%)
+      printed: level 1 ends with 120 active cells of 384
+      printed: level 2 ends with 264 active cells of 1536
+A3: A2 on 1 and 4 threads
+  every level's state and partial densities bit-identical                                0.000e+00 (limit 0e+00)  PASS
+  parcel list bit-identical, every field                                                 0.000e+00 (limit 0e+00)  PASS
+A2 on 4 threads: 16 x 6 base plus 2 levels (64 x 24 finest), to 1 ms, the exchange bound applied (B2)
+  B1: the exchange bound never binds (smallest bound / dt)                               5.975e+01 (limit 1e+00)  PASS
+  10840 base steps (0 redone), 194 regrids that changed the pattern, 91.6 s of wall
+  it exercises regrids: pattern-changing regrids (at least 50)                           1.940e+02 (limit 5e+01)  PASS
+  it exercises moves: parcel moves to a finer owner within a step (at least 100)         3.550e+02 (limit 1e+02)  PASS
+  it exercises moves: parcel moves to a coarser owner within a step (at least 100)       7.590e+02 (limit 1e+02)  PASS
+  (a) composite gas budget with the exchange: mass                                       1.467e-15 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: energy                                     8.516e-16 (limit 1e-11)  PASS
+  (a) composite gas budget with the exchange: axial momentum                             0.000e+00 (limit 1e-11)  PASS
+  (b) liquid ledger: mass                                                                1.411e-12 (limit 1e-11)  PASS
+  (b) liquid ledger: energy                                                              7.547e-13 (limit 1e-11)  PASS
+  (b) liquid ledger: axial momentum                                                      7.831e-13 (limit 1e-11)  PASS
+  (c) whole system: mass                                                                 4.606e-13 (limit 1e-11)  PASS
+  (c) whole system: energy                                                               1.770e-13 (limit 1e-11)  PASS
+  (c) whole system: axial momentum                                                       1.929e-16 (limit 1e-11)  PASS
+      printed: exchanged mass by the gas 6.5813446067445831e-07 kg, by the liquid ledger 6.5813446067443777e-07 kg
+      printed, not judged: evaporated 6.581345e-07 kg, 159 parcels held, 199 injected, 174 children, 2812720 sub-steps; level moves 355 finer, 759 coarser; spray 23.76 s of 91.58 s (25.9%)
+      printed: level 1 ends with 120 active cells of 384
+      printed: level 2 ends with 264 active cells of 1536
+B2: A2 on 4 threads with the exchange bound applied, against without
+  every level's state and partial densities bit-identical                                0.000e+00 (limit 0e+00)  PASS
+  parcel list bit-identical, every field                                                 0.000e+00 (limit 0e+00)  PASS
+FAIL (1 failed)
+
+
+60% tests passed, 2 tests failed out of 5
+
+Total Test time (real) = 450.64 sec
+
+The following tests FAILED:
+	 15 - spray_verification (Failed)
+	 17 - spray_amr_verification (Failed)
+Errors while running CTest

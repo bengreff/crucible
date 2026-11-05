@@ -776,30 +776,47 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
     if (speed > 0) step = std::min(step, 0.5 * cellSize_[static_cast<std::size_t>(cell)] / speed);
     if (p.eddyTime > 0) step = std::min(step, p.eddyTime);  // the sub-step ends with the interaction
     if (step >= remaining) step = remaining;
-    remaining = step == remaining ? 0 : remaining - step;
     // Mass and enthalpy: Heun on s = m^(2/3) and h.
     const double s0 = std::cbrt(m) * std::cbrt(m);
     const double fs1 = -2.0 / 3 * r1.mass / std::cbrt(m);
     // The vapour leaves at the surface temperature (saturation when boiling) with that latent heat.
     const double fh1 = (r1.heat - r1.mass * liquid_.at(r1.surface).latent) / m;
-    double s1 = s0 + step * fs1, h1 = h + step * fh1;
-    double m1 = m, t1 = p.t;
-    if (s1 * std::sqrt(s1) < minMass || !(s1 > 0)) {
-      m1 = 0;
-    } else {
+    double s1 = 0, h1 = 0, m1 = m, t1 = p.t;
+    const double hSat = liquid_.enthalpy(tSat);
+    // Boiling: held at saturation while heat arrives (by the sign of the heat, not of fh1, which is
+    // zero to within the rounding of a contracted multiply-add).
+    const bool held = r1.boiling && r1.heat > 0;
+    for (int retake = 0;; ++retake) {
+      s1 = s0 + step * fs1;
+      h1 = h + step * fh1;
+      m1 = m;
+      t1 = p.t;
+      if (s1 * std::sqrt(s1) < minMass || !(s1 > 0)) {
+        m1 = 0;
+        break;
+      }
       Parcel q = p;
-      const double hSat = liquid_.enthalpy(tSat);
-      // Boiling: held at saturation while heat arrives (by the sign of the heat, not of fh1, which is
-      // zero to within the rounding of a contracted multiply-add).
-      const bool held = r1.boiling && r1.heat > 0;
       if (!r1.boiling && h1 > hSat) h1 = hSat;
       q.t = held ? p.t : h1 >= hSat ? tSat : liquid_.temperature(h1);
       const double mq = s1 * std::sqrt(s1);
       q.d = std::cbrt(6 * mq / (pi * liquid_.at(q.t).density));
       const auto r2 = rates(q, gas, work);
+      // Stage 2's own limits. The predictor can land where the exchange is far stiffer than at stage 1
+      // (a drop heated to just short of saturation, where the surface's vapour fraction climbs steeply
+      // with T), and a corrector over such a step overshoots: the enthalpy below the table, then the
+      // mass negative (SPEED_PLAN.md 7.6). A step over twice stage 2's limits is retaken at them; the
+      // factor 2 leaves every smooth sub-step as it was.
+      double limit = step;
+      if (r2.mass > 0) limit = std::min(limit, 0.25 * mq / r2.mass);
+      if (!r2.boiling && r2.stiffness > 0) limit = std::min(limit, 0.25 * mq * liquid_.at(q.t).cp / r2.stiffness);
+      if (step > 2 * limit && retake < 30) {
+        step = limit;
+        continue;
+      }
       const double fs2 = -2.0 / 3 * r2.mass / std::cbrt(mq);
       const double fh2 = (r2.heat - r2.mass * liquid_.at(r2.surface).latent) / mq;
       s1 = s0 + 0.5 * step * (fs1 + fs2);
+      if (!(s1 > 0)) throw std::runtime_error("Spray: a parcel's sub-step took its mass below zero.");
       h1 = held ? h : h + 0.5 * step * (fh1 + fh2);
       m1 = r1.mass == 0 && r2.mass == 0 ? m : s1 * std::sqrt(s1);
       if (held) {
@@ -810,7 +827,9 @@ void Spray::moveParcel(std::size_t index, double dt, int worker) {
       } else {
         t1 = liquid_.temperature(h1);
       }
+      break;
     }
+    remaining = step == remaining ? 0 : remaining - step;
     // Velocity: exact relaxation toward the seen gas over the step at stage 1's drag; position exact.
     // Frame: x radial in the parcel's start plane, y azimuthal, z axial; the seen gas has (u_r, u_t, u_z),
     // u_t the eddy's alone.

@@ -1,0 +1,42 @@
+Thu Nov  5 03:18:42 CST 2026
+ 03:18:42 up 12 days,  4:09,  1 user,  load average: 16.35, 16.48, 18.87
+e2a2e28dd11793468da9ffb027b73f74  core/spray.cpp
+A exit 1
+F3. Heun's stage 2 just short of saturation
+  81 runs, dt 0.10 to 1.70 us: 0 threw, 0 vaporised; coldest end T 54.361000 K (start 93.894757, floor 54.361); most sub-steps in a run 2
+  (F3) no throw; every drop vaporised or at least its start and above the floor (bad runs) 2.600e+01 (limit 0e+00)  FAIL
+  (F3) the liquid energy budget, worst over the sweep                            2.882e-02 (limit 1e-12)  FAIL
+FAIL: 4 failure(s)
+  (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+  (b) KH-RT: liquid mass through every child and RT event                        1.044e-12 (limit 1e-13)  FAIL
+  (F3) no throw; every drop vaporised or at least its start and above the floor (bad runs) 2.600e+01 (limit 0e+00)  FAIL
+  (F3) the liquid energy budget, worst over the sweep                            2.882e-02 (limit 1e-12)  FAIL
+FAIL: 4 failure(s)
+dfa546ede21096736041f3e70a5c44f0  core/spray.cpp
+B exit 1
+F3. Heun's stage 2 just short of saturation
+  81 runs, dt 0.10 to 1.70 us: 0 threw, 0 vaporised; coldest end T 95.175885 K (start 93.894757, floor 54.361); most sub-steps in a run 23
+  (F3) no throw; every drop vaporised or at least its start and above the floor (bad runs) 0.000e+00 (limit 0e+00)  PASS
+  (F3) the liquid energy budget, worst over the sweep                            7.815e-16 (limit 1e-12)  PASS
+FAIL: 2 failure(s)
+  (b) |h_medium - h_NIST| on the engine's zero [J/kg]                            1.245e+03 (limit 1e+03)  FAIL
+  (b) KH-RT: liquid mass through every child and RT event                        1.044e-12 (limit 1e-13)  FAIL
+FAIL: 2 failure(s)
+A against B, check lines differing: 3
+ctest exit 8
+  parcel list bit-identical, every field                                                 0.000e+00 (limit 0e+00)  PASS
+FAIL (1 failed)
+
+
+60% tests passed, 2 tests failed out of 5
+
+Total Test time (real) = 450.64 sec
+
+The following tests FAILED:
+	 15 - spray_verification (Failed)
+	 17 - spray_amr_verification (Failed)
+Errors while running CTest
+selftest exit 0
+0 check(s) failed
+1ef892490f78076f55dc4853e039edad  build/crucible_rl10_tier1
+Thu Nov  5 03:28:51 CST 2026

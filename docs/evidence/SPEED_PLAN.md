@@ -13,8 +13,10 @@ Labels: **measured** (a run or a profile), **derived** (arithmetic on measured n
   - D and B pass their accuracy tests.
 - The implicit step (I) is the hedge if D fails or the GPU's rate lands low, and the CPU path's largest lever.
   - On tier 1's full lead physics it measures **7.1 over the lead and 11 in its second half** (5 November, backhouse, base mesh, one thread). It passes window L at time tolerance 3e-3 (section 7.4). That beats the inviscid prototype's 5 to 6, because the driver's 10 μs samples, not the error, set the step.
-  - Not yet shown: the hot window (the p0 instrument stalls there first), AMR, and robustness. One trajectory in three failed on a latent collapse of omega, now guarded (7.4).
+  - **Past t_L it falls to 2.0 to 2.7** (7.6, measured walls): the spray then takes 69 to 77% of the wall, and its cost falls less than the gas's under the larger step (2.4 times against 3.7, derived).
+  - Not yet shown: window H, AMR, and robustness. Every hot-window run failed about 1 ms past t_L on a defect in the spray's sub-step, now fixed and checked (F3, 7.6); the three runs restarted from 0 on the fix at 03:22 on 5 November. One trajectory in three had failed on a latent collapse of omega, now guarded (7.4).
   - Its inner solver (LU-SGS) is sequential, so on a GPU it needs a different smoother.
+- **The spray sets tier 1's pace once the LOX flows.** On the base mesh past t_L it costs 3.2 to 4.4 times the gas's time (7.6, derived), against the 1.5 to 1.7 multiplier S7 gave on AMR meshes. Both paths to the bar must cut it, so it moves to second in the ranked order (section 5).
 - Nothing here needs Ben unless the GPU's measured FP64 rate falls short. Then the choice is mixed precision (engineering) or a card with fast FP64 (money: Ben's call). Section 6 has the details.
 
 ## 2. The size of the job
@@ -42,8 +44,8 @@ Speed-ups are on wall per simulated ms, against the basis above.
 | **B. CFL 0.4 to 0.8** | **2** | derived; the 1 ms test's outputs were lost (section 5) | rerun the test (hours on backhouse) | to rerun; moot under I, whose step no CFL sets |
 | **A. The chemistry skip** | **1.5 to 2.2** in the lead's wall | measured (built) | done | done, in the basis's successors |
 | **Tables for every chemistry state** (no CVODES in the march) | lead: **1.5 to 2.2** more on the CPU (the fallback is still 33 to 55% of the lead's wall after A, derived from A's 1.5 to 2.2 over a 69 to 71% share); on the GPU path it is **necessary**, not optional (section 4) | derived | widen Table B's f_H range to the lead's pure-H2 and mixing states, or a second table | not started |
-| **Spray on the GPU, or fewer parcels** | removes the 1.5 to 1.7 multiplier on 85 ms; **necessary** on the GPU path (section 4) | measured multiplier | a device parcel kernel, or a parcel-count study (kParcelRate 5e5) | not started |
-| **I. Implicit time-accurate step** (BDF2, dual time, LU-SGS) | **7.1** over tier 1's lead [0.5, 20] ms and **11** on [10, 20] ms (backhouse, base mesh, one thread, time tolerance 3e-3, section 7.4). The Mac's 2.6 to 3.3 (7.3) carried the old p0 instrument. The inviscid 1-level prototype gave 5 to 6 | measured | built: the port to the viscous, SST and wall-function step on tier 1's base mesh, with time-error step control and the omega guard (section 7) | window L passes (i10u); window H waits on the p0 instrument for oxygen-bearing cold gas; the step is capped by the driver's 10 μs samples; the explicit path unchanged |
+| **Spray on the GPU, or fewer parcels, or a cheaper sub-step** | removes the 1.5 to 1.7 multiplier on 85 ms (S7, AMR); on tier 1's base mesh past t_L the spray is 3.2 to 4.4 times the gas's time (7.6); **necessary** on the GPU path (section 4) | measured multiplier | a device parcel kernel, or a parcel-count study (kParcelRate 5e5) | not started |
+| **I. Implicit time-accurate step** (BDF2, dual time, LU-SGS) | **7.1** over tier 1's lead [0.5, 20] ms and **11** on [10, 20] ms (backhouse, base mesh, one thread, time tolerance 3e-3, section 7.4). The Mac's 2.6 to 3.3 (7.3) carried the old p0 instrument. The inviscid 1-level prototype gave 5 to 6 | measured | built: the port to the viscous, SST and wall-function step on tier 1's base mesh, with time-error step control and the omega guard (section 7) | window L passes (i10u, and i10k on the cold limit); past t_L the gain is 2.0 to 2.7, the spray taking 69 to 77% of the wall (7.6); window H re-running after the spray fix; the step is capped by the driver's 10 μs samples; the explicit path unchanged |
 | **C. Less simulated time** | 1.7 to 2.6 against the old schedule; the approved central case (lead plus 85 ms) already takes most of it | inferred | the Director's schedule | taken |
 | **G. The flow's per-update cost** | 1.3 to 2 | guessed | profiling and tuning; folded into the port | not started |
 | **F. Threads** | 2.2 at 4 threads on backhouse, 3.1 on the Mac; 4.4 at 8 on the Mac | measured | the slot policy | in use |
@@ -55,7 +57,7 @@ Speed-ups are on wall per simulated ms, against the basis above.
 **The CPU-only product:** D × B × the tables × G × F (8 threads against 4, Mac) is 7 to 9 × 2 × 1.5 to 2.2 × 1.3 to 2 × 1.4 = **38 to 110** (derived, before I). The run time comes out at 10 to 47 h.
 - With I's measured 7 to 11 in place of B, which it makes moot, the product is 7 to 9 × 1.5 to 2.2 × 1.3 to 2 × 1.4 × 7 to 11 = **130 to 610** (derived). The run time is 1.8 to 13 h.
 - That assumes the gains compose, which is unmeasured: I is built on the base mesh alone, and its hot window is not run.
-- Both figures assume the spray's cost falls with the gas's, which is not measured.
+- Both figures assume the spray's cost falls with the gas's. It does not: on tier 1's base past t_L, I cut the gas's time 3.7 times and the spray's 2.4 times (7.6, derived), so I's 7 to 11 applies to the lead alone, and to the hot flow only once the spray is cut.
 - The bar is not met, and this path assumes backhouse's whole CPU, which is shared.
 
 **The GPU product:** GPU × D × B = 50 to 400 × 7 to 9 × 2 = **700 to 7,200** (derived on the guessed GPU rate), against 1,100 to 1,800 needed.
@@ -73,15 +75,15 @@ Speed-ups are on wall per simulated ms, against the basis above.
 ## 5. Ranked order (by factor, certainty and cost)
 
 1. **GPU port of the gas step, one level, FP64**, with a measured updates-per-second figure on backhouse's card in its first week. That figure decides everything below. It is the only lever that can reach the bar.
-2. **D, two finer levels**: the largest factor that costs only runs. Its accuracy test should run now, on the CPU, while the port is built.
-3. **B, CFL 0.8**: rerun the lost test.
-4. **Tables for every state**: necessary for the port.
-5. **The spray on the device**, or a parcel-count study: necessary for the port.
+2. **The spray** (moved up on 5 November): necessary for the port (section 4), and on tier 1's base mesh the largest cost of the hot flow under either step (7.6). First a print-only probe of which sub-step limit binds (135,426 sub-steps over 31,586 parcels in one 0.96 μs base step at 20.838 ms, measured on probe 1; 4.3 a parcel, derived), then a parcel-count study (kParcelRate 5e5), then the device kernel.
+3. **D, two finer levels**: the largest factor that costs only runs. Its accuracy test should run now, on the CPU, while the port is built.
+4. **B, CFL 0.8**: rerun the lost test.
+5. **Tables for every state**: necessary for the port.
 6. **I, the implicit step**: built on tier 1's base, measured at 7.1 to 11 in the lead (7.4). It is the hedge for the GPU path's low end, and on the device it needs a parallel smoother in place of LU-SGS's sweeps. Before any more weight goes on it:
-   - the hot window, after the p0 instrument takes cold oxygen-bearing gas frozen;
+   - window H: the p0 instrument (7.3, 7.5), the cold limit (7.5) and the spray's sub-step (7.6) are fixed, and its three runs restarted on 5 November;
    - samples from BDF2's interpolant, so the step can pass 10 μs;
    - k and omega in the time error;
-   - unconverged steps rejected rather than accepted.
+   - unconverged steps: done, redone at a smaller step (37fde78, 7.4).
    It ranks below the port because it does not reach the bar on the CPU (130 to 610 against 1,100 to 1,800, derived).
 7. G, F and E: CPU-side and small; G is folded into the port.
 
@@ -386,3 +388,21 @@ The step size used on tier 1 is the largest that passes both windows.
 - (a) Before t_L there are no parcels, so i10s's series to 20 ms is identical to i10k's, and e1s's and e2s's to e1h's and e2h's, bit for bit, comparing columns as printed.
 - (b) i10s passes 21.19 ms (i10k's last sample) and e1s passes 21.03 ms (e1h's), with the liquid budget (b) under the run's own 1e-11 at every progress line, and no throw.
 - (c) Window H then goes to the agreement test of 7.2 as it stands, unchanged.
+
+**F3's result** (backhouse, gcc 13; `/home/greff/crucible_f3`, a `git archive` of 95f0ed3 with the new test; A is the unfixed spray.cpp, md5 e2a2e28d, and B the fix, md5 dfa546ed):
+- A: **FAIL**, as predicted. 26 of the 81 runs end with the drop on the table's floor (54.361 K); none throws, since one advance gives a drop only one or two sub-steps (the most in a run is 2). The worst energy budget is **2.88e-2**.
+- B: **PASS**. No run is bad, the coldest end T is 95.176 K, and the worst energy budget is **7.8e-16**. The most sub-steps in a run is 23, the retakes included.
+- Every other check line of the spray tests prints the same value on A and B. Both fail the same two checks known on this machine, S0(b) (1,245 J/kg, known since 22 October) and KH-RT's mass at 1.044e-12 (backhouse's, FACE_INLET.md).
+
+**The pace past t_L** (walls from the progress lines, measured; differences and shares derived; backhouse, one thread each, load 13 to 28):
+
+| Window | e1h | e2h | i10k | Explicit over implicit |
+|---|---|---|---|---|
+| [19.5, 20] ms, the lead's end | 32 s | 32 s | 3 s | 10.7 |
+| [20, 20.5] ms, LOX ramp and ignition | 261 s | 264 s | 130 s | 2.0 |
+| [20.5, 21] ms | 1,336 s | 1,346 s | 493 s | 2.7 |
+
+- Over [20.5, 21] ms the spray took 917 s of e1h's 1,336 (69%) and 381 s of i10k's 493 (77%), from the cumulative shares at each line. The rest, mostly the gas, took 419 s against 112 s: 3.7 times. So the implicit step cuts the gas's time 3.7 times and the spray's 2.4 times.
+- On the base mesh past t_L the spray is therefore 3.2 (e1h) to 4.4 (i10k) times the gas's time, against S7's 1.5 to 1.7 on AMR meshes, where the gas costs far more per step.
+- e1h took 2,529 base steps over [20.5, 21] ms and i10k 599, so the spray's cost has a part per base step (every parcel takes at least one sub-step per base step) and a part per sub-step set by the drop's own limits.
+- The liquid was still building at 21 ms (e1h: 16,544 parcels at 20.5 ms, 38,932 at 21.0), so the pace per ms will slow further until the parcel count levels off (inferred). At 2,700 s per ms, e1s's and e2s's window H (to 30 ms) takes at least about 7 h each, and i10s's at about 1,000 s per ms at least 2.5 h (derived, lower bounds).
