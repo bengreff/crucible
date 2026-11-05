@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <stdexcept>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -313,9 +315,16 @@ void ReactingFlow::react(double dt) {
       if (!equilibrium) ++worker.integrated;
       worker.z[0] = flow_.temperature(q);
       std::copy(y.begin(), y.end(), worker.z.begin() + 1);
-      if (equilibrium) worker.source.equilibrateUV(rho, worker.z.data());
-      else if (closure_) worker.step.advance(rho, worker.z.data(), dt, {mixingTime_[q], segregation_[q]}, closureSpecies_);
-      else worker.step.advance(rho, worker.z.data(), dt);
+      try {
+        if (equilibrium) worker.source.equilibrateUV(rho, worker.z.data());
+        else if (closure_) worker.step.advance(rho, worker.z.data(), dt, {mixingTime_[q], segregation_[q]}, closureSpecies_);
+        else worker.step.advance(rho, worker.z.data(), dt);
+      } catch (const std::runtime_error& e) {
+        // The cell it failed at, for the record (SPEED_PLAN.md 7.3).
+        char text[256];
+        std::snprintf(text, sizeof text, " (cell %zu: T %.6e K, rho %.6e kg/m3, dt %.3e s)", q, flow_.temperature(q), rho, dt);
+        throw std::runtime_error(e.what() + std::string(text));
+      }
       double sum = 0;
       for (std::size_t k = 0; k < ns; ++k) {
         worker.clipped = std::max(worker.clipped, -worker.z[k + 1]);
@@ -373,7 +382,7 @@ double ReactingFlow::step(double maxDt) {
   return taken;
 }
 
-double ReactingFlow::implicitStep(double dt, const Flow::ImplicitControl& control, bool inside) {
+double ReactingFlow::implicitStep(double dt, const Flow::ImplicitControl& control, bool inside, bool again) {
   if (chemistry_ == Chemistry::FiniteRate || spray_)
     throw std::runtime_error("The implicit prototype takes equilibrium or frozen chemistry and no spray.");
   if (inside && !table_) throw std::runtime_error("The projection inside the implicit step needs Table A.");
@@ -390,8 +399,9 @@ double ReactingFlow::implicitStep(double dt, const Flow::ImplicitControl& contro
         throw std::runtime_error(std::string("The projection failed: ") + e.what());
       }
     };
+  if (!again && !inside) throw std::invalid_argument("The projection after the step is skipped only with it inside.");
   const double taken = flow_.implicitStep(dt, c);
-  react(taken);
+  if (again) react(taken);
   ++stats_.steps;
   return taken;
 }

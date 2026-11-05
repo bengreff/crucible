@@ -10,7 +10,7 @@
 namespace crucible {
 
 Amr::Amr(const Definition& base,int finer) {
-    if(finer<1 || finer>3) throw std::invalid_argument("AMR takes 1 to 3 levels above the base.");
+    if(finer<0 || finer>3) throw std::invalid_argument("AMR takes 0 to 3 levels above the base.");
     // The finest mesh from the definition, each coarser one the exact union of its children.
     Definition finest=base;finest.nz=base.nz<<finer;finest.nr=base.nr<<finer;
     std::vector<Mesh> meshes;
@@ -24,7 +24,8 @@ Amr::Amr(const Definition& base,int finer) {
     }
     const Flow& b=level(0);
     ghost_=b.nt_?3:2;
-    for(int l=0;l<=finer;++l) {
+    // With no level above the base nothing refluxes, so the base records no face integrals.
+    for(int l=0;l<=finer && finer>0;++l) {
         Flow& f=level(l);
         f.recordFaces_=true;
         f.faceIntegral_.assign((f.axialFlux_.size()+f.radialFlux_.size())*(4+f.nw_),0.0);
@@ -646,13 +647,39 @@ double Amr::step(double maxDt) {
         if(advance(0,time_,dt,0)) {
             time_=landing?event:time_+dt;++steps_;
             for(auto& v:levels_) v.flow->time_=time_;
-            if(tagged_ && steps_%static_cast<std::uint64_t>(tags_.interval)==0) regrid(false);
+            if(tagged_ && levels()>1 && steps_%static_cast<std::uint64_t>(tags_.interval)==0) regrid(false);
             return dt;
         }
         restore();++rejected_;dt*=0.5;landing=false;
         if(redo_) redo_();
     }
     throw std::runtime_error("AMR: could not advance an admissible state after 14 base-step reductions.");
+}
+double Amr::implicitStep(double maxDt,const Flow::ImplicitControl& control) {
+    if(!(maxDt>0)) throw std::invalid_argument("Step interval must be positive.");
+    if(levels()!=1) throw std::invalid_argument("The implicit step runs on the base alone (no level above it).");
+    if(!checked_) check();
+    if(!started_) { initial_=content();started_=true; }
+    Flow& f=level(0);
+    if(!f.bodyForce_.empty() || !f.heating_.empty()) throw std::invalid_argument("AMR step B1 takes no body force or heating.");
+    f.time_=time_;
+    double dt=maxDt;
+    // BDF2's variable-step form is zero-stable for step ratios below 1 + sqrt(2): after a short step (one ended on
+    // an event) the step grows by at most 2 a step.
+    const bool history=f.implicitPreviousDt_>0 && f.implicitEndTime_==f.time_ && f.implicitEndSteps_==f.steps_;
+    if(history) dt=std::min(dt,2*f.implicitPreviousDt_);
+    // With a time tolerance, the step its error chose, and without a history (no predictor) the explicit stable step.
+    if(control.timeTolerance>0) dt=std::min(dt,history && f.implicitSuggestedDt_>0?f.implicitSuggestedDt_:f.stableDt());
+    const double event=f.nextEvent(time_);
+    bool landing=false;
+    if(event-time_<=dt) { dt=event-time_;landing=true; }
+    const std::uint64_t before=f.implicitStats_.rejected;
+    const double taken=f.implicitStep(dt,control);
+    rejected_+=f.implicitStats_.rejected-before;
+    if(afterStep_) afterStep_(0,taken);
+    time_=landing && taken==dt?event:time_+taken;++steps_;
+    f.time_=time_;f.implicitEndTime_=f.time_;
+    return taken;
 }
 void Amr::advanceTo(double target) {
     if(!std::isfinite(target) || target<time_) throw std::invalid_argument("Invalid target time.");

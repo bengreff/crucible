@@ -498,3 +498,7 @@ The FAILs of criteria 4 and 5 judged at about 02:50 to 03:10 CDT stay on record 
 | Criterion 4's order (at least 1) | p_inj 1.66, 0.03; outlet 1.71, 0.11; F_vac 0.55, 1.17: FAIL | p_inj 3.57, 0.79; outlet 0.58, 1.68; F_vac 1.57, 1.21: FAIL |
 
 The remaining failures are (a) m25's fixed point at the largest step on the finer mesh, an implicit defect whose cause is not identified; (b) floors in the reference (the explicit's split error in p_inj, and the period mean's lag in the outlet flow); and (c) F_vac's order of 0.55 from τ_C1/25 to τ_C1/63 on 64x12, not explained.
+
+## The port to tier 1 (4 and 5 November 2026)
+
+The prototype's step was ported to the full gas step (transport, SST, wall functions) on tier 1's base mesh. Its agreement test, the failures of the fixed-step runs, the two fixes (the turbulence defect in the stopping rule, time-error step control) and the measured 2.6 to 3.3 speed-up in the lead are in `SPEED_PLAN.md`, sections 7.1 to 7.3.

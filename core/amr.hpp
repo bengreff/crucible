@@ -22,7 +22,8 @@ namespace crucible {
 // active cells with the flow; without it the pattern is setActive's.
 class Amr {
 public:
-    // base: the level-0 definition; finer: the number of levels above it (1 to 3).
+    // base: the level-0 definition; finer: the number of levels above it (0 to 3; 0, the base alone, for the implicit
+    // step and for comparisons with it).
     Amr(const Definition& base, int finer);
     [[nodiscard]] int levels() const { return static_cast<int>(levels_.size()); }
     Flow& level(int l) { return *levels_[static_cast<std::size_t>(l)].flow; }
@@ -47,6 +48,10 @@ public:
     // on the base's schedule events; on a non-admissible stage anywhere the whole base step is redone
     // from the saved levels at half the size.
     double step(double maxDt = std::numeric_limits<double>::infinity());
+    // One implicit step of the base alone (Flow::implicitStep, docs/evidence/IMPLICIT_PROTOTYPE.md) of at most maxDt,
+    // at most twice the last implicit step, ended on the base's schedule events; then the after-step hook (level 0).
+    // The step's own reductions are counted in rejectedSteps. Needs a single level.
+    double implicitStep(double maxDt, const Flow::ImplicitControl& control);
     void advanceTo(double time);
     [[nodiscard]] double time() const { return time_; }
     [[nodiscard]] std::uint64_t steps() const { return steps_; }

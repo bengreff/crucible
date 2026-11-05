@@ -432,41 +432,62 @@ public:
     // continued run is the uninterrupted one bit for bit.
     void writeCheckpoint(CheckpointWriter& out) const;
     void readCheckpoint(CheckpointReader& in);
-    // The implicit prototype (docs/evidence/IMPLICIT_PROTOTYPE.md; one level, inviscid, no turbulence). One physical
-    // step of dt by BDF2, solved by dual time: LU-SGS sweeps on the Rusanov split of the convective Jacobian, the
-    // scalar diagonal plus V / (a dt), each cell's pseudo-time step pseudoCfl times its convective limit. The history
-    // is the state at the start of the last implicit step; the first step, or one after the state was stepped by
-    // anything else, is backward Euler, and a step of another size than the last takes the variable-step coefficients.
+    // The implicit step (docs/evidence/IMPLICIT_PROTOTYPE.md; one level without regions, with or without transport,
+    // SST and wall functions). One physical step of dt by BDF2, solved by dual time: LU-SGS sweeps on the Rusanov split
+    // of the convective Jacobian (with transport, plus each face's thin-layer viscous estimate), the scalar diagonal
+    // plus V / (a dt), each cell's pseudo-time step pseudoCfl times its convective limit. With turbulence the SST
+    // sources are Strang-split around the transport as in the explicit step (half a step with the coefficients at the
+    // start, half with those at the new state), the wall functions prescribe the wall cells' rho k and rho omega at each
+    // iterate and at the end (booked, as the explicit stages'), and rho k is clipped at 0 at the end (booked; the iterate
+    // floors it, so nothing is clipped there now).
+    // The history is the last step's increment (U^(n+1) before anything split after it, less U^n after the first half
+    // source; with the projection inside, the bulk and species after it, as it is part of the step's equations):
+    // U_known = U^n + c increment. Split operators (the half sources, the wall functions, a
+    // projection, a closure's after-step hook) are then outside it, so the settled state is the split scheme's
+    // R + (their change) / h = 0; with the difference U^n - U^(n-1) as the history it is a R + their change / h = 0
+    // (IMPLICIT_PROTOTYPE.md, the m25 trace). Without split operators the two are the same to the bit. The first
+    // step, or one after the state was stepped by anything else, is backward Euler, and a step of another size than
+    // the last takes the variable-step coefficients.
     // The inner loop ends when the defect d = U - U_known - a dt R(U), as an RMS over the volume of each bulk component
-    // over its scale (rho, rho a, rho a, E of U^n), is at most tolerance; the step is then U_known + a dt R of the last
-    // iterate, so the budgets, booked with the same coefficients, close to rounding. An iterate's cell update is damped
-    // until the cell is admissible; a final state that is not admissible, or a failed evaluation, halves the step (at
-    // most 14 times). Returns the step taken.
-    // extrapolate: the first iterate U^n + w (U^n - U^(n-1)) in each cell where it is admissible (U^n elsewhere and
+    // over its scale (rho, rho a, rho a, E of U^n), and of rho k and rho omega over their RMS (both over the cells the
+    // wall functions do not prescribe), is at most tolerance; the step is then U_known + a dt R of the last iterate, so
+    // the budgets, booked with the same coefficients, close to rounding, and rho k and rho omega are the last iterate's
+    // (they carry no budget, and the update form can take rho omega below 0). An iterate's cell update is damped
+    // until the cell is admissible (rho k at least 0 and rho omega at least half its value); a final state that is not
+    // admissible, or a failed evaluation, halves the step (at most 14 times). Returns the step taken.
+    // extrapolate: the first iterate U^n + w increment in each cell where it is admissible (U^n elsewhere and
     // without a history); trace: each inner iteration's defect to stdout. project, when set, is called before each
     // residual with the iterate swapped into the state (a closure's projection of the composition, such as Table A's,
-    // inside the step instead of split after it).
+    // inside the step instead of split after it), and on the final state before it is judged. timeTolerance, when
+    // above 0, bounds the time error (the step's increment against the predictor U^n + w increment, per cell over its
+    // own scales, as an RMS over the cells): a step over it is redone shorter, and Amr::implicitStep takes the next
+    // step from it (the first at the explicit stable step). 0: the step is the caller's.
     struct ImplicitControl {
         double tolerance{1e-6}; int maxIterations{100}; double pseudoCfl{1e6}; bool extrapolate{false}, trace{false};
+        double timeTolerance{0};
         std::function<void()> project;
     };
     struct ImplicitStats {
         std::uint64_t steps{}, iterations{}, rejected{}, unconverged{}, rejectedIterations{};  // the last: spent on rejected attempts
+        std::uint64_t timeRejected{};  // of rejected, those over the time tolerance
         int lastIterations{}, mostIterations{};
-        double lastDefect{}, lastFirstDefect{};
+        // lastTurbulenceDefect: the last iterate's rho k and rho omega defects as the bulk's, over their RMS (in the
+        // stopping rule). lastExplicitDt: the explicit step's stable interval at the last step's start (with transport
+        // or turbulence, which need stableDt's refresh; 0 otherwise).
+        double lastDefect{}, lastFirstDefect{}, lastTurbulenceDefect{}, lastExplicitDt{}, lastTimeError{};
     };
     double implicitStep(double dt, const ImplicitControl& control);
     [[nodiscard]] const ImplicitStats& implicitStats() const { return implicitStats_; }
 private:
-    // The implicit prototype's history (the state at the start of the last implicit step and that step), its time and
-    // step count at the end of that step (a mismatch means something else stepped), the budgets' increments of that
-    // step, and the sweeps' scratch.
-    std::vector<Conserved> implicitPrevious_;
-    std::vector<double> implicitPreviousSpecies_;
-    double implicitPreviousDt_{}, implicitEndTime_{-1};
+    // The implicit step's history (the last step's transport increment, bulk, species and turbulence per cell, and that
+    // step), its time and step count at the end of that step (a mismatch means something else stepped), the budgets'
+    // increments of that step, and the sweeps' scratch.
+    std::vector<double> implicitPreviousIncrement_;
+    double implicitPreviousDt_{}, implicitEndTime_{-1}, implicitSuggestedDt_{};
     std::uint64_t implicitEndSteps_{};
     std::array<double, 6> implicitIncrement_{};
     std::vector<double> implicitKnown_, implicitDelta_, implicitDiagonal_, implicitAxialRate_, implicitRadialRate_;
+    std::vector<double> implicitNu_, implicitAxialViscous_, implicitRadialViscous_;
     ImplicitStats implicitStats_;
     void implicitSweeps(double diagonalTime, double pseudoCfl);
     friend class Amr;

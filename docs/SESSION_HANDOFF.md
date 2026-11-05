@@ -2,6 +2,15 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
+## Working (5 November, about 00:05 CST; inquiry, the speed brief: SPEED_PLAN.md and the implicit port)
+
+**State at 00:05** (interim; the park entry replaces this):
+- `docs/evidence/SPEED_PLAN.md` sections 1 to 7.2 committed (5d4a41c, 07a332f, not pushed yet); 7.3 drafted in the working tree.
+- The implicit port's code is uncommitted: `core/flow.hpp`, `core/flow_implicit.cpp`, `core/amr.cpp`, `core/amr.hpp`, `adapters/reacting_flow.*`, `tests/chamber_study.cpp`, `tests/rl10_tier1.cpp`, `tools/agreement_tier1.py`. Fix 1 (turbulence in the stopping rule) and Fix 2 (time-error step control) are in it (SPEED_PLAN.md 7.3).
+- Gate (Mac, 00:02): the explicit path is `cmp`-identical to 5d4a41c's binaries (27 files, `~/crucible_runs/2026-11-04/gate/result2.txt`); case P has the same steps and iterations, values equal to the 5 digits printed.
+- Agreement runs (Mac, slot, one thread each, `~/crucible_runs/2026-11-04/agree/<name>/`, checkpoints every 30 min, `done` files): e1 at 13.5 ms, i10t at 15.5 ms, i5t at 15.0 ms. e2 stopped at its 23:58 checkpoint (13.5 ms) to free a slot; it resumes with `./run.sh e2 2` from `agree/`.
+- **Every run's wall since about 11 to 13 ms is 84 to 100% in the p0 instrument** (Cantera equilibrate on gas below 200 K, every 10 μs sample; `sample` stacks). The march is cheap there. At this pace e1 does not reach t_L = 20 ms by 05:30 (derived). The p0 probe (`~/crucible_runs/2026-11-04/p0probe/`) counts its SP solves per cell.
+
 ## Stopped at (24 October, about 04:42 CDT; inquiry, the Director's 04:20 decisions)
 
 **The Director (04:20):** "1. Re-judge criterion 5 against the period-mean (outlet-flux) reference. The bar doesn't move... Re-measure criterion 4 against the same reference. 2. Fix the explicit history so it reports period-mean thrust, with a test. Then audit... List only tonight; fixes next session. 3. Tier 1 opts into inquiry2's low-temperature thermo... record the frozen-inputs amendment, dated, before any RL10 output. 4. L4: stop it, keep its checkpoint, and note it for diagnosis next session... Let L8/H4/H8/H4s run. If 1 passes on re-judging, the implicit path is the speed lever: next session's first item is porting it into tier 1 under development mode. Park by 05:30 at a clean commit."

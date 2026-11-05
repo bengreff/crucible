@@ -359,6 +359,12 @@ int main(int argc, char** argv) {
                 implicitControl.maxIterations, implicitControl.pseudoCfl, implicitControl.extrapolate ? "on" : "off",
                 implicitInside ? "inside each inner iteration and after the step" : "after the step (split)");
   }
+  // CRUCIBLE_IMPLICIT_KICK (the m25 trace, IMPLICIT_PROTOTYPE.md; with the projection inside): 1 projects again after
+  // the step here and logs the largest change of a partial density over the density it made (kick column); 2 skips
+  // that second projection.
+  const int implicitKick = std::getenv("CRUCIBLE_IMPLICIT_KICK") ? std::atoi(std::getenv("CRUCIBLE_IMPLICIT_KICK")) : 0;
+  if (implicitKick && !(implicitInside && implicitDt > 0)) throw std::runtime_error("CRUCIBLE_IMPLICIT_KICK needs the projection inside");
+  if (implicitKick) std::printf("implicit kick trace: %s\n", implicitKick == 1 ? "the second projection measured" : "the second projection skipped");
   // CRUCIBLE_IMPLICIT_WINDOW = "from,until": the implicit march only over [from, until), the explicit one outside it
   // (criterion 5's diagnosis: each march's boundary rates at the other's settled state).
   double implicitFrom = 0, implicitUntil = std::numeric_limits<double>::infinity();
@@ -810,7 +816,7 @@ int main(int argc, char** argv) {
     std::fflush(history);
   };
   std::FILE* implicitLog = implicitDt > 0 ? std::fopen((prefix + "_implicit.csv").c_str(), "w") : nullptr;
-  if (implicitLog) std::fprintf(implicitLog, "t,dt,iterations,first_defect,last_defect,rejected_so_far\n");
+  if (implicitLog) std::fprintf(implicitLog, "t,dt,iterations,first_defect,last_defect,rejected_so_far%s\n", implicitKick == 1 ? ",kick" : "");
   auto march = [&](double end) {
   while (flow.time() < end && !settledStop) {
     if (implicitDt > 0 && flow.time() >= implicitFrom - 1e-12 && flow.time() < implicitUntil - 1e-12) {
@@ -820,10 +826,21 @@ int main(int argc, char** argv) {
       double target = (std::floor(flow.time() / implicitDt + 1e-6) + 1) * implicitDt;
       if (end - target < 1e-12) target = end;
       if (implicitUntil - target < 1e-12) target = std::min(target, implicitUntil);
-      reacting.implicitStep(target - flow.time(), implicitControl, implicitInside);
+      const double taken = reacting.implicitStep(target - flow.time(), implicitControl, implicitInside, implicitKick == 0);
+      double kick = 0;
+      if (implicitKick == 1) {
+        const std::vector<double> before = flow.partialDensities();
+        reacting.react(taken);
+        const std::size_t ns = flow.medium().size();
+        for (std::size_t q = 0; q < flow.state().size(); ++q)
+          for (std::size_t k = 0; k < ns; ++k)
+            kick = std::max(kick, std::abs(flow.partialDensities()[q * ns + k] - before[q * ns + k]) / flow.state()[q][0]);
+      }
       const auto& s = flow.implicitStats();
-      std::fprintf(implicitLog, "%.9e,%.6e,%d,%.4e,%.4e,%llu\n", flow.time(), flow.measurements().dt, s.lastIterations,
+      std::fprintf(implicitLog, "%.9e,%.6e,%d,%.4e,%.4e,%llu", flow.time(), flow.measurements().dt, s.lastIterations,
                    s.lastFirstDefect, s.lastDefect, static_cast<unsigned long long>(s.rejected));
+      if (implicitKick == 1) std::fprintf(implicitLog, ",%.4e", kick);
+      std::fprintf(implicitLog, "\n");
       nextSample = flow.time();
     } else {
     double target = std::min({end, nextSample, nextSnapshot < snapshots.size() ? snapshots[nextSnapshot] : end});

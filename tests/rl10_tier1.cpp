@@ -13,7 +13,11 @@
 //        crucible_rl10_tier1 selftest                  (the settle judge and the run length's moving window, R4)
 // The run takes CRUCIBLE_MANIFOLD_TABLE (Table B), and in development CRUCIBLE_T1_BASE (149x16), _LEVELS (3),
 // _LEAD [s] (t_L, 20e-3), _END [s] (the simulated time, t_L + 1e-3), _THREADS (4), _OUT (the files' prefix, rl10_t1) and
-// _RATE_FACTOR (1), _CFL (Definition::cfl, 0.4), _SEED (the spray's, 1). Restart (tests/checkpoint_file.hpp, docs/evidence/RESTART.md): CRUCIBLE_CHECKPOINT=<stem> writes
+// _RATE_FACTOR (1), _CFL (Definition::cfl, 0.4), _SEED (the spray's, 1), _IMPLICIT ("dt,tolerance[,iterations[,pseudo CFL[,
+// extrapolate[,time tolerance]]]]": Flow::implicitStep on the base alone, _LEVELS 0, at most dt a step, and with a time
+// tolerance the step its time error chooses; the BDF2 history is not checkpointed, so a restarted run's first step is
+// backward Euler; docs/evidence/SPEED_PLAN.md, section 7), _COLDEST (1: the coldest base cell per sample, to
+// <out>_coldest.csv). Restart (tests/checkpoint_file.hpp, docs/evidence/RESTART.md): CRUCIBLE_CHECKPOINT=<stem> writes
 // checkpoints and CRUCIBLE_RESTART=auto continues from the latest, bit for bit the uninterrupted run; _THREADS may
 // change and _END be extended across a restart. On any exit the run writes <out>_done ("exit N"), <out> being
 // rl10_t1_central or <_OUT>_DEVELOPMENT; a killed process writes none.
@@ -261,12 +265,15 @@ int selftest() {
 
 // Equilibrium isentropic stagnation pressure of a cell, and its column's mass-flux average (chamber_study's, which
 // rl10dev used); NaN while the column's net forward mass flux is not positive.
+long stagnationSolves = 0, stagnationCells = 0;  // the SP equilibria and cells p0 took (SPEED_PLAN.md 7.3)
 double stagnationPressure(Cantera::ThermoPhase& gas, double t, double p, const double* y, double kinetic) {
+  ++stagnationCells;
   gas.setState_TPY(t, p, y);
   gas.equilibrate("TP");
   const double s = gas.entropy_mass(), h0 = gas.enthalpy_mass() + kinetic;
   double p0 = p;
   for (int n = 0; n < 50; ++n) {
+    ++stagnationSolves;
     gas.setState_SP(s, p0);
     gas.equilibrate("SP");
     double step = (h0 - gas.enthalpy_mass()) / (p0 / gas.density());
@@ -298,6 +305,8 @@ struct Setup {
   int argc{};
   char** argv{};  // the run's signature (tests/checkpoint_file.hpp)
   int levels{3}, threads{4};
+  double implicitDt{};  // > 0: the implicit step (development only)
+  Flow::ImplicitControl implicit;
   double end{1e-3}, rateFactor{1}, core{}, cylinderEnd{}, chamberFlow{};
   double lead{20e-3};  // t_L, the H2 lead (tier1_run_definition.md, the start amendment)
   Definition definition;
@@ -383,6 +392,7 @@ int runCase(const Setup& s) {
     double t{}, mdot{}, fvac{}, ispChamber{}, ispInlet{}, p0{}, pFace{}, cstar{}, qWall{}, qFace{}, liquid{}, parcels{};
     double areaError{};
   };
+  double p0Wall = 0;  // the p0 instrument's wall time (its equilibrium solves; SPEED_PLAN.md 7.3)
   auto sample = [&]() {
     Sample x;
     x.t = amr.time();
@@ -404,7 +414,9 @@ int runCase(const Setup& s) {
     x.fvac += spray.ledger().injectionThrust + spray.ledger().wallThrust;
     x.ispChamber = x.fvac / (kG0 * s.chamberFlow);
     x.ispInlet = x.fvac / (kG0 * (kEngineFuel + kOxidizer));
+    const auto p0Clock = std::chrono::steady_clock::now();
     x.p0 = columnStagnation(base, gas, endColumn);
+    p0Wall += std::chrono::duration<double>(std::chrono::steady_clock::now() - p0Clock).count();
     x.pFace = pressureArea / area;
     x.areaError = rel(area, faceArea);
     x.cstar = x.mdot > 0 ? x.p0 * at / x.mdot : std::nan("");
@@ -480,10 +492,10 @@ int runCase(const Setup& s) {
       cells += !o;
       o = 1;
     }
-    std::printf("\n--- t %.3f ms  [%s]\n  %llu base steps (%llu redone), %llu regrids; wall %.0f s, the spray's share %.1f%%; active cells",
+    std::printf("\n--- t %.3f ms  [%s]\n  %llu base steps (%llu redone), %llu regrids; wall %.0f s, the spray's share %.1f%%, p0's %.1f%% (%ld SP solves over %ld cells); active cells",
                 x.t * 1e3, label.c_str(), static_cast<unsigned long long>(amr.steps()),
                 static_cast<unsigned long long>(amr.rejectedSteps()), static_cast<unsigned long long>(amr.regrids()), wall,
-                wall > 0 ? 100 * spray.wallTime() / wall : 0.0);
+                wall > 0 ? 100 * spray.wallTime() / wall : 0.0, wall > 0 ? 100 * p0Wall / wall : 0.0, stagnationSolves, stagnationCells);
     for (int l = 1; l < amr.levels(); ++l) {
       long n = 0;
       for (const auto a : amr.active(l)) n += a;
@@ -495,6 +507,16 @@ int runCase(const Setup& s) {
                 x.cstar, x.qWall, x.qFace);
     std::printf("  liquid %.6g kg in %.0f parcels; within %.2f mm of the face: T_max %.1f K, %ld parcels in %ld finest cells (%.2f per cell)\n",
                 x.liquid, x.parcels, core * 1e3, tMax, near, cells, cells ? static_cast<double>(near) / cells : 0.0);
+    if (s.implicitDt > 0) {
+      const auto& st = amr.level(0).implicitStats();
+      std::printf("  implicit: %llu steps, %.2f inner iterations per step (most %d), %llu unconverged, %llu rejected (%llu on the "
+                  "time error); the last: %d iterations, defect %.3e from %.3e, turbulence %.3e, time error %.3e, step %.4g s; "
+                  "explicit stable step %.4g s\n",
+                  static_cast<unsigned long long>(st.steps), st.steps ? static_cast<double>(st.iterations) / st.steps : 0.0,
+                  st.mostIterations, static_cast<unsigned long long>(st.unconverged), static_cast<unsigned long long>(st.rejected),
+                  static_cast<unsigned long long>(st.timeRejected), st.lastIterations, st.lastDefect, st.lastFirstDefect,
+                  st.lastTurbulenceDefect, st.lastTimeError, amr.level(0).measurements().dt, st.lastExplicitDt);
+    }
     if (stepped)
       std::printf("  budgets: (a) gas %.2e, (b) liquid %.2e, (c) whole system %.2e (limit 1e-11)\n", b[0], b[1], b[2]);
     else
@@ -612,13 +634,31 @@ int runCase(const Setup& s) {
   };
   // The run ends at s.end, or at t_s + 25 ms once t_s is known (decision C; the central case's s.end is the ceiling's).
   auto runEnd = [&] { return settledK ? std::min(s.end, static_cast<double>(settledK + kContinuation) * kSample) : s.end; };
+  // CRUCIBLE_T1_COLDEST=1 (SPEED_PLAN.md 7.3): the coldest base cell after any step of each sample interval, to
+  // <out>_coldest.csv (t, T, cell).
+  std::FILE* coldestCsv = env("CRUCIBLE_T1_COLDEST", 0) ? std::fopen((s.out + "_coldest.csv").c_str(), "w") : nullptr;
+  double coldest = std::numeric_limits<double>::infinity();
+  std::size_t coldestCell = 0;
   while (amr.time() < runEnd() - 1e-13) {
     const double t = amr.time(), next = static_cast<double>(k + 1) * kSample;
     const double other = std::min({runEnd() - t, spray.nextEvent(t) - t, next - t}), bound = spray.exchangeDt();
-    const double dt = amr.step(std::min(other, bound));
+    const double dt = s.implicitDt > 0 ? amr.implicitStep(std::min({other, bound, s.implicitDt}), s.implicit)
+                                       : amr.step(std::min(other, bound));
     smallestBound = std::min(smallestBound, bound);
     shortened += bound < other && dt >= bound * (1 - 1e-12);
+    if (coldestCsv) {
+      const Flow& base = amr.level(0);
+      for (std::size_t q = 0; q < base.state().size(); ++q) {
+        const double T = base.temperature(q);
+        if (!(T >= coldest)) { coldest = T; coldestCell = q; }
+      }
+    }
     if (amr.time() < next - 1e-13) continue;
+    if (coldestCsv) {
+      std::fprintf(coldestCsv, "%.9e,%.6e,%zu\n", amr.time(), coldest, coldestCell);
+      std::fflush(coldestCsv);
+      coldest = std::numeric_limits<double>::infinity();
+    }
     ++k;
     const Sample x = sample();
     worstGrid = std::max(worstGrid, std::abs(x.t - static_cast<double>(k) * kSample));
@@ -1273,6 +1313,23 @@ int main(int argc, char** argv) {
       setup.end = env("CRUCIBLE_T1_END", setup.lead + 1e-3);  // the simulated time, not counted from t_L
       setup.rateFactor = env("CRUCIBLE_T1_RATE_FACTOR", 1);
       setup.out = std::string(std::getenv("CRUCIBLE_T1_OUT") ? std::getenv("CRUCIBLE_T1_OUT") : "rl10_t1") + "_DEVELOPMENT";
+      if (const char* v = std::getenv("CRUCIBLE_T1_IMPLICIT")) {
+        double dt = 0, tolerance = 0, iterations = 400, pseudo = 3, extrapolate = 1, timeTolerance = 0;
+        if (std::sscanf(v, "%lf,%lf,%lf,%lf,%lf,%lf", &dt, &tolerance, &iterations, &pseudo, &extrapolate, &timeTolerance) < 2 ||
+            !(dt > 0) || !(tolerance > 0) || !(timeTolerance >= 0))
+          throw std::invalid_argument("CRUCIBLE_T1_IMPLICIT: dt,tolerance[,iterations[,pseudo CFL[,extrapolate[,time tolerance]]]]");
+        if (setup.levels != 0) throw std::invalid_argument("CRUCIBLE_T1_IMPLICIT runs the base alone: CRUCIBLE_T1_LEVELS=0");
+        setup.implicitDt = dt;
+        setup.implicit.tolerance = tolerance;
+        setup.implicit.maxIterations = static_cast<int>(iterations);
+        setup.implicit.pseudoCfl = pseudo;
+        setup.implicit.extrapolate = extrapolate != 0;
+        setup.implicit.timeTolerance = timeTolerance;
+        std::printf("implicit (development): BDF2 at most %.4g s a step, inner tolerance %.4g, at most %d inner iterations, pseudo CFL "
+                    "%.3g, extrapolated first iterate %s, time tolerance %.4g%s; the base alone\n", dt, tolerance,
+                    setup.implicit.maxIterations, pseudo, setup.implicit.extrapolate ? "on" : "off", timeTolerance,
+                    timeTolerance > 0 ? "" : " (off: the step is the cap)");
+      }
     } else {
       setup.end = setup.lead + 85e-3;
     }
