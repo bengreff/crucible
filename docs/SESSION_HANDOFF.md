@@ -2,14 +2,9 @@
 
 23 October 2026 · branch `main` (one line). The spray worker (step 5) on `main`; inquiry2 works in `.claude/worktrees/inquiry2` (RL10 contour, AMR, table generalisation, and transport cost in `core/medium.*`, `core/transport.cpp`, `core/flow.*`, `contour.*`: not touched from here). The 6 October state is in this file's git history (`git show 15d6777:docs/SESSION_HANDOFF.md`).
 
-## Working (5 November, about 00:05 CST; inquiry, the speed brief: SPEED_PLAN.md and the implicit port)
+## Working (5 November, about 02:40 CST; inquiry, the speed brief: SPEED_PLAN.md and the implicit port)
 
-**State at 00:05** (interim; the park entry replaces this):
-- `docs/evidence/SPEED_PLAN.md` sections 1 to 7.2 committed (5d4a41c, 07a332f, not pushed yet); 7.3 drafted in the working tree.
-- The implicit port's code is uncommitted: `core/flow.hpp`, `core/flow_implicit.cpp`, `core/amr.cpp`, `core/amr.hpp`, `adapters/reacting_flow.*`, `tests/chamber_study.cpp`, `tests/rl10_tier1.cpp`, `tools/agreement_tier1.py`. Fix 1 (turbulence in the stopping rule) and Fix 2 (time-error step control) are in it (SPEED_PLAN.md 7.3).
-- Gate (Mac, 00:02): the explicit path is `cmp`-identical to 5d4a41c's binaries (27 files, `~/crucible_runs/2026-11-04/gate/result2.txt`); case P has the same steps and iterations, values equal to the 5 digits printed.
-- Agreement runs (Mac, slot, one thread each, `~/crucible_runs/2026-11-04/agree/<name>/`, checkpoints every 30 min, `done` files): e1 at 13.5 ms, i10t at 15.5 ms, i5t at 15.0 ms. e2 stopped at its 23:58 checkpoint (13.5 ms) to free a slot; it resumes with `./run.sh e2 2` from `agree/`.
-- **Every run's wall since about 11 to 13 ms is 84 to 100% in the p0 instrument** (Cantera equilibrate on gas below 200 K, every 10 μs sample; `sample` stacks). The march is cheap there. At this pace e1 does not reach t_L = 20 ms by 05:30 (derived). The p0 probe (`~/crucible_runs/2026-11-04/p0probe/`) counts its SP solves per cell.
+**Interim; the park entry replaces this.** Committed and pushed: 28865e3, 7eb8956, 37fde78 (SPEED_PLAN.md 7.3 to 7.5: window L passes on the implicit step at 6.8 to 7.5 times the explicit speed; the p0 and CVODES fixes past t_L; the 200 K cold limit). Hot-window runs on backhouse (`/home/greff/crucible_p0/agree/`, binary `t1_c` through the symlinks `t1_h` and `t1_r`): e1h and e2h from 16 ms, i10k from 0, all past 20 ms at 02:34, registered as `agree_e1h`, `agree_e2h`, `agree_i10k` with the resume runner. Window H needs all three at 30 ms.
 
 ## Stopped at (24 October, about 04:42 CDT; inquiry, the Director's 04:20 decisions)
 
