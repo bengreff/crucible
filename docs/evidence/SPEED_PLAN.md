@@ -348,3 +348,36 @@ The step size used on tier 1 is the largest that passes both windows.
 - So the limit's effect on the lead (0.029% on mdot, derived) is below the platform's own (0.076% on i10t, 7.4) and 70 times below window L's 2% bar (derived).
 - Speed-up on [0.5, 20] ms: 6.82 (i10k 227 s against e1's 1,548 s). i10k took 3,622 steps (107 redone) to 20 ms, against 3,607 (99) for its first attempt without the limit (now `agree/i10k_nc`), so the limit saves no work in the lead.
 - With the limit and check 6: the core, turbulence and chemistry_skip ctests passed (3 of 3, 02:33), and tier 1's selftest failed 0 checks (`t1_c`).
+
+### 7.6 The hot window: every run fails about 1 ms past t_L, on the spray's sub-step (5 November; backhouse, gcc 13; all numbers measured unless labelled)
+
+**The failure.** e1h, e2h (explicit, seeds 1 and 2) and i10k (implicit) all run window H on `t1_c` from their lead checkpoints. All three break within about 1 ms of t_L:
+- the liquid's energy budget, (b), is 4e-14 at 20.5 ms and 1.7e-8 to 5.0e-7 at 21.0 ms;
+- e1h stops at 21.03 ms and i10k at about 20.88 ms, both on "Spray: the heat-transfer number's residual is NaN" (the guard added for the 23 October NaN, `face_inlet/leak_2026-10-23/spray_nan/`, reached here by another route);
+- e2h was stopped at 03:14, past 21.0 ms with (b) at 1.7e-8, since it was on the same path.
+
+**Two probes, from i10k's 20.81 ms checkpoint** (print-only copies of the code; switches outside the CRUCIBLE_* environment, so the checkpoint's signature holds):
+- Probe 1 prints the three liquid budgets after every base step. The energy budget is 2.7e-14 at 20.810 ms, then jumps to 5.23e-9 in the one step ending at 20.8378 ms, and climbs in steps from there; mass and momentum stay at about 5e-14.
+- Probe 2 prints a sub-step whose corrector leaves the enthalpy below the LOX table. The first: a 1.54 μm drop at 93.89 K, condensation clamped (so the evaporation is zero at stage 1), in gas at 183.93 K and 579,378 Pa with Y_O2 0.8545 (T_sat 110.94 K); sub-step 0.773 μs. Its corrector puts h at -4.694e5 J/kg against the table's floor of -4.649e5 (54.361 K, the triple point), and 43% of the drop's mass goes in that one sub-step.
+
+**The mechanism** (the drop's state measured, the reading of it from the code):
+- Stage 1 sees a condensing drop, so its stiffness limit counts the conductance alone and allows a heating of up to a quarter of the gas-to-drop difference, about 22 K here (derived).
+- The predictor lands just short of saturation. There the surface's O2 mole fraction p_sat/p approaches 1, and the Spalding number (Y_s - Y_inf)/(1 - Y_s) grows without bound, since the other gas is H2, so Y_s runs to 1 faster still.
+- Stage 2's evaporation is then far stiffer than stage 1 allowed. The corrector takes h below the table, and `LiquidOxygen::temperature` clamps silently at 54.361 K: the parcel's energy is recomputed from the clamped T, which creates energy (the budget's jump).
+- A later corrector on such a drop takes s = m^(2/3) below zero: the mass is NaN, so the Spalding residual is NaN.
+
+**The fix** (core/spray.cpp, `Spray::moveParcel`):
+- After stage 2, its own limits (a quarter of the mass time, and a quarter of the thermal time when not boiling, both at the predictor) are computed.
+- A sub-step over twice them is retaken at them, at most 30 times. The factor 2 leaves every sub-step that was already smooth exactly as it was.
+- A corrector that takes the mass below zero now throws by name. Bound (derived): with both limits met, s falls by at most a quarter in a sub-step, so this cannot fire unless the 30 retakes run out.
+
+**Check F3, pre-registered** (written 5 November at about 03:20 CST, before it was built or run; in `tests/spray_tests.cpp`):
+- The probed drop alone, in a chamber at rest (4 x 2 cells, 4 mm by 2 mm), filled with O2 0.27 and H2 0.73 by moles (Y_O2 0.8545, derived) at 579,378.25 Pa and 183.932 K.
+  - The drop: d 1.544204 μm, T 93.894757 K, at rest, count 1. One-way coupling; breakup and dispersion off.
+  - At rest its Nusselt number is 2, not the run's, so the step that lands the predictor just short of saturation differs from the probe's 0.773 μs. Hence a sweep: one `advance(dt)` for each dt from 0.10 to 1.70 μs by 0.02 μs (81 runs), each run a fresh spray on the same flow.
+- Pass, on every run:
+  - nothing throws;
+  - the drop either vaporised, or its T is finite, at least its start (it is heated, and the clamped condensation adds nothing) and above the table's floor;
+  - the liquid energy budget (`balanceErrors()[1]`) is at most 1e-12 in magnitude.
+  - Reported: the worst budget, the coldest end T, and the most sub-steps in a run.
+- Expected: FAIL on the unfixed spray.cpp (some dt ends on the floor, or throws), PASS with the fix. The other spray checks keep their verdicts.
